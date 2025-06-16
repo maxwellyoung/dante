@@ -12,7 +12,7 @@ The player begins all-powerful in Paradiso and descends through the circles of I
 
 1.  **Tactile, Perfect Controls:** The player's movement is the primary verb. Every jump, dash, and step must feel responsive and satisfying. If the controls aren't perfect, nothing else matters.
 
-    - _Inspiration: Celeste, Super Mario_
+    - _Inspiration: Celeste, Super Mario, Vlambeer_
 
 2.  **A Dense, Unfolding World:** The world is the main character. Each circle is a single, interconnected screen (or small series of screens) filled with secrets, shortcuts, and non-obvious paths. The level design is the puzzle.
 

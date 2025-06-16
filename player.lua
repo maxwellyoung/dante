@@ -3,9 +3,13 @@ Player.__index = Player
 
 local GRAVITY = 1200
 local MOVE_SPEED = 300
+local SPRINT_SPEED = 450
 local JUMP_FORCE = -500
 local DASH_SPEED = 700
 local DASH_DURATION = 0.15
+local WALL_SLIDE_SPEED = 100
+local COYOTE_TIME = 0.1
+local JUMP_BUFFER_TIME = 0.1
 
 function Player:new(x, y)
     local self = setmetatable({}, Player)
@@ -24,11 +28,29 @@ function Player:new(x, y)
     self.is_dashing = false
     self.dash_timer = 0
     self.dash_direction = {x = 0, y = 0}
+    self.has_wall_cling = true
+    self.is_wall_sliding = false
+    self.on_wall = 0 -- Will be updated by level collision handler
+    self.coyote_timer = 0
+    self.jump_buffer_timer = 0
 
     return self
 end
 
 function Player:update(dt)
+    -- Timers
+    if self.coyote_timer > 0 then self.coyote_timer = self.coyote_timer - dt end
+    if self.jump_buffer_timer > 0 then self.jump_buffer_timer = self.jump_buffer_timer - dt end
+
+    if self.is_grounded then
+        self.coyote_timer = COYOTE_TIME
+    end
+
+    if self.jump_buffer_timer > 0 and self.coyote_timer > 0 then
+        self:jump(true) -- Force a jump
+        self.jump_buffer_timer = 0
+    end
+
     if self.is_dashing then
         -- Dashing logic
         self.dash_timer = self.dash_timer - dt
@@ -42,13 +64,30 @@ function Player:update(dt)
         end
     else
         -- Normal movement logic
+        local current_move_speed = MOVE_SPEED
+        if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
+            current_move_speed = SPRINT_SPEED
+        end
+
         -- Horizontal movement
         if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
-            self.vx = -MOVE_SPEED
+            self.vx = -current_move_speed
         elseif love.keyboard.isDown("right") or love.keyboard.isDown("d") then
-            self.vx = MOVE_SPEED
+            self.vx = current_move_speed
         else
             self.vx = 0
+        end
+
+        -- Wall slide logic
+        self.is_wall_sliding = false
+        if self.has_wall_cling and self.on_wall ~= 0 and not self.is_grounded then
+            if self.vy > 0 then -- Only slide down
+                self.is_wall_sliding = true
+                if self.vy > WALL_SLIDE_SPEED then
+                    self.vy = WALL_SLIDE_SPEED
+                end
+                self.jumps_made = 0 -- Reset jumps on wall contact
+            end
         end
 
         -- Apply gravity
@@ -60,10 +99,22 @@ function Player:update(dt)
     self.y = self.y + self.vy * dt
 end
 
-function Player:jump()
-    if self.is_grounded then
+function Player:jump(force)
+    force = force or false
+    if not force and self.jump_buffer_timer <= 0 then
+        self.jump_buffer_timer = JUMP_BUFFER_TIME
+        return
+    end
+
+    if self.is_wall_sliding then
+        self.vy = JUMP_FORCE
+        self.vx = -self.on_wall * MOVE_SPEED * 1.2 -- Wall jump away with extra force
+        self.is_wall_sliding = false
+        self.jumps_made = 1
+    elseif self.coyote_timer > 0 then
         self.vy = JUMP_FORCE
         self.is_grounded = false
+        self.coyote_timer = 0 -- Consume coyote time
         self.jumps_made = 1
     elseif self.has_double_jump and self.jumps_made < 2 then
         self.vy = JUMP_FORCE
