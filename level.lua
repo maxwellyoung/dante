@@ -87,13 +87,44 @@ function Level:get_tile(world_x, world_y)
 end
 
 function Level:handle_collisions(player)
-    -- This will need a new tile-based collision system.
-    -- For now, we'll just implement a simple floor.
-    if player.y + player.height > self.map_height * TILE_SIZE - TILE_SIZE then
-        player.y = self.map_height * TILE_SIZE - TILE_SIZE - player.height
-        player.vy = 0
-        player.is_grounded = true
-        player.jumps_made = 0
+    player.is_grounded = false
+    player.on_wall = 0
+
+    local dt = love.timer.getDelta()
+    local next_x = player.x + player.vx * dt
+    local next_y = player.y + player.vy * dt
+    
+    -- Check for collision in the player's next position
+    if player.vx ~= 0 then -- Horizontal collision
+        if player.vx > 0 then
+            if self:get_tile(next_x + player.width, player.y) > 0 or self:get_tile(next_x + player.width, player.y + player.height) > 0 then
+                player.x = math.floor((player.x + player.vx * dt) / TILE_SIZE) * TILE_SIZE - player.width
+                player.vx = 0
+                player.on_wall = 1
+            end
+        else -- vx < 0
+            if self:get_tile(next_x, player.y) > 0 or self:get_tile(next_x, player.y + player.height) > 0 then
+                player.x = (math.floor(player.x + player.vx * dt / TILE_SIZE) + 1) * TILE_SIZE
+                player.vx = 0
+                player.on_wall = -1
+            end
+        end
+    end
+    
+    if player.vy ~= 0 then -- Vertical collision
+        if player.vy > 0 then
+            if self:get_tile(player.x, next_y + player.height) > 0 or self:get_tile(player.x + player.width, next_y + player.height) > 0 then
+                player.y = math.floor((player.y + player.vy * dt) / TILE_SIZE) * TILE_SIZE - player.height
+                player.is_grounded = true
+                player.vy = 0
+                player.jumps_made = 0
+            end
+        else -- vy < 0
+            if self:get_tile(player.x, next_y) > 0 or self:get_tile(player.x + player.width, next_y) > 0 then
+                player.y = (math.floor((player.y + player.vy * dt) / TILE_SIZE) + 1) * TILE_SIZE
+                player.vy = 0
+            end
+        end
     end
 end
 

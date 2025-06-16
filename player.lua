@@ -146,7 +146,7 @@ function Player:update(dt)
     
     self.current_animation:update(dt)
 
-    -- Update position
+    -- Update position based on velocity
     self.x = self.x + self.vx * dt
     self.y = self.y + self.vy * dt
 end
