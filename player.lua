@@ -53,7 +53,7 @@ end
 
 function Player:reset_abilities()
     self.has_double_jump = true
-    self.has_dash = true
+    self.has_dash = false
     self.has_wall_cling = true
 end
 
@@ -222,7 +222,12 @@ function Player:draw()
     love.graphics.setColor(1, 1, 1) -- Ensure player is not tinted by other draws
     local sx = self.facing_direction
     local ox = self.width / 2
-    self.current_animation:draw(self.x + ox, self.y, 0, sx, 1, ox, 0)
+    if self.current_animation and self.current_animation.draw then
+        self.current_animation:draw(self.x + ox, self.y, 0, sx, 1, ox, 0)
+    else
+        -- Fallback to a rectangle if animation is missing
+        love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+    end
 end
 
 return Player

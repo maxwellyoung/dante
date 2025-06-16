@@ -5,6 +5,9 @@ function Level:new()
     local self = setmetatable({}, Level)
     self.platforms = {}
     self.hazards = {}
+    self.wind_areas = {}
+    self.background_color = {0.1, 0.1, 0.1, 1} -- Default dark grey
+    self.platform_color = {1, 1, 1, 1} -- Default white
 
     if g_current_circle == 0 then
         -- Paradiso: Requires double jump or dash to cross the gap
@@ -30,12 +33,34 @@ function Level:new()
     elseif g_current_circle == 2 then
         -- Lust (No Dash): Requires momentum control (sprinting)
         self.start_pos = {x = 100, y = 500}
+        self.background_color = {0.3, 0.1, 0.2, 1} -- Moody purplish-red
+        self.platform_color = {0.8, 0.6, 0.7, 1} -- Lighter, dusty rose
+
         self.platforms = {
             {0, 550, 200, 50},   -- Start
             -- A long gap that requires a running start to clear
             {450, 550, 350, 50}, -- End
         }
+        self.wind_areas = {
+            -- A wind zone pushing the player to the right
+            {x = 200, y = 0, width = 250, height = 600, force_x = 150, force_y = 0}
+        }
         self.gate = {x = 750, y = 500, width = 20, height = 50}
+
+        -- Add a particle emitter for the wind
+        if g_particles then
+            g_particles:add_emitter({
+                x = 200, y = 0, width = 250, height = 600,
+                count = 100,
+                rate = 50,
+                particle_props = {
+                    vx_min = 50, vx_max = 100,
+                    vy_min = -10, vy_max = 10,
+                    life_min = 2, life_max = 4,
+                    color = {0.8, 0.6, 0.7, 1}
+                }
+            })
+        end
 
     elseif g_current_circle == 3 then
         -- Gluttony (No Wall Cling): Requires careful drops and air control
@@ -68,6 +93,7 @@ function Level:new()
 end
 
 function Level:draw()
+    love.graphics.setColor(self.platform_color)
     for _, p in ipairs(self.platforms) do
         love.graphics.rectangle("fill", p[1], p[2], p[3], p[4])
     end
@@ -76,12 +102,10 @@ function Level:draw()
     for _, h in ipairs(self.hazards) do
         love.graphics.rectangle("fill", h[1], h[2], h[3], h[4])
     end
-    love.graphics.setColor(1, 1, 1)
 
     -- Draw the gate in a different color
     love.graphics.setColor(1, 0, 1) -- Purple
     love.graphics.rectangle("fill", self.gate.x, self.gate.y, self.gate.width, self.gate.height)
-    love.graphics.setColor(1, 1, 1) -- Reset to white
 end
 
 -- AABB collision check
@@ -90,6 +114,10 @@ local function check_collision(a, b)
            a.x + a.width > b.x and
            a.y < b.y + b.height and
            a.y + a.height > b.y
+end
+
+function Level:handle_wind(player, dt)
+    -- Wind physics will go here. For now, it does nothing.
 end
 
 function Level:check_hazard_collision(player)
@@ -107,6 +135,12 @@ end
 
 function Level:check_gate_collision(player)
     return check_collision(player, self.gate)
+end
+
+function Level:reset()
+    if g_particles then
+        g_particles.emitters = {}
+    end
 end
 
 function Level:handle_collisions(player)
