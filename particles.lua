@@ -1,7 +1,8 @@
 Particles = {}
+Particles.__index = Particles
 
 function Particles:new()
-    local self = {}
+    local self = setmetatable({}, Particles)
     self.systems = {}
     return self
 end

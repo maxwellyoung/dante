@@ -11,7 +11,7 @@ This file tracks the development progress of the game.
 
 ## Art & Aesthetics
 
-- [ ] Create a real spritesheet for the player with idle, run, jump, fall, and dash animations.
+- [x] Create a real spritesheet for the player with idle, run, jump, fall, and dash animations.
 - [ ] Create a simple tileset for the level geometry to replace the solid-color rectangles.
 - [ ] Design distinct visual themes for each Circle of Inferno (e.g., grayscale for Limbo, red shift for Lust).
 - [ ] Add more particle effects for wall slides, landing hard, etc.

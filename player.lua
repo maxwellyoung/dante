@@ -25,12 +25,13 @@ function Player:new(x, y)
     self.is_grounded = false
     
     -- Animations
-    local cols, rows = 3, 2
     self.animations = {
-        idle = Animation.new("player_sprites.png", 32, 32, 1, {1}, cols, rows),
-        run = Animation.new("player_sprites.png", 32, 32, 0.6, {1, 2, 3, 4, 5, 6}, cols, rows),
-        jump = Animation.new("player_sprites.png", 32, 32, 1, {3}, cols, rows),
-        fall = Animation.new("player_sprites.png", 32, 32, 1, {4}, cols, rows)
+        idle = Animation.new("player_sprites.png", 32, 64, 1, {1}),
+        run = Animation.new("player_sprites.png", 32, 64, 0.4, {2, 3, 4}),
+        jump = Animation.new("player_sprites.png", 32, 64, 1, {5}),
+        fall = Animation.new("player_sprites.png", 32, 64, 1, {6}),
+        dash = Animation.new("player_sprites.png", 32, 64, 1, {7}),
+        wall_slide = Animation.new("player_sprites.png", 32, 64, 1, {8}),
     }
     self.current_animation = self.animations.idle
     self.facing_direction = 1 -- 1 for right, -1 for left
@@ -127,7 +128,11 @@ function Player:update(dt)
     end
 
     -- Update animation based on state
-    if not self.is_grounded then
+    if self.is_dashing then
+        self.current_animation = self.animations.dash
+    elseif self.is_wall_sliding then
+        self.current_animation = self.animations.wall_slide
+    elseif not self.is_grounded then
         if self.vy < 0 then
             self.current_animation = self.animations.jump
         else
