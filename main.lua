@@ -9,8 +9,8 @@ g_current_circle = 0
 g_particles = nil
 g_effects = nil
 
-local abilities_to_lose = {"has_double_jump", "has_dash", "has_wall_cling"}
-local player, level, gameState -- These are local to main.lua
+local abilities_to_lose = {"has_dash", "has_double_jump", "has_wall_cling"}
+local player, level, gameState, vignette_shader -- These are local to main.lua
 
 function advance_circle()
     g_current_circle = g_current_circle + 1
@@ -44,16 +44,24 @@ end
 function love.update(dt)
     if gameState == "playing" then
         if g_particles then g_particles:update(dt) end
+        if level then level:update(dt) end
         if player then player:update(dt) end
         if level and player then level:handle_wind(player, dt) end
         if level and player then level:handle_collisions(player) end
 
         if level and player and level:check_hazard_collision(player) then
-            game_reset()
+            gameState = "dead"
+            player.death_timer = 1 -- Wait 1 second before reset
             return
         end
         if level and player and level:check_gate_collision(player) then
             advance_circle()
+        end
+    elseif gameState == "dead" then
+        player.death_timer = player.death_timer - dt
+        if player.death_timer <= 0 then
+            gameState = "playing"
+            game_reset()
         end
     end
 end
@@ -68,6 +76,14 @@ function love.draw()
     if g_particles then g_particles:draw() end
 
     if player and g_effects then g_effects:draw_ui(player) end
+
+    if gameState == "dead" then
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle("fill", 0, 0, 800, 600)
+        love.graphics.setColor(1, 0, 0)
+        love.graphics.printf("YOU DIED", 0, 280, 800, "center")
+        love.graphics.setColor(1, 1, 1)
+    end
 
     if gameState == "paused" then
         love.graphics.setColor(0, 0, 0, 0.5)
@@ -87,9 +103,12 @@ function love.keypressed(key)
     end
 
     if key == "r" then
-        g_current_circle = 0
-        if player then player:reset_abilities() end
         game_reset()
+    end
+
+    if key == "f" then
+        local is_fullscreen, fstype = love.window.getFullscreen()
+        love.window.setFullscreen(not is_fullscreen, "desktop")
     end
 
     if gameState == "playing" and player then

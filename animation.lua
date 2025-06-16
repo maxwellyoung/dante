@@ -1,7 +1,7 @@
 local Animation = {}
 Animation.__index = Animation
 
-function Animation.new(image_path, frame_width, frame_height, duration, frames, cols, rows)
+function Animation.new(image_path, frame_width, frame_height, duration, frames)
     local self = setmetatable({}, Animation)
     self.image = love.graphics.newImage(image_path)
     self.quads = {}
@@ -13,17 +13,10 @@ function Animation.new(image_path, frame_width, frame_height, duration, frames, 
     local img_width = self.image:getWidth()
     local img_height = self.image:getHeight()
 
-    rows = rows or 1
-    cols = cols or math.floor(img_width / frame_width)
-
-    for r = 0, rows - 1 do
-        for c = 0, cols - 1 do
-            local x = c * frame_width
-            local y = r * frame_height
-            -- Only add quad if it's within image bounds
-            if x < img_width and y < img_height then
-                table.insert(all_quads, love.graphics.newQuad(x, y, frame_width, frame_height, self.image:getDimensions()))
-            end
+    -- Read quads left-to-right, then top-to-bottom
+    for y = 0, img_height - frame_height, frame_height do
+        for x = 0, img_width - frame_width, frame_width do
+            table.insert(all_quads, love.graphics.newQuad(x, y, frame_width, frame_height, img_width, img_height))
         end
     end
     
@@ -52,9 +45,7 @@ function Animation:update(dt)
 end
 
 function Animation:draw(x, y, angle, sx, sy, ox, oy)
-    if self.quads[self.current_frame_index] then
-        love.graphics.draw(self.image, self.quads[self.current_frame_index], x, y, angle, sx, sy, ox, oy)
-    end
+    love.graphics.draw(self.image, self.quads[self.current_frame_index], x, y, angle, sx, sy, ox, oy)
 end
 
 return Animation
