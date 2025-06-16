@@ -45,7 +45,9 @@ function Animation:update(dt)
 end
 
 function Animation:draw(x, y, angle, sx, sy, ox, oy)
-    love.graphics.draw(self.image, self.quads[self.current_frame_index], x, y, angle, sx, sy, ox, oy)
+    if self.quads[self.current_frame_index] then
+        love.graphics.draw(self.image, self.quads[self.current_frame_index], x, y, angle, sx, sy, ox, oy)
+    end
 end
 
 return Animation
