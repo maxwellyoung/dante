@@ -1,0 +1,24 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Project Overview: Infernal Ascent
+
+This project is a 2D platformer named "Infernal Ascent" built with the [LÖVE](https://love2d.org/) framework in Lua. The game's theme is inspired by Dante's Inferno, where the player descends through circles of hell, losing an ability at each stage.
+
+## Core Mechanics
+
+The central concept revolves around `g_current_circle`, a global variable that tracks the player's progress. The game is structured into different levels or "circles". When the player reaches the gate at the end of a level, the circle advances, and the player is stripped of a key ability (double jump, dash, or wall cling). The levels are designed to be completed without the lost ability, thus increasing the challenge.
+
+## File Breakdown
+
+The project is structured into several single-purpose Lua modules.
+
+-   `[conf.lua](mdc:conf.lua)`: LÖVE configuration file. Sets basic window properties like title and dimensions.
+-   `[main.lua](mdc:main.lua)`: The main entry point of the game. It manages the main game loop (`love.load`, `love.update`, `love.draw`), game state (playing, paused), and orchestrates the interactions between all other modules.
+-   `[player.lua](mdc:player.lua)`: Defines the `Player` object, handling all player-related logic, including movement physics (running, jumping, dashing, wall-sliding), animations, and abilities. It also contains platforming assists like coyote time and jump buffering.
+-   `[level.lua](mdc:level.lua)`: Responsible for generating and managing the game levels. Based on `g_current_circle`, it loads different layouts of platforms, hazards, and the exit gate. It also contains all the collision detection and resolution logic between the player and the level geometry.
+-   `[animation.lua](mdc:animation.lua)`: A simple module for creating and managing frame-by-frame animations from spritesheets. Used by `player.lua` for character animations.
+-   `[effects.lua](mdc:effects.lua)`: Manages visual effects, acting as a bridge between game events (like jumping or landing) and the particle system. It also draws a simple UI to show the player's currently active abilities.
+-   `[particles.lua](mdc:particles.lua)`: A basic particle system for creating cosmetic effects like dust clouds for jumps, lands, and dashes.

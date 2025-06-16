@@ -1,6 +1,9 @@
-Player = {}
+local Animation = require("animation")
+
+local Player = {}
 Player.__index = Player
 
+-- Constants
 local GRAVITY = 1200
 local MOVE_SPEED = 300
 local SPRINT_SPEED = 450
@@ -16,25 +19,48 @@ function Player:new(x, y)
     self.x = x
     self.y = y
     self.width = 32
-    self.height = 64
+    self.height = 32
     self.vx = 0
     self.vy = 0
     self.is_grounded = false
     
+    -- Animations
+    local cols, rows = 3, 2
+    self.animations = {
+        idle = Animation.new("player_sprites.png", 32, 32, 1, {1}, cols, rows),
+        run = Animation.new("player_sprites.png", 32, 32, 0.6, {1, 2, 3, 4, 5, 6}, cols, rows),
+        jump = Animation.new("player_sprites.png", 32, 32, 1, {3}, cols, rows),
+        fall = Animation.new("player_sprites.png", 32, 32, 1, {4}, cols, rows)
+    }
+    self.current_animation = self.animations.idle
+    self.facing_direction = 1 -- 1 for right, -1 for left
+
     -- Abilities
-    self.has_double_jump = true
     self.jumps_made = 0
-    self.has_dash = true
     self.is_dashing = false
     self.dash_timer = 0
     self.dash_direction = {x = 0, y = 0}
-    self.has_wall_cling = true
     self.is_wall_sliding = false
     self.on_wall = 0 -- Will be updated by level collision handler
     self.coyote_timer = 0
     self.jump_buffer_timer = 0
 
+    self:reset_abilities()
+
     return self
+end
+
+function Player:reset_abilities()
+    self.has_double_jump = true
+    self.has_dash = true
+    self.has_wall_cling = true
+end
+
+function Player:reset_position(x, y)
+    self.x = x
+    self.y = y
+    self.vx = 0
+    self.vy = 0
 end
 
 function Player:update(dt)
@@ -50,7 +76,7 @@ function Player:update(dt)
         self:jump(true) -- Force a jump
         self.jump_buffer_timer = 0
     end
-
+    
     if self.is_dashing then
         -- Dashing logic
         self.dash_timer = self.dash_timer - dt
@@ -92,7 +118,28 @@ function Player:update(dt)
 
         -- Apply gravity
         self.vy = self.vy + GRAVITY * dt
+
+        if self.vx > 0 then
+            self.facing_direction = 1
+        elseif self.vx < 0 then
+            self.facing_direction = -1
+        end
     end
+
+    -- Update animation based on state
+    if not self.is_grounded then
+        if self.vy < 0 then
+            self.current_animation = self.animations.jump
+        else
+            self.current_animation = self.animations.fall
+        end
+    elseif self.vx ~= 0 then
+        self.current_animation = self.animations.run
+    else
+        self.current_animation = self.animations.idle
+    end
+    
+    self.current_animation:update(dt)
 
     -- Update position
     self.x = self.x + self.vx * dt
@@ -106,24 +153,34 @@ function Player:jump(force)
         return
     end
 
+    local did_jump = false
     if self.is_wall_sliding then
         self.vy = JUMP_FORCE
         self.vx = -self.on_wall * MOVE_SPEED * 1.2 -- Wall jump away with extra force
         self.is_wall_sliding = false
         self.jumps_made = 1
+        did_jump = true
     elseif self.coyote_timer > 0 then
         self.vy = JUMP_FORCE
         self.is_grounded = false
         self.coyote_timer = 0 -- Consume coyote time
         self.jumps_made = 1
+        did_jump = true
     elseif self.has_double_jump and self.jumps_made < 2 then
         self.vy = JUMP_FORCE
         self.jumps_made = self.jumps_made + 1
+        did_jump = true
+    end
+
+    if did_jump then
+        g_effects:jump(self.x + self.width/2, self.y + self.height)
     end
 end
 
 function Player:dash()
     if not self.has_dash or self.is_dashing then return end
+
+    g_effects:dash(self.x + self.width/2, self.y + self.height/2)
 
     self.is_dashing = true
     self.dash_timer = DASH_DURATION
@@ -157,7 +214,10 @@ function Player:dash()
 end
 
 function Player:draw()
-    love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+    love.graphics.setColor(1, 1, 1) -- Ensure player is not tinted by other draws
+    local sx = self.facing_direction
+    local ox = self.width / 2
+    self.current_animation:draw(self.x + ox, self.y, 0, sx, 1, ox, 0)
 end
 
-return Player 
+return Player

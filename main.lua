@@ -1,30 +1,63 @@
 local Player = require("player")
 local Level = require("level")
+local Particles = require("particles")
+local Effects = require("effects")
+local Animation = require("animation")
+
+local g_current_circle
+local abilities_to_lose = {"has_double_jump", "has_dash", "has_wall_cling"}
+local player, level, g_particles, g_effects, gameState
+
+function advance_circle()
+    g_current_circle = g_current_circle + 1
+    local ability_lost = abilities_to_lose[g_current_circle]
+
+    if ability_lost and player then
+        player[ability_lost] = false
+        print("Ability lost: " .. ability_lost)
+    end
+    
+    game_reset()
+end
 
 function game_reset()
-    player = Player:new(400, 450)
     level = Level:new()
+    if player and level and level.start_pos then
+        player:reset_position(level.start_pos.x, level.start_pos.y)
+    end
 end
 
 function love.load()
-    -- This function is called exactly once at the beginning of the game.
-    print("Infernal Ascent is loading!")
+    g_particles = Particles:new()
+    g_effects = Effects:new(g_particles)
+    player = Player:new(0,0)
+    g_current_circle = 0
     gameState = "playing"
     game_reset()
 end
 
 function love.update(dt)
-    -- This function is called every frame. 'dt' is the time since the last frame.
     if gameState == "playing" then
-        player:update(dt)
-        level:handle_collisions(player)
+        if g_particles then g_particles:update(dt) end
+        if player then player:update(dt) end
+        if level and player then level:handle_collisions(player) end
+
+        if level and player and level:check_hazard_collision(player) then
+            game_reset()
+            return
+        end
+        if level and player and level:check_gate_collision(player) then
+            advance_circle()
+        end
     end
 end
 
 function love.draw()
-    -- This function is called every frame to draw things to the screen.
-    level:draw()
-    player:draw()
+    if level then level:draw() end
+    if player then player:draw() end
+    if g_particles then g_particles:draw() end
+
+    if player and g_effects then g_effects:draw_ui(player) end
 
     if gameState == "paused" then
         love.graphics.setColor(0, 0, 0, 0.5)
@@ -44,10 +77,12 @@ function love.keypressed(key)
     end
 
     if key == "r" then
+        g_current_circle = 0
+        if player then player:reset_abilities() end
         game_reset()
     end
 
-    if gameState == "playing" then
+    if gameState == "playing" and player then
         if key == "space" or key == "up" or key == "w" then
             player:jump()
         elseif key == "z" or key == "x" or key == "k" then
