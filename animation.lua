@@ -1,7 +1,7 @@
 local Animation = {}
 Animation.__index = Animation
 
-function Animation.new(image_path, frame_width, frame_height, duration, frames)
+function Animation:new(image_path, frame_width, frame_height, duration, frames)
     local self = setmetatable({}, Animation)
     self.image = love.graphics.newImage(image_path)
     self.quads = {}

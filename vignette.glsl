@@ -7,7 +7,7 @@ vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) 
     // Combine texture color with vertex color for compatibility
     vec4 original_color = Texel(texture, texture_coords) * color;
 
-    float distance = distance(texture_coords, center);
+    float distance = distance(screen_coords, center);
     float vignette = smoothstep(radius, radius - softness, distance);
 
     return vec4(original_color.rgb * vignette, original_color.a);
