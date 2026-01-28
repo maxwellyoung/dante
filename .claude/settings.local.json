@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lua -c:*)",
+      "Bash(luac:*)",
+      "Bash(/Applications/love.app/Contents/MacOS/love /Users/maxwellyoung/Development/dante)",
+      "Bash(ls:*)"
+    ]
+  }
+}

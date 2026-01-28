@@ -1,71 +1,84 @@
 -- camera.lua
--- A simple camera that handles letterboxing and follows a target.
+-- A simple camera that follows a target within a low-resolution canvas.
 
-local Camera = {}
+Camera = {}
 Camera.__index = Camera
 
--- Camera settings
-local LERP_RATE = 4 -- How quickly the camera follows the player (higher is faster)
-local NATIVE_WIDTH = 800
-local NATIVE_HEIGHT = 600
-
-function Camera:new(target)
+function Camera:new(player)
     local self = setmetatable({}, Camera)
-    self.target = target
+    self.player = player
     self.x = 0
     self.y = 0
-
-    self.scale = 1
-    self.offset_x = 0
-    self.offset_y = 0
-    
-    if self.target then
-        self.x = self.target.x - NATIVE_WIDTH / 2
-        self.y = self.target.y - NATIVE_HEIGHT / 2
-    end
-    
-    self:resize(love.graphics.getWidth(), love.graphics.getHeight())
-    
+    self.scale = 1 -- Scale is now handled by the main render pipeline
+    self.shake_duration = 0
+    self.shake_intensity = 0
     return self
 end
 
 function Camera:update(dt)
-    if not self.target then return end
+    -- Camera Shake Logic
+    if self.shake_duration > 0 then
+        self.shake_duration = self.shake_duration - dt
+        if self.shake_duration <= 0 then
+            self.shake_intensity = 0
+        end
+    end
 
-    -- Smoothly interpolate camera position towards the target
-    local target_x = self.target.x - NATIVE_WIDTH / 2
-    local target_y = self.target.y - NATIVE_HEIGHT / 2
-    
-    self.x = self.x + (target_x - self.x) * LERP_RATE * dt
-    self.y = self.y + (target_y - self.y) * LERP_RATE * dt
-end
+    -- Smoothly follow the player, centering on the native resolution
+    local target_x = self.player.x - g_native_width / 2
+    local target_y = self.player.y - g_native_height / 2
 
-function Camera:resize(w, h)
-    local native_aspect = NATIVE_WIDTH / NATIVE_HEIGHT
-    local window_aspect = w / h
+    -- Smooth interpolation
+    self.x = self.x + (target_x - self.x) * 5 * dt
+    self.y = self.y + (target_y - self.y) * 5 * dt
 
-    if window_aspect > native_aspect then
-        -- Window is wider than the game (letterbox)
-        self.scale = h / NATIVE_HEIGHT
-        self.offset_x = (w - NATIVE_WIDTH * self.scale) / 2
-        self.offset_y = 0
-    else
-        -- Window is taller than the game (pillarbox)
-        self.scale = w / NATIVE_WIDTH
-        self.offset_x = 0
-        self.offset_y = (h - NATIVE_HEIGHT * self.scale) / 2
+    -- Clamp to level bounds if level exists
+    if g_level then
+        local level_width = g_level.map_width * 32
+        local level_height = g_level.map_height * 32
+        self.x = math.max(0, math.min(self.x, level_width - g_native_width))
+        self.y = math.max(0, math.min(self.y, level_height - g_native_height))
     end
 end
 
 function Camera:attach()
     love.graphics.push()
-    love.graphics.translate(self.offset_x, self.offset_y)
     love.graphics.scale(self.scale, self.scale)
-    love.graphics.translate(-math.floor(self.x), -math.floor(self.y))
+    local shake_x = (math.random() * 2 - 1) * self.shake_intensity
+    local shake_y = (math.random() * 2 - 1) * self.shake_intensity
+    love.graphics.translate(-math.floor(self.x + shake_x), -math.floor(self.y + shake_y))
 end
 
 function Camera:detach()
     love.graphics.pop()
+end
+
+function Camera:shake(intensity, duration)
+    self.shake_intensity = intensity
+    self.shake_duration = duration
+end
+
+function Camera:reset()
+    if self.player then
+        self.x = self.player.x - g_native_width / 2
+        self.y = self.player.y - g_native_height / 2
+    end
+    self.shake_intensity = 0
+    self.shake_duration = 0
+end
+
+function Camera:to_world(x, y)
+    -- No scaling needed here anymore
+    local world_x = x + self.x
+    local world_y = y + self.y
+    return world_x, world_y
+end
+
+function Camera:to_screen(world_x, world_y)
+    -- No scaling needed here anymore
+    local screen_x = world_x - self.x
+    local screen_y = world_y - self.y
+    return screen_x, screen_y
 end
 
 return Camera 
