@@ -1,164 +1,291 @@
 -- ui.lua
--- Dante's Inferno themed UI with Vlambeer-style juice
+-- Readability-first HUD with authored slice presentation.
 
 local UI = {}
 UI.__index = UI
 
--- The Nine Circles of Hell
-local CIRCLES = {
-    [0] = { name = "LIMBO", color = {0.5, 0.5, 0.6}, desc = "The Unbaptized" },
-    [1] = { name = "LUST", color = {0.9, 0.3, 0.5}, desc = "Slaves to Desire" },
-    [2] = { name = "GLUTTONY", color = {0.6, 0.4, 0.2}, desc = "The Insatiable" },
-    [3] = { name = "GREED", color = {0.9, 0.7, 0.1}, desc = "Hoarders & Wasters" },
-    [4] = { name = "WRATH", color = {0.9, 0.2, 0.1}, desc = "The Wrathful" },
-    [5] = { name = "HERESY", color = {0.4, 0.1, 0.4}, desc = "Deniers of Truth" },
-    [6] = { name = "VIOLENCE", color = {0.7, 0.1, 0.1}, desc = "Against All" },
-    [7] = { name = "FRAUD", color = {0.2, 0.3, 0.5}, desc = "The Deceivers" },
-    [8] = { name = "TREACHERY", color = {0.1, 0.2, 0.4}, desc = "Frozen in Ice" },
-}
-
 function UI:new()
-    local self = setmetatable({}, UI)
-    self.time = 0
-    self.shake = 0
-    self.flash_alpha = 0
-    return self
+    local class = self or UI
+    local instance = setmetatable({}, class)
+    instance.time = 0
+    instance.flash_alpha = 0
+    instance.banner = nil
+    instance.chapter_card = nil
+    return instance
 end
 
 function UI:update(dt)
     self.time = self.time + dt
-    self.shake = math.max(0, self.shake - dt * 10)
-    self.flash_alpha = math.max(0, self.flash_alpha - dt * 3)
+    self.flash_alpha = math.max(0, self.flash_alpha - dt * 4)
+
+    if self.banner then
+        self.banner.timer = self.banner.timer - dt
+        if self.banner.timer <= 0 then
+            self.banner = nil
+        end
+    end
+
+    if self.chapter_card then
+        self.chapter_card.timer = self.chapter_card.timer - dt
+        if self.chapter_card.timer <= 0 then
+            self.chapter_card = nil
+        end
+    end
 end
 
 function UI:trigger_flash()
-    self.flash_alpha = 0.3
+    self.flash_alpha = 0.18
 end
 
-function UI:draw_health(health, max_health)
-    local size = 14
-    local spacing = 3
-    local start_x = g_native_width - 20 - (max_health * (size + spacing))
+function UI:show_banner(title, subtitle, accent)
+    self.banner = {
+        title = title,
+        subtitle = subtitle,
+        accent = accent or { 0.9, 0.55, 0.18 },
+        timer = 2.4,
+    }
+end
+
+function UI:show_scene_intro(scene, room_index, room_count)
+    local long_form = scene.mode == "campaign"
+        and (scene.room_type == "transition" or room_index == 1 or scene.room_type == "gate")
+
+    self:show_banner(scene.title or "SCENE", scene.subtitle or "", scene.accent_color)
+
+    if not long_form then
+        return
+    end
+
+    self.chapter_card = {
+        title = scene.title or "SCENE",
+        subtitle = scene.subtitle or "",
+        accent = scene.accent_color or { 0.9, 0.55, 0.18 },
+        timer = 3.2,
+        removed_ability = scene.removed_ability or "none",
+        environment_hook = scene.environment_hook or "",
+        progress = string.format("Room %d / %d", room_index or 1, room_count or 1),
+    }
+end
+
+function UI.draw_health(_, health, max_health)
+    local start_x = g_native_width - 16 - (max_health * 16)
     local y = 12
 
-    -- Souls/Health label
-    love.graphics.setColor(0.6, 0.4, 0.4, 0.8)
-    love.graphics.print("VITAE", start_x - 40, y + 2)
+    love.graphics.setColor(0.92, 0.55, 0.18, 1)
+    love.graphics.print("VITAE", start_x - 42, y + 2)
 
-    for i = 1, max_health do
-        local x = start_x + (i - 1) * (size + spacing)
-        local pulse = math.sin(self.time * 3 + i) * 0.1
-
-        if i <= health then
-            -- Full soul - burning ember
-            love.graphics.setColor(0.9 + pulse, 0.3, 0.1, 1)
-            love.graphics.rectangle("fill", x, y, size, size, 3, 3)
-            -- Inner glow
-            love.graphics.setColor(1, 0.6 + pulse, 0.2, 0.8)
-            love.graphics.rectangle("fill", x + 3, y + 3, size - 6, size - 6, 2, 2)
+    for index = 1, max_health do
+        local x = start_x + (index - 1) * 16
+        love.graphics.setColor(0.18, 0.18, 0.22, 1)
+        love.graphics.rectangle("fill", x, y, 12, 12, 2, 2)
+        if index <= health then
+            love.graphics.setColor(0.93, 0.35, 0.24, 1)
+            love.graphics.rectangle("fill", x + 1, y + 1, 10, 10, 2, 2)
         else
-            -- Empty soul - ash
-            love.graphics.setColor(0.2, 0.15, 0.15, 0.6)
-            love.graphics.rectangle("fill", x, y, size, size, 3, 3)
-            love.graphics.setColor(0.3, 0.2, 0.2, 0.3)
-            love.graphics.rectangle("line", x, y, size, size, 3, 3)
+            love.graphics.setColor(0.35, 0.35, 0.4, 1)
+            love.graphics.rectangle("line", x + 1, y + 1, 10, 10, 2, 2)
         end
     end
+
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-function UI:draw_fragments(collected, required, current_circle)
-    local circle_info = CIRCLES[current_circle] or CIRCLES[0]
-    local progress = math.min(1, collected / required)
-    local pulse = math.sin(self.time * 2) * 0.1 + 0.9
+function UI:draw_fragments(collected, required, label)
+    love.graphics.setColor(0.9, 0.92, 0.96, 1)
+    love.graphics.print(label or "SCENE", 12, 10)
 
-    -- Main panel - dark infernal style
-    local panel_x, panel_y = 12, 8
-    local panel_w, panel_h = 180, 55
-
-    -- Panel shadow
-    love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("fill", panel_x + 2, panel_y + 2, panel_w, panel_h, 4, 4)
-
-    -- Panel background with circle color tint
-    local cc = circle_info.color
-    love.graphics.setColor(cc[1] * 0.15, cc[2] * 0.15, cc[3] * 0.15, 0.9)
-    love.graphics.rectangle("fill", panel_x, panel_y, panel_w, panel_h, 4, 4)
-
-    -- Border with circle color
-    love.graphics.setColor(cc[1] * 0.6, cc[2] * 0.6, cc[3] * 0.6, 0.8 * pulse)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 4, 4)
-    love.graphics.setLineWidth(1)
-
-    -- Circle name (big, prominent)
-    love.graphics.setColor(cc[1], cc[2], cc[3], 1)
-    love.graphics.print(circle_info.name, panel_x + 8, panel_y + 6)
-
-    -- Circle description
-    love.graphics.setColor(0.6, 0.5, 0.5, 0.7)
-    love.graphics.print(circle_info.desc, panel_x + 8, panel_y + 20)
-
-    -- Progress bar background
-    local bar_x = panel_x + 8
-    local bar_y = panel_y + 38
-    local bar_w = panel_w - 16
-    local bar_h = 8
-
-    love.graphics.setColor(0.1, 0.08, 0.08, 0.8)
-    love.graphics.rectangle("fill", bar_x, bar_y, bar_w, bar_h, 2, 2)
-
-    -- Progress fill with fire gradient
-    if progress > 0 then
-        local fill_w = bar_w * progress
-
-        -- Base fill
-        love.graphics.setColor(cc[1] * 0.8, cc[2] * 0.5, cc[3] * 0.3, 1)
-        love.graphics.rectangle("fill", bar_x, bar_y, fill_w, bar_h, 2, 2)
-
-        -- Hot core
-        love.graphics.setColor(cc[1], cc[2] * 0.8 + 0.2, cc[3] * 0.5, 0.8)
-        love.graphics.rectangle("fill", bar_x, bar_y, fill_w, bar_h / 2, 2, 2)
-
-        -- Completion glow
-        if progress >= 1 then
-            love.graphics.setColor(1, 0.8, 0.4, 0.4 * pulse)
-            love.graphics.rectangle("fill", bar_x - 2, bar_y - 2, fill_w + 4, bar_h + 4, 3, 3)
-        end
+    if required > 0 then
+        love.graphics.setColor(0.75, 0.78, 0.82, 1)
+        love.graphics.print(string.format("Fragments %d/%d", collected, required), 12, 28)
     end
 
-    -- Fragment count
-    love.graphics.setColor(0.9, 0.8, 0.7, 1)
-    local count_text = string.format("%d/%d", collected, required)
-    love.graphics.print(count_text, panel_x + panel_w - 35, panel_y + 36)
+    if g_game_mode == "proving_ground" then
+        love.graphics.setColor(0.92, 0.55, 0.18, 1)
+        love.graphics.print("Tab: reset  [: prev room  ]: next room", 12, 46)
+    elseif g_game_mode == "campaign" then
+        love.graphics.setColor(0.92, 0.55, 0.18, 1)
+        love.graphics.print("Tab: reset room", 12, 46)
+    end
 
-    -- Screen flash overlay
+    love.graphics.setColor(0.72, 0.76, 0.82, 1)
+    love.graphics.print("F3: metrics overlay", 12, 64)
+
     if self.flash_alpha > 0 then
-        love.graphics.setColor(1, 0.8, 0.5, self.flash_alpha)
+        love.graphics.setColor(1, 0.82, 0.5, self.flash_alpha)
         love.graphics.rectangle("fill", 0, 0, g_native_width, g_native_height)
     end
 
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-function UI:draw_death_screen()
-    -- Dark overlay
-    love.graphics.setColor(0, 0, 0, 0.7)
+function UI.draw_campaign_progress(_self, room_count, room_index)
+    if g_game_mode ~= "campaign" or not room_count then
+        return
+    end
+
+    local dot_size = 10
+    local gap = 6
+    local width = room_count * dot_size + (room_count - 1) * gap
+    local start_x = math.floor((g_native_width - width) / 2)
+    local y = g_native_height - 18
+
+    for index = 1, room_count do
+        local x = start_x + (index - 1) * (dot_size + gap)
+        love.graphics.setColor(0.12, 0.12, 0.15, 0.9)
+        love.graphics.rectangle("fill", x, y, dot_size, 4, 2, 2)
+        if index < room_index then
+            love.graphics.setColor(0.74, 0.74, 0.82, 1)
+            love.graphics.rectangle("fill", x, y, dot_size, 4, 2, 2)
+        elseif index == room_index then
+            love.graphics.setColor(0.95, 0.55, 0.32, 1)
+            love.graphics.rectangle("fill", x, y, dot_size, 4, 2, 2)
+        end
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI:draw_banner()
+    if not self.banner then
+        return
+    end
+
+    local accent = self.banner.accent
+    local width = 320
+    local x = math.floor((g_native_width - width) / 2)
+    local y = 14
+
+    love.graphics.setColor(0.04, 0.04, 0.05, 0.92)
+    love.graphics.rectangle("fill", x, y, width, 36, 4, 4)
+    love.graphics.setColor(accent[1], accent[2], accent[3], 1)
+    love.graphics.rectangle("fill", x, y, 5, 36)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(self.banner.title or "", x + 12, y + 5, width - 18, "center")
+
+    if self.banner.subtitle and self.banner.subtitle ~= "" then
+        love.graphics.setColor(0.75, 0.78, 0.82, 1)
+        love.graphics.printf(self.banner.subtitle, x + 12, y + 19, width - 18, "center")
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI:draw_chapter_card()
+    if not self.chapter_card then
+        return
+    end
+
+    local card = self.chapter_card
+    local alpha = math.min(1, card.timer / 3.2)
+    local x = 44
+    local y = 82
+    local width = g_native_width - 88
+    local height = 92
+
+    love.graphics.setColor(0.02, 0.02, 0.03, 0.84 * alpha)
+    love.graphics.rectangle("fill", x, y, width, height, 6, 6)
+    love.graphics.setColor(card.accent[1], card.accent[2], card.accent[3], 0.95 * alpha)
+    love.graphics.rectangle("fill", x, y, 6, height)
+
+    love.graphics.setColor(1, 1, 1, alpha)
+    love.graphics.printf(card.title or "", x + 18, y + 10, width - 36, "center")
+    love.graphics.setColor(0.82, 0.84, 0.9, alpha)
+    love.graphics.printf(card.subtitle or "", x + 18, y + 28, width - 36, "center")
+    love.graphics.printf(card.progress or "", x + 18, y + 46, width - 36, "center")
+
+    if card.removed_ability and card.removed_ability ~= "none" then
+        love.graphics.setColor(card.accent[1], card.accent[2], card.accent[3], alpha)
+        love.graphics.printf("Loss: " .. card.removed_ability, x + 18, y + 62, width - 36, "center")
+        love.graphics.setColor(0.82, 0.84, 0.9, alpha)
+        love.graphics.printf(
+            "Hook: " .. (card.environment_hook or ""),
+            x + 18,
+            y + 76,
+            width - 36,
+            "center"
+        )
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI.draw_debug(_self, level, stats, room_count, room_index, force)
+    if not force then
+        return
+    end
+
+    local x = 12
+    local y = g_native_height - 88
+    local width = 226
+    local accuracy = 0
+    if stats.shots_fired > 0 then
+        accuracy = math.floor((stats.shots_hit / stats.shots_fired) * 100 + 0.5)
+    end
+
+    love.graphics.setColor(0.04, 0.05, 0.06, 0.88)
+    love.graphics.rectangle("fill", x, y, width, 78, 4, 4)
+    love.graphics.setColor(0.92, 0.55, 0.18, 1)
+    love.graphics.print(level.room_type or "room", x + 8, y + 6)
+    love.graphics.setColor(0.78, 0.82, 0.88, 1)
+    love.graphics.print(
+        string.format("Room %d/%d", room_index or 1, room_count or 1),
+        x + 98,
+        y + 6
+    )
+    love.graphics.print(
+        string.format("Room %.1fs  Total %.1fs", stats.room_time, stats.total_time),
+        x + 8,
+        y + 24
+    )
+    love.graphics.print(
+        string.format("Deaths %d  Resets %d", stats.deaths, stats.resets),
+        x + 8,
+        y + 40
+    )
+    love.graphics.print(
+        string.format("Shots %d  Accuracy %d%%", stats.shots_fired, accuracy),
+        x + 8,
+        y + 56
+    )
+
+    if level.removed_ability and level.removed_ability ~= "none" then
+        love.graphics.setColor(0.96, 0.45, 0.58, 1)
+        love.graphics.print("Loss: " .. level.removed_ability, x + width + 10, y + 6)
+        love.graphics.setColor(0.78, 0.82, 0.88, 1)
+        love.graphics.print("Hook: " .. (level.environment_hook or ""), x + width + 10, y + 24)
+    elseif level.environment_hook and level.environment_hook ~= "" then
+        love.graphics.setColor(0.78, 0.82, 0.88, 1)
+        love.graphics.print("Hook: " .. level.environment_hook, x + width + 10, y + 6)
+    end
+
+    if g_player and g_player.environment_label then
+        love.graphics.setColor(0.86, 0.92, 1, 1)
+        love.graphics.print("Zone: " .. g_player.environment_label, x + width + 10, y + 42)
+    end
+
+    if level.abilities then
+        love.graphics.setColor(0.82, 0.84, 0.9, 1)
+        love.graphics.print(
+            string.format(
+                "Shoot %s  Grapple %s",
+                level.abilities.shoot ~= false and "ON" or "OFF",
+                level.abilities.grapple ~= false and "ON" or "OFF"
+            ),
+            x + width + 10,
+            y + 60
+        )
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI.draw_death_screen(_self)
+    love.graphics.setColor(0, 0, 0, 0.55)
     love.graphics.rectangle("fill", 0, 0, g_native_width, g_native_height)
 
-    -- Blood red vignette
-    local pulse = math.sin(self.time * 2) * 0.1 + 0.5
-    love.graphics.setColor(0.5, 0, 0, pulse * 0.3)
-    love.graphics.rectangle("fill", 0, 0, g_native_width, 40)
-    love.graphics.rectangle("fill", 0, g_native_height - 40, g_native_width, 40)
-
-    -- Death text
-    love.graphics.setColor(0.8, 0.2, 0.1, 1)
-    love.graphics.printf("DAMNED", 0, g_native_height / 2 - 25, g_native_width, "center")
-
-    love.graphics.setColor(0.5, 0.4, 0.4, 0.8)
-    love.graphics.printf("Returning to checkpoint...", 0, g_native_height / 2 + 5, g_native_width, "center")
-
+    love.graphics.setColor(0.92, 0.3, 0.22, 1)
+    love.graphics.printf("DAMNED", 0, g_native_height / 2 - 18, g_native_width, "center")
+    love.graphics.setColor(0.82, 0.84, 0.9, 1)
+    love.graphics.printf("Resetting...", 0, g_native_height / 2 + 4, g_native_width, "center")
     love.graphics.setColor(1, 1, 1, 1)
 end
 

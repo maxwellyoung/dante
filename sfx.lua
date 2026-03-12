@@ -24,6 +24,7 @@ function Sfx:new()
     local self = setmetatable({}, Sfx)
     self.sounds = {}
     self.sound_cache = {} -- Cache generated audio sources
+    self.muted = false
     self:define_sounds()
     return self
 end
@@ -142,6 +143,10 @@ function Sfx:define_sounds()
 end
 
 function Sfx:play(name)
+    if self.muted then
+        return
+    end
+
     local sound_data = self.sounds[name]
     if not sound_data then return end
 
@@ -202,6 +207,11 @@ function Sfx:play(name)
     elseif type(sound_data) == "Source" and not sound_data:isPlaying() then
         sound_data:play()
     end
+end
+
+function Sfx:set_muted(value)
+    self.muted = value == true
+    love.audio.setVolume(self.muted and 0 or 1)
 end
 
 function Sfx:stop(name)

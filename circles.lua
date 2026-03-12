@@ -5,6 +5,10 @@
 circle_data = {
     { -- Circle 0: LIMBO - Tutorial, basic movement
         name = "LIMBO",
+        subtitle = "Learn the verb set before the world starts taking it away.",
+        removed_ability = "none",
+        environment_hook = "Foundational traversal and fragment gates",
+        transition_beat = "Virgil teaches the climb. Nothing has been taken yet.",
         map = {
             "1111111111111111111111111111",
             "1                          1",
@@ -24,13 +28,17 @@ circle_data = {
             "1111111111111111111111111111",
         },
         fragments_required = 4,
-        bg = {0.2, 0.22, 0.3},
-        gate_color = {0.5, 0.5, 0.6},
-        locked_gate_color = {0.4, 0.2, 0.2}
+        bg = { 0.2, 0.22, 0.3 },
+        gate_color = { 0.5, 0.5, 0.6 },
+        locked_gate_color = { 0.4, 0.2, 0.2 },
     },
 
     { -- Circle 1: LUST - Wind and temptation, larger jumps
         name = "LUST",
+        subtitle = "The world starts pushing back.",
+        removed_ability = "air dash",
+        environment_hook = "Temptation winds and exposed jumps",
+        transition_beat = "Lust replaces precision bursts with momentum and drift.",
         map = {
             "111111111111111111111111111111111",
             "1                               1",
@@ -53,13 +61,17 @@ circle_data = {
             "111111111111111111111111111111111",
         },
         fragments_required = 5,
-        bg = {0.35, 0.15, 0.25},
-        gate_color = {0.9, 0.3, 0.5},
-        locked_gate_color = {0.5, 0.15, 0.2}
+        bg = { 0.35, 0.15, 0.25 },
+        gate_color = { 0.9, 0.3, 0.5 },
+        locked_gate_color = { 0.5, 0.15, 0.2 },
     },
 
     { -- Circle 2: GLUTTONY - Sludge and slowdown, resource management
         name = "GLUTTONY",
+        subtitle = "Heavy footing, worse mistakes.",
+        removed_ability = "double jump",
+        environment_hook = "Sludge, sticky routes, and commitment",
+        transition_beat = "Gluttony takes recovery and asks for better route planning.",
         map = {
             "11111111111111111111111111111111111",
             "1                                 1",
@@ -83,13 +95,17 @@ circle_data = {
             "11111111111111111111111111111111111",
         },
         fragments_required = 5,
-        bg = {0.25, 0.2, 0.15},
-        gate_color = {0.6, 0.4, 0.2},
-        locked_gate_color = {0.4, 0.25, 0.15}
+        bg = { 0.25, 0.2, 0.15 },
+        gate_color = { 0.6, 0.4, 0.2 },
+        locked_gate_color = { 0.4, 0.25, 0.15 },
     },
 
     { -- Circle 3: GREED - Pullable blocks and treasure
         name = "GREED",
+        subtitle = "Control the room, not just the trigger.",
+        removed_ability = "projectile attack",
+        environment_hook = "Block pressure and positional problem solving",
+        transition_beat = "Greed turns aggression into puzzle pressure.",
         map = {
             "1111111111111111111111111111111111111",
             "1                                   1",
@@ -112,13 +128,17 @@ circle_data = {
             "1111111111111111111111111111111111111",
         },
         fragments_required = 5,
-        bg = {0.35, 0.3, 0.1},
-        gate_color = {0.9, 0.7, 0.1},
-        locked_gate_color = {0.5, 0.4, 0.1}
+        bg = { 0.35, 0.3, 0.1 },
+        gate_color = { 0.9, 0.7, 0.1 },
+        locked_gate_color = { 0.5, 0.4, 0.1 },
     },
 
     { -- Circle 4: WRATH - Combat focus, more enemies
         name = "WRATH",
+        subtitle = "Violence becomes the route.",
+        removed_ability = "wall jump",
+        environment_hook = "Hostile lanes and destructive movement",
+        transition_beat = "Wrath replaces vertical safety with forced commitment.",
         map = {
             "111111111111111111111111111111111111111",
             "1                                     1",
@@ -141,13 +161,17 @@ circle_data = {
             "111111111111111111111111111111111111111",
         },
         fragments_required = 5,
-        bg = {0.4, 0.12, 0.1},
-        gate_color = {0.9, 0.2, 0.1},
-        locked_gate_color = {0.5, 0.1, 0.1}
+        bg = { 0.4, 0.12, 0.1 },
+        gate_color = { 0.9, 0.2, 0.1 },
+        locked_gate_color = { 0.5, 0.1, 0.1 },
     },
 
     { -- Circle 5: HERESY - Grapple mastery, vertical challenge
         name = "HERESY",
+        subtitle = "Faith is replaced by exposure.",
+        removed_ability = "projectile attack",
+        environment_hook = "Vertical chase and committed grapple routes",
+        transition_beat = "Heresy strips direct offense and demands route conviction.",
         map = {
             "1111111111111111111111111111111111111111",
             "1                                      G",
@@ -170,13 +194,17 @@ circle_data = {
             "1111111111111111111111111111111111111111",
         },
         fragments_required = 4,
-        bg = {0.2, 0.1, 0.25},
-        gate_color = {0.5, 0.2, 0.6},
-        locked_gate_color = {0.3, 0.1, 0.3}
+        bg = { 0.2, 0.1, 0.25 },
+        gate_color = { 0.5, 0.2, 0.6 },
+        locked_gate_color = { 0.3, 0.1, 0.3 },
     },
 
     { -- Circle 6: VIOLENCE - Hazards everywhere
         name = "VIOLENCE",
+        subtitle = "Pain becomes part of movement.",
+        removed_ability = "wall stability",
+        environment_hook = "Hazard carpets and forced destructive routing",
+        transition_beat = "Violence makes survival itself feel aggressive.",
         map = {
             "11111111111111111111111111111111111111111",
             "1                                       1",
@@ -199,13 +227,17 @@ circle_data = {
             "11111111111111111111111111111111111111111",
         },
         fragments_required = 4,
-        bg = {0.35, 0.08, 0.08},
-        gate_color = {0.7, 0.1, 0.1},
-        locked_gate_color = {0.4, 0.05, 0.05}
+        bg = { 0.35, 0.08, 0.08 },
+        gate_color = { 0.7, 0.1, 0.1 },
+        locked_gate_color = { 0.4, 0.05, 0.05 },
     },
 
     { -- Circle 7: FRAUD - Deception, hidden paths
         name = "FRAUD",
+        subtitle = "The room stops telling the whole truth.",
+        removed_ability = "reliable footing",
+        environment_hook = "Crumbling routes and deceptive safe space",
+        transition_beat = "Fraud teaches distrust through disappearing certainty.",
         map = {
             "1111111111111111111111111111111111111111111",
             "1                                         1",
@@ -227,13 +259,17 @@ circle_data = {
             "1111111111111111111111111111111111111111111",
         },
         fragments_required = 5,
-        bg = {0.15, 0.18, 0.28},
-        gate_color = {0.3, 0.4, 0.6},
-        locked_gate_color = {0.2, 0.2, 0.35}
+        bg = { 0.15, 0.18, 0.28 },
+        gate_color = { 0.3, 0.4, 0.6 },
+        locked_gate_color = { 0.2, 0.2, 0.35 },
     },
 
     { -- Circle 8: TREACHERY - The final descent, frozen lake
         name = "TREACHERY",
+        subtitle = "Precision remains after warmth is gone.",
+        removed_ability = "momentum comfort",
+        environment_hook = "Cold lanes, brittle recovery, final pressure",
+        transition_beat = "Treachery removes forgiveness and asks for pure execution.",
         map = {
             "11111111111111111111111111111111111111111111111",
             "1                                             1",
@@ -258,9 +294,9 @@ circle_data = {
             "11111111111111111111111111111111111111111111111",
         },
         fragments_required = 6,
-        bg = {0.1, 0.15, 0.25},
-        gate_color = {0.2, 0.4, 0.6},
-        locked_gate_color = {0.1, 0.2, 0.3}
+        bg = { 0.1, 0.15, 0.25 },
+        gate_color = { 0.2, 0.4, 0.6 },
+        locked_gate_color = { 0.1, 0.2, 0.3 },
     },
 }
 

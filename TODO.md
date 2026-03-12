@@ -1,38 +1,32 @@
-# Todo List for Infernal Ascent
+# Todo
 
-This file tracks the development progress of the game.
+## Vertical Slice
 
-## Gameplay & Mechanics
+- [x] Make proving ground the primary tuning surface.
+- [x] Add room-based proving-ground variants.
+- [x] Add authored vertical-slice campaign rooms for Limbo and Circle 1.
+- [x] Add first subtraction rule: grapple constrained in Circle 1.
+- [x] Add first replacement hook: wind lanes.
+- [ ] Tune the proving ground until the loop is fun for repeated 30-second runs.
+- [ ] Tune Limbo so it cleanly teaches run, jump, shoot, and grapple.
+- [ ] Tune Circle 1 so the loss of grapple reads instantly and the wind rooms feel intentional.
 
-- [x] Design Circle 3 (Gluttony) - Challenge based on losing Wall Cling.
-- [x] Design Circle 4 (Greed) - Challenge based on losing Sprint.
-- [x] Design Circle 5 (Wrath) - Challenge based on losing Stomp.
-- [ ] Design subsequent Circles (Heresy, etc.).
-- [x] Implement new environmental hazards (e.g., moving platforms, timed traps).
-- [ ] **Stretch Goal:** Implement Grapple Hook as a mid-game ability.
+## Presentation
 
-## Art & Aesthetics
+- [x] Keep the preview inspector honest about gameplay scale.
+- [x] Flag placeholder player states in the manifest pipeline.
+- [ ] Replace placeholder player art with compact gameplay-readable sprites.
+- [ ] Establish a restrained production palette for world, hazards, enemies, and UI.
 
-- [x] Create a real spritesheet for the player with idle, run, jump, fall, and dash animations.
-- [ ] Create a simple tileset for the level geometry to replace the solid-color rectangles.
-- [ ] Design distinct visual themes for each Circle of Inferno (e.g., grayscale for Limbo, red shift for Lust).
-- [x] Add more particle effects for wall slides, landing hard, etc.
+## Story Through Mechanics
 
-## Audio
+- [x] Add circle metadata for removed power, hook, and transition beat.
+- [ ] Add a stronger guardian/gate presentation for the Limbo -> Circle 1 transition.
+- [ ] Define Circle 2 only after the slice is stable.
 
-- [ ] Implement a basic sound manager.
-- [ ] Add placeholder sound effects for jump, dash, land, death, and ability loss.
-- [ ] Compose a chiptune-style theme that gets more distorted with each descent.
+## DX
 
-## UI & UX
-
-- [ ] Create graphical icons for the abilities in the UI.
-- [x] Player should not spawn in a wall or fall immediately.
-- [x] Add a pause menu.
-- [x] Add a restart button.
-
-## Bugs & Polish
-
-- [x] Fix player disappearing on collision.
-- [x] Fix startup crash related to `player.update`.
-- [x] Fine-tune player physics constants (gravity, jump height, speed) for optimal "game feel."
+- [x] Add repo-level `luacheck` and `stylua` config.
+- [ ] Add lightweight content validation for room metadata and missing assets.
+- [ ] Add touched-file lint and format commands to the main workflow.
+- [ ] Keep procedural generation files parked until the authored slice proves the need.

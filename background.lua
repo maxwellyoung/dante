@@ -1,83 +1,155 @@
 local Background = {}
+Background.__index = Background
 
-function Background:new()
-    local self = setmetatable({}, {__index = Background})
-    
-    self.layers = {}
-    
-    return self
+local function clamp01(value)
+    return math.max(0, math.min(1, value))
 end
 
-function Background:load()
-    self.canvas = love.graphics.newCanvas(g_native_width, g_native_height)
-    self.shader = love.graphics.newShader[[
-        extern number time;
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec2 motion = vec2(sin(time * 0.2 + tc.y * 10.0), cos(time * 0.2 + tc.x * 10.0));
-            vec2 uv = tc + motion * 0.05;
-            float noise = Texel(tex, uv).r;
-            noise = pow(noise, 1.5);
-            return vec4(color.rgb * noise, color.a);
-        }
-    ]]
-    
-    -- Define layers inspired by Jeremy Blake's style
-    self.layers = {
-        { -- Deep, dark base
-            color = {10/255, 5/255, 25/255, 1},
-            speed = {x = 15, y = 10},
-            scale = 4,
-            blend = "alpha"
-        },
-        { -- Saturated magenta/purple forms
-            color = {180/255, 40/255, 120/255, 0.05},
-            speed = {x = -20, y = 15},
-            scale = 3,
-            blend = "add"
-        },
-        { -- Bright cyan highlights
-            color = {50/255, 200/255, 220/255, 0.03},
-            speed = {x = 30, y = 25},
-            scale = 2.5,
-            blend = "add"
-        },
-        { -- Slow, subtle yellow grain
-            color = {255/255, 230/255, 100/255, 0.02},
-            speed = {x = 5, y = 5},
-            scale = 8,
-            blend = "alpha"
-        },
+local function mix_color(a, b, t)
+    return {
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+        a[3] + (b[3] - a[3]) * t,
     }
 end
 
+function Background:new()
+    local class = self or Background
+    local instance = setmetatable({}, { __index = class })
+    instance.color = { 0.08, 0.09, 0.11 }
+    instance.floor_color = { 0.12, 0.13, 0.16 }
+    instance.accent_color = { 0.92, 0.55, 0.18 }
+    instance.scene = nil
+    instance.time = 0
+    return instance
+end
+
+function Background:set_palette(base_color)
+    self.color = {
+        base_color[1],
+        base_color[2],
+        base_color[3],
+    }
+    self.floor_color = {
+        clamp01(base_color[1] + 0.06),
+        clamp01(base_color[2] + 0.06),
+        clamp01(base_color[3] + 0.08),
+    }
+end
+
+function Background:set_scene(scene)
+    self.scene = scene
+    self:set_palette(scene.bg or self.color)
+    self.accent_color = scene.accent_color or { 0.92, 0.55, 0.18 }
+end
+
+function Background.load(_self) end
+
 function Background:update(dt)
-    -- The shader handles the animation, but we prepare the canvas here
-    love.graphics.setCanvas(self.canvas)
-    love.graphics.clear(0,0,0,0) -- Clear with transparency
+    self.time = self.time + dt
+end
 
-    love.graphics.setShader(self.shader)
-    self.shader:send("time", love.timer.getTime())
+function Background:draw_gradient()
+    local top = mix_color(self.color, { 0.02, 0.02, 0.03 }, 0.35)
+    local bottom = mix_color(self.floor_color, self.accent_color, 0.14)
 
-    for _, layer in ipairs(self.layers) do
-        love.graphics.setColor(layer.color)
-        love.graphics.setBlendMode(layer.blend)
-        
-        local off_x = (g_camera.x * layer.speed.x / 100) % g_noise_texture:getWidth()
-        local off_y = (g_camera.y * layer.speed.y / 100) % g_noise_texture:getHeight()
-
-        love.graphics.draw(g_noise_texture, -off_x, -off_y, 0, layer.scale, layer.scale)
-        love.graphics.draw(g_noise_texture, -off_x + g_noise_texture:getWidth() * layer.scale, -off_y, 0, layer.scale, layer.scale)
+    for index = 0, g_native_height - 1, 3 do
+        local t = index / g_native_height
+        local color = mix_color(top, bottom, t)
+        love.graphics.setColor(color[1], color[2], color[3], 1)
+        love.graphics.rectangle("fill", 0, index, g_native_width, 3)
     end
-    
-    love.graphics.setBlendMode("alpha")
-    love.graphics.setShader()
-    love.graphics.setCanvas()
+end
+
+function Background:draw_arches()
+    local accent = self.accent_color
+    local pulse = 0.12 + 0.03 * math.sin(self.time * 0.8)
+
+    love.graphics.setColor(accent[1], accent[2], accent[3], pulse)
+    love.graphics.circle("fill", g_native_width * 0.76, g_native_height * 0.22, 44)
+
+    love.graphics.setColor(0.02, 0.02, 0.03, 0.22)
+    for index = 0, 3 do
+        local width = 110 + index * 38
+        local height = 70 + index * 18
+        love.graphics.arc(
+            "line",
+            "open",
+            g_native_width * 0.72,
+            g_native_height * 0.62,
+            width,
+            math.pi,
+            math.pi * 2,
+            48
+        )
+        love.graphics.arc(
+            "line",
+            "open",
+            g_native_width * 0.72,
+            g_native_height * 0.62,
+            height,
+            math.pi,
+            math.pi * 2,
+            48
+        )
+    end
+end
+
+function Background.draw_grid()
+    love.graphics.setColor(1, 1, 1, 0.05)
+    for x = 0, g_native_width, 24 do
+        love.graphics.line(x, 0, x, g_native_height)
+    end
+    for y = 0, g_native_height, 24 do
+        love.graphics.line(0, y, g_native_width, y)
+    end
+end
+
+function Background:draw_wind_bands()
+    local accent = self.accent_color
+    for index = 1, 5 do
+        local offset = ((self.time * (16 + index * 4)) + index * 42) % (g_native_width + 80)
+        local x = -80 + offset
+        local y = 42 + index * 28
+        love.graphics.setColor(accent[1], accent[2] * 0.8, accent[3] * 1.05, 0.1)
+        love.graphics.polygon("fill", x, y, x + 54, y - 12, x + 92, y + 2, x + 40, y + 16)
+    end
+end
+
+function Background:draw_depth_bands()
+    local base = mix_color(self.floor_color, self.color, 0.35)
+    for index = 1, 3 do
+        local height = 18 + index * 10
+        local y = g_native_height - 80 + index * 16
+        local alpha = 0.18 - index * 0.03
+        love.graphics.setColor(base[1], base[2], base[3], alpha)
+        love.graphics.rectangle("fill", 0, y, g_native_width, height)
+    end
 end
 
 function Background:draw()
-    -- Draw the pre-rendered canvas to the current target
-    love.graphics.setColor(1,1,1,1)
-    love.graphics.draw(self.canvas)
+    self:draw_gradient()
+
+    if self.scene and self.scene.mode == "proving_ground" then
+        Background.draw_grid()
+    elseif self.scene and self.scene.title == "LUST" then
+        self:draw_wind_bands()
+    else
+        self:draw_arches()
+    end
+
+    self:draw_depth_bands()
+
+    love.graphics.setColor(self.floor_color[1], self.floor_color[2], self.floor_color[3], 0.92)
+    love.graphics.rectangle(
+        "fill",
+        0,
+        math.floor(g_native_height * 0.72),
+        g_native_width,
+        g_native_height * 0.28
+    )
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return Background

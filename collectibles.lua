@@ -1,17 +1,15 @@
--- collectibles.lua
-
-local Utils = require('utils')
+local Utils = require("utils")
 
 local Collectibles = {}
 Collectibles.__index = Collectibles
 
 local COLLECTIBLE_SIZE = 16
 
-function Collectibles:new()
-    local self = setmetatable({}, Collectibles)
-    self.items = {}
-    self.active_items = {}
-    return self
+function Collectibles.new()
+    local instance = setmetatable({}, Collectibles)
+    instance.items = {}
+    instance.active_items = {}
+    return instance
 end
 
 function Collectibles:add(x, y)
@@ -21,7 +19,7 @@ function Collectibles:add(x, y)
         width = COLLECTIBLE_SIZE,
         height = COLLECTIBLE_SIZE,
         initial_y = y,
-        angle = math.random() * math.pi * 2
+        angle = math.random() * math.pi * 2,
     }
     table.insert(self.items, item)
     table.insert(self.active_items, item)
@@ -35,18 +33,46 @@ function Collectibles:update(dt, player)
 
         if Utils.check_collision(player, item) then
             g_player:collect_fragment()
-            g_sfx:play('collect')
+            g_sfx:play("collect")
             table.remove(self.active_items, i)
         end
     end
 end
 
 function Collectibles:draw()
-    love.graphics.setColor(1, 0.8, 0.2)
     for _, item in ipairs(self.active_items) do
-        love.graphics.rectangle("fill", item.x, item.y, item.width, item.height)
+        local center_x = item.x + item.width / 2
+        local center_y = item.y + item.height / 2
+        local glow = 0.18 + 0.06 * math.sin(item.angle * 2)
+
+        love.graphics.setColor(1, 0.82, 0.28, glow)
+        love.graphics.circle("fill", center_x, center_y, 12)
+        love.graphics.setColor(1, 0.9, 0.42, 1)
+        love.graphics.polygon(
+            "fill",
+            center_x,
+            center_y - 8,
+            center_x + 6,
+            center_y,
+            center_x,
+            center_y + 8,
+            center_x - 6,
+            center_y
+        )
+        love.graphics.setColor(1, 1, 0.88, 0.85)
+        love.graphics.polygon(
+            "line",
+            center_x,
+            center_y - 8,
+            center_x + 6,
+            center_y,
+            center_x,
+            center_y + 8,
+            center_x - 6,
+            center_y
+        )
     end
-    love.graphics.setColor(1,1,1)
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function Collectibles:clear()
@@ -61,4 +87,4 @@ function Collectibles:respawn()
     end
 end
 
-return Collectibles 
+return Collectibles

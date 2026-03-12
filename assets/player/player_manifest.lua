@@ -1,0 +1,276 @@
+return {
+    frame_size = 64,
+    atlas_path = "assets/player/player_atlas.png",
+    render = {
+        scale = 0.72,
+        feet_anchor = 58,
+        draw_offset = {
+            x = 0,
+            y = 0,
+        },
+        placeholder = true,
+    },
+    animation_order = {
+        "idle",
+        "run",
+        "jump",
+        "fall",
+        "hurt",
+        "shoot",
+        "death",
+    },
+    animations = {
+        idle = {
+            fps = 5,
+            loop = true,
+            lock_frame_01 = false,
+            placeholder = false,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -2,
+                },
+            },
+            frames = {
+                {
+                    x = 0,
+                    y = 0,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/idle/frame-01.png",
+                },
+                {
+                    x = 64,
+                    y = 0,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/idle/frame-02.png",
+                },
+                {
+                    x = 128,
+                    y = 0,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/idle/frame-03.png",
+                },
+            },
+        },
+        run = {
+            fps = 10,
+            loop = true,
+            lock_frame_01 = false,
+            placeholder = false,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -2,
+                },
+            },
+            frames = {
+                {
+                    x = 192,
+                    y = 0,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/run/frame-01.png",
+                },
+                {
+                    x = 256,
+                    y = 0,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/run/frame-02.png",
+                },
+                {
+                    x = 0,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/run/frame-03.png",
+                },
+                {
+                    x = 64,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/run/frame-04.png",
+                },
+                {
+                    x = 128,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/run/frame-05.png",
+                },
+                {
+                    x = 192,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/run/frame-06.png",
+                },
+            },
+        },
+        jump = {
+            fps = 1,
+            loop = false,
+            lock_frame_01 = false,
+            placeholder = false,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -3,
+                },
+            },
+            frames = {
+                {
+                    x = 256,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/jump/frame-01.png",
+                },
+            },
+        },
+        fall = {
+            fps = 1,
+            loop = false,
+            lock_frame_01 = false,
+            placeholder = false,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -1,
+                },
+            },
+            frames = {
+                {
+                    x = 0,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/fall/frame-01.png",
+                },
+            },
+        },
+        hurt = {
+            fps = 12,
+            loop = false,
+            lock_frame_01 = true,
+            placeholder = true,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -2,
+                },
+            },
+            frames = {
+                {
+                    x = 64,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/hurt/frame-01.png",
+                },
+                {
+                    x = 128,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/hurt/frame-02.png",
+                },
+                {
+                    x = 192,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/hurt/frame-03.png",
+                },
+                {
+                    x = 256,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/hurt/frame-04.png",
+                },
+            },
+        },
+        shoot = {
+            fps = 14,
+            loop = false,
+            lock_frame_01 = false,
+            placeholder = true,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -2,
+                },
+            },
+            frames = {
+                {
+                    x = 0,
+                    y = 192,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/shoot/frame-01.png",
+                },
+                {
+                    x = 64,
+                    y = 192,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/shoot/frame-02.png",
+                },
+                {
+                    x = 128,
+                    y = 192,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/shoot/frame-03.png",
+                },
+            },
+        },
+        death = {
+            fps = 8,
+            loop = false,
+            lock_frame_01 = false,
+            placeholder = true,
+            render = {
+                draw_offset = {
+                    x = 0,
+                    y = -1,
+                },
+            },
+            frames = {
+                {
+                    x = 192,
+                    y = 192,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/death/frame-01.png",
+                },
+                {
+                    x = 256,
+                    y = 192,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/death/frame-02.png",
+                },
+                {
+                    x = 0,
+                    y = 256,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/death/frame-03.png",
+                },
+                {
+                    x = 64,
+                    y = 256,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/death/frame-04.png",
+                },
+            },
+        },
+    },
+}

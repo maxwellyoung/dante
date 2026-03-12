@@ -1,5 +1,6 @@
 -- chunks.lua
--- A library of hand-designed level segments ("chunks") for the procedural generator.
+-- Parked experiment: hand-designed segments for a possible future side mode.
+-- This file is not part of the primary authored-campaign roadmap.
 
 local Chunks = {}
 
@@ -19,12 +20,13 @@ Chunks.library = {
     -- ===================================================================
     {
         id = "start_simple",
-        width = 15, height = 7,
-        tags = {"start"},
+        width = 15,
+        height = 7,
+        tags = { "start" },
         difficulty = 1,
         required_ability = "none",
         entry_points = {},
-        exit_points = {right="middle"},
+        exit_points = { right = "middle" },
         map = {
             "111111111111111",
             "1 P V            ",
@@ -32,7 +34,7 @@ Chunks.library = {
             "1                ",
             "1                ",
             "111111111111111",
-        }
+        },
     },
 
     -- ===================================================================
@@ -40,12 +42,13 @@ Chunks.library = {
     -- ===================================================================
     {
         id = "connector_flat",
-        width = 10, height = 7,
-        tags = {"connector"},
+        width = 10,
+        height = 7,
+        tags = { "connector" },
         difficulty = 1,
         required_ability = "none",
-        entry_points = {left="middle"},
-        exit_points = {right="middle"},
+        entry_points = { left = "middle" },
+        exit_points = { right = "middle" },
         map = {
             "1111111111",
             "1         ",
@@ -54,16 +57,17 @@ Chunks.library = {
             "          ",
             "1         ",
             "1111111111",
-        }
+        },
     },
     {
         id = "connector_small_hop",
-        width = 10, height = 7,
-        tags = {"connector"},
+        width = 10,
+        height = 7,
+        tags = { "connector" },
         difficulty = 1,
         required_ability = "none",
-        entry_points = {left="middle"},
-        exit_points = {right="middle"},
+        entry_points = { left = "middle" },
+        exit_points = { right = "middle" },
         map = {
             "1111111111",
             "1         ",
@@ -72,19 +76,20 @@ Chunks.library = {
             "     111  ",
             "   111    ",
             "1111111111",
-        }
+        },
     },
-    
+
     -- ===================================================================
     -- Category: End Chunks (Ability: None)
     -- ===================================================================
     {
         id = "end_simple",
-        width = 15, height = 7,
-        tags = {"end"},
+        width = 15,
+        height = 7,
+        tags = { "end" },
         difficulty = 1,
         required_ability = "none",
-        entry_points = {left="middle"},
+        entry_points = { left = "middle" },
         exit_points = {},
         map = {
             "111111111111111",
@@ -94,8 +99,8 @@ Chunks.library = {
             "                 ",
             "1           1  ",
             "111111111111111",
-        }
+        },
     },
 }
 
-return Chunks 
+return Chunks

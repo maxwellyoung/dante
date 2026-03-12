@@ -5,23 +5,25 @@ local Enemy = {}
 Enemy.__index = Enemy
 
 function Enemy:new(x, y)
-    local self = setmetatable({}, Enemy)
-    self.x = x
-    self.y = y
-    self.width = 32
-    self.height = 32
-    self.vx = -50 -- Start by moving left
-    self.vy = 0
-    self.is_active = true
-    self.is_grounded = false
-    self.color = { math.random(), math.random() * 0.5, math.random() * 0.8 }
-    return self
+    local class = self or Enemy
+    local instance = setmetatable({}, class)
+    instance.x = x
+    instance.y = y
+    instance.width = 32
+    instance.height = 32
+    instance.vx = -58
+    instance.vy = 0
+    instance.is_active = true
+    instance.is_grounded = false
+    instance.color = { 0.84, 0.28, 0.24 }
+    return instance
 end
 
 function Enemy:update(dt)
-    if not self.is_active then return end
+    if not self.is_active then
+        return
+    end
 
-    -- Simple gravity
     if not self.is_grounded then
         self.vy = self.vy + 1200 * dt
     end
@@ -31,19 +33,23 @@ function Enemy:update(dt)
 end
 
 function Enemy:draw()
-    if not self.is_active then return end
-    
-    -- The new shader handles drawing, but we still need this empty rectangle
-    -- to define the area for the shader to operate on.
-    love.graphics.setColor(1,1,1)
-    love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+    if not self.is_active then
+        return
+    end
+
+    love.graphics.setColor(self.color[1], self.color[2], self.color[3], 1)
+    love.graphics.rectangle("fill", self.x, self.y + 6, self.width, self.height - 6, 4, 4)
+    love.graphics.setColor(0.18, 0.07, 0.07, 1)
+    love.graphics.rectangle("fill", self.x + 5, self.y + 12, self.width - 10, 6, 2, 2)
+    love.graphics.setColor(1, 0.88, 0.74, 1)
+    love.graphics.rectangle("fill", self.x + 8, self.y + 7, self.width - 16, 8, 2, 2)
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function Enemy:destroy()
     self.is_active = false
-    -- Trigger death effects
-    g_sfx:play('stomp')
+    g_sfx:play("stomp")
     g_effects:stomp(self.x + self.width / 2, self.y + self.height / 2)
 end
 
-return Enemy 
+return Enemy

@@ -1,13 +1,14 @@
 -- generator.lua
--- Creates a procedural level by stitching together hand-designed "chunks".
+-- Parked experiment for a future side mode.
+-- The active roadmap is authored rooms and authored circles, not procedural-first generation.
 
 local Chunks = require("chunks")
 
 local Generator = {}
+Generator.__index = Generator
 
-function Generator:new()
-    local self = setmetatable({}, Generator)
-    return self
+function Generator.new()
+    return setmetatable({}, Generator)
 end
 
 -- A helper function to filter chunks from the library
@@ -27,7 +28,7 @@ end
 local function stitch_chunks(map_a, map_b)
     local new_map = {}
     local height = math.max(#map_a, #map_b)
-    for y=1, height do
+    for y = 1, height do
         local row_a = map_a[y] or string.rep(" ", #map_a[1])
         local row_b = map_b[y] or string.rep(" ", #map_b[1])
         new_map[y] = row_a .. row_b
@@ -36,6 +37,7 @@ local function stitch_chunks(map_a, map_b)
 end
 
 function Generator:generate_level(length)
+    local _ = self
     local start_chunks = get_chunks_by_tag("start")
     local connector_chunks = get_chunks_by_tag("connector")
     local end_chunks = get_chunks_by_tag("end")
@@ -44,7 +46,7 @@ function Generator:generate_level(length)
     local current_level_map = start_chunks[math.random(#start_chunks)].map
 
     -- Add a number of random connector chunks
-    for i = 1, length do
+    for _ = 1, length do
         local next_chunk = connector_chunks[math.random(#connector_chunks)]
         current_level_map = stitch_chunks(current_level_map, next_chunk.map)
     end
@@ -52,9 +54,7 @@ function Generator:generate_level(length)
     -- Add a random end chunk
     local end_chunk = end_chunks[math.random(#end_chunks)]
     current_level_map = stitch_chunks(current_level_map, end_chunk.map)
-    
     return current_level_map
 end
 
-
-return Generator 
+return Generator

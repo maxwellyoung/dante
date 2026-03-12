@@ -1,0 +1,133 @@
+{
+  "frame_size": 64,
+  "render": {
+    "scale": 0.72,
+    "feet_anchor": 58,
+    "draw_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "placeholder": true
+  },
+  "animation_order": [
+    "idle",
+    "run",
+    "jump",
+    "fall",
+    "hurt",
+    "shoot",
+    "death"
+  ],
+  "animations": {
+    "idle": {
+      "fps": 5,
+      "loop": true,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -2
+        }
+      },
+      "frames": [
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png"
+      ]
+    },
+    "run": {
+      "fps": 10,
+      "loop": true,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -2
+        }
+      },
+      "frames": [
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png",
+        "frame-04.png",
+        "frame-05.png",
+        "frame-06.png"
+      ]
+    },
+    "jump": {
+      "fps": 1,
+      "loop": false,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -3
+        }
+      },
+      "frames": [
+        "frame-01.png"
+      ]
+    },
+    "fall": {
+      "fps": 1,
+      "loop": false,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -1
+        }
+      },
+      "frames": [
+        "frame-01.png"
+      ]
+    },
+    "hurt": {
+      "fps": 12,
+      "loop": false,
+      "lock_frame_01": true,
+      "placeholder": true,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -2
+        }
+      },
+      "frames": [
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png",
+        "frame-04.png"
+      ]
+    },
+    "shoot": {
+      "fps": 14,
+      "loop": false,
+      "placeholder": true,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -2
+        }
+      },
+      "frames": [
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png"
+      ]
+    },
+    "death": {
+      "fps": 8,
+      "loop": false,
+      "placeholder": true,
+      "render": {
+        "draw_offset": {
+          "x": 0,
+          "y": -1
+        }
+      },
+      "frames": [
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png",
+        "frame-04.png"
+      ]
+    }
+  }
+}

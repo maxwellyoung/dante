@@ -1,15 +1,19 @@
-# New Design for Infernal Ascent
+# Design Snapshot
 
-## Core Experience
+`GAME_DIRECTION.md` is now the source-of-truth brief.
 
-A tight, satisfying platformer about mastering a growing set of traversal tools. Each new ability is a key that unlocks a deeper understanding of the world, making the player feel clever and powerful.
+This file exists as a short design snapshot for quick orientation.
 
-## Design Pillars
+## Pillars
 
-1.  **Perfectly-Tuned Controls:** Every jump, dash, and grapple must feel responsive and satisfying. The player's movement is the primary verb.
+1. **Readable action first.** The game must survive without atmosphere or shader tricks.
+2. **Movement and combat are one loop.** Shooting and grappling are part of traversal pressure, not separate modes.
+3. **Dante is delivered through rules.** Each circle changes how the verbs solve problems.
+4. **Authored rooms beat procedural breadth.** A smaller excellent slice is worth more than a wide thin campaign.
 
-2.  **A Clockwork World:** The world is a puzzle to be solved with movement. Levels are constructed from hand-designed "chunks" that are procedurally assembled, ensuring both quality design and infinite replayability.
+## Current Focus
 
-3.  **Flow and Mastery:** The game is designed to create a "flow state." Challenges will push the player to combine their abilities in new and creative ways, rewarding mastery with speed and style.
-
-4.  **Clarity and "Aha!" Moments:** Level design will teach, test, and then combine mechanics in ways that lead to "Aha!" moments of discovery for the player.
+- proving ground as the daily tuning environment
+- authored Limbo + Circle 1 vertical slice
+- player art that reads at gameplay scale
+- systems extracted only after repeated pain
