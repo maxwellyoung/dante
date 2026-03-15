@@ -48,6 +48,8 @@ local DASH_IMPACT_WINDOW = 0.08
 local DASH_WALL_HITSTOP = 0.05
 local DASH_FLOOR_HITSTOP = 0.03
 local CROUCH_SPEED = 92
+local CROUCH_HEIGHT = 18
+local STAND_HEIGHT = 28
 local ROLL_SPEED = 430
 local ROLL_DURATION = 0.28
 local ROLL_COOLDOWN = 0.24
@@ -589,6 +591,14 @@ function Player:update_step(dt, level)
         self.is_crouching = false
     end
 
+    -- Crouch hitbox shrink
+    local target_height = self.is_crouching and CROUCH_HEIGHT or STAND_HEIGHT
+    if self.height ~= target_height then
+        local diff = self.height - target_height
+        self.height = target_height
+        self.y = self.y + diff -- keep feet planted
+    end
+
     if self.on_ground or self.on_wall ~= 0 or self.grapple_state == "hooked" then
         self.dash_available = self.abilities.dash ~= false
     end
@@ -647,6 +657,13 @@ function Player:consume_jump()
         self.wall_jump_lock_timer = WALL_JUMP_LOCK_TIME
         self.wall_jump_lock_dir = wall_dir
         self.wall_detach_timer = WALL_DETACH_TIME
+        local wall_effects = get_effects(self)
+        if wall_effects then
+            wall_effects:spawn("wall_jump_burst",
+                self.x + (wall_dir == 1 and self.width or 0),
+                self.y + self.height / 2,
+                { dir = -wall_dir })
+        end
     elseif self.on_ground or self.coyote_timer > 0 then
         self.vy = self.jump_force
         self.on_ground = false
@@ -674,7 +691,7 @@ function Player:consume_jump()
 end
 
 function Player:take_damage()
-    if self.invincible_timer > 0 or self.is_dead then
+    if self.invincible_timer > 0 or self.is_dead or self.roll_timer > 0 then
         return false
     end
 
@@ -711,6 +728,8 @@ function Player:die()
     self:play_one_shot("death", true)
     local sfx = get_sfx(self)
     local effects = get_effects(self)
+    local camera = get_camera(self)
+    local ui = get_ui(self)
     local run_stats = get_run_stats(self)
     if sfx then
         sfx:play("death")
@@ -718,9 +737,40 @@ function Player:die()
     if effects then
         effects:spawn("blood", self.x + self.width / 2, self.y + self.height / 2)
     end
+    if camera then
+        camera:shake(6, 0.2)
+    end
     if run_stats then
         run_stats.deaths = run_stats.deaths + 1
         run_stats.room_deaths = run_stats.room_deaths + 1
+    end
+
+    -- Fragment loss on death
+    if self.fragments > 0 then
+        self.fragments = self.fragments - 1
+        if effects then
+            -- Scatter lost fragment particles
+            for _ = 1, 8 do
+                local angle = math.random() * 2 * math.pi
+                local speed = math.random(60, 180)
+                effects.particles[#effects.particles + 1] = {
+                    x = self.x + self.width / 2,
+                    y = self.y + self.height / 2,
+                    vx = math.cos(angle) * speed,
+                    vy = math.sin(angle) * speed - 60,
+                    lifetime = 0.6,
+                    max_lifetime = 0.6,
+                    size = math.random(3, 5),
+                    color = {0.4, 0.9, 1},
+                    drag = 0.02,
+                }
+            end
+        end
+        if ui then
+            local level = get_level(self)
+            local title = level and level.scene_title or "DEATH"
+            ui:show_banner(title, "A fragment slips away.", level and level.accent_color or {0.9, 0.3, 0.2}, 1.4)
+        end
     end
 end
 
@@ -755,6 +805,7 @@ function Player:respawn(pos)
     self.dash_impact_timer = 0
     self.crouch_input = false
     self.is_crouching = false
+    self.height = STAND_HEIGHT
     self.roll_timer = 0
     self.roll_cooldown = 0
     self.roll_dir = self.facing
@@ -837,12 +888,20 @@ function Player:update_grapple_firing(dt, level)
                 self.grapple_aim_anchor = nil
                 local effects = get_effects(self)
                 local camera = get_camera(self)
+                local sfx = get_sfx(self)
                 local run_stats = get_run_stats(self)
+                local trigger_hitstop = get_trigger_hitstop(self)
                 if effects then
-                    effects:spawn("sparks", anchor.x, anchor.y)
+                    effects:spawn("grapple_latch", anchor.x, anchor.y)
+                end
+                if sfx then
+                    sfx:play("grapple_latch")
                 end
                 if camera then
-                    camera:shake(2, 0.06)
+                    camera:shake(4, 0.1)
+                end
+                if trigger_hitstop then
+                    trigger_hitstop(0.04)
                 end
                 if run_stats then
                     run_stats.grapple_latches = (run_stats.grapple_latches or 0) + 1

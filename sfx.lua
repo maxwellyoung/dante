@@ -152,6 +152,50 @@ function Sfx:define_sounds()
         end_freq = 100,
         volume = 0.6
     }
+
+    self.sounds.grapple_latch = {
+        waveform = sine_wave,
+        attack = 0.005,
+        decay = 0.06,
+        sustain = 0.04,
+        release = 0.08,
+        start_freq = 380,
+        end_freq = 920,
+        volume = 0.35
+    }
+
+    self.sounds.ricochet_kill = {
+        waveform = square_wave,
+        attack = 0.005,
+        decay = 0.08,
+        sustain = 0.06,
+        release = 0.12,
+        start_freq = 600,
+        end_freq = 1400,
+        volume = 0.4
+    }
+
+    self.sounds.stomp_bounce = {
+        waveform = sine_wave,
+        attack = 0.005,
+        decay = 0.1,
+        sustain = 0.05,
+        release = 0.1,
+        start_freq = 300,
+        end_freq = 700,
+        volume = 0.45
+    }
+
+    self.sounds.harpy_charge = {
+        waveform = sine_wave,
+        attack = 0.1,
+        decay = 0.2,
+        sustain = 0.1,
+        release = 0.05,
+        start_freq = 200,
+        end_freq = 1000,
+        volume = 0.2
+    }
 end
 
 function Sfx:play(name)

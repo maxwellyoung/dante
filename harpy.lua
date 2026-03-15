@@ -32,6 +32,9 @@ function Harpy:new(x, y, services)
     instance.bob_height = 16
     instance.fire_cooldown = 0
     instance.fire_rate = 1.6
+    instance.telegraph_timer = 0
+    instance.telegraph_duration = 0.45
+    instance.telegraph_target = nil
     instance.color = { 0.78, 0.76, 0.32 }
     return instance
 end
@@ -47,9 +50,25 @@ function Harpy:update(dt, level, player)
         self.fire_cooldown = self.fire_cooldown - dt
     end
 
+    -- Telegraph state: charging up before firing
+    if self.telegraph_timer > 0 then
+        self.telegraph_timer = self.telegraph_timer - dt
+        if self.telegraph_timer <= 0 and self.telegraph_target then
+            self:fire(self.telegraph_target)
+            self.fire_cooldown = self.fire_rate
+            self.telegraph_target = nil
+        end
+        return
+    end
+
     if self.fire_cooldown <= 0 and self:has_line_of_sight(player, level) then
-        self:fire(player)
-        self.fire_cooldown = self.fire_rate
+        -- Begin telegraph instead of firing immediately
+        self.telegraph_timer = self.telegraph_duration
+        self.telegraph_target = player
+        local sfx = get_sfx(self)
+        if sfx then
+            sfx:play("harpy_charge")
+        end
     end
 end
 
@@ -101,12 +120,44 @@ function Harpy:draw()
         return
     end
 
+    -- Telegraph warning: pulsing red glow and aim line
+    if self.telegraph_timer > 0 then
+        local pulse = 0.5 + 0.5 * math.sin(love.timer.getTime() * 24)
+        local cx = self.x + self.width / 2
+        local cy = self.y + self.height / 2
+        -- Warning glow
+        love.graphics.setColor(1, 0.2, 0.15, 0.3 * pulse)
+        love.graphics.circle("fill", cx, cy, 22)
+        -- Aim line toward target
+        if self.telegraph_target then
+            local tx = self.telegraph_target.x + self.telegraph_target.width / 2
+            local ty = self.telegraph_target.y + self.telegraph_target.height / 2
+            local dx = tx - cx
+            local dy = ty - cy
+            local dist = math.sqrt(dx * dx + dy * dy)
+            if dist > 0 then
+                local nx, ny = dx / dist, dy / dist
+                love.graphics.setColor(1, 0.3, 0.2, 0.4 * pulse)
+                love.graphics.setLineWidth(2)
+                love.graphics.line(cx + nx * 16, cy + ny * 16, cx + nx * 60, cy + ny * 60)
+                love.graphics.setLineWidth(1)
+            end
+        end
+    end
+
     love.graphics.setColor(self.color[1], self.color[2], self.color[3], 1)
     love.graphics.rectangle("fill", self.x + 4, self.y + 8, self.width - 8, self.height - 8, 4, 4)
     love.graphics.setColor(0.26, 0.2, 0.08, 1)
     love.graphics.rectangle("fill", self.x, self.y + 12, 6, 10, 2, 2)
     love.graphics.rectangle("fill", self.x + self.width - 6, self.y + 12, 6, 10, 2, 2)
-    love.graphics.setColor(1, 0.95, 0.78, 1)
+
+    -- Eyes flash red during telegraph
+    if self.telegraph_timer > 0 then
+        local flash = 0.6 + 0.4 * math.sin(love.timer.getTime() * 20)
+        love.graphics.setColor(1, 0.2 * flash, 0.1 * flash, 1)
+    else
+        love.graphics.setColor(1, 0.95, 0.78, 1)
+    end
     love.graphics.rectangle("fill", self.x + 10, self.y + 10, self.width - 20, 8, 2, 2)
     love.graphics.setColor(1, 1, 1, 1)
 end

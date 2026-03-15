@@ -63,6 +63,14 @@ function Effects:spawn(type, x, y, options)
         self:run_dust(x, y)
     elseif type == 'jump_dust' then
         self:jump_dust(x, y)
+    elseif type == 'grapple_latch' then
+        self:grapple_latch(x, y)
+    elseif type == 'stomp_ring' then
+        self:stomp_ring(x, y)
+    elseif type == 'wall_jump_burst' then
+        self:wall_jump_burst(x, y, options.dir or 1)
+    elseif type == 'ricochet_kill' then
+        self:ricochet_kill(x, y)
     end
 end
 
@@ -245,6 +253,98 @@ function Effects:stomp(x, y)
             drag = 0.03
         })
     end
+end
+
+function Effects:grapple_latch(x, y)
+    -- Tight radial snap burst — white/blue tension lines
+    for _ = 1, 20 do
+        local angle = math.random() * 2 * math.pi
+        local speed = math.random(200, 450)
+        table.insert(self.particles, {
+            x = x, y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            lifetime = math.random() * 0.12 + 0.06,
+            max_lifetime = 0.18,
+            size = math.random(2, 4),
+            color = {0.7, 0.85, 1},
+            drag = 0.06
+        })
+    end
+    -- Central flash
+    table.insert(self.particles, {
+        x = x, y = y,
+        vx = 0, vy = 0,
+        lifetime = 0.1,
+        max_lifetime = 0.1,
+        size = 12,
+        color = {1, 1, 1},
+        drag = 0
+    })
+end
+
+function Effects:stomp_ring(x, y)
+    -- Radial ground ring — orange/yellow spreading outward
+    for i = 1, 24 do
+        local angle = (i / 24) * 2 * math.pi
+        local speed = math.random(160, 340)
+        table.insert(self.particles, {
+            x = x, y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed * 0.4 - 40,
+            lifetime = math.random() * 0.3 + 0.15,
+            max_lifetime = 0.45,
+            size = math.random(3, 6),
+            color = {1, 0.85, 0.3},
+            drag = 0.04
+        })
+    end
+end
+
+function Effects:wall_jump_burst(x, y, dir)
+    -- Directional kick-off dust opposite to jump direction
+    for _ = 1, 16 do
+        local angle = (dir > 0 and math.pi or 0) + math.rad(math.random(-35, 35))
+        local speed = math.random(80, 220)
+        table.insert(self.particles, {
+            x = x, y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed - 30,
+            lifetime = math.random() * 0.3 + 0.1,
+            max_lifetime = 0.4,
+            size = math.random(2, 5),
+            color = {0.85, 0.8, 0.7},
+            drag = 0.03
+        })
+    end
+end
+
+function Effects:ricochet_kill(x, y)
+    -- Bright trick-shot flash — gold/white explosion
+    for _ = 1, 30 do
+        local angle = math.random() * 2 * math.pi
+        local speed = math.random(100, 380)
+        table.insert(self.particles, {
+            x = x, y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            lifetime = math.random() * 0.35 + 0.15,
+            max_lifetime = 0.5,
+            size = math.random(3, 6),
+            color = {1, 0.92, 0.4},
+            drag = 0.03
+        })
+    end
+    -- Big central flash
+    table.insert(self.particles, {
+        x = x, y = y,
+        vx = 0, vy = 0,
+        lifetime = 0.15,
+        max_lifetime = 0.15,
+        size = 16,
+        color = {1, 1, 0.85},
+        drag = 0
+    })
 end
 
 function Effects:rumble(x, y)

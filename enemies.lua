@@ -15,6 +15,14 @@ local function get_effects(self)
     return self.services and self.services.effects or g_effects
 end
 
+local function get_trigger_hitstop(self)
+    return self.services and self.services.trigger_hitstop or g_trigger_hitstop
+end
+
+local function get_camera(self)
+    return self.services and self.services.camera or g_camera
+end
+
 function Enemies:new(services)
     local class = self or Enemies
     local instance = setmetatable({}, class)
@@ -53,9 +61,28 @@ function Enemies:update(dt, level, player)
 
         if Utils.check_collision(player, enemy) and not player:is_invincible() then
             if player.vy > 0 and player.y + player.height < enemy.y + enemy.height then
+                local ex = enemy.x + enemy.width / 2
+                local ey = enemy.y + enemy.height / 2
                 enemy:destroy()
                 table.remove(self.items, i)
                 player.vy = JUMP_FORCE * 0.58
+                -- Stomp juice: ring effect, hitstop, camera shake, sound
+                local sfx = self.services and self.services.sfx or g_sfx
+                local effects = get_effects(self)
+                local trigger_hitstop = get_trigger_hitstop(self)
+                local camera = get_camera(self)
+                if sfx then
+                    sfx:play("stomp_bounce")
+                end
+                if effects then
+                    effects:spawn("stomp_ring", ex, ey)
+                end
+                if trigger_hitstop then
+                    trigger_hitstop(0.06)
+                end
+                if camera then
+                    camera:shake(5, 0.12)
+                end
             else
                 player:take_damage()
             end

@@ -117,10 +117,15 @@ function Projectiles:spawn(x, y, target_x, target_y, weapon_profile)
                             run_stats.shot_bank_kills = (run_stats.shot_bank_kills or 0) + 1
                             run_stats.room_shot_bank_kills = (run_stats.room_shot_bank_kills or 0) + 1
                             if effects then
-                                effects:stomp(sample_x, sample_y)
+                                effects:spawn("ricochet_kill", sample_x, sample_y)
                             end
+                            sfx:play("ricochet_kill")
                             if camera then
-                                camera:shake(7, 0.15)
+                                camera:shake(8, 0.18)
+                            end
+                            local trigger_hitstop = self.services and self.services.trigger_hitstop or g_trigger_hitstop
+                            if trigger_hitstop then
+                                trigger_hitstop(0.08)
                             end
                         end
                     end

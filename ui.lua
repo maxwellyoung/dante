@@ -138,7 +138,7 @@ function UI:should_hide_standard_hud()
     return get_game_mode(self) == "campaign" and self.chapter_card ~= nil
 end
 
-function UI.draw_health(_, health, max_health)
+function UI:draw_health(health, max_health)
     local start_x = g_native_width - 16 - (max_health * 16)
     local y = 12
 
@@ -156,6 +156,17 @@ function UI.draw_health(_, health, max_health)
             love.graphics.setColor(0.35, 0.35, 0.4, 1)
             love.graphics.rectangle("line", x + 1, y + 1, 10, 10, 2, 2)
         end
+    end
+
+    -- Death counter
+    local stats = get_run_stats(self)
+    if stats and (stats.room_deaths or 0) > 0 then
+        local deaths = stats.room_deaths
+        love.graphics.setColor(0.6, 0.25, 0.2, 0.9)
+        love.graphics.printf(
+            string.format("DEATHS %d", deaths),
+            start_x - 42, y + 16, max_health * 16 + 42, "right"
+        )
     end
 
     love.graphics.setColor(1, 1, 1, 1)
