@@ -173,6 +173,7 @@ function FPSMode:load_rooms()
         },
 
         -- 3. GUN. Something at the end. Shoot it. Hard cut the instant it dies.
+        -- Enemy is stationary. You have time.
         {
             ambient_tone = 40, ambient_volume = 0.07, ambient_character = "dread",
             fog_color = { 0.05, 0.02, 0.03 },
@@ -180,14 +181,20 @@ function FPSMode:load_rooms()
             ceiling_color = { 0.06, 0.03, 0.04 },
             completion = "trigger", completion_trigger = "killed",
             can_shoot = true,
+            passive_enemies = true,
             grid = {
-                "################",
-                "#P............E#",
-                "################",
+                "##############",
+                "#P..........E#",
+                "#............#",
+                "#............#",
+                "##############",
             },
             spawn_angle = 0,
             world_texts = {},
-            triggers = {},
+            triggers = {
+                { x = 3, y = 2, radius = 2, id = "gun_hint",
+                  screen_text = "Left click to shoot.", duration = 3 },
+            },
             on_kill = function(self)
                 self.triggered["killed"] = true
             end,
