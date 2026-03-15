@@ -64,6 +64,7 @@ function Level:new(scene, services)
     instance.weapon_profile = instance.scene.weapon_profile or {}
     instance.abilities = instance.scene.abilities or {}
     instance.wind_areas = instance.scene.wind_areas or {}
+    instance.reach_zone = instance.scene.reach_zone
     instance.qa_expectations = instance.scene.qa_expectations or {}
     instance.npc_guidance = instance.scene.npc_guidance or {}
     instance.map = {}
@@ -491,6 +492,38 @@ function Level:draw()
         love.graphics.setColor(0.18, 0.16, 0.14, 0.7)
         love.graphics.line(anchor.x - 4, anchor.y, anchor.x + 4, anchor.y)
         love.graphics.line(anchor.x, anchor.y - 4, anchor.x, anchor.y + 4)
+    end
+
+    -- Reach zone beacon
+    if self.reach_zone then
+        local rz = self.reach_zone
+        local pulse = 0.4 + 0.3 * math.sin(love.timer.getTime() * 4)
+        -- Glow
+        love.graphics.setColor(
+            self.accent_color[1],
+            self.accent_color[2],
+            self.accent_color[3],
+            0.12 * pulse
+        )
+        love.graphics.rectangle("fill", rz.x - 4, rz.y - 4, rz.width + 8, rz.height + 8, 4, 4)
+        -- Border
+        love.graphics.setColor(
+            self.accent_color[1],
+            self.accent_color[2],
+            self.accent_color[3],
+            0.6 * pulse
+        )
+        love.graphics.rectangle("line", rz.x, rz.y, rz.width, rz.height, 3, 3)
+        -- Arrow indicator
+        local cx = rz.x + rz.width / 2
+        local cy = rz.y - 8
+        love.graphics.setColor(
+            self.accent_color[1],
+            self.accent_color[2],
+            self.accent_color[3],
+            0.8 * pulse
+        )
+        love.graphics.polygon("fill", cx, cy, cx - 5, cy - 8, cx + 5, cy - 8)
     end
 
     for _, npc in ipairs(self.npcs) do

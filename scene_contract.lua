@@ -57,6 +57,14 @@ local DEFAULT_SCENE = {
     },
     wind_areas = {},
     qa_expectations = DEFAULT_QA_EXPECTATIONS,
+
+    -- Micro-trial system
+    trial_timer = 0,           -- 0 = no timer, >0 = seconds to complete
+    completion = "gate",       -- "gate", "reach_zone", "kill_all", "survive", "collect_all"
+    reach_zone = nil,          -- {x, y, width, height} for "reach_zone" completion
+    trial_rule = "",           -- one-line rule shown during trial (WarioWare style)
+    hard_cut = false,          -- true = instant black-flash transition, no gate walk
+    circle_id = nil,           -- which circle this room belongs to (for scoring/drone)
 }
 
 local function copy_table(value)

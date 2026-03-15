@@ -99,6 +99,23 @@ local function get_run_stats(self)
 end
 
 function UI:show_scene_intro(scene, room_index, room_count)
+    -- Micro-trial rooms: no chapter card, just a fast banner
+    if scene.room_type == "trial" then
+        self.hint_timer = 0
+        self.objective_timer = 0
+        self.story_callout = nil
+        self.pending_story_callout = nil
+        self.chapter_card = nil
+        -- Trial rule is shown via draw_trial_rule, just show title briefly
+        self:show_banner(
+            scene.title or "TRIAL",
+            scene.subtitle or "",
+            scene.accent_color,
+            1.2
+        )
+        return
+    end
+
     local long_form = scene.mode == "campaign"
         and (scene.room_type == "transition" or room_index == 1 or scene.room_type == "gate")
 
@@ -549,6 +566,73 @@ function UI.draw_debug(self, level, stats, room_count, room_index, force)
         )
     end
 
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI.draw_trial_timer(_, remaining, total)
+    if remaining <= 0 or total <= 0 then return end
+
+    local ratio = remaining / total
+    local x = g_native_width / 2
+    local y = g_native_height - 28
+
+    -- Timer bar
+    local bar_width = 120
+    local bar_height = 6
+    local bar_x = x - bar_width / 2
+    love.graphics.setColor(0.12, 0.12, 0.15, 0.9)
+    love.graphics.rectangle("fill", bar_x - 2, y - 2, bar_width + 4, bar_height + 4, 3, 3)
+
+    -- Color shifts from white to red as time runs out
+    local r = ratio < 0.3 and 1 or 0.85
+    local g = ratio < 0.3 and (0.2 + ratio) or 0.88
+    local b = ratio < 0.3 and 0.15 or 0.95
+    love.graphics.setColor(r, g, b, 1)
+    love.graphics.rectangle("fill", bar_x, y, bar_width * ratio, bar_height, 2, 2)
+
+    -- Seconds text
+    local pulse = remaining < 3 and (0.5 + 0.5 * math.sin(love.timer.getTime() * 12)) or 1
+    love.graphics.setColor(r, g, b, pulse)
+    love.graphics.printf(
+        string.format("%.1f", remaining),
+        bar_x, y - 14, bar_width, "center"
+    )
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI.draw_trial_rule(_, rule, room_time)
+    if not rule or rule == "" then return end
+
+    -- Flash the rule for 2 seconds at room start
+    local alpha = 0
+    if room_time < 0.3 then
+        alpha = room_time / 0.3
+    elseif room_time < 1.8 then
+        alpha = 1
+    elseif room_time < 2.2 then
+        alpha = 1 - (room_time - 1.8) / 0.4
+    end
+
+    if alpha <= 0 then return end
+
+    local width = 260
+    local cx = math.floor((g_native_width - width) / 2)
+    local cy = 86
+
+    love.graphics.setColor(0.02, 0.02, 0.03, 0.85 * alpha)
+    love.graphics.rectangle("fill", cx, cy, width, 24, 4, 4)
+    love.graphics.setColor(1, 1, 1, alpha)
+    love.graphics.printf(rule, cx, cy + 6, width, "center")
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI.draw_circle_score(_, score)
+    love.graphics.setColor(0.75, 0.78, 0.85, 0.7)
+    love.graphics.printf(
+        string.format("%d", score),
+        g_native_width - 60, g_native_height - 18, 50, "right"
+    )
     love.graphics.setColor(1, 1, 1, 1)
 end
 

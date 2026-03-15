@@ -25,6 +25,14 @@ g_run_stats = nil
 g_qa_capture = nil
 g_services = nil
 g_hitstop_timer = 0
+g_trial_timer = 0
+g_trial_active = false
+g_trial_completed = false
+g_hard_cut_timer = 0
+g_hard_cut_pending = false
+g_trial_score = nil
+g_circle_score = 0
+g_ambient_source = nil
 
 g_native_width, g_native_height = 480, 270
 g_main_canvas = nil
@@ -299,6 +307,128 @@ local function record_gate_entered()
     mark_meaningful_action()
 end
 
+-- Ambient drone generation per circle
+local function generate_drone(circle_id)
+    if g_ambient_source then
+        g_ambient_source:stop()
+        g_ambient_source = nil
+    end
+
+    local sample_rate = 44100
+    local duration = 4.0
+    local sample_count = math.floor(sample_rate * duration)
+    local sound_data = love.sound.newSoundData(sample_count, sample_rate, 16, 1)
+
+    -- Different drone character per circle
+    local base_freq = 55  -- A1
+    local detune = 0.5
+    local volume = 0.08
+
+    if circle_id == "lust" then
+        base_freq = 62    -- B1, slightly unsettled
+        detune = 1.2
+        volume = 0.1
+    end
+
+    for i = 0, sample_count - 1 do
+        local t = i / sample_rate
+        -- Two detuned sine waves + slow LFO modulation
+        local lfo = math.sin(t * 0.3 * math.pi * 2) * 0.3
+        local osc1 = math.sin(t * base_freq * math.pi * 2) * 0.5
+        local osc2 = math.sin(t * (base_freq + detune) * math.pi * 2) * 0.5
+        local osc3 = math.sin(t * (base_freq * 1.5) * math.pi * 2) * 0.15
+        -- Fade loop edges for seamless repeat
+        local env = 1
+        local fade = 0.1 * duration
+        if t < fade then
+            env = t / fade
+        elseif t > duration - fade then
+            env = (duration - t) / fade
+        end
+        local sample = (osc1 + osc2 + osc3) * (1 + lfo) * volume * env
+        sound_data:setSample(i, math.max(-1, math.min(1, sample)))
+    end
+
+    local source = love.audio.newSource(sound_data)
+    source:setLooping(true)
+    source:setVolume(volume)
+    source:play()
+    g_ambient_source = source
+end
+
+-- Trial completion checking
+local function check_trial_completion()
+    if not g_current_scene or g_trial_completed then
+        return false
+    end
+
+    local completion = g_current_scene.completion or "gate"
+
+    if completion == "gate" then
+        -- Legacy: walk into gate with enough fragments
+        return g_level:check_gate_collision(g_player)
+            and g_player.fragments >= g_level.fragments_required
+            and g_encounters:is_complete()
+    elseif completion == "reach_zone" then
+        local zone = g_current_scene.reach_zone
+        if not zone then return false end
+        return g_player.x + g_player.width > zone.x
+            and g_player.x < zone.x + zone.width
+            and g_player.y + g_player.height > zone.y
+            and g_player.y < zone.y + zone.height
+    elseif completion == "kill_all" then
+        return g_encounters:is_complete() and #g_enemies.items == 0
+    elseif completion == "survive" then
+        -- Survive until timer hits 0 — completion triggered by timer expiry
+        return false
+    elseif completion == "collect_all" then
+        return g_player.fragments >= g_level.fragments_required
+    end
+
+    return false
+end
+
+-- Grade calculation
+local function calculate_grade(scene, room_time, deaths)
+    local timer = scene.trial_timer or 0
+    if timer <= 0 then
+        -- No timer = grade on deaths only
+        if deaths == 0 then return "S", 300 end
+        if deaths == 1 then return "A", 200 end
+        if deaths <= 3 then return "B", 100 end
+        return "C", 50
+    end
+
+    local time_ratio = room_time / timer
+    if deaths == 0 and time_ratio < 0.5 then return "S", 300 end
+    if deaths == 0 and time_ratio < 0.75 then return "A", 200 end
+    if deaths <= 1 then return "B", 100 end
+    return "C", 50
+end
+
+-- Hard-cut transition: flash black then advance
+local function trigger_hard_cut()
+    if g_hard_cut_pending then return end
+    g_hard_cut_pending = true
+    g_trial_completed = true
+    g_hard_cut_timer = 0
+
+    -- Calculate grade
+    local grade, points = calculate_grade(
+        g_current_scene,
+        g_run_stats.room_time,
+        g_run_stats.room_deaths
+    )
+    g_trial_score = {
+        grade = grade,
+        points = points,
+        time = g_run_stats.room_time,
+        deaths = g_run_stats.room_deaths,
+        timer = 0.65, -- How long to show the grade
+    }
+    g_circle_score = g_circle_score + points
+end
+
 local function resolve_scene()
     if g_current_flow then
         return SceneContract.normalize(g_current_flow.rooms[g_current_room_index])
@@ -328,6 +458,26 @@ local function load_scene(scene)
     g_camera:reset()
     g_effects:reset()
     g_background:set_scene(scene)
+
+    -- Trial system init
+    g_trial_timer = scene.trial_timer or 0
+    g_trial_active = g_trial_timer > 0
+    g_trial_completed = false
+    g_hard_cut_pending = false
+    g_hard_cut_timer = 0
+    g_trial_score = nil
+
+    -- Ambient drone per circle
+    local circle_id = scene.circle_id
+    if circle_id and g_game_mode == "campaign" then
+        if not g_ambient_source or (g_ambient_source and g_ambient_source._circle_id ~= circle_id) then
+            generate_drone(circle_id)
+            if g_ambient_source then
+                g_ambient_source._circle_id = circle_id
+            end
+        end
+    end
+
     g_ui:show_scene_intro(
         scene,
         g_current_flow and g_current_room_index or 1,
@@ -343,23 +493,32 @@ local function advance_current_room()
     if g_current_flow then
         local completed_slice = false
         g_run_stats.rooms_cleared = g_run_stats.rooms_cleared + 1
+
+        -- Check if we're crossing a circle boundary
+        local old_circle = g_current_scene and g_current_scene.circle_id
         g_current_room_index = g_current_room_index + 1
         if g_current_room_index > #g_current_flow.rooms then
             g_current_room_index = 1
             completed_slice = true
         end
-        load_scene(resolve_scene())
+
+        local next_scene = resolve_scene()
+        local new_circle = next_scene and next_scene.circle_id
+
+        -- Reset circle score when entering a new circle
+        if old_circle and new_circle and old_circle ~= new_circle then
+            g_circle_score = 0
+        end
+
+        load_scene(next_scene)
         if completed_slice then
-        g_ui:show_scene_intro({
-            title = "SLICE COMPLETE",
-            subtitle = "Looping back to the first room.",
-            transition_beat = "The proving ascent loops until the rule truly lands.",
-            accent_color = { 0.95, 0.62, 0.22 },
-            mode = "campaign",
-            room_type = "transition",
-            removed_ability = "none",
-            environment_hook = "Vertical slice complete",
-            }, #g_current_flow.rooms, #g_current_flow.rooms)
+            g_circle_score = 0
+            g_ui:show_banner(
+                "ASCENT COMPLETE",
+                string.format("Final score: %d. Looping.", g_circle_score),
+                { 0.95, 0.62, 0.22 },
+                2.0
+            )
         end
         return
     end
@@ -559,6 +718,26 @@ function love.update(dt)
         return
     end
 
+    -- Hard-cut transition in progress
+    if g_hard_cut_pending then
+        g_hard_cut_timer = g_hard_cut_timer + dt
+        -- Show grade for a beat, then cut
+        if g_trial_score then
+            g_trial_score.timer = g_trial_score.timer - dt
+        end
+        local grade_done = not g_trial_score or g_trial_score.timer <= 0
+        if g_hard_cut_timer > 0.08 and grade_done then
+            g_hard_cut_pending = false
+            g_hard_cut_timer = 0
+            g_trial_score = nil
+            record_gate_entered()
+            advance_current_room()
+        end
+        g_camera:update(dt)
+        g_ui:update(dt)
+        return
+    end
+
     g_level:update(dt, g_player)
     g_player:update(dt, g_level)
     g_encounters:update(dt, g_player)
@@ -571,37 +750,54 @@ function love.update(dt)
     g_ui:update(dt)
     g_projectiles:update(dt, g_level, g_enemies)
 
+    -- Trial timer countdown
+    if g_trial_active and not g_trial_completed then
+        g_trial_timer = g_trial_timer - dt
+        if g_trial_timer <= 0 then
+            g_trial_timer = 0
+            local completion = g_current_scene and g_current_scene.completion or "gate"
+            if completion == "survive" then
+                -- Survived! Trigger completion
+                local use_hard_cut = g_current_scene and g_current_scene.hard_cut
+                if use_hard_cut then
+                    trigger_hard_cut()
+                else
+                    g_trial_completed = true
+                    record_gate_entered()
+                    advance_current_room()
+                end
+            else
+                -- Ran out of time = death
+                g_player:take_damage()
+                if not g_player.is_dead then
+                    g_player:die()
+                end
+            end
+        end
+    end
+
+    -- Checkpoint collision (legacy rooms)
     local checkpoint = g_level:check_checkpoint_collision(g_player)
     if checkpoint then
         g_respawn_point = g_level:get_respawn_point()
         g_effects:rumble(checkpoint.x + checkpoint.width / 2, checkpoint.y + checkpoint.height)
         g_ui:trigger_flash()
-        local checkpoint_message = "Checkpoint secured."
-        if g_level.show_gate then
-            if g_player.fragments >= g_level.fragments_required then
-                checkpoint_message = "Checkpoint secured. Head right into the glowing EXIT gate."
-            else
-                checkpoint_message = string.format(
-                    "Checkpoint secured. Collect %d more fragment%s, then enter the EXIT gate.",
-                    g_level.fragments_required - g_player.fragments,
-                    (g_level.fragments_required - g_player.fragments) == 1 and "" or "s"
-                )
-            end
-        end
-        g_ui:show_banner(g_level.scene_title, checkpoint_message, g_level.accent_color)
+        g_ui:show_banner(g_level.scene_title, "Checkpoint.", g_level.accent_color, 0.8)
     end
 
     if g_level:handle_hazards_collision(g_player) then
         g_player:take_damage()
     end
 
-    if
-        g_level:check_gate_collision(g_player)
-        and g_player.fragments >= g_level.fragments_required
-        and g_encounters:is_complete()
-    then
-        record_gate_entered()
-        advance_current_room()
+    -- Completion condition check
+    if check_trial_completion() then
+        local use_hard_cut = g_current_scene and g_current_scene.hard_cut
+        if use_hard_cut then
+            trigger_hard_cut()
+        else
+            record_gate_entered()
+            advance_current_room()
+        end
     end
 end
 
@@ -645,6 +841,21 @@ function love.draw()
             g_current_room_index
         )
     end
+    -- Trial timer HUD
+    if g_trial_active and not g_trial_completed and g_trial_timer > 0 then
+        g_ui:draw_trial_timer(g_trial_timer, g_current_scene and g_current_scene.trial_timer or 0)
+    end
+
+    -- Trial rule flash
+    if g_current_scene and g_current_scene.trial_rule and g_current_scene.trial_rule ~= "" then
+        g_ui:draw_trial_rule(g_current_scene.trial_rule, g_run_stats.room_time)
+    end
+
+    -- Circle score
+    if g_game_mode == "campaign" and g_circle_score > 0 then
+        g_ui:draw_circle_score(g_circle_score)
+    end
+
     g_ui:draw_debug(
         g_level,
         g_run_stats,
@@ -652,6 +863,41 @@ function love.draw()
         g_current_room_index,
         g_debug_overlay
     )
+
+    -- Hard-cut black flash overlay
+    if g_hard_cut_pending then
+        love.graphics.setColor(0, 0, 0, 1)
+        love.graphics.rectangle("fill", 0, 0, g_native_width, g_native_height)
+
+        -- Grade flash
+        if g_trial_score and g_trial_score.timer > 0 then
+            local accent = g_current_scene and g_current_scene.accent_color or {0.92, 0.55, 0.18}
+            local alpha = math.min(1, g_trial_score.timer / 0.3)
+
+            -- Grade letter
+            love.graphics.setColor(accent[1], accent[2], accent[3], alpha)
+            love.graphics.printf(
+                g_trial_score.grade,
+                0, g_native_height / 2 - 30, g_native_width, "center"
+            )
+
+            -- Points
+            love.graphics.setColor(0.85, 0.88, 0.95, alpha * 0.8)
+            love.graphics.printf(
+                string.format("+%d", g_trial_score.points),
+                0, g_native_height / 2 - 10, g_native_width, "center"
+            )
+
+            -- Time and deaths
+            love.graphics.setColor(0.6, 0.62, 0.7, alpha * 0.6)
+            love.graphics.printf(
+                string.format("%.1fs  %d deaths", g_trial_score.time, g_trial_score.deaths),
+                0, g_native_height / 2 + 8, g_native_width, "center"
+            )
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     love.graphics.setCanvas()
 
     local scale = math.min(
