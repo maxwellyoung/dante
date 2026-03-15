@@ -12,6 +12,8 @@ function FPSMap:new(data)
     instance.spawn = { x = 2.5, y = 2.5, angle = 0 }
     instance.exit = nil
     instance.sprites = {}
+    instance.world_texts = {}
+    instance.triggers = {}
     instance:load(data)
     return instance
 end
@@ -23,6 +25,8 @@ function FPSMap:load(data)
     self.width = #data.grid[1]
     self.grid = {}
     self.sprites = {}
+    self.world_texts = data.world_texts or {}
+    self.triggers = data.triggers or {}
 
     for y, row in ipairs(data.grid) do
         self.grid[y] = {}

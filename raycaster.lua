@@ -286,6 +286,50 @@ function Raycaster:draw_weapon(weapon_state, time)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function Raycaster:draw_world_text(texts, px, py, angle)
+    -- Render text floating in 3D space as billboards
+    for _, t in ipairs(texts) do
+        if t.visible ~= false then
+            local dx = t.x - px
+            local dy = t.y - py
+            local dist = math.sqrt(dx * dx + dy * dy)
+
+            if dist < self.max_depth and dist > 0.3 then
+                local text_angle = math.atan2(dy, dx) - angle
+                while text_angle > math.pi do text_angle = text_angle - math.pi * 2 end
+                while text_angle < -math.pi do text_angle = text_angle + math.pi * 2 end
+
+                if math.abs(text_angle) < FOV / 2 + 0.1 then
+                    local screen_x = (text_angle / FOV + 0.5) * self.screen_width
+                    local height_offset = (t.height or 0.5) / dist * self.screen_height * 0.6
+                    local screen_y = self.half_height - height_offset
+
+                    -- Fade based on distance
+                    local alpha = math.max(0, 1 - dist / self.max_depth)
+                    -- Fade based on proximity (too close = fade out)
+                    if dist < 1 then
+                        alpha = alpha * dist
+                    end
+
+                    local color = t.color or { 0.85, 0.88, 0.95 }
+                    love.graphics.setColor(color[1], color[2], color[3], alpha * (t.alpha or 1))
+
+                    local font_scale = math.max(0.5, 2 / dist)
+                    local text_width = 200
+                    love.graphics.printf(
+                        t.text,
+                        screen_x - text_width / 2,
+                        screen_y,
+                        text_width,
+                        "center"
+                    )
+                end
+            end
+        end
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 function Raycaster:draw_crosshair()
     local cx = self.screen_width / 2
     local cy = self.screen_height / 2
