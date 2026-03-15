@@ -1,6 +1,12 @@
 -- campaign.lua
 -- Micro-trial campaign: short sharp rooms, hard cuts, one rule per room.
--- Inspired by WarioWare brevity + Blendo Games smash cuts + Dante's progressive loss.
+--
+-- DESIGN PRINCIPLES (Miyamoto / Vanaman / Fish):
+-- - Player should ALWAYS see where they need to go
+-- - Obstacles create choices, not dead ends
+-- - Wide platforms, generous margins — controls aren't Celeste-tight
+-- - Each room teaches ONE thing through play, not text
+-- - If death feels unfair, the room is wrong, not the player
 
 return {
     id = "infernal_ascent",
@@ -11,8 +17,9 @@ return {
         -- LIMBO — Full kit. Learn the verbs. 5 micro-trials.
         -- ============================================================
 
-        -- LIMBO 1: Cross — staggered islands descending then rising over a hazard pit.
-        -- Forces: jump commitment, air control, platform reading.
+        -- LIMBO 1: Cross — wide platforms descending like stairs over lava.
+        -- Generous landing zones. Teaches: basic jump + air control.
+        -- The player can see the glowing zone from spawn.
         {
             id = "limbo_01",
             title = "LIMBO",
@@ -23,8 +30,8 @@ return {
             circle_id = "limbo",
             hard_cut = true,
             completion = "reach_zone",
-            reach_zone = { x = 27 * 32, y = 3 * 32, width = 32, height = 64 },
-            trial_timer = 8,
+            reach_zone = { x = 22 * 32, y = 5 * 32, width = 64, height = 96 },
+            trial_timer = 10,
             fragments_required = 0,
             show_gate = false,
             bg = { 0.1, 0.11, 0.14 },
@@ -32,24 +39,24 @@ return {
             accent_color = { 0.88, 0.58, 0.24 },
             abilities = { shoot = true, grapple = true, dash = true },
             map = {
-                "111111111111111111111111111111",
-                "1                            1",
-                "1                            1",
-                "1                       11   1",
-                "1                            1",
-                "1                  11        1",
-                "1 P                          1",
-                "1 11     11                  1",
-                "1              11            1",
-                "1                            1",
-                "1    1              1        1",
+                "1111111111111111111111111111",
+                "1                          1",
+                "1                          1",
+                "1                          1",
+                "1 P                        1",
+                "1 1111                     1",
+                "1                 1111     1",
+                "1        1111              1",
+                "1                    11111 1",
+                "1                          1",
                 "1 22222222222222222222222222 1",
-                "111111111111111111111111111111",
+                "1111111111111111111111111111",
             },
         },
 
-        -- LIMBO 2: Climb — narrow zigzag chimney. Alternating ledges force
-        -- wall jumps with direction changes. Tight, vertical, rhythmic.
+        -- LIMBO 2: Climb — wide chimney, walls close enough to bounce between.
+        -- No ledges blocking the center. Just two walls and momentum.
+        -- Generous width so mistimed jumps don't fail instantly.
         {
             id = "limbo_02",
             title = "LIMBO",
@@ -60,38 +67,35 @@ return {
             circle_id = "limbo",
             hard_cut = true,
             completion = "reach_zone",
-            reach_zone = { x = 3 * 32, y = 1 * 32, width = 96, height = 32 },
-            trial_timer = 10,
+            reach_zone = { x = 3 * 32, y = 1 * 32, width = 128, height = 48 },
+            trial_timer = 12,
             fragments_required = 0,
             show_gate = false,
             bg = { 0.1, 0.11, 0.14 },
             solid_color = { 0.28, 0.31, 0.36 },
             accent_color = { 0.88, 0.58, 0.24 },
             abilities = { shoot = true, grapple = true, dash = true },
-            -- Open chimney with small kick-off nubs. Clear sightline to top.
-            -- Player can always see the goal. Walls guide, never block.
+            -- Just two walls. Nothing in between. Pure wall-jump rhythm.
             map = {
-                "11111111111",
-                "1         1",
-                "1         1",
-                "11        1",
-                "1        11",
-                "1         1",
-                "11        1",
-                "1        11",
-                "1         1",
-                "11        1",
-                "1        11",
-                "1         1",
-                "11        1",
-                "1    P   11",
-                "1   111   1",
-                "11111111111",
+                "1111111111",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1        1",
+                "1   P    1",
+                "1  1111  1",
+                "1111111111",
             },
         },
 
-        -- LIMBO 3: Shoot — multi-level arena with central pillar.
-        -- Enemies on different heights. Player must move vertically to get angles.
+        -- LIMBO 3: Shoot — flat arena, enemies come to you. No platforming
+        -- pressure, just learn to aim and fire. Wide floor, nowhere to fall.
         {
             id = "limbo_03",
             title = "LIMBO",
@@ -102,7 +106,7 @@ return {
             circle_id = "limbo",
             hard_cut = true,
             completion = "kill_all",
-            trial_timer = 12,
+            trial_timer = 14,
             fragments_required = 0,
             show_gate = false,
             bg = { 0.1, 0.11, 0.14 },
@@ -111,46 +115,44 @@ return {
             abilities = { shoot = true, grapple = true, dash = true },
             encounter_config = {
                 trigger_x = 0,
-                bounds = { left = 0, right = 22 * 32 },
+                bounds = { left = 0, right = 24 * 32 },
                 waves = {
                     {
                         spawns = {
-                            { x = 16 * 32, y = 8 * 32, type = "walker" },
-                            { x = 5 * 32, y = 5 * 32, type = "walker" },
-                            { x = 18 * 32, y = 2 * 32, type = "harpy" },
+                            { x = 18 * 32, y = 6 * 32, type = "walker" },
+                            { x = 20 * 32, y = 6 * 32, type = "walker" },
+                            { x = 19 * 32, y = 2 * 32, type = "harpy" },
                         },
                     },
                 },
             },
             map = {
-                "1111111111111111111111",
-                "1                    1",
-                "1                    1",
-                "1 P          111     1",
-                "1 11    11           1",
-                "1              1    1",
-                "1  111               1",
-                "1          11       1",
-                "1      1        111 1",
-                "1                    1",
-                "1  111      111  111 1",
-                "1111111111111111111111",
+                "111111111111111111111111",
+                "1                      1",
+                "1                      1",
+                "1                      1",
+                "1  P                   1",
+                "1                      1",
+                "1            111       1",
+                "1                      1",
+                "1111111111111111111111111",
             },
         },
 
-        -- LIMBO 4: Chain — grapple across a diagonal chasm. Anchors placed
-        -- so you must chain 3 swings. Hazard floor. No straight path.
+        -- LIMBO 4: Chain — two big platforms with a wide gap. One grapple
+        -- anchor in the middle. Simple: jump, grapple, land. Generous
+        -- landing platform on the far side.
         {
             id = "limbo_04",
             title = "LIMBO",
             subtitle = "Chain.",
-            trial_rule = "GRAPPLE ACROSS THE PIT",
+            trial_rule = "GRAPPLE ACROSS",
             mode = "campaign",
             room_type = "trial",
             circle_id = "limbo",
             hard_cut = true,
             completion = "reach_zone",
-            reach_zone = { x = 24 * 32, y = 1 * 32, width = 32, height = 64 },
+            reach_zone = { x = 20 * 32, y = 4 * 32, width = 64, height = 96 },
             trial_timer = 10,
             fragments_required = 0,
             show_gate = false,
@@ -159,22 +161,23 @@ return {
             accent_color = { 0.88, 0.58, 0.24 },
             abilities = { shoot = true, grapple = true, dash = true },
             map = {
-                "11111111111111111111111111111",
-                "1                           1",
-                "1 P           A          11 1",
-                "1 11                        1",
-                "1        A          A       1",
-                "1                           1",
-                "1              A            1",
-                "1   A                       1",
-                "1                           1",
-                "1 2222222222222222222222222  1",
-                "11111111111111111111111111111",
+                "11111111111111111111111111",
+                "1                        1",
+                "1            A           1",
+                "1                        1",
+                "1 P                      1",
+                "1 1111       A    111111 1",
+                "1                        1",
+                "1        A               1",
+                "1                        1",
+                "1 22222222222222222222222 1",
+                "11111111111111111111111111",
             },
         },
 
-        -- LIMBO 5: Survive — compact arena with 3 pillars for cover.
-        -- Two waves, tight space, enemies from both sides.
+        -- LIMBO 5: Survive — big open room with a raised platform in the
+        -- center for safety. Enemies come from sides. You can always retreat
+        -- to high ground. Teaches: movement under pressure.
         {
             id = "limbo_05",
             title = "LIMBO",
@@ -185,7 +188,7 @@ return {
             circle_id = "limbo",
             hard_cut = true,
             completion = "survive",
-            trial_timer = 10,
+            trial_timer = 12,
             fragments_required = 0,
             show_gate = false,
             bg = { 0.12, 0.13, 0.17 },
@@ -199,15 +202,15 @@ return {
                     {
                         spawns = {
                             { x = 17 * 32, y = 7 * 32, type = "walker" },
-                            { x = 3 * 32, y = 3 * 32, type = "harpy" },
+                            { x = 15 * 32, y = 2 * 32, type = "harpy" },
                         },
-                        delay_after_clear = 0.3,
+                        delay_after_clear = 0.4,
                     },
                     {
                         spawns = {
                             { x = 4 * 32, y = 7 * 32, type = "walker" },
-                            { x = 16 * 32, y = 7 * 32, type = "walker" },
-                            { x = 18 * 32, y = 2 * 32, type = "harpy" },
+                            { x = 17 * 32, y = 7 * 32, type = "walker" },
+                            { x = 10 * 32, y = 2 * 32, type = "harpy" },
                         },
                     },
                 },
@@ -216,23 +219,23 @@ return {
                 "1111111111111111111111",
                 "1                    1",
                 "1                    1",
-                "1        1     1     1",
-                "1   P    1     1     1",
-                "1  11    1     1     1",
                 "1                    1",
-                "1    111   111   111 1",
+                "1  P                 1",
+                "1  11   111111  11   1",
                 "1                    1",
-                "1  11    11    11    1",
+                "1                    1",
                 "1111111111111111111111",
             },
         },
 
         -- ============================================================
-        -- LUST — Grapple stripped. Wind replaces recovery. 5 micro-trials.
+        -- LUST — Grapple stripped. Wind replaces recovery.
+        -- Wider everything. Wind is the new tool, not precision.
         -- ============================================================
 
-        -- LUST 1: Cross without grapple — same-ish chasm layout but no anchors.
-        -- Must wall-jump off narrow pillars and dash to reach far side.
+        -- LUST 1: Cross without grapple — wide gap but with platforms
+        -- you can wall-jump off of. More forgiving than Limbo 4 was
+        -- WITH the grapple — the loss should feel like "different", not "harder".
         {
             id = "lust_01",
             title = "LUST",
@@ -243,7 +246,7 @@ return {
             circle_id = "lust",
             hard_cut = true,
             completion = "reach_zone",
-            reach_zone = { x = 26 * 32, y = 2 * 32, width = 32, height = 64 },
+            reach_zone = { x = 22 * 32, y = 4 * 32, width = 64, height = 96 },
             trial_timer = 12,
             removed_ability = "grapple",
             fragments_required = 0,
@@ -253,23 +256,24 @@ return {
             accent_color = { 0.95, 0.46, 0.56 },
             abilities = { shoot = true, grapple = false, dash = true },
             map = {
-                "1111111111111111111111111111111",
-                "1                             1",
-                "1 P                       11  1",
-                "1 11                          1",
-                "1              1              1",
-                "1              1         1    1",
-                "1      1       1              1",
-                "1      1                      1",
-                "1                             1",
-                "1 22222222222222222222222222   1",
-                "1111111111111111111111111111111",
+                "1111111111111111111111111111",
+                "1                          1",
+                "1                          1",
+                "1                          1",
+                "1 P               11111111 1",
+                "1 1111                     1",
+                "1          11              1",
+                "1                          1",
+                "1     11        11         1",
+                "1                          1",
+                "1 22222222222222222222222222 1",
+                "1111111111111111111111111111",
             },
         },
 
-        -- LUST 2: Wind — ascending staircase of platforms with tailwind.
-        -- Wind pushes you right and up. Must hop platform-to-platform
-        -- while the wind wants to throw you past them.
+        -- LUST 2: Wind — tailwind pushes you across a wide room.
+        -- Big platforms to land on. Wind does the work, you just steer.
+        -- Teaches: wind is your friend, not your enemy.
         {
             id = "lust_02",
             title = "LUST",
@@ -280,7 +284,7 @@ return {
             circle_id = "lust",
             hard_cut = true,
             completion = "reach_zone",
-            reach_zone = { x = 28 * 32, y = 1 * 32, width = 32, height = 64 },
+            reach_zone = { x = 24 * 32, y = 4 * 32, width = 64, height = 96 },
             trial_timer = 10,
             removed_ability = "grapple",
             fragments_required = 0,
@@ -291,42 +295,42 @@ return {
             abilities = { shoot = true, grapple = false, dash = true },
             wind_areas = {
                 {
-                    x = 3 * 32, y = 1 * 32,
-                    width = 24 * 32, height = 10 * 32,
-                    force_x = 480,
+                    x = 2 * 32, y = 1 * 32,
+                    width = 24 * 32, height = 8 * 32,
+                    force_x = 420,
                     label = "Tailwind",
                 },
             },
             map = {
-                "111111111111111111111111111111111",
-                "1                               1",
-                "1 P                         11  1",
-                "1 11                             1",
-                "1                                1",
-                "1          11                    1",
-                "1                    11          1",
-                "1     11                         1",
-                "1                11              1",
-                "1                                1",
-                "1 222222222222222222222222222222  1",
-                "111111111111111111111111111111111",
+                "11111111111111111111111111111",
+                "1                           1",
+                "1                           1",
+                "1                           1",
+                "1 P                  11111  1",
+                "1 1111                      1",
+                "1          1111             1",
+                "1                   1111    1",
+                "1     1111                  1",
+                "1                           1",
+                "1 222222222222222222222222222 1",
+                "11111111111111111111111111111",
             },
         },
 
-        -- LUST 3: Brace — headwind corridor with low ceiling sections.
-        -- Must crouch to resist wind in narrow passages, then sprint
-        -- through gaps between ceiling blocks.
+        -- LUST 3: Brace — headwind pushes you back. But the corridor is
+        -- wide and flat. Crouch to halve the wind. Just walk forward.
+        -- Simple, but teaches the mechanic clearly.
         {
             id = "lust_03",
             title = "LUST",
             subtitle = "Brace.",
-            trial_rule = "CROUCH THROUGH THE GUST",
+            trial_rule = "CROUCH INTO THE WIND",
             mode = "campaign",
             room_type = "trial",
             circle_id = "lust",
             hard_cut = true,
             completion = "reach_zone",
-            reach_zone = { x = 28 * 32, y = 6 * 32, width = 32, height = 64 },
+            reach_zone = { x = 22 * 32, y = 4 * 32, width = 64, height = 96 },
             trial_timer = 12,
             removed_ability = "grapple",
             fragments_required = 0,
@@ -337,34 +341,32 @@ return {
             abilities = { shoot = true, grapple = false, dash = true, crouch = true },
             wind_areas = {
                 {
-                    x = 3 * 32, y = 4 * 32,
-                    width = 24 * 32, height = 5 * 32,
-                    force_x = -550,
+                    x = 4 * 32, y = 2 * 32,
+                    width = 18 * 32, height = 5 * 32,
+                    force_x = -480,
                     label = "Headwind",
                 },
             },
             map = {
-                "111111111111111111111111111111111",
-                "1                               1",
-                "1                               1",
-                "1 P                             1",
-                "1 11  1111    1111    1111       1",
-                "1                               1",
-                "1     1111    1111    1111   11  1",
-                "1                               1",
-                "1111111111111111111111111111 1111",
-                "111111111111111111111111111111111",
+                "1111111111111111111111111111",
+                "1                          1",
+                "1                          1",
+                "1 P                        1",
+                "1                     11   1",
+                "1                          1",
+                "1                          1",
+                "1111111111111111111111111111",
             },
         },
 
-        -- LUST 4: Bank — enemies behind L-shaped walls. Direct shots
-        -- are blocked. Must use ricochet off ceiling/floor to hit them.
-        -- Crosswind bends your aim.
+        -- LUST 4: Bank — one walker on a platform you can't reach directly.
+        -- Wall behind it to bounce shots off. Crosswind makes direct shots
+        -- drift. Teaches: ricochet is a tool, not a trick.
         {
             id = "lust_04",
             title = "LUST",
             subtitle = "Bank.",
-            trial_rule = "RICOCHET KILL IN CROSSWIND",
+            trial_rule = "USE THE WALLS",
             mode = "campaign",
             room_type = "trial",
             circle_id = "lust",
@@ -380,42 +382,40 @@ return {
             abilities = { shoot = true, grapple = false, dash = true },
             wind_areas = {
                 {
-                    x = 8 * 32, y = 1 * 32,
-                    width = 10 * 32, height = 10 * 32,
-                    force_x = -300,
+                    x = 6 * 32, y = 1 * 32,
+                    width = 14 * 32, height = 8 * 32,
+                    force_x = -250,
                     label = "Crosswind",
                 },
             },
             encounter_config = {
                 trigger_x = 0,
-                bounds = { left = 0, right = 24 * 32 },
+                bounds = { left = 0, right = 22 * 32 },
                 waves = {
                     {
                         spawns = {
-                            { x = 19 * 32, y = 7 * 32, type = "walker" },
-                            { x = 20 * 32, y = 3 * 32, type = "harpy" },
+                            { x = 17 * 32, y = 4 * 32, type = "walker" },
+                            { x = 18 * 32, y = 1 * 32, type = "harpy" },
                         },
                     },
                 },
             },
             map = {
-                "1111111111111111111111111",
-                "1                       1",
-                "1                  1    1",
-                "1 P                1    1",
-                "1 11        1     1    1",
-                "1           1          1",
-                "1    11     1          1",
-                "1           1     111  1",
-                "1      11              1",
-                "1           111    11  1",
-                "1111111111111111111111111",
+                "111111111111111111111111",
+                "1                      1",
+                "1                      1",
+                "1  P                   1",
+                "1  1111      11111111111",
+                "1                      1",
+                "1                      1",
+                "1                      1",
+                "111111111111111111111111",
             },
         },
 
-        -- LUST 5: Survive without the chain — compact arena, wind pushing
-        -- player around, hazard floor sections, pillars for cover.
-        -- Two waves of mixed enemies. The final exam.
+        -- LUST 5: Survive — open room with wind pushing you around.
+        -- Big floor, no pits. Enemies from both sides. The challenge is
+        -- managing position in wind, not precision platforming.
         {
             id = "lust_05",
             title = "LUST",
@@ -437,50 +437,46 @@ return {
             wind_areas = {
                 {
                     x = 2 * 32, y = 1 * 32,
-                    width = 10 * 32, height = 5 * 32,
-                    force_x = 380,
+                    width = 9 * 32, height = 6 * 32,
+                    force_x = 350,
                     label = "Tailwind",
                 },
                 {
-                    x = 12 * 32, y = 5 * 32,
-                    width = 10 * 32, height = 5 * 32,
-                    force_x = -320,
+                    x = 11 * 32, y = 1 * 32,
+                    width = 9 * 32, height = 6 * 32,
+                    force_x = -300,
                     label = "Crosswind",
                 },
             },
             encounter_config = {
                 trigger_x = 0,
-                bounds = { left = 0, right = 24 * 32 },
+                bounds = { left = 0, right = 22 * 32 },
                 waves = {
                     {
                         spawns = {
-                            { x = 18 * 32, y = 8 * 32, type = "walker" },
-                            { x = 4 * 32, y = 2 * 32, type = "harpy" },
+                            { x = 17 * 32, y = 6 * 32, type = "walker" },
+                            { x = 14 * 32, y = 2 * 32, type = "harpy" },
                         },
                         delay_after_clear = 0.5,
                     },
                     {
                         spawns = {
-                            { x = 5 * 32, y = 8 * 32, type = "walker" },
-                            { x = 17 * 32, y = 8 * 32, type = "walker" },
+                            { x = 4 * 32, y = 6 * 32, type = "walker" },
+                            { x = 17 * 32, y = 6 * 32, type = "walker" },
                             { x = 10 * 32, y = 2 * 32, type = "harpy" },
-                            { x = 19 * 32, y = 2 * 32, type = "harpy" },
                         },
                     },
                 },
             },
             map = {
-                "1111111111111111111111111",
-                "1                       1",
-                "1        1       1      1",
-                "1   P    1       1      1",
-                "1  11    1       1      1",
-                "1                       1",
-                "1    11      1      11  1",
-                "1            1          1",
-                "1   22   111 1 111  22  1",
-                "1  1111            1111 1",
-                "1111111111111111111111111",
+                "1111111111111111111111",
+                "1                    1",
+                "1                    1",
+                "1  P                 1",
+                "1                    1",
+                "1       111111       1",
+                "1                    1",
+                "1111111111111111111111",
             },
         },
     },

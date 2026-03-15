@@ -30,9 +30,9 @@ local LOW_JUMP_GRAVITY_MULTIPLIER = 1.36
 local WALL_GRACE_TIME = 0.12
 local WALL_JUMP_LOCK_TIME = 0.14
 local WALL_DETACH_TIME = 0.1
-local WALL_STICK_TIME = 0.14
-local WALL_AUTO_DETACH_TIME = 0.18
-local WALL_AUTO_DETACH_PUSH = 90
+local WALL_STICK_TIME = 0.08
+local WALL_AUTO_DETACH_TIME = 0.12
+local WALL_AUTO_DETACH_PUSH = 110
 local WALL_CONTACT_INSET = 5
 local RUN_DUST_INTERVAL = 0.08
 local HURT_KNOCKBACK_X = 230
@@ -167,7 +167,7 @@ function Player:new(services)
     instance.wall_jump_lock_dir = 0
     instance.wall_detach_timer = 0
     instance.wall_slide_hold_timer = 0
-    instance.wall_slide_speed = 180
+    instance.wall_slide_speed = 320
     instance.wall_jump_force_x = 360
     instance.wall_jump_force_y = -520
     instance.facing = 1
@@ -446,7 +446,7 @@ function Player:update_wall_state(dt, level)
             self.wall_slide_hold_timer = 0
             return
         end
-        self.vy = approach(self.vy, self.wall_slide_speed, 2800 * dt)
+        self.vy = approach(self.vy, self.wall_slide_speed, 1400 * dt)
         if self.vy > self.wall_slide_speed + 10 then
             local effects = get_effects(self)
             if effects then
