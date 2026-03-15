@@ -564,12 +564,9 @@ function FPSMode:load_room(index)
         end
     end
 
-    -- Override fog distance
-    if room.override_fog then
-        self.raycaster.max_depth = room.override_fog
-    else
-        self.raycaster.max_depth = 16
-    end
+    -- Reset fog distance every room load
+    self.raycaster.max_depth = room.override_fog or 16
+    self.raycaster.fog_start = 6
 
     -- Set palette
     self.raycaster.fog_color = room.fog_color or { 0.02, 0.02, 0.04 }
