@@ -1,6 +1,5 @@
 -- fps_mode.lua
--- Lo-fi FPS vignette engine.
--- Rooms that DO things. Walls that move. The game breaking itself.
+-- Lo-fi FPS. Rooms that do things. Vlambeer feel. Blendo cuts.
 
 local Raycaster = require("raycaster")
 local FPSMap = require("fps_map")
@@ -34,76 +33,47 @@ function FPSMode:new()
     instance.ambient_source = nil
     instance.footstep_timer = 0
     instance.visit_count = 0
-    -- Screen effects
     instance.static_intensity = 0
-    instance.wobble = 0
     instance.invert_controls = false
     instance.speed_mult = 1
     instance.chase_entity = nil
-    instance.room_tint = nil
     instance.flash_timer = 0
     instance.hitstop_timer = 0
-
-    -- Menu state
     instance.in_menu = true
-    instance.menu_selection = 1
 
     return instance
 end
 
-function FPSMode:generate_ambient(room)
+function FPSMode:start_ambient(room)
     if self.ambient_source then
         self.ambient_source:stop()
         self.ambient_source = nil
     end
 
     local tone = room.ambient_tone or 55
-    local volume = room.ambient_volume or 0.06
-    local character = room.ambient_character or "warm"
+    local vol = room.ambient_volume or 0.015
 
-    local sample_rate = 44100
-    local duration = 3.0
-    local count = math.floor(sample_rate * duration)
-    local data = love.sound.newSoundData(count, sample_rate, 16, 1)
+    local sr = 44100
+    local dur = 3.0
+    local count = math.floor(sr * dur)
+    local data = love.sound.newSoundData(count, sr, 16, 1)
 
     for i = 0, count - 1 do
-        local t = i / sample_rate
+        local t = i / sr
         local env = 1
-        local fade = 0.15 * duration
+        local fade = 0.2 * dur
         if t < fade then env = t / fade
-        elseif t > duration - fade then env = (duration - t) / fade end
+        elseif t > dur - fade then env = (dur - t) / fade end
 
-        local sample = 0
-        if character == "warm" then
-            sample = math.sin(t * tone * math.pi * 2) * 0.4
-                   + math.sin(t * (tone + 0.3) * math.pi * 2) * 0.3
-        elseif character == "cold" then
-            sample = math.sin(t * tone * math.pi * 2) * 0.3
-                   + math.sin(t * (tone * 1.01) * math.pi * 2) * 0.3
-        elseif character == "dread" then
-            local lfo = math.sin(t * 0.2 * math.pi * 2)
-            sample = math.sin(t * tone * (1 + lfo * 0.05) * math.pi * 2) * 0.4
-                   + (math.random() * 2 - 1) * 0.04
-        elseif character == "silence" then
-            sample = (math.random() * 2 - 1) * 0.005
-        elseif character == "chase" then
-            local urgency = math.sin(t * 2 * math.pi * 2) * 0.3 + 0.7
-            sample = math.sin(t * tone * urgency * math.pi * 2) * 0.5
-                   + (math.random() * 2 - 1) * 0.08
-        elseif character == "glitch" then
-            if math.random() < 0.1 then
-                sample = (math.random() * 2 - 1) * 0.6
-            else
-                sample = math.sin(t * tone * math.pi * 2) * 0.2
-            end
-        end
-
-        data:setSample(i, math.max(-1, math.min(1, sample * volume * env)))
+        local s = math.sin(t * tone * math.pi * 2) * 0.35
+                + math.sin(t * (tone + 0.4) * math.pi * 2) * 0.25
+                + math.sin(t * tone * 1.5 * math.pi * 2) * 0.08
+        data:setSample(i, math.max(-1, math.min(1, s * vol * env)))
     end
 
     local source = love.audio.newSource(data)
     source:setLooping(true)
-    source:setVolume(volume)
+    source:setVolume(vol)
     source:play()
     self.ambient_source = source
 end
@@ -111,41 +81,115 @@ end
 function FPSMode:load_rooms()
     self.rooms = {
 
-        -- 1. CORRIDOR. Walk forward. On replay, it's longer and darker.
+        -- 1. CORRIDOR + FIRST GUN. Walk, pick up gun, shoot one thing. Done.
         {
-            ambient_tone = 55, ambient_volume = 0.04, ambient_character = "warm",
+            ambient_tone = 55, ambient_volume = 0.012,
             fog_color = { 0.02, 0.02, 0.04 },
             floor_color = { 0.1, 0.1, 0.13 },
             ceiling_color = { 0.04, 0.04, 0.06 },
+            completion = "trigger", completion_trigger = "killed",
+            can_shoot = true, passive_enemies = true,
+            grid = {
+                "####################",
+                "#P..S..............E#",
+                "#..................#",
+                "####################",
+            },
+            spawn_angle = 0,
+            world_texts = {},
+            triggers = {
+                { x = 4, y = 1.5, radius = 2, id = "hint",
+                  screen_text = "Pick up the gun. Left click to shoot.", duration = 3 },
+            },
+            on_kill = function(self)
+                self.triggered["killed"] = true
+            end,
+        },
+
+        -- 2. L-SHAPED COMBAT. Enemies around a corner. Shotgun pickup.
+        {
+            ambient_tone = 48, ambient_volume = 0.015,
+            fog_color = { 0.04, 0.02, 0.04 },
+            floor_color = { 0.12, 0.1, 0.12 },
+            ceiling_color = { 0.05, 0.04, 0.05 },
+            completion = "kill_all", can_shoot = true,
+            grid = {
+                "##############",
+                "#P...........#",
+                "#............#",
+                "#............#",
+                "#####........#",
+                "    #........#",
+                "    #...E....#",
+                "    #........#",
+                "    #....E...#",
+                "    #........#",
+                "    ##########",
+            },
+            spawn_angle = 0,
+            world_texts = {},
+            triggers = {
+                { x = 5, y = 6, radius = 3, id = "corner",
+                  screen_text = "Around the corner.", duration = 2 },
+            },
+        },
+
+        -- 3. CHASE. L-shaped escape route. Something behind you.
+        {
+            ambient_tone = 65, ambient_volume = 0.018,
+            fog_color = { 0.06, 0.02, 0.02 },
+            floor_color = { 0.12, 0.06, 0.06 },
+            ceiling_color = { 0.05, 0.02, 0.02 },
             completion = "exit", can_shoot = false,
+            speed_mult = 1.5,
             grid = {
                 "################",
-                "#P............X#",
+                "#P.............#",
+                "#.......########",
+                "#..............#",
+                "########.......#",
+                "#..............#",
+                "#.......########",
+                "#.............X#",
                 "################",
             },
             spawn_angle = 0,
             world_texts = {},
             triggers = {},
-            on_update = function(self)
-                if self.visit_count > 0 and not self.triggered["replay_fog"] then
-                    self.triggered["replay_fog"] = true
-                    -- Darker on each replay
-                    local darkness = math.min(self.visit_count * 0.3, 0.8)
-                    self.raycaster.fog_color = {
-                        0.02 * (1 - darkness),
-                        0.02 * (1 - darkness),
-                        0.04 * (1 - darkness)
-                    }
-                    self.raycaster.max_depth = math.max(4, 16 - self.visit_count * 4)
-                    self.screen_text = "Again."
-                    self.screen_text_timer = 2
-                end
-            end,
+            chase = { start_x = 1.5, start_y = 1.5, speed = 2.8, color = {0.9, 0.15, 0.1} },
         },
 
-        -- 2. THE ROOM SHRINKS. Walls close in over 12 seconds. Get out.
+        -- 4. ARENA. Real fight. Demon + walkers. Cover pillars.
+        -- Bouncer pickup in the room.
         {
-            ambient_tone = 50, ambient_volume = 0.06, ambient_character = "dread",
+            ambient_tone = 50, ambient_volume = 0.015,
+            fog_color = { 0.05, 0.02, 0.03 },
+            floor_color = { 0.14, 0.08, 0.1 },
+            ceiling_color = { 0.06, 0.03, 0.04 },
+            completion = "kill_all", can_shoot = true,
+            grid = {
+                "################",
+                "#P.............#",
+                "#..............#",
+                "#....##........#",
+                "#....##...E....#",
+                "#..............#",
+                "#.B........##..#",
+                "#..........##..#",
+                "#..............#",
+                "#.....D........#",
+                "#..............#",
+                "#.........E....#",
+                "################",
+            },
+            spawn_angle = 0,
+            world_texts = {},
+            triggers = {},
+        },
+
+        -- 5. THE ROOM SHRINKS. Walls close in. Sprint to the exit.
+        {
+            ambient_tone = 50, ambient_volume = 0.015,
             fog_color = { 0.03, 0.02, 0.04 },
             floor_color = { 0.1, 0.1, 0.13 },
             ceiling_color = { 0.04, 0.04, 0.06 },
@@ -162,10 +206,12 @@ function FPSMode:load_rooms()
             },
             spawn_angle = 0,
             world_texts = {},
-            triggers = {},
+            triggers = {
+                { x = 4, y = 3, radius = 2, id = "shrink",
+                  screen_text = "The walls are closing. Sprint.", duration = 2 },
+            },
             on_update = function(self, dt)
-                -- Walls close in from left side
-                local col = 2 + math.floor(self.time / 1.5)
+                local col = 2 + math.floor(self.time / 1.2)
                 if col < 13 then
                     for row = 1, 6 do
                         self.map:fill_tile(col - 1, row)
@@ -174,98 +220,15 @@ function FPSMode:load_rooms()
             end,
         },
 
-        -- 3. GUN. Something at the end. Shoot it. Hard cut the instant it dies.
-        -- Enemy is stationary. You have time.
+        -- 6. INVERTED CONTROLS. Simple room. Mouse is backwards.
         {
-            ambient_tone = 40, ambient_volume = 0.07, ambient_character = "dread",
-            fog_color = { 0.05, 0.02, 0.03 },
-            floor_color = { 0.14, 0.08, 0.1 },
-            ceiling_color = { 0.06, 0.03, 0.04 },
-            completion = "trigger", completion_trigger = "killed",
-            can_shoot = true,
-            passive_enemies = true,
-            grid = {
-                "##############",
-                "#P..........E#",
-                "#............#",
-                "#............#",
-                "##############",
-            },
-            spawn_angle = 0,
-            world_texts = {},
-            triggers = {
-                { x = 3, y = 2, radius = 2, id = "gun_hint",
-                  screen_text = "Left click to shoot.", duration = 3 },
-            },
-            on_kill = function(self)
-                self.triggered["killed"] = true
-            end,
-        },
-
-        -- 4. DARK. Nearly black. Shotgun pickup. Something is breathing.
-        {
-            ambient_tone = 30, ambient_volume = 0.08, ambient_character = "dread",
-            fog_color = { 0.005, 0.005, 0.008 },
-            floor_color = { 0.02, 0.02, 0.03 },
-            ceiling_color = { 0.01, 0.01, 0.015 },
-            completion = "exit", can_shoot = true,
-            grid = {
-                "##############",
-                "#P..S........#",
-                "#............#",
-                "#............#",
-                "#............#",
-                "#............#",
-                "#...........X#",
-                "##############",
-            },
-            spawn_angle = 0,
-            world_texts = {},
-            triggers = {
-                { x = 7, y = 3, radius = 3, id = "dark",
-                  screen_text = "Something is here.", duration = 2 },
-            },
-            -- Override fog to be extremely short range
-            override_fog = 3,
-        },
-
-        -- 5. CHASE. Something behind you. Run. Corridors with turns — decisions under panic.
-        {
-            ambient_tone = 65, ambient_volume = 0.1, ambient_character = "chase",
-            fog_color = { 0.06, 0.02, 0.02 },
-            floor_color = { 0.12, 0.06, 0.06 },
-            ceiling_color = { 0.05, 0.02, 0.02 },
-            completion = "exit", can_shoot = false,
-            speed_mult = 1.5,
-            grid = {
-                "###################",
-                "#P................#",
-                "####.##########...#",
-                "#..............#..#",
-                "#..########....#..#",
-                "#..#.......#......#",
-                "#..#.......########",
-                "#..#..............#",
-                "#..########.####..#",
-                "#................X#",
-                "###################",
-            },
-            spawn_angle = 0,
-            world_texts = {},
-            triggers = {},
-            chase = { start_x = 1.5, start_y = 1.5, speed = 2.2, color = {0.9, 0.15, 0.1} },
-        },
-
-        -- 6. YOUR CONTROLS ARE WRONG. Left is right. Forward is back.
-        -- Small room, exit is obvious. But your body lies to you.
-        {
-            ambient_tone = 55, ambient_volume = 0.06, ambient_character = "glitch",
+            ambient_tone = 55, ambient_volume = 0.01,
             fog_color = { 0.04, 0.03, 0.05 },
             floor_color = { 0.1, 0.1, 0.14 },
             ceiling_color = { 0.04, 0.04, 0.06 },
             completion = "exit", can_shoot = false,
             invert_controls = true,
-            static_base = 0.15,
+            static_base = 0.1,
             grid = {
                 "##########",
                 "#........#",
@@ -279,204 +242,113 @@ function FPSMode:load_rooms()
             world_texts = {},
             triggers = {
                 { x = 5, y = 3, radius = 2, id = "invert",
-                  screen_text = "Something is wrong.", duration = 2 },
+                  screen_text = "Something is wrong with the controls.", duration = 2.5 },
             },
         },
 
-        -- 7. MAZE. But the walls keep changing. Bouncer pickup inside.
+        -- 7. GAUNTLET. Long corridor with enemies. Auto rifle pickup.
+        -- Sprint and shoot. Pure kinetic flow.
         {
-            ambient_tone = 52, ambient_volume = 0.06, ambient_character = "cold",
-            fog_color = { 0.03, 0.03, 0.05 },
-            floor_color = { 0.1, 0.1, 0.13 },
-            ceiling_color = { 0.04, 0.04, 0.06 },
+            ambient_tone = 55, ambient_volume = 0.015,
+            fog_color = { 0.05, 0.02, 0.03 },
+            floor_color = { 0.14, 0.08, 0.09 },
+            ceiling_color = { 0.06, 0.03, 0.03 },
             completion = "exit", can_shoot = true,
             grid = {
-                "################",
-                "#P.#.....B.....#",
-                "#..#.#####.###.#",
-                "#..#.......#...#",
-                "#..#####.#.#.###",
-                "#........#.....#",
-                "#.######.####..#",
-                "#..............#",
-                "#.####.########",
-                "#.............X#",
-                "################",
+                "##############################",
+                "#P..R.....E.....E.....E.....X#",
+                "#............................#",
+                "##############################",
             },
             spawn_angle = 0,
             world_texts = {},
             triggers = {},
-            on_update = function(self, dt)
-                -- Every 3 seconds, randomly open or close a wall tile
-                if math.floor(self.time / 2) ~= math.floor((self.time - dt) / 2) then
-                    local attempts = 3
-                    for _ = 1, attempts do
-                        local rx = math.random(2, 14)
-                        local ry = math.random(2, 9)
-                        local tile = self.map:get(rx - 1, ry - 1)
-                        -- Don't touch player position or exit
-                        local px = math.floor(self.player.x)
-                        local py = math.floor(self.player.y)
-                        if not (rx - 1 == px and ry - 1 == py) then
-                            if tile > 0 then
-                                self.map:clear_tile(rx - 1, ry - 1)
-                            else
-                                self.map:fill_tile(rx - 1, ry - 1)
-                            end
-                        end
-                    end
-                end
-            end,
         },
 
-        -- 8. STILL. Nothing happens. But the room is slowly getting darker.
-        -- At 4 seconds, a pillar appears in the center that wasn't there before.
+        -- 8. THE ROOM SEALS. Walk forward. Behind you closes.
+        -- Then enemies spawn ahead.
         {
-            ambient_tone = 55, ambient_volume = 0.02, ambient_character = "silence",
-            fog_color = { 0.02, 0.02, 0.03 },
-            floor_color = { 0.08, 0.08, 0.1 },
-            ceiling_color = { 0.03, 0.03, 0.04 },
-            completion = "linger", linger = 8,
-            can_shoot = false,
-            grid = {
-                "############",
-                "#..........#",
-                "#..........#",
-                "#..........#",
-                "#..........#",
-                "#.....P....#",
-                "#..........#",
-                "#..........#",
-                "#..........#",
-                "############",
-            },
-            spawn_angle = 3.14,  -- facing away from center
-            world_texts = {},
-            triggers = {},
-            on_update = function(self)
-                -- Darken fog over time
-                local t = math.min(1, self.time / 8)
-                self.raycaster.fog_start = 6 - t * 4
-                self.raycaster.max_depth = 16 - t * 10
-                -- At 4s, place a pillar behind the player
-                if self.time > 4 and not self.triggered["pillar"] then
-                    self.triggered["pillar"] = true
-                    self.map:fill_tile(5, 4)
-                    self.map:fill_tile(6, 4)
-                    self.sfx:play("hit_wall")
-                end
-            end,
-        },
-
-        -- 9. ARENA. Real combat. Mixed enemies. Demon strafes and shoots.
-        -- Walkers weave toward you. Tight space, multiple angles.
-        {
-            ambient_tone = 45, ambient_volume = 0.09, ambient_character = "chase",
-            fog_color = { 0.06, 0.02, 0.03 },
-            floor_color = { 0.15, 0.08, 0.08 },
-            ceiling_color = { 0.06, 0.03, 0.03 },
+            ambient_tone = 42, ambient_volume = 0.012,
+            fog_color = { 0.03, 0.02, 0.04 },
+            floor_color = { 0.1, 0.1, 0.12 },
+            ceiling_color = { 0.04, 0.04, 0.05 },
             completion = "kill_all", can_shoot = true,
             grid = {
                 "################",
                 "#P.............#",
                 "#..............#",
-                "#.....##.......#",
-                "#.....##...E...#",
                 "#..............#",
-                "#..E.......##..#",
-                "#..........##..#",
                 "#..............#",
-                "#......D.......#",
                 "#..............#",
-                "#.........E....#",
-                "################",
-            },
-            spawn_angle = 0,
-            world_texts = {},
-            triggers = {},
-        },
-
-        -- 10. THE SAME CORRIDOR. But backwards. Auto rifle pickup.
-        {
-            ambient_tone = 55, ambient_volume = 0.04, ambient_character = "warm",
-            fog_color = { 0.02, 0.02, 0.04 },
-            floor_color = { 0.1, 0.1, 0.13 },
-            ceiling_color = { 0.04, 0.04, 0.06 },
-            completion = "exit", can_shoot = true,
-            grid = {
-                "################",
-                "#X.......R....P#",
-                "################",
-            },
-            spawn_angle = 3.14,
-            world_texts = {},
-            triggers = {
-                { x = 8, y = 1.5, radius = 2, id = "deja_vu",
-                  screen_text = "You've been here before.", duration = 2 },
-            },
-        },
-
-        -- 11. THE ROOM THAT ISN'T THERE. Walk through a door.
-        -- The room behind you is gone. Just wall.
-        {
-            ambient_tone = 38, ambient_volume = 0.05, ambient_character = "cold",
-            fog_color = { 0.02, 0.02, 0.04 },
-            floor_color = { 0.1, 0.1, 0.13 },
-            ceiling_color = { 0.04, 0.04, 0.06 },
-            completion = "exit", can_shoot = false,
-            grid = {
-                "################",
-                "#P.....#......X#",
-                "#......#.......#",
-                "#......#.......#",
-                "#..............#",
-                "#......#.......#",
                 "################",
             },
             spawn_angle = 0,
             world_texts = {},
             triggers = {},
             on_update = function(self)
-                -- When player crosses the midpoint, seal the left half
-                if self.player.x > 7 and not self.triggered["sealed"] then
+                if self.player.x > 6 and not self.triggered["sealed"] then
                     self.triggered["sealed"] = true
+                    -- Seal behind
                     for row = 1, 5 do
-                        self.map:fill_tile(6, row)
+                        self.map:fill_tile(5, row)
                     end
+                    -- Spawn enemies ahead
+                    table.insert(self.map.sprites, {
+                        x = 12.5, y = 2.5, type = "enemy",
+                        color = {0.85, 0.25, 0.2}, health = 2, active = true,
+                        has_face = true, width_ratio = 0.7, speed = 1.4,
+                        attack_range = 1.5, attack_cooldown = 0,
+                    })
+                    table.insert(self.map.sprites, {
+                        x = 13.5, y = 4.5, type = "enemy",
+                        color = {0.85, 0.25, 0.2}, health = 2, active = true,
+                        has_face = true, width_ratio = 0.7, speed = 1.4,
+                        attack_range = 1.5, attack_cooldown = 0,
+                    })
                     self.screen_text = "You can't go back."
                     self.screen_text_timer = 2
                     self.sfx:play("hit_wall")
+                    self.raycaster:shake(4, 0.15)
                 end
             end,
         },
 
-        -- 11. STATIC. Screen fills with noise. Walk through it.
-        -- Resolution of the static clears as you approach the exit.
+        -- 9. BOSS. Big demon in a circular room. Pillars for cover.
+        -- It strafes, shoots projectiles, lunges. This is the test.
         {
-            ambient_tone = 60, ambient_volume = 0.08, ambient_character = "glitch",
-            fog_color = { 0.04, 0.04, 0.06 },
-            floor_color = { 0.1, 0.1, 0.14 },
-            ceiling_color = { 0.04, 0.04, 0.06 },
-            completion = "exit", can_shoot = false,
-            static_base = 0.5,
+            ambient_tone = 38, ambient_volume = 0.018,
+            fog_color = { 0.06, 0.02, 0.02 },
+            floor_color = { 0.16, 0.06, 0.06 },
+            ceiling_color = { 0.06, 0.02, 0.02 },
+            completion = "kill_all", can_shoot = true,
             grid = {
-                "##################",
-                "#P...............X#",
-                "##################",
+                "################",
+                "#..............#",
+                "#..##......##..#",
+                "#..............#",
+                "#......D.......#",
+                "#..............#",
+                "#..##......##..#",
+                "#.......P......#",
+                "################",
             },
-            spawn_angle = 0,
+            spawn_angle = -1.57,
             world_texts = {},
             triggers = {},
-            on_update = function(self)
-                -- Static clears as you approach the exit
-                local progress = math.max(0, (self.player.x - 1) / 16)
-                self.static_intensity = (1 - progress) * 0.6
+            -- Make demon beefy
+            on_load = function(self)
+                for _, s in ipairs(self.map.sprites) do
+                    if s.type == "demon" then
+                        s.health = 8
+                        s.speed = 1.2
+                    end
+                end
             end,
         },
 
-        -- 12. END. Tiny room. Gets smaller each loop.
+        -- 10. END. Tiny room. Loop.
         {
-            ambient_tone = 55, ambient_volume = 0.015, ambient_character = "warm",
+            ambient_tone = 55, ambient_volume = 0.008,
             fog_color = { 0.01, 0.01, 0.02 },
             floor_color = { 0.05, 0.05, 0.07 },
             ceiling_color = { 0.02, 0.02, 0.03 },
@@ -491,19 +363,11 @@ function FPSMode:load_rooms()
                 "######",
             },
             spawn_angle = 0,
-            world_texts = {},
+            world_texts = {
+                { x = 3.5, y = 2.5, text = "Again.", height = 0.5,
+                  color = {0.7, 0.68, 0.65} },
+            },
             triggers = {},
-            on_update = function(self)
-                -- Each loop, the room gets smaller
-                if self.visit_count > 0 then
-                    local shrink = math.min(self.visit_count, 2)
-                    for i = 1, shrink do
-                        for row = 0, 3 do
-                            self.map:fill_tile(4 - i, row)
-                        end
-                    end
-                end
-            end,
         },
     }
 end
@@ -512,7 +376,6 @@ function FPSMode:load_room(index)
     if index > #self.rooms then
         index = 1
         self.visit_count = self.visit_count + 1
-        -- Reset weapons on loop
         self.player.weapons = { "pistol" }
         self.player.current_weapon = 1
     end
@@ -534,24 +397,16 @@ function FPSMode:load_room(index)
     self.invert_controls = room.invert_controls == true
     self.speed_mult = room.speed_mult or 1
     self.chase_entity = nil
-    self.room_tint = nil
     self.flash_timer = 0
-
-    -- Speed override
-    if self.speed_mult ~= 1 then
-        -- Modify player speed directly won't work cleanly, handle in update
-    end
+    self.hitstop_timer = 0
 
     -- Chase entity
     if room.chase then
         self.chase_entity = {
-            x = room.chase.start_x,
-            y = room.chase.start_y,
+            x = room.chase.start_x, y = room.chase.start_y,
             speed = room.chase.speed or 2,
             color = room.chase.color or {1, 0.2, 0.1},
-            active = true,
-            has_face = true,
-            width_ratio = 1.2,
+            active = true, has_face = true, width_ratio = 1.2,
         }
         table.insert(self.map.sprites, self.chase_entity)
     end
@@ -566,39 +421,37 @@ function FPSMode:load_room(index)
         end
     end
 
-    -- Reset fog distance every room load
+    -- Fog
     self.raycaster.max_depth = room.override_fog or 16
     self.raycaster.fog_start = 6
-
-    -- Set palette
     self.raycaster.fog_color = room.fog_color or { 0.02, 0.02, 0.04 }
     self.raycaster.floor_color = room.floor_color or { 0.12, 0.13, 0.16 }
     self.raycaster.ceiling_color = room.ceiling_color or { 0.06, 0.06, 0.08 }
 
     -- Ambient
-    self:generate_ambient(room)
+    self:start_ambient(room)
+
+    -- Room-specific init
+    if room.on_load then room.on_load(self) end
 
     -- Black frame on transition
-    if index > 1 then
-        self.hard_cut_timer = -0.08
-    end
+    if index > 1 then self.hard_cut_timer = -0.08 end
 end
 
 function FPSMode:check_completion()
     local room = self.rooms[self.room_index]
     if not room then return false end
-    local completion = room.completion or "exit"
-
-    if completion == "exit" then
+    local c = room.completion or "exit"
+    if c == "exit" then
         if not self.map.exit then return false end
         local dx = self.player.x - self.map.exit.x
         local dy = self.player.y - self.map.exit.y
         return dx * dx + dy * dy < 0.5
-    elseif completion == "kill_all" then
+    elseif c == "kill_all" then
         return not self.map:enemies_alive()
-    elseif completion == "linger" then
+    elseif c == "linger" then
         return self.time >= (room.linger or 5)
-    elseif completion == "trigger" then
+    elseif c == "trigger" then
         return self.triggered[room.completion_trigger or ""] == true
     end
     return false
@@ -609,13 +462,12 @@ function FPSMode:trigger_hard_cut()
     self.hard_cut_pending = true
     self.hard_cut_timer = 0
     local room = self.rooms[self.room_index]
-    self.hard_cut_duration = (room and room.is_ending) and 2.5 or 0.12
+    self.hard_cut_duration = (room and room.is_ending) and 2 or 0.12
 end
 
 function FPSMode:update(dt)
     if self.in_menu then return end
 
-    -- Hard cut
     if self.hard_cut_pending then
         self.hard_cut_timer = self.hard_cut_timer + dt
         if self.hard_cut_timer > self.hard_cut_duration then
@@ -635,7 +487,6 @@ function FPSMode:update(dt)
         return
     end
 
-    -- Hitstop: freeze the game briefly on big hits (Vlambeer)
     if self.hitstop_timer > 0 then
         self.hitstop_timer = self.hitstop_timer - dt
         self.raycaster:update_shake(dt)
@@ -646,25 +497,17 @@ function FPSMode:update(dt)
     self.flash_timer = math.max(0, self.flash_timer - dt)
     self.raycaster:update_shake(dt)
 
-    -- Screen text
     if self.screen_text_timer > 0 then
         self.screen_text_timer = self.screen_text_timer - dt
         if self.screen_text_timer <= 0 then self.screen_text = nil end
     end
 
     if self.player.is_dead then
-        if self.time > 0.8 then
-            self:load_room(self.room_index)
-        end
+        if self.time > 0.8 then self:load_room(self.room_index) end
         return
     end
 
-    -- Apply speed multiplier
-    local saved_speed = self.player.move_time
     self.player:update(dt * self.speed_mult, self.map)
-
-    -- Invert controls: flip the angle delta
-    -- (handled in mousemoved)
 
     -- Footsteps
     local moving = love.keyboard.isDown("w", "a", "s", "d", "up", "down")
@@ -672,17 +515,15 @@ function FPSMode:update(dt)
         self.footstep_timer = self.footstep_timer - dt
         if self.footstep_timer <= 0 then
             self.sfx:play("footstep")
-            self.footstep_timer = 0.35
+            self.footstep_timer = self.player.is_sprinting and 0.25 or 0.4
         end
     else
         self.footstep_timer = 0
     end
 
-    -- Room-specific update
+    -- Room logic
     local room = self.rooms[self.room_index]
-    if room and room.on_update then
-        room.on_update(self, dt)
-    end
+    if room and room.on_update then room.on_update(self, dt) end
 
     -- Chase entity
     if self.chase_entity and self.chase_entity.active then
@@ -699,7 +540,6 @@ function FPSMode:update(dt)
                 self.chase_entity.y = self.chase_entity.y + ny
             end
         end
-        -- Caught = restart room
         if dist < 0.5 then
             self.flash_timer = 0.3
             self.sfx:play("death")
@@ -708,7 +548,7 @@ function FPSMode:update(dt)
         end
     end
 
-    -- Enemy AI — Vlambeer-grade: strafe, flank, lunge, flinch, ranged
+    -- Enemy AI
     for _, sprite in ipairs(self.map.sprites) do
         if sprite.active and sprite ~= self.chase_entity and (sprite.type == "enemy" or sprite.type == "demon") then
             if (sprite.speed or 0) > 0 then
@@ -716,82 +556,60 @@ function FPSMode:update(dt)
                 local dy = self.player.y - sprite.y
                 local dist = math.sqrt(dx * dx + dy * dy)
 
-                -- Init AI state
                 if not sprite.ai_state then
                     sprite.ai_state = "chase"
                     sprite.strafe_dir = math.random() > 0.5 and 1 or -1
                     sprite.strafe_timer = 0
-                    sprite.lunge_timer = 0
                     sprite.flinch_timer = 0
                     sprite.fire_cooldown = math.random() * 2
                 end
 
                 sprite.attack_cooldown = math.max(0, (sprite.attack_cooldown or 0) - dt)
-                sprite.strafe_timer = math.max(0, sprite.strafe_timer - dt)
-                sprite.lunge_timer = math.max(0, sprite.lunge_timer - dt)
-                sprite.flinch_timer = math.max(0, sprite.flinch_timer - dt)
+                sprite.strafe_timer = math.max(0, (sprite.strafe_timer or 0) - dt)
+                sprite.flinch_timer = math.max(0, (sprite.flinch_timer or 0) - dt)
 
-                -- Flinch: freeze briefly when hit
                 if sprite.flinch_timer > 0 then
-                    -- Don't move during flinch
+                    -- Stunned
                 elseif dist < 10 and dist > 0.4 then
                     local speed = sprite.speed
                     local nx, ny = dx / dist, dy / dist
 
                     if sprite.type == "demon" then
-                        -- Demons: strafe at medium range, lunge at close range
                         if dist > 3 and dist < 7 then
-                            -- Strafe: move perpendicular to player
-                            sprite.ai_state = "strafe"
-                            if sprite.strafe_timer <= 0 then
-                                sprite.strafe_dir = -sprite.strafe_dir
+                            if (sprite.strafe_timer or 0) <= 0 then
+                                sprite.strafe_dir = -(sprite.strafe_dir or 1)
                                 sprite.strafe_timer = 0.8 + math.random() * 0.6
                             end
-                            local sx = -ny * sprite.strafe_dir * speed * 0.7 * dt
-                            local sy = nx * sprite.strafe_dir * speed * 0.7 * dt
-                            -- Also creep closer
-                            sx = sx + nx * speed * 0.3 * dt
-                            sy = sy + ny * speed * 0.3 * dt
+                            local sx = -ny * (sprite.strafe_dir or 1) * speed * 0.7 * dt + nx * speed * 0.3 * dt
+                            local sy = nx * (sprite.strafe_dir or 1) * speed * 0.7 * dt + ny * speed * 0.3 * dt
                             if not self.map:is_solid(sprite.x + sx, sprite.y) then sprite.x = sprite.x + sx end
                             if not self.map:is_solid(sprite.x, sprite.y + sy) then sprite.y = sprite.y + sy end
                         elseif dist <= 3 then
-                            -- Lunge: burst of speed toward player
-                            sprite.ai_state = "lunge"
-                            local lunge_speed = speed * 2.5
-                            local lx = nx * lunge_speed * dt
-                            local ly = ny * lunge_speed * dt
+                            local lx = nx * speed * 2.5 * dt
+                            local ly = ny * speed * 2.5 * dt
                             if not self.map:is_solid(sprite.x + lx, sprite.y) then sprite.x = sprite.x + lx end
                             if not self.map:is_solid(sprite.x, sprite.y + ly) then sprite.y = sprite.y + ly end
                         else
-                            -- Far: beeline
-                            sprite.ai_state = "chase"
                             local mx = nx * speed * dt
                             local my = ny * speed * dt
                             if not self.map:is_solid(sprite.x + mx, sprite.y) then sprite.x = sprite.x + mx end
                             if not self.map:is_solid(sprite.x, sprite.y + my) then sprite.y = sprite.y + my end
                         end
 
-                        -- Demon ranged attack: fire projectile at player
                         sprite.fire_cooldown = (sprite.fire_cooldown or 0) - dt
-                        if sprite.fire_cooldown <= 0 and dist > 2 and dist < 8 then
+                        if (sprite.fire_cooldown or 0) <= 0 and dist > 2 and dist < 8 then
                             sprite.fire_cooldown = 2.0 + math.random() * 1.5
-                            -- Spawn a projectile sprite that moves toward player
                             table.insert(self.map.sprites, {
                                 x = sprite.x, y = sprite.y,
                                 type = "projectile",
                                 vx = nx * 4, vy = ny * 4,
-                                lifetime = 3,
-                                active = true,
+                                lifetime = 3, active = true,
                                 color = { 1, 0.3, 0.15 },
-                                has_face = false,
-                                width_ratio = 0.3,
-                                damage = 1,
+                                has_face = false, width_ratio = 0.3, damage = 1,
                             })
-                            self.sfx:play("shriek")
+                            self.sfx:play("shoot")
                         end
                     else
-                        -- Regular enemies: simple chase with slight weave
-                        sprite.ai_state = "chase"
                         local weave = math.sin(self.time * 3 + sprite.x * 7) * 0.3
                         local mx = (nx + weave * (-ny)) * speed * dt
                         local my = (ny + weave * nx) * speed * dt
@@ -800,11 +618,9 @@ function FPSMode:update(dt)
                     end
                 end
 
-                -- Melee attack
-                if dist < (sprite.attack_range or 1.5) and sprite.attack_cooldown <= 0 and sprite.flinch_timer <= 0 then
+                if dist < (sprite.attack_range or 1.5) and (sprite.attack_cooldown or 0) <= 0 and (sprite.flinch_timer or 0) <= 0 then
                     self.player:take_damage(1, self.sfx)
                     sprite.attack_cooldown = sprite.type == "demon" and 1.0 or 1.5
-                    -- Vlambeer: shake + flash + hitstop on taking damage
                     self.raycaster:shake(5, 0.15)
                     self.flash_timer = 0.2
                     self.hitstop_timer = 0.04
@@ -813,32 +629,24 @@ function FPSMode:update(dt)
         end
     end
 
-    -- Update enemy projectiles
+    -- Enemy projectiles
     for i = #self.map.sprites, 1, -1 do
-        local sprite = self.map.sprites[i]
-        if sprite.type == "projectile" and sprite.active then
-            sprite.x = sprite.x + sprite.vx * dt
-            sprite.y = sprite.y + sprite.vy * dt
-            sprite.lifetime = sprite.lifetime - dt
-
-            -- Hit wall
-            if self.map:is_solid(sprite.x, sprite.y) then
-                sprite.active = false
-            end
-            -- Hit player
-            local pdx = self.player.x - sprite.x
-            local pdy = self.player.y - sprite.y
+        local s = self.map.sprites[i]
+        if s.type == "projectile" and s.active then
+            s.x = s.x + s.vx * dt
+            s.y = s.y + s.vy * dt
+            s.lifetime = s.lifetime - dt
+            if self.map:is_solid(s.x, s.y) then s.active = false end
+            local pdx = self.player.x - s.x
+            local pdy = self.player.y - s.y
             if pdx * pdx + pdy * pdy < 0.3 then
-                self.player:take_damage(sprite.damage or 1, self.sfx)
-                sprite.active = false
+                self.player:take_damage(s.damage or 1, self.sfx)
+                s.active = false
                 self.flash_timer = 0.2
                 self.raycaster:shake(6, 0.15)
                 self.hitstop_timer = 0.05
             end
-            -- Expired
-            if sprite.lifetime <= 0 then
-                sprite.active = false
-            end
+            if s.lifetime <= 0 then s.active = false end
         end
     end
 
@@ -846,9 +654,9 @@ function FPSMode:update(dt)
     for _, trigger in ipairs(self.map.triggers) do
         if not self.triggered[trigger.id] then
             if self.time >= (trigger.delay or 0) then
-                local dx = self.player.x - trigger.x
-                local dy = self.player.y - trigger.y
-                if dx * dx + dy * dy < trigger.radius * trigger.radius then
+                local tdx = self.player.x - trigger.x
+                local tdy = self.player.y - trigger.y
+                if tdx * tdx + tdy * tdy < trigger.radius * trigger.radius then
                     self.triggered[trigger.id] = true
                     if trigger.screen_text then
                         self.screen_text = trigger.screen_text
@@ -859,10 +667,7 @@ function FPSMode:update(dt)
         end
     end
 
-    -- Completion
-    if self:check_completion() then
-        self:trigger_hard_cut()
-    end
+    if self:check_completion() then self:trigger_hard_cut() end
 end
 
 function FPSMode:draw()
@@ -872,24 +677,14 @@ function FPSMode:draw()
     if self.in_menu then
         love.graphics.setCanvas(self.canvas)
         love.graphics.clear(0.02, 0.02, 0.03, 1)
-
-        -- Title
         love.graphics.setColor(0.92, 0.55, 0.18, 1)
         love.graphics.printf("INFERNAL ASCENT", 0, RENDER_HEIGHT / 2 - 40, RENDER_WIDTH, "center")
-
-        love.graphics.setColor(0.6, 0.62, 0.7, 0.8)
-        love.graphics.printf("A descent in first person", 0, RENDER_HEIGHT / 2 - 20, RENDER_WIDTH, "center")
-
-        -- Controls
         love.graphics.setColor(0.5, 0.52, 0.6, 0.6)
-        love.graphics.printf("WASD move    Mouse look    Shift sprint", 0, RENDER_HEIGHT / 2 + 10, RENDER_WIDTH, "center")
-        love.graphics.printf("Left click shoot    Space wall-jump    Q switch weapon", 0, RENDER_HEIGHT / 2 + 24, RENDER_WIDTH, "center")
-
-        -- Start prompt
+        love.graphics.printf("WASD  Mouse  Shift sprint  Space wall-jump", 0, RENDER_HEIGHT / 2 + 4, RENDER_WIDTH, "center")
+        love.graphics.printf("Left click shoot  Q switch weapon", 0, RENDER_HEIGHT / 2 + 18, RENDER_WIDTH, "center")
         local pulse = 0.5 + 0.5 * math.sin(love.timer.getTime() * 3)
         love.graphics.setColor(0.92, 0.55, 0.18, pulse)
-        love.graphics.printf("PRESS ENTER TO DESCEND", 0, RENDER_HEIGHT / 2 + 50, RENDER_WIDTH, "center")
-
+        love.graphics.printf("PRESS ENTER", 0, RENDER_HEIGHT / 2 + 44, RENDER_WIDTH, "center")
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.setCanvas()
         love.graphics.draw(self.canvas, 0, 0, 0, w / RENDER_WIDTH, h / RENDER_HEIGHT)
@@ -899,7 +694,6 @@ function FPSMode:draw()
     love.graphics.setCanvas(self.canvas)
     love.graphics.clear(0, 0, 0, 1)
 
-    -- Hard cut / black frame
     if self.hard_cut_pending or self.hard_cut_timer < 0 then
         love.graphics.setCanvas()
         love.graphics.setColor(0, 0, 0, 1)
@@ -913,11 +707,9 @@ function FPSMode:draw()
         return
     end
 
-    -- Render 3D
     local rays = self.raycaster:cast_walls(self.map, self.player.x, self.player.y, self.player:get_view_angle())
     self.raycaster:draw_scene(rays)
     self.raycaster:draw_sprites(self.map.sprites, self.player.x, self.player.y, self.player:get_view_angle())
-    self.raycaster:draw_world_text(self.map.world_texts, self.player.x, self.player.y, self.player:get_view_angle())
 
     -- Exit beacon
     if self.map.exit then
@@ -929,8 +721,8 @@ function FPSMode:draw()
         while ea < -math.pi do ea = ea + math.pi * 2 end
         if math.abs(ea) < math.pi / 3 and dist < 10 then
             local sx = (ea / (math.pi / 3) + 0.5) * RENDER_WIDTH
-            local pulse = 0.3 + 0.2 * math.sin(self.time * 2)
-            love.graphics.setColor(0.9, 0.8, 0.6, pulse / math.max(1, dist * 0.8))
+            local p = 0.3 + 0.2 * math.sin(self.time * 2)
+            love.graphics.setColor(0.9, 0.8, 0.6, p / math.max(1, dist * 0.8))
             love.graphics.circle("fill", sx, RENDER_HEIGHT / 2, 12 / dist)
         end
     end
@@ -938,42 +730,32 @@ function FPSMode:draw()
     -- Weapon
     if self.can_shoot then
         local weapon, weapon_name = self.player:get_weapon()
-        self.raycaster:draw_weapon(
-            self.player.weapon_state, self.player.move_time,
-            weapon_name, weapon.color
-        )
+        self.raycaster:draw_weapon(self.player.weapon_state, self.player.move_time, weapon_name, weapon.color)
         self.raycaster:draw_crosshair()
-        -- Weapon name
-        love.graphics.setColor(0.7, 0.72, 0.8, 0.5)
+        love.graphics.setColor(0.6, 0.62, 0.7, 0.4)
         love.graphics.printf(weapon.name, RENDER_WIDTH - 80, RENDER_HEIGHT - 16, 70, "right")
     end
 
-    -- Sprint bar
     self.raycaster:draw_sprint_bar(self.player.sprint_stamina, self.player.is_sprinting)
 
     -- Health
-    if self.player.health < self.player.max_health then
-        love.graphics.setColor(0.9, 0.3, 0.2, 0.9)
-        love.graphics.printf(
-            string.format("VITAE %d", self.player.health),
-            8, RENDER_HEIGHT - 16, 80, "left"
-        )
-    end
+    love.graphics.setColor(0.9, 0.3, 0.2, 0.9)
+    love.graphics.printf(string.format("%d", self.player.health), 8, RENDER_HEIGHT - 16, 40, "left")
 
-    -- Screen effects
-    if self.static_intensity > 0 then
-        self.raycaster:draw_static(self.static_intensity, self.time)
-    end
-
-    -- Chase vignette (red edges when being chased)
+    -- Chase vignette
     if self.chase_entity and self.chase_entity.active then
-        local dx = self.player.x - self.chase_entity.x
-        local dy = self.player.y - self.chase_entity.y
-        local dist = math.sqrt(dx * dx + dy * dy)
-        local urgency = math.max(0, 1 - dist / 8)
+        local cdx = self.player.x - self.chase_entity.x
+        local cdy = self.player.y - self.chase_entity.y
+        local cdist = math.sqrt(cdx * cdx + cdy * cdy)
+        local urgency = math.max(0, 1 - cdist / 8)
         if urgency > 0 then
             self.raycaster:draw_vignette(urgency, {0.6, 0.05, 0.02})
         end
+    end
+
+    -- Static
+    if self.static_intensity > 0 then
+        self.raycaster:draw_static(self.static_intensity, self.time)
     end
 
     -- Screen text
@@ -987,17 +769,14 @@ function FPSMode:draw()
 
     -- Damage flash
     if self.player.damage_flash > 0 then
-        love.graphics.setColor(0.7, 0.08, 0.04, self.player.damage_flash * 0.3)
+        love.graphics.setColor(0.7, 0.08, 0.04, self.player.damage_flash * 0.25)
         love.graphics.rectangle("fill", 0, 0, RENDER_WIDTH, RENDER_HEIGHT)
     end
-
-    -- Catch flash (from chase)
     if self.flash_timer > 0 then
-        love.graphics.setColor(1, 0.2, 0.1, self.flash_timer)
+        love.graphics.setColor(1, 0.2, 0.1, self.flash_timer * 0.5)
         love.graphics.rectangle("fill", 0, 0, RENDER_WIDTH, RENDER_HEIGHT)
     end
 
-    -- Death
     if self.player.is_dead then
         love.graphics.setColor(0, 0, 0, 0.7)
         love.graphics.rectangle("fill", 0, 0, RENDER_WIDTH, RENDER_HEIGHT)
@@ -1006,14 +785,12 @@ function FPSMode:draw()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setCanvas()
 
-    -- Apply screenshake offset to final render
-    local sx = self.raycaster.shake_x * (w / RENDER_WIDTH)
-    local sy = self.raycaster.shake_y * (h / RENDER_HEIGHT)
-    love.graphics.draw(self.canvas, sx, sy, 0, w / RENDER_WIDTH, h / RENDER_HEIGHT)
+    local shx = self.raycaster.shake_x * (w / RENDER_WIDTH)
+    local shy = self.raycaster.shake_y * (h / RENDER_HEIGHT)
+    love.graphics.draw(self.canvas, shx, shy, 0, w / RENDER_WIDTH, h / RENDER_HEIGHT)
 end
 
 function FPSMode:keypressed(key)
-    -- Menu
     if self.in_menu then
         if key == "return" or key == "space" then
             self.in_menu = false
@@ -1022,39 +799,27 @@ function FPSMode:keypressed(key)
             self:load_rooms()
             self:load_room(1)
         end
-        if key == "escape" then
-            love.event.quit()
-        end
+        if key == "escape" then love.event.quit() end
         return
     end
-
     if key == "escape" then
         self.in_menu = true
         love.mouse.setRelativeMode(false)
         love.mouse.setGrabbed(false)
+        if self.ambient_source then self.ambient_source:stop() end
         return
     end
-    if key == "tab" then
-        self:load_room(self.room_index)
-    end
-    -- Wall-jump
-    if key == "space" then
-        self.player:try_wall_jump(self.map, self.sfx)
-    end
-    -- Weapon switch
-    if key == "q" or key == "1" or key == "2" or key == "3" or key == "4" then
-        if key == "q" then
-            self.player:next_weapon()
-        else
-            local idx = tonumber(key)
-            if idx and idx <= #self.player.weapons then
-                self.player.current_weapon = idx
-            end
-        end
+    if key == "tab" then self:load_room(self.room_index) end
+    if key == "space" then self.player:try_wall_jump(self.map, self.sfx) end
+    if key == "q" then self.player:next_weapon() end
+    if key == "1" or key == "2" or key == "3" or key == "4" then
+        local idx = tonumber(key)
+        if idx and idx <= #self.player.weapons then self.player.current_weapon = idx end
     end
 end
 
 function FPSMode:mousemoved(_, _, dx)
+    if self.in_menu then return end
     local mult = self.invert_controls and -1 or 1
     self.player:mousemoved(dx * mult)
 end
@@ -1065,34 +830,23 @@ function FPSMode:mousepressed(_, _, button)
         self.player.holding_fire = true
         local kills_before = self.player.kills
         local hit = self.player:fire(self.map, self.sfx)
-
-        -- Screenshake on every shot
         local weapon = self.player:get_weapon()
         self.raycaster:shake(weapon.recoil * 0.8, 0.08)
-
         if hit then
-            -- Extra shake on hit
             self.raycaster:shake(weapon.recoil * 1.5, 0.12)
-
-            -- Hitstop on kill (Vlambeer freeze-frame)
             if self.player.kills > kills_before then
                 self.hitstop_timer = 0.06
                 self.raycaster:shake(4, 0.15)
                 self.flash_timer = 0.1
             end
-
             local room = self.rooms[self.room_index]
-            if room and room.on_kill then
-                room.on_kill(self)
-            end
+            if room and room.on_kill then room.on_kill(self) end
         end
     end
 end
 
 function FPSMode:mousereleased(_, _, button)
-    if button == 1 then
-        self.player.holding_fire = false
-    end
+    if button == 1 then self.player.holding_fire = false end
 end
 
 return FPSMode
