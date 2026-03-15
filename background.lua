@@ -138,6 +138,27 @@ function Background:draw_wind_bands()
     end
 end
 
+function Background:draw_mire()
+    -- Slow-rising bubbles and murk
+    local accent = self.accent_color
+    for index = 1, 7 do
+        local phase = (self.time * (0.3 + index * 0.08) + index * 17) % 1
+        local x = (index * 61 + math.sin(self.time * 0.4 + index) * 20) % g_native_width
+        local y = g_native_height * (1 - phase)
+        local size = 3 + index % 3
+        local alpha = 0.08 * (1 - phase)
+        love.graphics.setColor(accent[1], accent[2], accent[3], alpha)
+        love.graphics.circle("fill", x, y, size)
+    end
+    -- Murky horizontal bands
+    for index = 1, 4 do
+        local y = g_native_height * 0.5 + index * 18
+        local alpha = 0.04 + 0.02 * math.sin(self.time * 0.6 + index)
+        love.graphics.setColor(accent[1] * 0.5, accent[2] * 0.6, accent[3] * 0.3, alpha)
+        love.graphics.rectangle("fill", 0, y, g_native_width, 8)
+    end
+end
+
 function Background:draw_depth_bands()
     local base = mix_color(self.floor_color, self.color, 0.35)
     for index = 1, 3 do
@@ -154,8 +175,10 @@ function Background:draw()
 
     if self.scene and self.scene.mode == "proving_ground" then
         self:draw_grid()
-    elseif self.scene and self.scene.title == "LUST" then
+    elseif self.scene and self.scene.circle_id == "lust" then
         self:draw_wind_bands()
+    elseif self.scene and self.scene.circle_id == "gluttony" then
+        self:draw_mire()
     else
         self:draw_arches()
     end

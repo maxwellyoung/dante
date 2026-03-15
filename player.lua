@@ -202,6 +202,8 @@ function Player:new(services)
     instance.jump_buffer_timer = 0
     instance.move_input = 0
     instance.run_dust_timer = 0
+    instance.land_squash_timer = 0
+    instance.land_squash_intensity = 0
     instance.environment_force_x = 0
     instance.environment_force_y = 0
     instance.environment_label = nil
@@ -529,11 +531,19 @@ function Player:update_step(dt, level)
             if self.vy > 240 and not self.was_on_ground then
                 local effects = get_effects(self)
                 local sfx = get_sfx(self)
+                local camera = get_camera(self)
                 if effects then
                     effects:spawn("land_dust", self.x + self.width / 2, new_y + self.height)
                 end
                 if sfx then
                     sfx:play("land")
+                end
+                -- Landing squash proportional to fall speed
+                self.land_squash_timer = 0.12
+                self.land_squash_intensity = math.min(1, (self.vy - 240) / 600)
+                -- Screen shake proportional to impact
+                if camera and self.vy > 500 then
+                    camera:shake(2 + self.land_squash_intensity * 3, 0.08)
                 end
             end
             if self.dash_timer > 0 then
@@ -610,6 +620,8 @@ function Player:update_step(dt, level)
     if self.jump_buffer_timer > 0 then
         self:consume_jump()
     end
+
+    self.land_squash_timer = math.max(0, self.land_squash_timer - dt)
 
     self:update_run_dust(dt)
     self:update_animation(dt)
@@ -1001,6 +1013,13 @@ function Player:draw()
             scale_y = scale_y * 0.72
         elseif self.is_crouching then
             scale_y = scale_y * 0.8
+        end
+        -- Landing squash-stretch
+        if self.land_squash_timer > 0 then
+            local t = self.land_squash_timer / 0.12
+            local squash = self.land_squash_intensity * t
+            scale_y = scale_y * (1 - squash * 0.25)
+            scale_x = scale_x * (1 + squash * 0.15)
         end
         if self.roll_timer > 0 then
             love.graphics.setColor(0.95, 0.56, 0.22, 0.22)

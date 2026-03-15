@@ -272,7 +272,14 @@ function Level:draw()
                         1
                     )
                 elseif tile_id == 3 then
-                    love.graphics.setColor(self.sludge_color)
+                    -- Sludge: murky animated surface
+                    local sludge_shift = 0.85 + 0.15 * math.sin(love.timer.getTime() * 1.5 + x * 0.6)
+                    love.graphics.setColor(
+                        self.sludge_color[1] * sludge_shift,
+                        self.sludge_color[2] * sludge_shift,
+                        self.sludge_color[3] * 0.8,
+                        1
+                    )
                 elseif tile_id == 4 then
                     love.graphics.setColor(0.55, 0.48, 0.38, 1)
                 else
@@ -294,6 +301,15 @@ function Level:draw()
                     love.graphics.setColor(1, 0.85, 0.3, 0.2 + 0.15 * glow)
                     love.graphics.line(x_pos + 4, y_pos + 10, x_pos + TILE_SIZE - 4, y_pos + 14)
                     love.graphics.line(x_pos + 8, y_pos + 20, x_pos + TILE_SIZE - 8, y_pos + 24)
+                elseif tile_id == 3 then
+                    -- Sludge surface bubbles
+                    local bubble = math.sin(love.timer.getTime() * 2 + x * 1.5 + y * 0.7)
+                    love.graphics.setColor(0.45, 0.58, 0.3, 0.25 + 0.1 * bubble)
+                    love.graphics.rectangle("fill", x_pos, y_pos, TILE_SIZE, 4)
+                    if bubble > 0.6 then
+                        love.graphics.setColor(0.5, 0.65, 0.35, 0.3)
+                        love.graphics.circle("fill", x_pos + 12 + bubble * 6, y_pos + 8, 2)
+                    end
                 end
             end
         end

@@ -34,6 +34,7 @@ g_trial_score = nil
 g_circle_score = 0
 g_ambient_source = nil
 g_ambient_circle_id = nil
+g_circle_transition = nil
 
 g_native_width, g_native_height = 480, 270
 g_main_canvas = nil
@@ -329,6 +330,10 @@ local function generate_drone(circle_id)
         base_freq = 62    -- B1, slightly unsettled
         detune = 1.2
         volume = 0.1
+    elseif circle_id == "gluttony" then
+        base_freq = 49    -- G1, heavy and low
+        detune = 0.8
+        volume = 0.12
     end
 
     for i = 0, sample_count - 1 do
@@ -515,8 +520,22 @@ local function advance_current_room()
         local next_scene = resolve_scene()
         local new_circle = next_scene and next_scene.circle_id
 
-        -- Reset circle score when entering a new circle
+        -- Circle transition: dramatic pause when entering a new circle
         if old_circle and new_circle and old_circle ~= new_circle then
+            local transition_messages = {
+                lust = { title = "THE CHAIN IS TAKEN", subtitle = "No grapple. The wind decides.", accent = {0.95, 0.46, 0.56} },
+                gluttony = { title = "THE BURST IS DENIED", subtitle = "No dash. The floor remembers.", accent = {0.4, 0.7, 0.3} },
+            }
+            local msg = transition_messages[new_circle]
+            if msg then
+                g_circle_transition = {
+                    title = msg.title,
+                    subtitle = msg.subtitle,
+                    accent = msg.accent,
+                    duration = 2.0,
+                    timer = 2.0,
+                }
+            end
             g_circle_score = 0
         end
 
@@ -698,6 +717,16 @@ function love.update(dt)
         g_autoplay:update(dt)
     end
 
+    -- Circle transition pause
+    if g_circle_transition then
+        g_circle_transition.timer = g_circle_transition.timer - dt
+        if g_circle_transition.timer <= 0 then
+            g_circle_transition = nil
+        end
+        g_ui:update(dt)
+        return
+    end
+
     if g_hitstop_timer > 0 then
         g_hitstop_timer = math.max(0, g_hitstop_timer - dt)
         g_camera:update(dt)
@@ -876,6 +905,51 @@ function love.draw()
         g_current_room_index,
         g_debug_overlay
     )
+
+    -- Screen effects: damage vignette, low timer urgency
+    if g_player.invincible_timer > 0 and g_player.health < g_player.max_health then
+        local hurt_alpha = math.min(0.35, g_player.invincible_timer * 0.8)
+        love.graphics.setColor(0.8, 0.1, 0.05, hurt_alpha)
+        -- Top/bottom vignette bars
+        love.graphics.rectangle("fill", 0, 0, g_native_width, 20)
+        love.graphics.rectangle("fill", 0, g_native_height - 20, g_native_width, 20)
+        -- Side vignette bars
+        love.graphics.rectangle("fill", 0, 0, 12, g_native_height)
+        love.graphics.rectangle("fill", g_native_width - 12, 0, 12, g_native_height)
+    end
+
+    if g_trial_active and g_trial_timer > 0 and g_trial_timer < 3 then
+        local urgency = (1 - g_trial_timer / 3) * 0.2
+        local pulse = math.sin(love.timer.getTime() * 8) * 0.5 + 0.5
+        love.graphics.setColor(0.9, 0.15, 0.1, urgency * pulse)
+        love.graphics.rectangle("fill", 0, 0, g_native_width, g_native_height)
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
+
+    -- Circle transition overlay
+    if g_circle_transition then
+        local ct = g_circle_transition
+        local alpha = 0
+        if ct.timer > ct.duration - 0.3 then
+            alpha = (ct.duration - ct.timer) / 0.3
+        elseif ct.timer < 0.3 then
+            alpha = ct.timer / 0.3
+        else
+            alpha = 1
+        end
+        love.graphics.setColor(0, 0, 0, alpha)
+        love.graphics.rectangle("fill", 0, 0, g_native_width, g_native_height)
+        if alpha > 0.5 then
+            local text_alpha = math.min(1, (alpha - 0.5) * 2)
+            local accent = ct.accent or {0.92, 0.55, 0.18}
+            love.graphics.setColor(accent[1], accent[2], accent[3], text_alpha)
+            love.graphics.printf(ct.title or "", 0, g_native_height / 2 - 20, g_native_width, "center")
+            love.graphics.setColor(0.8, 0.82, 0.9, text_alpha * 0.8)
+            love.graphics.printf(ct.subtitle or "", 0, g_native_height / 2 + 2, g_native_width, "center")
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+    end
 
     -- Hard-cut black flash overlay
     if g_hard_cut_pending then

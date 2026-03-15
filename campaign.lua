@@ -479,5 +479,222 @@ return {
                 "1111111111111111111111",
             },
         },
+
+        -- ============================================================
+        -- GLUTTONY — Dash stripped. Sludge floors slow you down.
+        -- No burst escape. You must be deliberate, not reactive.
+        -- ============================================================
+
+        -- GLUTTONY 1: Cross — sludge patches on the floor slow you.
+        -- Must jump over them or accept the drag. Wide platforms.
+        {
+            id = "gluttony_01",
+            title = "GLUTTONY",
+            subtitle = "The burst is denied.",
+            trial_rule = "NO DASH. MOVE THROUGH THE MIRE.",
+            mode = "campaign",
+            room_type = "trial",
+            circle_id = "gluttony",
+            hard_cut = true,
+            completion = "reach_zone",
+            reach_zone = { x = 22 * 32, y = 4 * 32, width = 64, height = 96 },
+            trial_timer = 14,
+            removed_ability = "dash",
+            fragments_required = 0,
+            show_gate = false,
+            bg = { 0.12, 0.16, 0.08 },
+            solid_color = { 0.28, 0.34, 0.22 },
+            accent_color = { 0.4, 0.72, 0.3 },
+            sludge_color = { 0.32, 0.48, 0.24 },
+            abilities = { shoot = true, grapple = false, dash = false },
+            map = {
+                "1111111111111111111111111111",
+                "1                          1",
+                "1                          1",
+                "1                          1",
+                "1 P               111111   1",
+                "1 1111                     1",
+                "1       3333  1111         1",
+                "1       3333               1",
+                "1111111133331111111111111111",
+            },
+        },
+
+        -- GLUTTONY 2: Climb — vertical room, sludge on some walls.
+        -- Wall-jump upward but some walls are sludge (slow your slide).
+        -- Must read which walls are safe to kick off.
+        {
+            id = "gluttony_02",
+            title = "GLUTTONY",
+            subtitle = "Read the walls.",
+            trial_rule = "CLIMB WITHOUT THE BURST",
+            mode = "campaign",
+            room_type = "trial",
+            circle_id = "gluttony",
+            hard_cut = true,
+            completion = "reach_zone",
+            reach_zone = { x = 3 * 32, y = 1 * 32, width = 128, height = 48 },
+            trial_timer = 14,
+            removed_ability = "dash",
+            fragments_required = 0,
+            show_gate = false,
+            bg = { 0.12, 0.16, 0.08 },
+            solid_color = { 0.28, 0.34, 0.22 },
+            accent_color = { 0.4, 0.72, 0.3 },
+            abilities = { shoot = true, grapple = false, dash = false },
+            map = {
+                "1111111111111",
+                "1           1",
+                "1           1",
+                "1           1",
+                "1    111    1",
+                "1           1",
+                "1           1",
+                "1   1111    1",
+                "1           1",
+                "1           1",
+                "1    1111   1",
+                "1    P      1",
+                "1   111     1",
+                "1111111111111",
+            },
+        },
+
+        -- GLUTTONY 3: Fight — flat arena with sludge patches.
+        -- Enemies walk through sludge fine, you don't. Must position
+        -- carefully and shoot from safe ground.
+        {
+            id = "gluttony_03",
+            title = "GLUTTONY",
+            subtitle = "Hold your ground.",
+            trial_rule = "FIGHT FROM SOLID GROUND",
+            mode = "campaign",
+            room_type = "trial",
+            circle_id = "gluttony",
+            hard_cut = true,
+            completion = "kill_all",
+            trial_timer = 14,
+            removed_ability = "dash",
+            fragments_required = 0,
+            show_gate = false,
+            bg = { 0.12, 0.16, 0.08 },
+            solid_color = { 0.28, 0.34, 0.22 },
+            accent_color = { 0.4, 0.72, 0.3 },
+            abilities = { shoot = true, grapple = false, dash = false },
+            encounter_config = {
+                trigger_x = 0,
+                bounds = { left = 0, right = 22 * 32 },
+                waves = {
+                    {
+                        spawns = {
+                            { x = 16 * 32, y = 6 * 32, type = "walker" },
+                            { x = 18 * 32, y = 6 * 32, type = "walker" },
+                            { x = 14 * 32, y = 2 * 32, type = "harpy" },
+                        },
+                    },
+                },
+            },
+            map = {
+                "1111111111111111111111",
+                "1                    1",
+                "1                    1",
+                "1  P                 1",
+                "1  1111              1",
+                "1                    1",
+                "1        111        1",
+                "1111 333333333 111111",
+                "1111111111111111111111",
+            },
+        },
+
+        -- GLUTTONY 4: Patience — long sludge corridor with harpy above.
+        -- Can't dash through. Must crouch-walk and time shots upward.
+        -- Teaches: sometimes slow is the only way.
+        {
+            id = "gluttony_04",
+            title = "GLUTTONY",
+            subtitle = "Patience.",
+            trial_rule = "YOU CANNOT RUSH THIS",
+            mode = "campaign",
+            room_type = "trial",
+            circle_id = "gluttony",
+            hard_cut = true,
+            completion = "reach_zone",
+            reach_zone = { x = 22 * 32, y = 4 * 32, width = 64, height = 96 },
+            trial_timer = 16,
+            removed_ability = "dash",
+            fragments_required = 0,
+            show_gate = false,
+            bg = { 0.13, 0.17, 0.09 },
+            solid_color = { 0.3, 0.36, 0.24 },
+            accent_color = { 0.45, 0.75, 0.35 },
+            abilities = { shoot = true, grapple = false, dash = false },
+            map = {
+                "1111111111111111111111111111",
+                "1                          1",
+                "1        H          H      1",
+                "1                          1",
+                "1 P                    11  1",
+                "1 11                       1",
+                "1    333333333333333333     1",
+                "1111111111111111111111111111",
+            },
+        },
+
+        -- GLUTTONY 5: Survive — sludge arena with enemies from all sides.
+        -- Center island of solid ground. Sludge surrounds it.
+        -- Must hold the island and shoot outward.
+        {
+            id = "gluttony_05",
+            title = "GLUTTONY",
+            subtitle = "Prove it.",
+            trial_rule = "SURVIVE IN THE MIRE",
+            mode = "campaign",
+            room_type = "trial",
+            circle_id = "gluttony",
+            hard_cut = true,
+            completion = "survive",
+            trial_timer = 14,
+            removed_ability = "dash",
+            fragments_required = 0,
+            show_gate = false,
+            bg = { 0.14, 0.18, 0.1 },
+            solid_color = { 0.32, 0.38, 0.26 },
+            accent_color = { 0.5, 0.78, 0.38 },
+            abilities = { shoot = true, grapple = false, dash = false, crouch = true },
+            encounter_config = {
+                trigger_x = 0,
+                bounds = { left = 0, right = 22 * 32 },
+                waves = {
+                    {
+                        spawns = {
+                            { x = 4 * 32, y = 6 * 32, type = "walker" },
+                            { x = 17 * 32, y = 2 * 32, type = "harpy" },
+                        },
+                        delay_after_clear = 0.5,
+                    },
+                    {
+                        spawns = {
+                            { x = 3 * 32, y = 6 * 32, type = "walker" },
+                            { x = 18 * 32, y = 6 * 32, type = "walker" },
+                            { x = 5 * 32, y = 2 * 32, type = "harpy" },
+                            { x = 16 * 32, y = 2 * 32, type = "harpy" },
+                        },
+                    },
+                },
+            },
+            map = {
+                "1111111111111111111111",
+                "1                    1",
+                "1                    1",
+                "1  P                 1",
+                "1                    1",
+                "1       111111       1",
+                "1                    1",
+                "1 33 333333333333 33 1",
+                "1111111111111111111111",
+            },
+        },
     },
 }
+
