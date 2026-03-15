@@ -10,6 +10,8 @@ g_enemies = nil
 g_projectiles = nil
 g_preview = nil
 g_preview_mode = false
+g_fps_mode = nil
+g_fps_active = false
 g_autoplay = nil
 g_encounters = nil
 g_input_override = {}
@@ -44,6 +46,7 @@ local campaign = require("campaign")
 local proving_ground = require("proving_ground")
 local SceneContract = require("scene_contract")
 local RuntimeServices = require("runtime_services")
+local FPSMode = require("fps_mode")
 Player = require("player")
 Level = require("level")
 Camera = require("camera")
@@ -616,6 +619,16 @@ function love.load(args)
         return
     end
 
+    if has_flag(args, "--fps") then
+        g_fps_active = true
+        love.window.setMode(960, 600, { resizable = true, vsync = true })
+        love.window.setTitle("Infernal Ascent")
+        g_fps_mode = FPSMode:new()
+        g_fps_mode:load_rooms()
+        g_fps_mode:load_room(1)
+        return
+    end
+
     apply_game_window_mode(args)
 
     g_main_canvas = love.graphics.newCanvas(g_native_width, g_native_height)
@@ -708,6 +721,10 @@ function love.load(args)
 end
 
 function love.update(dt)
+    if g_fps_active then
+        g_fps_mode:update(dt)
+        return
+    end
     if g_preview_mode then
         g_preview:update(dt)
         return
@@ -844,6 +861,10 @@ function love.update(dt)
 end
 
 function love.draw()
+    if g_fps_active then
+        g_fps_mode:draw()
+        return
+    end
     if g_preview_mode then
         g_preview:draw()
         return
@@ -1000,6 +1021,10 @@ function love.draw()
 end
 
 function love.keypressed(key)
+    if g_fps_active then
+        g_fps_mode:keypressed(key)
+        return
+    end
     if g_preview_mode then
         g_preview:keypressed(key)
         return
@@ -1044,7 +1069,17 @@ function love.keyreleased(key)
     end
 end
 
+function love.mousemoved(x, y, dx, dy)
+    if g_fps_active then
+        g_fps_mode:mousemoved(x, y, dx)
+    end
+end
+
 function love.mousepressed(x, y, button)
+    if g_fps_active then
+        g_fps_mode:mousepressed(x, y, button)
+        return
+    end
     if g_preview_mode then
         return
     end
