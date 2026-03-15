@@ -777,10 +777,13 @@ function love.update(dt)
                     advance_current_room()
                 end
             else
-                -- Ran out of time = death
-                g_player:take_damage()
+                -- Ran out of time — reset the timer so player can retry
+                g_trial_timer = g_current_scene.trial_timer or 10
                 if not g_player.is_dead then
-                    g_player:die()
+                    g_player:take_damage()
+                    if not g_player.is_dead then
+                        g_player:die()
+                    end
                 end
             end
         end
