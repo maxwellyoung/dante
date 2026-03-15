@@ -34,6 +34,8 @@ function FPSMode:new()
     instance.linger_timer = 0
     instance.can_shoot = false
     instance.ambient_source = nil
+    instance.footstep_timer = 0
+    instance.visit_count = 0  -- how many times we've looped
 
     love.mouse.setRelativeMode(true)
     love.mouse.setGrabbed(true)
@@ -41,48 +43,90 @@ function FPSMode:new()
     return instance
 end
 
+function FPSMode:generate_ambient(room)
+    if self.ambient_source then
+        self.ambient_source:stop()
+        self.ambient_source = nil
+    end
+
+    local tone = room.ambient_tone or 55
+    local volume = room.ambient_volume or 0.06
+    local character = room.ambient_character or "warm"
+
+    local sample_rate = 44100
+    local duration = 3.0
+    local count = math.floor(sample_rate * duration)
+    local data = love.sound.newSoundData(count, sample_rate, 16, 1)
+
+    for i = 0, count - 1 do
+        local t = i / sample_rate
+        local env = 1
+        local fade = 0.15 * duration
+        if t < fade then env = t / fade
+        elseif t > duration - fade then env = (duration - t) / fade end
+
+        local sample = 0
+        if character == "warm" then
+            sample = math.sin(t * tone * math.pi * 2) * 0.4
+                   + math.sin(t * (tone + 0.3) * math.pi * 2) * 0.3
+                   + math.sin(t * tone * 1.5 * math.pi * 2) * 0.1
+        elseif character == "cold" then
+            sample = math.sin(t * tone * math.pi * 2) * 0.3
+                   + math.sin(t * (tone * 1.01) * math.pi * 2) * 0.3
+                   + (math.random() * 2 - 1) * 0.02
+        elseif character == "dread" then
+            local lfo = math.sin(t * 0.2 * math.pi * 2)
+            sample = math.sin(t * tone * (1 + lfo * 0.05) * math.pi * 2) * 0.4
+                   + math.sin(t * (tone * 0.5) * math.pi * 2) * 0.2
+                   + (math.random() * 2 - 1) * 0.04
+        elseif character == "silence" then
+            sample = (math.random() * 2 - 1) * 0.008
+        elseif character == "hum" then
+            sample = math.sin(t * 60 * math.pi * 2) * 0.15
+                   + math.sin(t * 120 * math.pi * 2) * 0.08
+        end
+
+        data:setSample(i, math.max(-1, math.min(1, sample * volume * env)))
+    end
+
+    local source = love.audio.newSource(data)
+    source:setLooping(true)
+    source:setVolume(volume)
+    source:play()
+    self.ambient_source = source
+end
+
 function FPSMode:load_rooms()
     self.rooms = {
-        -- ============================================================
-        -- 1. You start in a corridor. There is text on the wall ahead.
-        -- ============================================================
+        -- 1. A corridor. Straight ahead. No ambiguity.
         {
-            title = "",
             fog_color = { 0.02, 0.02, 0.04 },
             floor_color = { 0.1, 0.1, 0.13 },
             ceiling_color = { 0.04, 0.04, 0.06 },
+            ambient_tone = 55, ambient_volume = 0.05, ambient_character = "warm",
             completion = "exit",
             can_shoot = false,
             grid = {
-                "##########",
-                "#P.......#",
-                "#........#",
-                "#........#",
-                "#.......X#",
-                "##########",
+                "################",
+                "#P............X#",
+                "################",
             },
             spawn_angle = 0,
             world_texts = {
-                { x = 8.5, y = 3.5, text = "You are descending.", height = 0.5, color = {0.7, 0.72, 0.8} },
+                { x = 8.5, y = 1.5, text = "You are descending.", height = 0.5,
+                  color = {0.7, 0.72, 0.8} },
             },
-            triggers = {
-                { x = 5, y = 3, radius = 2, id = "intro_1",
-                  screen_text = "You chose to come here.", duration = 3 },
-            },
+            triggers = {},
         },
 
-        -- ============================================================
-        -- 2. A room that's too big. Your footsteps echo.
-        -- The text says something you half-remember.
-        -- ============================================================
+        -- 2. A room that's too big. Pillar in the center.
         {
-            title = "",
             fog_color = { 0.03, 0.02, 0.05 },
             floor_color = { 0.08, 0.08, 0.11 },
             ceiling_color = { 0.03, 0.03, 0.05 },
+            ambient_tone = 48, ambient_volume = 0.04, ambient_character = "cold",
             completion = "exit",
             can_shoot = false,
-            linger = 2,
             grid = {
                 "##################",
                 "#P...............#",
@@ -103,20 +147,17 @@ function FPSMode:load_rooms()
                   color = {0.6, 0.58, 0.55} },
             },
             triggers = {
-                { x = 10, y = 5, radius = 3, id = "room2_center",
+                { x = 10, y = 5, radius = 3, id = "room2",
                   screen_text = "The room is bigger than it needs to be.\nThat's the point.", duration = 3.5 },
             },
         },
 
-        -- ============================================================
-        -- 3. A corridor that turns. Something red at the end.
-        -- First time you can shoot. One enemy. It doesn't move.
-        -- ============================================================
+        -- 3. A turn. Something red at the end. First gun.
         {
-            title = "",
             fog_color = { 0.05, 0.02, 0.03 },
             floor_color = { 0.14, 0.08, 0.1 },
             ceiling_color = { 0.06, 0.03, 0.04 },
+            ambient_tone = 40, ambient_volume = 0.06, ambient_character = "dread",
             completion = "trigger",
             completion_trigger = "shot_it",
             can_shoot = true,
@@ -137,7 +178,7 @@ function FPSMode:load_rooms()
                   color = {0.8, 0.4, 0.35} },
             },
             triggers = {
-                { x = 5, y = 2, radius = 1.5, id = "gun_notice",
+                { x = 5, y = 2, radius = 1.5, id = "gun",
                   screen_text = "Left click.", duration = 2 },
             },
             on_kill = function(self)
@@ -147,17 +188,44 @@ function FPSMode:load_rooms()
             end,
         },
 
-        -- ============================================================
-        -- 4. You're in a room with no exit. Text appears.
-        -- After a moment, the wall opens.
-        -- ============================================================
+        -- 4. An L-shaped room. You hear something around the corner.
+        -- There's nothing there.
         {
-            title = "",
+            fog_color = { 0.03, 0.03, 0.05 },
+            floor_color = { 0.11, 0.1, 0.13 },
+            ceiling_color = { 0.04, 0.04, 0.06 },
+            ambient_tone = 52, ambient_volume = 0.07, ambient_character = "dread",
+            completion = "exit",
+            can_shoot = true,
+            grid = {
+                "#########",
+                "#P......#",
+                "#.......#",
+                "#.......#",
+                "####....#",
+                "   #....#",
+                "   #....#",
+                "   #...X#",
+                "   ######",
+            },
+            spawn_angle = 0,
+            world_texts = {},
+            triggers = {
+                { x = 5, y = 2, radius = 2, id = "corner_1",
+                  screen_text = "Did you hear that?", duration = 2 },
+                { x = 5, y = 6, radius = 2, id = "corner_2",
+                  screen_text = "There's nothing here.", duration = 2.5 },
+            },
+        },
+
+        -- 5. No exit. Wait.
+        {
             fog_color = { 0.02, 0.02, 0.03 },
             floor_color = { 0.12, 0.12, 0.15 },
             ceiling_color = { 0.05, 0.05, 0.07 },
+            ambient_tone = 35, ambient_volume = 0.03, ambient_character = "silence",
             completion = "linger",
-            linger = 6,
+            linger = 7,
             can_shoot = false,
             grid = {
                 "########",
@@ -174,61 +242,88 @@ function FPSMode:load_rooms()
                   color = {0.9, 0.9, 0.95} },
             },
             triggers = {
-                { x = 4, y = 3, radius = 2, id = "wait_room",
-                  screen_text = "There is no exit.\nNot yet.", duration = 3 },
-                { x = 4, y = 3, radius = 2, id = "wait_room_2", delay = 4,
-                  screen_text = "Okay.", duration = 1.5 },
+                { x = 4, y = 3, radius = 2, id = "wait_1",
+                  screen_text = "There is no exit.", duration = 2.5 },
+                { x = 4, y = 3, radius = 2, id = "wait_2", delay = 4,
+                  screen_text = "Not yet.", duration = 1.5 },
+                { x = 4, y = 3, radius = 2, id = "wait_3", delay = 6,
+                  screen_text = "Okay.", duration = 1 },
             },
         },
 
-        -- ============================================================
-        -- 5. A long hallway. Text on both walls, overlapping, illegible.
-        -- Something is at the end that you can't quite see.
-        -- ============================================================
+        -- 6. A maze. But the walls have writing.
         {
-            title = "",
             fog_color = { 0.04, 0.03, 0.06 },
             floor_color = { 0.1, 0.1, 0.14 },
             ceiling_color = { 0.04, 0.04, 0.06 },
+            ambient_tone = 60, ambient_volume = 0.05, ambient_character = "hum",
             completion = "exit",
             can_shoot = false,
             grid = {
-                "######################",
-                "#P...................X#",
-                "######################",
+                "################",
+                "#P.....#.......#",
+                "#.###..#.#####.#",
+                "#...#..#.......#",
+                "###.#..#.#.###.#",
+                "#...#....#...#.#",
+                "#.#####.##.#.#.#",
+                "#.......#..#...#",
+                "#.###.###.####.#",
+                "#...........X..#",
+                "################",
             },
             spawn_angle = 0,
             world_texts = {
-                { x = 4.5, y = 0.8, text = "I keep starting over", height = 0.5,
+                { x = 4.5, y = 1.5, text = "I keep starting over", height = 0.5,
                   color = {0.5, 0.5, 0.55} },
-                { x = 7.5, y = 2.2, text = "each version is worse", height = 0.4,
+                { x = 8.5, y = 3.5, text = "each version worse", height = 0.4,
                   color = {0.45, 0.45, 0.5} },
-                { x = 10.5, y = 0.8, text = "but I can't stop", height = 0.5,
+                { x = 2.5, y = 5.5, text = "but I can't stop", height = 0.5,
                   color = {0.55, 0.52, 0.5} },
-                { x = 13.5, y = 2.2, text = "because stopping", height = 0.4,
+                { x = 12.5, y = 7.5, text = "because stopping", height = 0.4,
                   color = {0.5, 0.48, 0.48} },
-                { x = 16.5, y = 0.8, text = "would mean", height = 0.5,
+                { x = 6.5, y = 9.5, text = "would mean", height = 0.5,
                   color = {0.6, 0.55, 0.52} },
-                { x = 19.5, y = 1.5, text = "it was finished", height = 0.6,
-                  color = {0.8, 0.75, 0.7} },
             },
             triggers = {
-                { x = 11, y = 1.5, radius = 2, id = "hallway_mid",
-                  screen_text = "The hallway is the game.\nThe game is the hallway.", duration = 3 },
+                { x = 8, y = 5, radius = 3, id = "maze",
+                  screen_text = "You are looking for an exit.\nThe exit is looking for you.", duration = 3.5 },
             },
         },
 
-        -- ============================================================
-        -- 6. An open room. Enemies that don't attack. They just stand there.
-        -- You can shoot them or you can walk past them to the exit.
-        -- ============================================================
+        -- 7. Long hallway. Text on the walls.
         {
-            title = "",
+            fog_color = { 0.04, 0.03, 0.06 },
+            floor_color = { 0.1, 0.1, 0.14 },
+            ceiling_color = { 0.04, 0.04, 0.06 },
+            ambient_tone = 45, ambient_volume = 0.04, ambient_character = "cold",
+            completion = "exit",
+            can_shoot = false,
+            grid = {
+                "############################",
+                "#P........................X#",
+                "############################",
+            },
+            spawn_angle = 0,
+            world_texts = {
+                { x = 5.5, y = 0.8, text = "every game", height = 0.4, color = {0.45, 0.45, 0.5} },
+                { x = 9.5, y = 2.2, text = "is about the person", height = 0.4, color = {0.5, 0.48, 0.5} },
+                { x = 14.5, y = 0.8, text = "who made it", height = 0.4, color = {0.55, 0.52, 0.5} },
+                { x = 19.5, y = 2.2, text = "pretending", height = 0.4, color = {0.5, 0.48, 0.5} },
+                { x = 24.5, y = 1.5, text = "it isn't", height = 0.5, color = {0.7, 0.65, 0.6} },
+            },
+            triggers = {},
+        },
+
+        -- 8. Passive enemies. A choice that doesn't matter.
+        {
             fog_color = { 0.06, 0.03, 0.04 },
             floor_color = { 0.15, 0.1, 0.11 },
             ceiling_color = { 0.06, 0.04, 0.05 },
+            ambient_tone = 38, ambient_volume = 0.06, ambient_character = "dread",
             completion = "exit",
             can_shoot = true,
+            passive_enemies = true,
             grid = {
                 "##############",
                 "#P...........#",
@@ -241,31 +336,84 @@ function FPSMode:load_rooms()
                 "##############",
             },
             spawn_angle = 0,
-            -- Make enemies non-hostile
-            passive_enemies = true,
             world_texts = {
                 { x = 7.5, y = 1.2, text = "They won't hurt you.", height = 0.5,
                   color = {0.7, 0.72, 0.8} },
-                { x = 7.5, y = 7.8, text = "The exit is behind them.", height = 0.3,
-                  color = {0.5, 0.52, 0.55} },
             },
             triggers = {
-                { x = 7, y = 4, radius = 3, id = "passive_room",
-                  screen_text = "You can shoot them if you want.\nNothing will happen.", duration = 3.5 },
+                { x = 7, y = 4, radius = 3, id = "passive",
+                  screen_text = "You can shoot them if you want.\nNothing changes.", duration = 3.5 },
             },
         },
 
-        -- ============================================================
-        -- 7. A small room. Just text.
-        -- ============================================================
+        -- 9. A room with two doors. Both lead to the same place.
         {
-            title = "",
+            fog_color = { 0.03, 0.03, 0.05 },
+            floor_color = { 0.1, 0.1, 0.13 },
+            ceiling_color = { 0.04, 0.04, 0.06 },
+            ambient_tone = 55, ambient_volume = 0.04, ambient_character = "warm",
+            completion = "exit",
+            can_shoot = false,
+            grid = {
+                "###############",
+                "#P............#",
+                "#.....##......#",
+                "#.....##......#",
+                "#.............#",
+                "#.....##......#",
+                "#.....##......#",
+                "#............X#",
+                "###############",
+            },
+            spawn_angle = 0,
+            world_texts = {
+                { x = 4.5, y = 2.5, text = "left", height = 0.5, color = {0.6, 0.62, 0.7} },
+                { x = 10.5, y = 2.5, text = "right", height = 0.5, color = {0.6, 0.62, 0.7} },
+            },
+            triggers = {
+                { x = 7, y = 4, radius = 2, id = "choice",
+                  screen_text = "It doesn't matter which way you go.\nYou already know that.", duration = 3 },
+            },
+        },
+
+        -- 10. Darkness. Almost nothing visible. One word.
+        {
+            fog_color = { 0.01, 0.01, 0.01 },
+            floor_color = { 0.03, 0.03, 0.04 },
+            ceiling_color = { 0.01, 0.01, 0.02 },
+            ambient_tone = 30, ambient_volume = 0.03, ambient_character = "silence",
+            completion = "linger",
+            linger = 6,
+            can_shoot = false,
+            grid = {
+                "########",
+                "#P.....#",
+                "#......#",
+                "#......#",
+                "#......#",
+                "########",
+            },
+            spawn_angle = 0,
+            world_texts = {
+                { x = 4.5, y = 3, text = "Here.", height = 0.5,
+                  color = {0.95, 0.92, 0.85} },
+            },
+            triggers = {
+                { x = 4, y = 3, radius = 2, id = "here", delay = 3,
+                  screen_text = "This is where it was going the whole time.", duration = 3 },
+            },
+        },
+
+        -- 11. The end. Thank you.
+        {
             fog_color = { 0.01, 0.01, 0.02 },
-            floor_color = { 0.06, 0.06, 0.08 },
+            floor_color = { 0.05, 0.05, 0.07 },
             ceiling_color = { 0.02, 0.02, 0.03 },
+            ambient_tone = 55, ambient_volume = 0.02, ambient_character = "warm",
             completion = "linger",
             linger = 5,
             can_shoot = false,
+            is_ending = true,
             grid = {
                 "######",
                 "#P...#",
@@ -279,15 +427,14 @@ function FPSMode:load_rooms()
                   color = {1, 0.95, 0.88} },
             },
             triggers = {},
-            is_ending = true,
         },
     }
 end
 
 function FPSMode:load_room(index)
     if index > #self.rooms then
-        -- Loop or end
         index = 1
+        self.visit_count = self.visit_count + 1
     end
     self.room_index = index
 
@@ -320,9 +467,12 @@ function FPSMode:load_room(index)
     self.raycaster.floor_color = room.floor_color or { 0.12, 0.13, 0.16 }
     self.raycaster.ceiling_color = room.ceiling_color or { 0.06, 0.06, 0.08 }
 
+    -- Ambient drone
+    self:generate_ambient(room)
+
     -- Hard cut visual on room change (except first room)
     if index > 1 then
-        self.hard_cut_timer = -0.06  -- brief black frame before scene appears
+        self.hard_cut_timer = -0.08  -- brief black frame before scene appears
     end
 end
 
@@ -405,6 +555,18 @@ function FPSMode:update(dt)
     end
 
     self.player:update(dt, self.map)
+
+    -- Footsteps
+    local moving = love.keyboard.isDown("w", "a", "s", "d", "up", "down")
+    if moving and not self.player.is_dead then
+        self.footstep_timer = self.footstep_timer - dt
+        if self.footstep_timer <= 0 then
+            self.sfx:play("footstep")
+            self.footstep_timer = 0.4
+        end
+    else
+        self.footstep_timer = 0
+    end
 
     -- Enemy AI (only for non-passive)
     local room = self.rooms[self.room_index]

@@ -153,6 +153,17 @@ function Sfx:define_sounds()
         volume = 0.6
     }
 
+    self.sounds.footstep = {
+        waveform = noise,
+        attack = 0.005,
+        decay = 0.04,
+        sustain = 0,
+        release = 0.02,
+        start_freq = 300,
+        end_freq = 150,
+        volume = 0.12
+    }
+
     self.sounds.grapple_latch = {
         waveform = sine_wave,
         attack = 0.005,
