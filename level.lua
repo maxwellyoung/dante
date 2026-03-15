@@ -263,7 +263,14 @@ function Level:draw()
                 if tile_id == 1 then
                     love.graphics.setColor(self.solid_color)
                 elseif tile_id == 2 then
-                    love.graphics.setColor(self.hazard_color)
+                    -- Lava: animated glow
+                    local lava_pulse = 0.7 + 0.3 * math.sin(love.timer.getTime() * 2.5 + x * 0.8 + y * 0.5)
+                    love.graphics.setColor(
+                        self.hazard_color[1] * lava_pulse,
+                        self.hazard_color[2] * lava_pulse * 0.6,
+                        self.hazard_color[3] * 0.2,
+                        1
+                    )
                 elseif tile_id == 3 then
                     love.graphics.setColor(self.sludge_color)
                 elseif tile_id == 4 then
@@ -279,12 +286,14 @@ function Level:draw()
                     love.graphics.setColor(0.02, 0.02, 0.03, 0.15)
                     love.graphics.rectangle("fill", x_pos, y_pos + TILE_SIZE - 4, TILE_SIZE, 4)
                 elseif tile_id == 2 then
-                    love.graphics.setColor(1, 0.9, 0.72, 0.16)
-                    love.graphics.rectangle("fill", x_pos, y_pos, TILE_SIZE, 3)
-                    love.graphics.setColor(0.4, 0.08, 0.08, 0.34)
-                    for offset = 0, TILE_SIZE - 8, 8 do
-                        love.graphics.line(x_pos + offset, y_pos + TILE_SIZE, x_pos + offset + 8, y_pos)
-                    end
+                    -- Lava surface glow
+                    local glow = 0.5 + 0.5 * math.sin(love.timer.getTime() * 3 + x * 1.2)
+                    love.graphics.setColor(1, 0.7, 0.1, 0.35 * glow)
+                    love.graphics.rectangle("fill", x_pos, y_pos, TILE_SIZE, 5)
+                    -- Bright cracks
+                    love.graphics.setColor(1, 0.85, 0.3, 0.2 + 0.15 * glow)
+                    love.graphics.line(x_pos + 4, y_pos + 10, x_pos + TILE_SIZE - 4, y_pos + 14)
+                    love.graphics.line(x_pos + 8, y_pos + 20, x_pos + TILE_SIZE - 8, y_pos + 24)
                 end
             end
         end
