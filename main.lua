@@ -33,6 +33,7 @@ g_hard_cut_pending = false
 g_trial_score = nil
 g_circle_score = 0
 g_ambient_source = nil
+g_ambient_circle_id = nil
 
 g_native_width, g_native_height = 480, 270
 g_main_canvas = nil
@@ -356,6 +357,15 @@ local function generate_drone(circle_id)
     g_ambient_source = source
 end
 
+-- Stop ambient drone
+local function stop_drone()
+    if g_ambient_source then
+        g_ambient_source:stop()
+        g_ambient_source = nil
+        g_ambient_circle_id = nil
+    end
+end
+
 -- Trial completion checking
 local function check_trial_completion()
     if not g_current_scene or g_trial_completed then
@@ -470,12 +480,12 @@ local function load_scene(scene)
     -- Ambient drone per circle
     local circle_id = scene.circle_id
     if circle_id and g_game_mode == "campaign" then
-        if not g_ambient_source or (g_ambient_source and g_ambient_source._circle_id ~= circle_id) then
+        if g_ambient_circle_id ~= circle_id then
             generate_drone(circle_id)
-            if g_ambient_source then
-                g_ambient_source._circle_id = circle_id
-            end
+            g_ambient_circle_id = circle_id
         end
+    elseif not circle_id then
+        stop_drone()
     end
 
     g_ui:show_scene_intro(
