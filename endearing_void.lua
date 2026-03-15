@@ -75,6 +75,8 @@ function EV:new()
 
     -- Ambient
     instance.ambient = nil
+    -- Dithering
+    instance.dither = true
 
     -- Suitcase picked up
     instance.has_suitcase = false
@@ -136,44 +138,65 @@ function EV:load_state(state)
         love.mouse.setRelativeMode(false)
         self.has_suitcase = false
         self:generate_ambient(165, 0.008)
+    elseif state == "driving" then
+        -- Driving the Fiat through Paris at night
+        love.mouse.setRelativeMode(false)
+        self:generate_ambient(146, 0.01)
+        self.drive_time = 0
+        self.drive_speed = 0
+        self.screen_text = "Hold W to drive."
+        self.screen_text_timer = 3
     elseif state == "lobby" then
         love.mouse.setRelativeMode(true)
         love.mouse.setGrabbed(true)
         self:generate_ambient(130, 0.01)
-        self.raycaster.fog_color = { 0.06, 0.05, 0.03 }
-        self.raycaster.floor_color = { 0.35, 0.25, 0.12 }
-        self.raycaster.ceiling_color = { 0.2, 0.15, 0.08 }
-        self.raycaster.max_depth = 16
-        self.raycaster.fog_start = 8
-        self.raycaster.wall_colors[1] = { 0.65, 0.5, 0.3 }  -- warm wood
-        self.raycaster.wall_colors[2] = { 0.75, 0.6, 0.35 }  -- gold trim
+        self.raycaster.fog_color = { 0.05, 0.04, 0.02 }
+        self.raycaster.floor_color = { 0.4, 0.3, 0.15 }
+        self.raycaster.ceiling_color = { 0.22, 0.17, 0.1 }
+        self.raycaster.max_depth = 20
+        self.raycaster.fog_start = 10
+        -- Gehry/brutalist lobby: concrete + gold + eco accents
+        self.raycaster.wall_colors[1] = { 0.55, 0.55, 0.58 }  -- concrete
+        self.raycaster.wall_colors[2] = { 0.75, 0.62, 0.35 }  -- gold trim
+        self.raycaster.wall_colors[3] = { 0.15, 0.35, 0.2 }   -- plant walls
+        self.raycaster.wall_colors[4] = { 0.75, 0.68, 0.45 }  -- titanium
+        -- Grand lobby with angular Gehry pillars and asymmetric layout
         self.map = FPSMap:new({
             grid = {
-                "1111111111111111111111",
-                "1....................1",
-                "1..22..............X1",
-                "1..22................1",
-                "1....................1",
-                "1P...................1",
-                "1111111111111111111111",
+                "111111111111111111111111111",
+                "1.......................1.1",
+                "1..44...................1.1",
+                "1..44.......33..........1",
+                "1...........33..........1",
+                "1.......................1",
+                "1.......22..........44..1",
+                "1.......22..............1",
+                "1.......................1",
+                "1...44..............33..1",
+                "1.......................X1",
+                "1P..........................1",
+                "11111111111111111111111111111",
             },
-            spawn_angle = 0,
+            spawn_angle = -1.57,
         })
         self.px = self.map.spawn.x
         self.py = self.map.spawn.y
-        self.angle = 0
-        self.screen_text = "Find your room."
-        self.screen_text_timer = 3
+        self.angle = self.map.spawn.angle or 0
+        self.screen_text = "The lobby."
+        self.screen_text_timer = 2.5
     elseif state == "hallway" then
         love.mouse.setRelativeMode(true)
-        self.raycaster.wall_colors[1] = { 0.55, 0.4, 0.25 }
-        self.raycaster.wall_colors[2] = { 0.7, 0.55, 0.3 }
+        -- Long hallway with alternating brutalist concrete and Godard red/blue doors
+        self.raycaster.wall_colors[1] = { 0.5, 0.5, 0.52 }   -- concrete
+        self.raycaster.wall_colors[2] = { 0.75, 0.6, 0.35 }   -- gold
+        self.raycaster.wall_colors[7] = { 0.8, 0.2, 0.15 }    -- red door
+        self.raycaster.wall_colors[8] = { 0.15, 0.3, 0.7 }    -- blue door
         self.map = FPSMap:new({
             grid = {
-                "111111111111111111111111111",
-                "1P.......................X1",
-                "1.........................1",
-                "111111111111111111111111111",
+                "111111111111111111111111111111111",
+                "1P....7..1..8..1..7..1..8......X1",
+                "1...............................1",
+                "111111111111111111111111111111111",
             },
             spawn_angle = 0,
         })
@@ -285,6 +308,19 @@ function EV:update(dt)
 
     elseif self.state == "car" then
         if self.state_time > 4 then
+            self:transition_to("driving")
+        end
+
+    elseif self.state == "driving" then
+        self.drive_time = (self.drive_time or 0) + dt
+        -- Hold W to drive
+        if love.keyboard.isDown("w", "up") then
+            self.drive_speed = math.min(1, (self.drive_speed or 0) + dt * 0.5)
+        else
+            self.drive_speed = math.max(0, (self.drive_speed or 0) - dt * 0.8)
+        end
+        -- Arrive at hotel after driving for 8 seconds total
+        if self.drive_time > 10 then
             self:transition_to("hotel_exterior")
         end
 
@@ -402,6 +438,8 @@ function EV:draw()
         self:draw_title()
     elseif self.state == "car" then
         self:draw_car()
+    elseif self.state == "driving" then
+        self:draw_driving()
     elseif self.state == "hotel_exterior" then
         self:draw_hotel_exterior()
     elseif self.state == "lobby" or self.state == "hallway" or self.state == "room" then
@@ -410,6 +448,12 @@ function EV:draw()
         self:draw_bed()
     elseif self.state == "stars" then
         self:draw_stars()
+    end
+
+    -- Dithering post-process
+    if self.dither then
+        self.raycaster.dither_enabled = true
+        self.raycaster:apply_dither()
     end
 
     -- Fade overlay
@@ -598,6 +642,87 @@ function EV:draw_hotel_exterior()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function EV:draw_driving()
+    local speed = self.drive_speed or 0
+    local t = self.drive_time or 0
+
+    -- Sky — deep blue to orange at horizon (Pierrot le Fou sunset)
+    for y = 0, H * 0.45 do
+        local sky_t = y / (H * 0.45)
+        local r = 0.05 + sky_t * 0.3
+        local g = 0.06 + sky_t * 0.12
+        local b = 0.18 - sky_t * 0.08
+        love.graphics.setColor(r, g, b, 1)
+        love.graphics.rectangle("fill", 0, y, W, 1)
+    end
+
+    -- Stars in upper sky
+    math.randomseed(42)
+    for _ = 1, 30 do
+        local sx = math.random(0, W)
+        local sy = math.random(0, math.floor(H * 0.25))
+        local bri = 0.3 + math.random() * 0.5
+        love.graphics.setColor(1, 0.98, 0.9, bri * (1 - self.drive_time / 12))
+        love.graphics.rectangle("fill", sx, sy, 1, 1)
+    end
+    math.randomseed(os.time())
+
+    -- Buildings silhouette — brutalist blocks scrolling
+    local scroll = t * speed * 40
+    for i = 0, 12 do
+        local bx = ((i * 28 - scroll * 0.3) % (W + 40)) - 20
+        local bh = 30 + (i * 17) % 40
+        local by = H * 0.45 - bh
+        -- Concrete grey with occasional Godard color
+        if i % 5 == 0 then
+            love.graphics.setColor(0.7, 0.18, 0.12, 0.9)  -- red
+        elseif i % 7 == 0 then
+            love.graphics.setColor(0.12, 0.25, 0.6, 0.9)  -- blue
+        else
+            love.graphics.setColor(0.25, 0.25, 0.28, 0.9)  -- concrete
+        end
+        love.graphics.rectangle("fill", bx, by, 22, bh)
+        -- Windows
+        love.graphics.setColor(0.9, 0.75, 0.4, 0.4)
+        for wy = 0, math.floor(bh / 8) - 1 do
+            for wx = 0, 1 do
+                love.graphics.rectangle("fill", bx + 4 + wx * 10, by + 4 + wy * 8, 6, 4)
+            end
+        end
+    end
+
+    -- Road — perspective lines converging to center
+    local horizon_y = H * 0.45
+    love.graphics.setColor(0.12, 0.12, 0.14, 1)
+    love.graphics.rectangle("fill", 0, horizon_y, W, H - horizon_y)
+
+    -- Road lines (scrolling)
+    local line_scroll = (t * speed * 200) % 40
+    for i = 0, 8 do
+        local depth = (i * 40 + line_scroll) / 320
+        if depth > 0.02 then
+            local road_y = horizon_y + (H - horizon_y) * depth
+            local line_width = 2 + depth * 20
+            local cx = W / 2
+            love.graphics.setColor(0.9, 0.85, 0.5, 0.4 * (1 - depth))
+            love.graphics.rectangle("fill", cx - line_width / 2, road_y, line_width, 2)
+        end
+    end
+
+    -- Car dashboard
+    love.graphics.setColor(0.15, 0.12, 0.1, 1)
+    love.graphics.rectangle("fill", 0, H * 0.78, W, H * 0.22)
+    -- Steering wheel hint
+    love.graphics.setColor(0.25, 0.2, 0.18, 1)
+    love.graphics.circle("line", W / 2, H * 0.88, 18)
+
+    -- Speedometer
+    love.graphics.setColor(PALETTE.cream[1], PALETTE.cream[2], PALETTE.cream[3], 0.6)
+    love.graphics.printf(string.format("%d km/h", math.floor(speed * 80)), W - 70, H - 18, 62, "right")
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 function EV:draw_fps()
     if not self.map then return end
 
@@ -702,6 +827,12 @@ function EV:keypressed(key)
         if key == "escape" then love.event.quit() end
 
     elseif self.state == "car" then
+        if key == "return" or key == "space" then
+            self:transition_to("driving")
+        end
+
+    elseif self.state == "driving" then
+        -- W drives, space/enter skips
         if key == "return" or key == "space" then
             self:transition_to("hotel_exterior")
         end

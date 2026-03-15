@@ -37,9 +37,19 @@ function FPSMap:load(data)
             if char == "#" or char == "1" then
                 tile = 1  -- stone wall
             elseif char == "2" then
-                tile = 2  -- hell wall
+                tile = 2  -- accent wall
             elseif char == "3" then
-                tile = 3  -- sludge wall
+                tile = 3  -- eco / plant wall
+            elseif char == "4" then
+                tile = 4  -- concrete (brutalist)
+            elseif char == "5" then
+                tile = 5  -- titanium (gehry)
+            elseif char == "6" then
+                tile = 6  -- overgrown
+            elseif char == "7" then
+                tile = 7  -- godard red
+            elseif char == "8" then
+                tile = 8  -- godard blue
             elseif char == "P" then
                 self.spawn = { x = x - 0.5, y = y - 0.5, angle = data.spawn_angle or 0 }
             elseif char == "X" then

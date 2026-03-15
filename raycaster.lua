@@ -29,6 +29,23 @@ function Raycaster:new(width, height)
     instance.shake_y = 0
     instance.shake_intensity = 0
     instance.shake_timer = 0
+    instance.dither_enabled = false
+
+    -- Bayer 4x4 dither matrix (normalized 0-1)
+    instance.bayer = {
+        { 0/16, 8/16, 2/16, 10/16 },
+        { 12/16, 4/16, 14/16, 6/16 },
+        { 3/16, 11/16, 1/16, 9/16 },
+        { 15/16, 7/16, 13/16, 5/16 },
+    }
+
+    -- Extended wall colors for architectural variety
+    instance.wall_colors[4] = { 0.55, 0.55, 0.58 }  -- concrete (brutalist)
+    instance.wall_colors[5] = { 0.75, 0.68, 0.45 }  -- gehry titanium
+    instance.wall_colors[6] = { 0.15, 0.35, 0.2 }   -- overgrown/eco
+    instance.wall_colors[7] = { 0.8, 0.2, 0.15 }    -- godard red
+    instance.wall_colors[8] = { 0.15, 0.3, 0.7 }    -- godard blue
+
     return instance
 end
 
@@ -403,6 +420,22 @@ function Raycaster:draw_crosshair()
     love.graphics.line(cx + 1, cy, cx + 4, cy)
     love.graphics.line(cx, cy - 4, cx, cy - 1)
     love.graphics.line(cx, cy + 1, cx, cy + 4)
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Dithering overlay — scanlines + stipple pattern for retro print feel
+function Raycaster:apply_dither()
+    if not self.dither_enabled then return end
+    -- Horizontal scanlines every other row
+    love.graphics.setColor(0, 0, 0, 0.06)
+    for y = 0, self.screen_height - 1, 2 do
+        love.graphics.rectangle("fill", 0, y, self.screen_width, 1)
+    end
+    -- Vertical stipple every 4 pixels (crosshatch feel)
+    love.graphics.setColor(0, 0, 0, 0.03)
+    for x = 0, self.screen_width - 1, 4 do
+        love.graphics.rectangle("fill", x, 0, 1, self.screen_height)
+    end
     love.graphics.setColor(1, 1, 1, 1)
 end
 
