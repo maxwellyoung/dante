@@ -109,7 +109,7 @@ end
 function FPSMode:load_rooms()
     self.rooms = {
 
-        -- 1. CORRIDOR. Walk forward. It's simple. Establishes the language.
+        -- 1. CORRIDOR. Walk forward. On replay, it's longer and darker.
         {
             ambient_tone = 55, ambient_volume = 0.04, ambient_character = "warm",
             fog_color = { 0.02, 0.02, 0.04 },
@@ -124,6 +124,21 @@ function FPSMode:load_rooms()
             spawn_angle = 0,
             world_texts = {},
             triggers = {},
+            on_update = function(self)
+                if self.visit_count > 0 and not self.triggered["replay_fog"] then
+                    self.triggered["replay_fog"] = true
+                    -- Darker on each replay
+                    local darkness = math.min(self.visit_count * 0.3, 0.8)
+                    self.raycaster.fog_color = {
+                        0.02 * (1 - darkness),
+                        0.02 * (1 - darkness),
+                        0.04 * (1 - darkness)
+                    }
+                    self.raycaster.max_depth = math.max(4, 16 - self.visit_count * 4)
+                    self.screen_text = "Again."
+                    self.screen_text_timer = 2
+                end
+            end,
         },
 
         -- 2. THE ROOM SHRINKS. Walls close in over 12 seconds. Get out.
@@ -205,24 +220,31 @@ function FPSMode:load_rooms()
             override_fog = 3,
         },
 
-        -- 5. CHASE. Something behind you. Run. Map is a straight shot but long.
-        -- A red entity follows. If it catches you, hard cut + restart room.
+        -- 5. CHASE. Something behind you. Run. Corridors with turns — decisions under panic.
         {
             ambient_tone = 65, ambient_volume = 0.1, ambient_character = "chase",
             fog_color = { 0.06, 0.02, 0.02 },
             floor_color = { 0.12, 0.06, 0.06 },
             ceiling_color = { 0.05, 0.02, 0.02 },
             completion = "exit", can_shoot = false,
-            speed_mult = 1.6,
+            speed_mult = 1.5,
             grid = {
-                "##############################",
-                "#P..........................X#",
-                "##############################",
+                "###################",
+                "#P................#",
+                "####.##########...#",
+                "#..............#..#",
+                "#..########....#..#",
+                "#..#.......#......#",
+                "#..#.......########",
+                "#..#..............#",
+                "#..########.####..#",
+                "#................X#",
+                "###################",
             },
             spawn_angle = 0,
             world_texts = {},
             triggers = {},
-            chase = { start_x = 1.5, start_y = 1.5, speed = 2.4, color = {0.9, 0.15, 0.1} },
+            chase = { start_x = 1.5, start_y = 1.5, speed = 2.2, color = {0.9, 0.15, 0.1} },
         },
 
         -- 6. YOUR CONTROLS ARE WRONG. Left is right. Forward is back.
@@ -299,8 +321,8 @@ function FPSMode:load_rooms()
             end,
         },
 
-        -- 8. STILL. Nothing happens. No text. No enemies. Just a room.
-        -- You wait. After 8 seconds, hard cut.
+        -- 8. STILL. Nothing happens. But the room is slowly getting darker.
+        -- At 4 seconds, a pillar appears in the center that wasn't there before.
         {
             ambient_tone = 55, ambient_volume = 0.02, ambient_character = "silence",
             fog_color = { 0.02, 0.02, 0.03 },
@@ -309,44 +331,83 @@ function FPSMode:load_rooms()
             completion = "linger", linger = 8,
             can_shoot = false,
             grid = {
-                "##########",
-                "#........#",
-                "#........#",
-                "#...P....#",
-                "#........#",
-                "#........#",
-                "##########",
+                "############",
+                "#..........#",
+                "#..........#",
+                "#..........#",
+                "#..........#",
+                "#.....P....#",
+                "#..........#",
+                "#..........#",
+                "#..........#",
+                "############",
             },
-            spawn_angle = 0,
+            spawn_angle = 3.14,  -- facing away from center
             world_texts = {},
             triggers = {},
+            on_update = function(self)
+                -- Darken fog over time
+                local t = math.min(1, self.time / 8)
+                self.raycaster.fog_start = 6 - t * 4
+                self.raycaster.max_depth = 16 - t * 10
+                -- At 4s, place a pillar behind the player
+                if self.time > 4 and not self.triggered["pillar"] then
+                    self.triggered["pillar"] = true
+                    self.map:fill_tile(5, 4)
+                    self.map:fill_tile(6, 4)
+                    self.sfx:play("hit_wall")
+                end
+            end,
         },
 
-        -- 9. ENEMIES. Real ones. They come at you. Tight corridors.
-        -- First actual combat. Tense, fast, then it's over.
+        -- 9. ENEMIES. Real ones. Tight T-shaped room. They're close.
+        -- You hear them before you see them. Short and violent.
         {
             ambient_tone = 45, ambient_volume = 0.08, ambient_character = "chase",
             fog_color = { 0.06, 0.02, 0.03 },
             floor_color = { 0.15, 0.08, 0.08 },
             ceiling_color = { 0.06, 0.03, 0.03 },
             completion = "kill_all", can_shoot = true,
+            override_fog = 6,
             grid = {
-                "##############",
-                "#P...........#",
-                "####.....#...#",
-                "#........#.E.#",
-                "#.E......#...#",
-                "#........#####",
-                "#...E........#",
-                "#...........E#",
-                "##############",
+                "##########",
+                "#...P....#",
+                "#........#",
+                "###....###",
+                "  #....#  ",
+                "  #.E..#  ",
+                "  #....#  ",
+                "###....###",
+                "#.E..E...#",
+                "#........#",
+                "##########",
             },
-            spawn_angle = 0,
+            spawn_angle = 3.14,
             world_texts = {},
             triggers = {},
         },
 
-        -- 10. THE ROOM THAT ISN'T THERE. Walk through a door.
+        -- 10. THE SAME CORRIDOR. But backwards. You recognize it.
+        {
+            ambient_tone = 55, ambient_volume = 0.04, ambient_character = "warm",
+            fog_color = { 0.02, 0.02, 0.04 },
+            floor_color = { 0.1, 0.1, 0.13 },
+            ceiling_color = { 0.04, 0.04, 0.06 },
+            completion = "exit", can_shoot = false,
+            grid = {
+                "################",
+                "#X............P#",
+                "################",
+            },
+            spawn_angle = 3.14,
+            world_texts = {},
+            triggers = {
+                { x = 8, y = 1.5, radius = 2, id = "deja_vu",
+                  screen_text = "You've been here before.", duration = 2 },
+            },
+        },
+
+        -- 11. THE ROOM THAT ISN'T THERE. Walk through a door.
         -- The room behind you is gone. Just wall.
         {
             ambient_tone = 38, ambient_volume = 0.05, ambient_character = "cold",
@@ -404,13 +465,13 @@ function FPSMode:load_rooms()
             end,
         },
 
-        -- 12. END. Tiny room. Silence. Then it loops. But different.
+        -- 12. END. Tiny room. Gets smaller each loop.
         {
             ambient_tone = 55, ambient_volume = 0.015, ambient_character = "warm",
             fog_color = { 0.01, 0.01, 0.02 },
             floor_color = { 0.05, 0.05, 0.07 },
             ceiling_color = { 0.02, 0.02, 0.03 },
-            completion = "linger", linger = 4,
+            completion = "linger", linger = 3,
             can_shoot = false,
             is_ending = true,
             grid = {
@@ -423,6 +484,17 @@ function FPSMode:load_rooms()
             spawn_angle = 0,
             world_texts = {},
             triggers = {},
+            on_update = function(self)
+                -- Each loop, the room gets smaller
+                if self.visit_count > 0 then
+                    local shrink = math.min(self.visit_count, 2)
+                    for i = 1, shrink do
+                        for row = 0, 3 do
+                            self.map:fill_tile(4 - i, row)
+                        end
+                    end
+                end
+            end,
         },
     }
 end
@@ -684,17 +756,17 @@ function FPSMode:draw()
     end
 
     -- Render 3D
-    local rays = self.raycaster:cast_walls(self.map, self.player.x, self.player.y, self.player.angle)
+    local rays = self.raycaster:cast_walls(self.map, self.player.x, self.player.y, self.player:get_view_angle())
     self.raycaster:draw_scene(rays)
-    self.raycaster:draw_sprites(self.map.sprites, self.player.x, self.player.y, self.player.angle)
-    self.raycaster:draw_world_text(self.map.world_texts, self.player.x, self.player.y, self.player.angle)
+    self.raycaster:draw_sprites(self.map.sprites, self.player.x, self.player.y, self.player:get_view_angle())
+    self.raycaster:draw_world_text(self.map.world_texts, self.player.x, self.player.y, self.player:get_view_angle())
 
     -- Exit beacon
     if self.map.exit then
         local dx = self.map.exit.x - self.player.x
         local dy = self.map.exit.y - self.player.y
         local dist = math.sqrt(dx * dx + dy * dy)
-        local ea = math.atan2(dy, dx) - self.player.angle
+        local ea = math.atan2(dy, dx) - self.player:get_view_angle()
         while ea > math.pi do ea = ea - math.pi * 2 end
         while ea < -math.pi do ea = ea + math.pi * 2 end
         if math.abs(ea) < math.pi / 3 and dist < 10 then

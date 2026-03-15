@@ -25,6 +25,10 @@ function FPSPlayer:new()
     instance.move_time = 0
     instance.is_dead = false
     instance.kills = 0
+    instance.view_punch = 0
+    instance.view_punch_velocity = 0
+    instance.recoil_vx = 0
+    instance.recoil_vy = 0
     return instance
 end
 
@@ -48,6 +52,25 @@ function FPSPlayer:update(dt, map)
 
     if self.weapon_flash_timer <= 0 and self.weapon_state == "firing" then
         self.weapon_state = "idle"
+    end
+
+    -- View punch spring
+    self.view_punch_velocity = self.view_punch_velocity - self.view_punch * 80 * dt
+    self.view_punch_velocity = self.view_punch_velocity * (1 - 8 * dt)
+    self.view_punch = self.view_punch + self.view_punch_velocity * dt
+
+    -- Recoil push (pushes player backward)
+    if math.abs(self.recoil_vx) > 0.01 or math.abs(self.recoil_vy) > 0.01 then
+        local rx = self.recoil_vx * dt
+        local ry = self.recoil_vy * dt
+        if not map:is_solid(self.x + rx + (rx > 0 and COLLISION_RADIUS or -COLLISION_RADIUS), self.y) then
+            self.x = self.x + rx
+        end
+        if not map:is_solid(self.x, self.y + ry + (ry > 0 and COLLISION_RADIUS or -COLLISION_RADIUS)) then
+            self.y = self.y + ry
+        end
+        self.recoil_vx = self.recoil_vx * (1 - 10 * dt)
+        self.recoil_vy = self.recoil_vy * (1 - 10 * dt)
     end
 
     -- Mouse look
@@ -138,11 +161,16 @@ function FPSPlayer:fire(map, sfx)
     self.weapon_state = "firing"
     self.weapon_flash_timer = 0.08
 
+    -- View punch and recoil
+    self.view_punch_velocity = self.view_punch_velocity - 4
+    local cos_a = math.cos(self.angle)
+    local sin_a = math.sin(self.angle)
+    self.recoil_vx = -cos_a * 2.5
+    self.recoil_vy = -sin_a * 2.5
+
     if sfx then sfx:play("shoot") end
 
     -- Hitscan: check if we hit a sprite
-    local cos_a = math.cos(self.angle)
-    local sin_a = math.sin(self.angle)
 
     local best_dist = FIRE_RANGE
     local best_target = nil
@@ -181,6 +209,10 @@ function FPSPlayer:fire(map, sfx)
         return true
     end
     return false
+end
+
+function FPSPlayer:get_view_angle()
+    return self.angle + self.view_punch * 0.03
 end
 
 function FPSPlayer:take_damage(amount, sfx)
