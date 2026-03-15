@@ -12,6 +12,8 @@ g_preview = nil
 g_preview_mode = false
 g_fps_mode = nil
 g_fps_active = false
+g_ev_mode = nil
+g_ev_active = false
 g_autoplay = nil
 g_encounters = nil
 g_input_override = {}
@@ -47,6 +49,7 @@ local proving_ground = require("proving_ground")
 local SceneContract = require("scene_contract")
 local RuntimeServices = require("runtime_services")
 local FPSMode = require("fps_mode")
+local EnderingVoid = require("endearing_void")
 Player = require("player")
 Level = require("level")
 Camera = require("camera")
@@ -619,6 +622,14 @@ function love.load(args)
         return
     end
 
+    if has_flag(args, "--ev") then
+        g_ev_active = true
+        love.window.setMode(960, 600, { resizable = true, vsync = true })
+        love.window.setTitle("Endearing Void")
+        g_ev_mode = EnderingVoid:new()
+        return
+    end
+
     if has_flag(args, "--fps") then
         g_fps_active = true
         love.window.setMode(960, 600, { resizable = true, vsync = true })
@@ -721,6 +732,18 @@ function love.load(args)
 end
 
 function love.update(dt)
+    if g_ev_active then
+        g_ev_mode:update(dt)
+        -- Bed timer
+        if g_ev_mode._bed_timer then
+            g_ev_mode._bed_timer = g_ev_mode._bed_timer - dt
+            if g_ev_mode._bed_timer <= 0 then
+                g_ev_mode._bed_timer = nil
+                g_ev_mode:transition_to("bed")
+            end
+        end
+        return
+    end
     if g_fps_active then
         g_fps_mode:update(dt)
         return
@@ -861,6 +884,10 @@ function love.update(dt)
 end
 
 function love.draw()
+    if g_ev_active then
+        g_ev_mode:draw()
+        return
+    end
     if g_fps_active then
         g_fps_mode:draw()
         return
@@ -1021,6 +1048,10 @@ function love.draw()
 end
 
 function love.keypressed(key)
+    if g_ev_active then
+        g_ev_mode:keypressed(key)
+        return
+    end
     if g_fps_active then
         g_fps_mode:keypressed(key)
         return
@@ -1070,6 +1101,10 @@ function love.keyreleased(key)
 end
 
 function love.mousemoved(x, y, dx, dy)
+    if g_ev_active then
+        g_ev_mode:mousemoved(x, y, dx)
+        return
+    end
     if g_fps_active then
         g_fps_mode:mousemoved(x, y, dx)
     end
