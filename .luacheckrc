@@ -15,6 +15,7 @@ globals = {
   "Enemies",
   "Projectiles",
   "PreviewPlayer",
+  "EncounterController",
   "g_player",
   "g_level",
   "g_camera",
@@ -28,6 +29,7 @@ globals = {
   "g_preview",
   "g_preview_mode",
   "g_autoplay",
+  "g_encounters",
   "g_input_override",
   "g_game_mode",
   "g_current_circle",
@@ -38,6 +40,10 @@ globals = {
   "g_debug_overlay",
   "g_select_flow_room",
   "g_run_stats",
+  "g_qa_capture",
+  "g_services",
+  "g_hitstop_timer",
+  "g_trigger_hitstop",
   "g_scene_banner",
   "g_native_width",
   "g_native_height",
@@ -49,6 +55,10 @@ globals = {
   "g_post_shader",
   "g_distort_intensity",
   "g_death_timer",
+  "g_mark_meaningful_action",
+  "g_record_removed_ability_notice",
+  "g_record_environment_label",
+  "g_record_encounter_complete",
 }
 
 ignore = {

@@ -4,9 +4,18 @@
 local Enemy = {}
 Enemy.__index = Enemy
 
-function Enemy:new(x, y)
+local function get_sfx(self)
+    return self.services and self.services.sfx or g_sfx
+end
+
+local function get_effects(self)
+    return self.services and self.services.effects or g_effects
+end
+
+function Enemy:new(x, y, services)
     local class = self or Enemy
     local instance = setmetatable({}, class)
+    instance.services = services
     instance.x = x
     instance.y = y
     instance.width = 32
@@ -48,8 +57,14 @@ end
 
 function Enemy:destroy()
     self.is_active = false
-    g_sfx:play("stomp")
-    g_effects:stomp(self.x + self.width / 2, self.y + self.height / 2)
+    local sfx = get_sfx(self)
+    local effects = get_effects(self)
+    if sfx then
+        sfx:play("stomp")
+    end
+    if effects then
+        effects:stomp(self.x + self.width / 2, self.y + self.height / 2)
+    end
 end
 
 return Enemy

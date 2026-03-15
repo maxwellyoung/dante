@@ -16,17 +16,18 @@ local function square_wave(t, freq)
     return math.sin(t * freq * PI_2) > 0 and 1 or -1
 end
 
-local function noise(t, freq)
+local function noise()
     return math.random() * 2 - 1
 end
 
 function Sfx:new()
-    local self = setmetatable({}, Sfx)
-    self.sounds = {}
-    self.sound_cache = {} -- Cache generated audio sources
-    self.muted = false
-    self:define_sounds()
-    return self
+    local class = self or Sfx
+    local instance = setmetatable({}, class)
+    instance.sounds = {}
+    instance.sound_cache = {} -- Cache generated audio sources
+    instance.muted = false
+    instance:define_sounds()
+    return instance
 end
 
 -- Define the 'recipes' for each sound effect
@@ -63,7 +64,7 @@ function Sfx:define_sounds()
         end_freq = 1046,
         volume = 0.4
     }
-    
+
     self.sounds.stomp = {
         waveform = noise,
         attack = 0.01,
@@ -128,6 +129,17 @@ function Sfx:define_sounds()
         start_freq = 200,
         end_freq = 600,
         volume = 0.3
+    }
+
+    self.sounds.dash = {
+        waveform = square_wave,
+        attack = 0.005,
+        decay = 0.04,
+        sustain = 0.03,
+        release = 0.05,
+        start_freq = 260,
+        end_freq = 120,
+        volume = 0.25
     }
 
     self.sounds.death = {
@@ -220,8 +232,11 @@ function Sfx:stop(name)
     end
 end
 
-function Sfx:update(dt)
+function Sfx:update(_dt)
     -- This could be used for fading sounds, etc.
+    if not self.sound_cache then
+        return
+    end
 end
 
-return Sfx 
+return Sfx

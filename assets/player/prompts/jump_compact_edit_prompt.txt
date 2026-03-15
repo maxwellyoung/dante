@@ -1,0 +1,6 @@
+Intended use: candidate production spritesheet for a 2D side-view platformer jump animation review. Edit the provided transparent reference-canvas image into a single horizontal 3-frame jump spritesheet. Use the supplied sprite as the exact design anchor: same character identity, palette, proportions, and readable face.
+Composition: keep the image transparent, keep exactly one row of 3 equal 256x256 frame slots laid out left to right across the 1024x1024 canvas, centered vertically, with no overlap, no labels, and no extra objects.
+Action: frames 1 through 3 should show a compact jump takeoff: slight load, upward push, then a tight airborne pose. Keep all three frames inside a narrow height band so the jump does not become dramatically taller than idle once normalized.
+Scale target: keep the character compact enough to normalize to roughly 36 to 42 pixels of body height inside a 64x64 frame. Keep the width tight and avoid any robe or sleeve flare that makes the sprite read wider than the run or idle states.
+Style: authentic 16-bit pixel art, crisp pixel clusters, stepped shading, restrained palette, production game asset, not concept art.
+Constraints: no weapon, no scenery, no floor, no glow, no haze, no dramatic smear, no blur, no giant cloth flare, no detached cloth chunks, and no interior transparency gaps.

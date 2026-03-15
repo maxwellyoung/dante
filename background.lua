@@ -20,6 +20,7 @@ function Background:new()
     instance.floor_color = { 0.12, 0.13, 0.16 }
     instance.accent_color = { 0.92, 0.55, 0.18 }
     instance.scene = nil
+    instance.room_type = "custom"
     instance.time = 0
     return instance
 end
@@ -39,6 +40,7 @@ end
 
 function Background:set_scene(scene)
     self.scene = scene
+    self.room_type = scene.room_type or "custom"
     self:set_palette(scene.bg or self.color)
     self.accent_color = scene.accent_color or { 0.92, 0.55, 0.18 }
 end
@@ -95,13 +97,33 @@ function Background:draw_arches()
     end
 end
 
-function Background.draw_grid()
-    love.graphics.setColor(1, 1, 1, 0.05)
+function Background:draw_grid()
+    local room_tint = {
+        traversal = { 0.7, 0.82, 1, 0.07 },
+        combat = { 1, 0.72, 0.42, 0.07 },
+        pressure = { 1, 0.5, 0.42, 0.08 },
+    }
+    local tint = room_tint[self.room_type] or { 1, 1, 1, 0.05 }
+    love.graphics.setColor(tint[1], tint[2], tint[3], tint[4])
     for x = 0, g_native_width, 24 do
         love.graphics.line(x, 0, x, g_native_height)
     end
     for y = 0, g_native_height, 24 do
         love.graphics.line(0, y, g_native_width, y)
+    end
+
+    if self.room_type == "combat" then
+        love.graphics.setColor(self.accent_color[1], self.accent_color[2], self.accent_color[3], 0.14)
+        for index = 0, 3 do
+            local y = 84 + index * 42
+            love.graphics.line(0, y, g_native_width, y)
+        end
+    elseif self.room_type == "pressure" then
+        love.graphics.setColor(self.accent_color[1], self.accent_color[2] * 0.8, self.accent_color[3] * 0.9, 0.12)
+        for index = 0, 4 do
+            local x = 48 + index * 84
+            love.graphics.line(x, 0, x + 40, g_native_height)
+        end
     end
 end
 
@@ -131,7 +153,7 @@ function Background:draw()
     self:draw_gradient()
 
     if self.scene and self.scene.mode == "proving_ground" then
-        Background.draw_grid()
+        self:draw_grid()
     elseif self.scene and self.scene.title == "LUST" then
         self:draw_wind_bands()
     else

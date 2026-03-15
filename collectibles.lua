@@ -5,8 +5,9 @@ Collectibles.__index = Collectibles
 
 local COLLECTIBLE_SIZE = 16
 
-function Collectibles.new()
+function Collectibles.new(services)
     local instance = setmetatable({}, Collectibles)
+    instance.services = services
     instance.items = {}
     instance.active_items = {}
     return instance
@@ -32,8 +33,14 @@ function Collectibles:update(dt, player)
         item.y = item.initial_y + math.sin(item.angle) * 5
 
         if Utils.check_collision(player, item) then
-            g_player:collect_fragment()
-            g_sfx:play("collect")
+            local center_x = item.x + item.width / 2
+            local center_y = item.y + item.height / 2
+            local active_player = self.services and self.services.player or g_player
+            local sfx = self.services and self.services.sfx or g_sfx
+            local effects = self.services and self.services.effects or g_effects
+            active_player:collect_fragment()
+            sfx:play("collect")
+            effects:spawn("sparks", center_x, center_y)
             table.remove(self.active_items, i)
         end
     end

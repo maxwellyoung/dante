@@ -11,9 +11,14 @@ local JUMP_FORCE = Utils.JUMP_FORCE
 local Enemies = {}
 Enemies.__index = Enemies
 
-function Enemies:new()
+local function get_effects(self)
+    return self.services and self.services.effects or g_effects
+end
+
+function Enemies:new(services)
     local class = self or Enemies
     local instance = setmetatable({}, class)
+    instance.services = services
     instance.items = {}
     instance.projectiles = {}
     return instance
@@ -22,9 +27,9 @@ end
 function Enemies:spawn(x, y, enemy_type)
     local enemy
     if enemy_type == "harpy" then
-        enemy = Harpy:new(x, y)
+        enemy = Harpy:new(x, y, self.services)
     else
-        enemy = Enemy:new(x, y)
+        enemy = Enemy:new(x, y, self.services)
     end
     table.insert(self.items, enemy)
 end
@@ -66,7 +71,11 @@ function Enemies:update(dt, level, player)
         if level:get_tile(projectile.x, projectile.y) > 0 or projectile.lifetime <= 0 then
             table.remove(self.projectiles, i)
         elseif Utils.check_collision(player, projectile) and not player:is_invincible() then
+            local effects = get_effects(self)
             player:take_damage()
+            if effects then
+                effects:spawn("sparks", projectile.x + projectile.width / 2, projectile.y + projectile.height / 2)
+            end
             table.remove(self.projectiles, i)
         end
     end

@@ -8,7 +8,6 @@ return {
             x = 0,
             y = 0,
         },
-        placeholder = true,
     },
     animation_order = {
         "idle",
@@ -26,6 +25,8 @@ return {
             lock_frame_01 = false,
             placeholder = false,
             render = {
+                scale = 0.86,
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -2,
@@ -56,11 +57,13 @@ return {
             },
         },
         run = {
-            fps = 10,
+            fps = 12,
             loop = true,
             lock_frame_01 = false,
             placeholder = false,
             render = {
+                scale = 0.86,
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -2,
@@ -82,28 +85,28 @@ return {
                     source = "assets/player/run/frame-02.png",
                 },
                 {
-                    x = 0,
-                    y = 64,
+                    x = 320,
+                    y = 0,
                     w = 64,
                     h = 64,
                     source = "assets/player/run/frame-03.png",
                 },
                 {
-                    x = 64,
+                    x = 0,
                     y = 64,
                     w = 64,
                     h = 64,
                     source = "assets/player/run/frame-04.png",
                 },
                 {
-                    x = 128,
+                    x = 64,
                     y = 64,
                     w = 64,
                     h = 64,
                     source = "assets/player/run/frame-05.png",
                 },
                 {
-                    x = 192,
+                    x = 128,
                     y = 64,
                     w = 64,
                     h = 64,
@@ -112,11 +115,13 @@ return {
             },
         },
         jump = {
-            fps = 1,
+            fps = 10,
             loop = false,
             lock_frame_01 = false,
             placeholder = false,
             render = {
+                scale = 0.86,
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -3,
@@ -124,20 +129,36 @@ return {
             },
             frames = {
                 {
-                    x = 256,
+                    x = 192,
                     y = 64,
                     w = 64,
                     h = 64,
                     source = "assets/player/jump/frame-01.png",
                 },
+                {
+                    x = 256,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/jump/frame-02.png",
+                },
+                {
+                    x = 320,
+                    y = 64,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/jump/frame-03.png",
+                },
             },
         },
         fall = {
-            fps = 1,
+            fps = 8,
             loop = false,
             lock_frame_01 = false,
             placeholder = false,
             render = {
+                scale = 0.86,
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -1,
@@ -151,14 +172,29 @@ return {
                     h = 64,
                     source = "assets/player/fall/frame-01.png",
                 },
+                {
+                    x = 64,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/fall/frame-02.png",
+                },
+                {
+                    x = 128,
+                    y = 128,
+                    w = 64,
+                    h = 64,
+                    source = "assets/player/fall/frame-03.png",
+                },
             },
         },
         hurt = {
             fps = 12,
             loop = false,
             lock_frame_01 = true,
-            placeholder = true,
+            placeholder = false,
             render = {
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -2,
@@ -166,29 +202,29 @@ return {
             },
             frames = {
                 {
-                    x = 64,
+                    x = 192,
                     y = 128,
                     w = 64,
                     h = 64,
                     source = "assets/player/hurt/frame-01.png",
                 },
                 {
-                    x = 128,
+                    x = 256,
                     y = 128,
                     w = 64,
                     h = 64,
                     source = "assets/player/hurt/frame-02.png",
                 },
                 {
-                    x = 192,
+                    x = 320,
                     y = 128,
                     w = 64,
                     h = 64,
                     source = "assets/player/hurt/frame-03.png",
                 },
                 {
-                    x = 256,
-                    y = 128,
+                    x = 0,
+                    y = 192,
                     w = 64,
                     h = 64,
                     source = "assets/player/hurt/frame-04.png",
@@ -198,9 +234,10 @@ return {
         shoot = {
             fps = 14,
             loop = false,
-            lock_frame_01 = false,
-            placeholder = true,
+            lock_frame_01 = true,
+            placeholder = false,
             render = {
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -2,
@@ -208,21 +245,21 @@ return {
             },
             frames = {
                 {
-                    x = 0,
+                    x = 64,
                     y = 192,
                     w = 64,
                     h = 64,
                     source = "assets/player/shoot/frame-01.png",
                 },
                 {
-                    x = 64,
+                    x = 128,
                     y = 192,
                     w = 64,
                     h = 64,
                     source = "assets/player/shoot/frame-02.png",
                 },
                 {
-                    x = 128,
+                    x = 192,
                     y = 192,
                     w = 64,
                     h = 64,
@@ -233,9 +270,10 @@ return {
         death = {
             fps = 8,
             loop = false,
-            lock_frame_01 = false,
-            placeholder = true,
+            lock_frame_01 = true,
+            placeholder = false,
             render = {
+                feet_anchor = 52,
                 draw_offset = {
                     x = 0,
                     y = -1,
@@ -243,14 +281,14 @@ return {
             },
             frames = {
                 {
-                    x = 192,
+                    x = 256,
                     y = 192,
                     w = 64,
                     h = 64,
                     source = "assets/player/death/frame-01.png",
                 },
                 {
-                    x = 256,
+                    x = 320,
                     y = 192,
                     w = 64,
                     h = 64,

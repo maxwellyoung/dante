@@ -1,0 +1,6 @@
+Intended use: candidate production spritesheet for a 2D side-view platformer idle animation review. Generate a single horizontal 3-frame idle spritesheet on a transparent 1024x1024 canvas. Show exactly one compact right-facing infernal climber hero repeated across three equal frame slots laid out left to right, centered vertically, with no overlap and no extra objects.
+Character identity: compact action-platformer silhouette, red bandana or hood accent, warm tan skin, dark vest or tunic over a lighter shirt, brown boots, readable face, no portrait-scale features.
+Action: frames 1 through 3 form a subtle alert idle loop with tiny breathing and shoulder/head adjustment. Keep the stance planted and compact. No frame should feel like a walk or sway.
+Scale target: the character should occupy about 36 to 42 pixels of body height once normalized to 64x64. Inside each 256x256 slot, keep the sprite compact and narrow with clear empty space around it. Avoid giant robe volume, wide hems, oversized sleeves, or headwear that extends far beyond the skull silhouette.
+Style: authentic 16-bit pixel art, crisp pixel clusters, stepped shading, restrained palette, production game asset, not concept art.
+Constraints: transparent background, no scenery, no floor, no props, no glow, no haze, no painterly blur, no dramatic cloth flare, no collage, no poster layout.

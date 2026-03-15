@@ -33,6 +33,13 @@ def _sprite_bounds(image: Image.Image, box: tuple[int, int, int, int]) -> tuple[
     )
 
 
+def _image_alpha_bounds(image: Image.Image) -> tuple[int, int, int, int] | None:
+    alpha_box = image.getchannel("A").getbbox()
+    if alpha_box is None:
+        return None
+    return alpha_box
+
+
 def normalize_strip(
     strip_path: Path,
     output_dir: Path,
@@ -56,6 +63,17 @@ def normalize_strip(
     max_width = max(bound[2] - bound[0] for bound in bounds)
     max_height = max(bound[3] - bound[1] for bound in bounds)
 
+    seed_anchor_x = frame_size / 2
+    if seed_path is not None:
+        seed = Image.open(seed_path).convert("RGBA")
+        if seed.size != (frame_size, frame_size):
+            raise ValueError("Seed frame must already match the canonical frame size.")
+        seed_bounds = _image_alpha_bounds(seed)
+        if seed_bounds is not None:
+            seed_anchor_x = (seed_bounds[0] + seed_bounds[2]) / 2
+            if foot_anchor is None:
+                foot_anchor = seed_bounds[3]
+
     foot_anchor = foot_anchor if foot_anchor is not None else frame_size - padding
     available_width = frame_size - (padding * 2)
     available_height = foot_anchor - padding
@@ -75,8 +93,14 @@ def normalize_strip(
         )
 
         frame = Image.new("RGBA", (frame_size, frame_size), (0, 0, 0, 0))
-        paste_x = (frame_size - resized.width) // 2
-        paste_y = foot_anchor - resized.height
+        paste_x = round(seed_anchor_x - (resized.width / 2))
+        min_x = padding
+        max_x = frame_size - padding - resized.width
+        if max_x < min_x:
+            paste_x = (frame_size - resized.width) // 2
+        else:
+            paste_x = max(min_x, min(max_x, paste_x))
+        paste_y = round(foot_anchor - resized.height)
         frame.alpha_composite(resized, (paste_x, paste_y))
 
         frame_path = output_dir / f"frame-{index:02d}.png"

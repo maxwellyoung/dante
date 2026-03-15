@@ -6,8 +6,7 @@
     "draw_offset": {
       "x": 0,
       "y": 0
-    },
-    "placeholder": true
+    }
   },
   "animation_order": [
     "idle",
@@ -23,6 +22,8 @@
       "fps": 5,
       "loop": true,
       "render": {
+        "scale": 0.86,
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -2
@@ -35,9 +36,11 @@
       ]
     },
     "run": {
-      "fps": 10,
+      "fps": 12,
       "loop": true,
       "render": {
+        "scale": 0.86,
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -2
@@ -53,37 +56,45 @@
       ]
     },
     "jump": {
-      "fps": 1,
+      "fps": 10,
       "loop": false,
       "render": {
+        "scale": 0.86,
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -3
         }
       },
       "frames": [
-        "frame-01.png"
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png"
       ]
     },
     "fall": {
-      "fps": 1,
+      "fps": 8,
       "loop": false,
       "render": {
+        "scale": 0.86,
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -1
         }
       },
       "frames": [
-        "frame-01.png"
+        "frame-01.png",
+        "frame-02.png",
+        "frame-03.png"
       ]
     },
     "hurt": {
       "fps": 12,
       "loop": false,
       "lock_frame_01": true,
-      "placeholder": true,
       "render": {
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -2
@@ -99,8 +110,9 @@
     "shoot": {
       "fps": 14,
       "loop": false,
-      "placeholder": true,
+      "lock_frame_01": true,
       "render": {
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -2
@@ -115,8 +127,9 @@
     "death": {
       "fps": 8,
       "loop": false,
-      "placeholder": true,
+      "lock_frame_01": true,
       "render": {
+        "feet_anchor": 52,
         "draw_offset": {
           "x": 0,
           "y": -1

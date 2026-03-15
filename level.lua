@@ -1,60 +1,32 @@
 Level = {}
 Level.__index = Level
 
+local SceneContract = require("scene_contract")
+
 local TILE_SIZE = 32
 
-local DEFAULT_SCENE = {
-    id = "custom",
-    title = "CUSTOM",
-    subtitle = "",
-    mode = "custom",
-    room_type = "custom",
-    checkpoint_id = "start",
-    encounter_id = nil,
-    music_state = "default",
-    bg = { 0.08, 0.09, 0.11 },
-    solid_color = { 0.28, 0.31, 0.36 },
-    accent_color = { 0.92, 0.55, 0.18 },
-    hazard_color = { 0.88, 0.22, 0.2 },
-    sludge_color = { 0.32, 0.48, 0.24 },
-    gate_color = { 0.92, 0.55, 0.18 },
-    locked_gate_color = { 0.42, 0.22, 0.18 },
-    fragments_required = 0,
-    show_gate = true,
-    removed_ability = "none",
-    environment_hook = "",
-    transition_beat = "",
-    abilities = {
-        shoot = true,
-        grapple = true,
-    },
-    wind_areas = {},
-}
-
-local function with_defaults(scene)
-    local merged = {}
-    for key, value in pairs(DEFAULT_SCENE) do
-        merged[key] = value
-    end
-    for key, value in pairs(scene or {}) do
-        merged[key] = value
-    end
-
-    local ability_defaults = {}
-    for key, value in pairs(DEFAULT_SCENE.abilities) do
-        ability_defaults[key] = value
-    end
-    for key, value in pairs(scene and scene.abilities or {}) do
-        ability_defaults[key] = value
-    end
-    merged.abilities = ability_defaults
-
-    return merged
+local function distance_sq(x1, y1, x2, y2)
+    local dx = x2 - x1
+    local dy = y2 - y1
+    return dx * dx + dy * dy
 end
 
-function Level:new(scene)
+local function get_mark_meaningful_action(self)
+    return self.services and self.services.mark_meaningful_action or g_mark_meaningful_action
+end
+
+local function get_record_environment_label(self)
+    return self.services and self.services.record_environment_label or g_record_environment_label
+end
+
+local function get_record_checkpoint_activated(self)
+    return self.services and self.services.record_checkpoint_activated or rawget(_G, "g_record_checkpoint_activated")
+end
+
+function Level:new(scene, services)
     local class = self or Level
     local instance = setmetatable({}, class)
+    instance.services = services
     instance.npcs = {}
     instance.crumbling_blocks = {}
     instance.moving_platforms = {}
@@ -67,28 +39,33 @@ function Level:new(scene)
     instance.checkpoints = {}
     instance.grapple_anchors = {}
     instance.active_checkpoint = nil
-    instance.scene = with_defaults(scene.map and scene or { map = scene })
+    instance.scene = SceneContract.normalize(scene)
     instance.scene_title = instance.scene.title or instance.scene.name or "SCENE"
-    instance.scene_subtitle = instance.scene.subtitle or instance.scene.transition_beat or ""
+    instance.scene_subtitle = instance.scene.subtitle or ""
+    instance.objective_text = instance.scene.objective_text or ""
+    instance.hud_objective_text = instance.scene.hud_objective_text or instance.objective_text
     instance.mode = instance.scene.mode or "custom"
     instance.room_type = instance.scene.room_type or "custom"
     instance.checkpoint_id = instance.scene.checkpoint_id or "start"
     instance.encounter_id = instance.scene.encounter_id
     instance.music_state = instance.scene.music_state or "default"
     instance.fragments_required = instance.scene.fragments_required or 0
-    instance.background_color = instance.scene.bg or DEFAULT_SCENE.bg
-    instance.solid_color = instance.scene.solid_color or DEFAULT_SCENE.solid_color
-    instance.accent_color = instance.scene.accent_color or DEFAULT_SCENE.accent_color
-    instance.hazard_color = instance.scene.hazard_color or DEFAULT_SCENE.hazard_color
-    instance.sludge_color = instance.scene.sludge_color or DEFAULT_SCENE.sludge_color
-    instance.gate_color = instance.scene.gate_color or DEFAULT_SCENE.gate_color
-    instance.locked_gate_color = instance.scene.locked_gate_color or DEFAULT_SCENE.locked_gate_color
+    instance.background_color = instance.scene.bg
+    instance.solid_color = instance.scene.solid_color
+    instance.accent_color = instance.scene.accent_color
+    instance.hazard_color = instance.scene.hazard_color
+    instance.sludge_color = instance.scene.sludge_color
+    instance.gate_color = instance.scene.gate_color
+    instance.locked_gate_color = instance.scene.locked_gate_color
     instance.show_gate = instance.scene.show_gate ~= false
     instance.removed_ability = instance.scene.removed_ability or "none"
     instance.environment_hook = instance.scene.environment_hook or ""
     instance.transition_beat = instance.scene.transition_beat or ""
-    instance.abilities = instance.scene.abilities or DEFAULT_SCENE.abilities
+    instance.weapon_profile = instance.scene.weapon_profile or {}
+    instance.abilities = instance.scene.abilities or {}
     instance.wind_areas = instance.scene.wind_areas or {}
+    instance.qa_expectations = instance.scene.qa_expectations or {}
+    instance.npc_guidance = instance.scene.npc_guidance or {}
     instance.map = {}
     instance.map_width = 0
     instance.map_height = 0
@@ -99,8 +76,10 @@ end
 function Level:load_map(map_data)
     self.map_height = #map_data
     self.map_width = #map_data[1]
-    g_collectibles:clear()
-    g_enemies:clear()
+    local collectibles = self.services and self.services.collectibles or g_collectibles
+    local enemies = self.services and self.services.enemies or g_enemies
+    collectibles:clear()
+    enemies:clear()
 
     self.start_pos = { x = 100, y = 100 }
     self.gate = nil
@@ -138,19 +117,25 @@ function Level:load_map(map_data)
                     timer = 0,
                 }
             elseif char == "C" then
-                g_collectibles:add((x - 1) * TILE_SIZE + 8, (y - 1) * TILE_SIZE + 8)
+                collectibles:add((x - 1) * TILE_SIZE + 8, (y - 1) * TILE_SIZE + 8)
             elseif char == "E" then
-                g_enemies:spawn((x - 1) * TILE_SIZE, (y - 1) * TILE_SIZE, "walker")
+                enemies:spawn((x - 1) * TILE_SIZE, (y - 1) * TILE_SIZE, "walker")
             elseif char == "H" then
-                g_enemies:spawn((x - 1) * TILE_SIZE, (y - 1) * TILE_SIZE, "harpy")
+                enemies:spawn((x - 1) * TILE_SIZE, (y - 1) * TILE_SIZE, "harpy")
             elseif char == "P" then
                 self.start_pos = { x = (x - 1) * TILE_SIZE, y = (y - 1) * TILE_SIZE }
             elseif char == "V" then
+                local guidance = self.npc_guidance[#self.npcs + 1] or {}
                 table.insert(self.npcs, {
                     x = (x - 1) * TILE_SIZE,
                     y = (y - 1) * TILE_SIZE,
                     width = TILE_SIZE,
                     height = TILE_SIZE,
+                    speaker = guidance.speaker or "Virgil",
+                    line = guidance.line,
+                    trigger_radius = guidance.trigger_radius or 60,
+                    triggered = false,
+                    active_hint = false,
                 })
             elseif char == "G" then
                 self.gate = {
@@ -261,6 +246,7 @@ function Level.create_moving_platform(_, def)
 end
 
 function Level:draw()
+    local player = self.services and self.services.player or g_player
     local start_x = math.max(1, math.floor(g_camera.x / TILE_SIZE))
     local end_x = math.min(self.map_width, math.ceil((g_camera.x + g_native_width) / TILE_SIZE) + 1)
     local start_y = math.max(1, math.floor(g_camera.y / TILE_SIZE))
@@ -285,6 +271,20 @@ function Level:draw()
                     love.graphics.setColor(0.45, 0.48, 0.54, 1)
                 end
                 love.graphics.rectangle("fill", x_pos, y_pos, TILE_SIZE, TILE_SIZE)
+
+                if tile_id == 1 then
+                    love.graphics.setColor(1, 1, 1, 0.08)
+                    love.graphics.rectangle("fill", x_pos, y_pos, TILE_SIZE, 4)
+                    love.graphics.setColor(0.02, 0.02, 0.03, 0.15)
+                    love.graphics.rectangle("fill", x_pos, y_pos + TILE_SIZE - 4, TILE_SIZE, 4)
+                elseif tile_id == 2 then
+                    love.graphics.setColor(1, 0.9, 0.72, 0.16)
+                    love.graphics.rectangle("fill", x_pos, y_pos, TILE_SIZE, 3)
+                    love.graphics.setColor(0.4, 0.08, 0.08, 0.34)
+                    for offset = 0, TILE_SIZE - 8, 8 do
+                        love.graphics.line(x_pos + offset, y_pos + TILE_SIZE, x_pos + offset + 8, y_pos)
+                    end
+                end
             end
         end
     end
@@ -313,6 +313,10 @@ function Level:draw()
                 wind.x + start_line + (wind.force_x >= 0 and 12 or -12),
                 wind.y + wind.height - 10
             )
+        end
+        if wind.label and wind.label ~= "" then
+            love.graphics.setColor(0.95, 0.96, 1, 0.34)
+            love.graphics.print(wind.label, wind.x + 8, wind.y + 6)
         end
     end
 
@@ -362,7 +366,10 @@ function Level:draw()
 
     if self.show_gate and self.gate then
         local pulse = 0.72 + 0.18 * math.sin(love.timer.getTime() * 4)
-        if g_player.fragments >= self.fragments_required then
+        local gate_open = player and player.fragments >= self.fragments_required
+        local gate_center_x = self.gate.x + self.gate.width / 2
+        local gate_top_y = self.gate.y
+        if gate_open then
             love.graphics.setColor(
                 self.gate_color[1],
                 self.gate_color[2],
@@ -377,6 +384,19 @@ function Level:draw()
                 self.gate.height + 12,
                 5,
                 5
+            )
+            love.graphics.setColor(
+                self.gate_color[1],
+                self.gate_color[2],
+                self.gate_color[3],
+                0.22 * pulse
+            )
+            love.graphics.rectangle(
+                "fill",
+                gate_center_x - 3,
+                math.max(0, gate_top_y - 76),
+                6,
+                76
             )
             love.graphics.setColor(self.gate_color)
         else
@@ -401,12 +421,26 @@ function Level:draw()
             3,
             3
         )
+        if gate_open then
+            love.graphics.setColor(0.98, 0.96, 0.88, 0.92)
+            love.graphics.printf("EXIT", self.gate.x - 16, math.max(0, gate_top_y - 20), self.gate.width + 32, "center")
+            love.graphics.setColor(self.gate_color[1], self.gate_color[2], self.gate_color[3], 0.9)
+            love.graphics.polygon(
+                "fill",
+                gate_center_x,
+                math.max(4, gate_top_y - 8),
+                gate_center_x - 6,
+                math.max(0, gate_top_y - 18),
+                gate_center_x + 6,
+                math.max(0, gate_top_y - 18)
+            )
+        end
     end
 
     for _, checkpoint in ipairs(self.checkpoints) do
         local pulse = 0.55 + 0.45 * math.sin(love.timer.getTime() * 3)
         if checkpoint.active then
-            love.graphics.setColor(0.98, 0.84, 0.38, 0.15 * pulse)
+            love.graphics.setColor(0.68, 0.84, 0.98, 0.18 * pulse)
             love.graphics.rectangle(
                 "fill",
                 checkpoint.x - 4,
@@ -416,7 +450,7 @@ function Level:draw()
                 4,
                 4
             )
-            love.graphics.setColor(0.98, 0.84, 0.38, 1)
+            love.graphics.setColor(0.68, 0.84, 0.98, 1)
         else
             love.graphics.setColor(0.72, 0.74, 0.78, 0.8)
         end
@@ -429,6 +463,17 @@ function Level:draw()
             3,
             3
         )
+        love.graphics.setColor(0.96, 0.96, 0.98, checkpoint.active and 0.95 or 0.5)
+        love.graphics.line(
+            checkpoint.x + checkpoint.width / 2,
+            checkpoint.y + 6,
+            checkpoint.x + checkpoint.width / 2,
+            checkpoint.y + checkpoint.height - 6
+        )
+        if checkpoint.active then
+            love.graphics.setColor(0.92, 0.96, 1, 0.88)
+            love.graphics.printf("SAVE", checkpoint.x - 10, checkpoint.y - 16, checkpoint.width + 20, "center")
+        end
     end
 
     for _, anchor in ipairs(self.grapple_anchors) do
@@ -443,11 +488,25 @@ function Level:draw()
         love.graphics.circle("fill", anchor.x, anchor.y, anchor.radius)
         love.graphics.setColor(0.18, 0.16, 0.14, 1)
         love.graphics.circle("line", anchor.x, anchor.y, anchor.radius - 3)
+        love.graphics.setColor(0.18, 0.16, 0.14, 0.7)
+        love.graphics.line(anchor.x - 4, anchor.y, anchor.x + 4, anchor.y)
+        love.graphics.line(anchor.x, anchor.y - 4, anchor.x, anchor.y + 4)
     end
 
-    love.graphics.setColor(0.8, 0.82, 0.95, 1)
     for _, npc in ipairs(self.npcs) do
-        love.graphics.rectangle("fill", npc.x + 4, npc.y + 2, npc.width - 8, npc.height - 2, 3, 3)
+        local pulse = npc.active_hint and (0.18 + 0.06 * math.sin(love.timer.getTime() * 5)) or 0.1
+        love.graphics.setColor(self.accent_color[1], self.accent_color[2], self.accent_color[3], pulse)
+        love.graphics.circle("fill", npc.x + npc.width / 2, npc.y + npc.height / 2 + 1, 18)
+        love.graphics.setColor(0.18, 0.18, 0.22, 0.85)
+        love.graphics.rectangle("fill", npc.x + 8, npc.y + 10, npc.width - 16, npc.height - 6, 4, 4)
+        love.graphics.setColor(0.8, 0.82, 0.95, 1)
+        love.graphics.rectangle("fill", npc.x + 10, npc.y + 12, npc.width - 20, npc.height - 10, 4, 4)
+        love.graphics.setColor(0.98, 0.88, 0.7, 1)
+        love.graphics.circle("fill", npc.x + npc.width / 2, npc.y + 9, 5)
+        if npc.active_hint then
+            love.graphics.setColor(0.96, 0.96, 1, 0.85)
+            love.graphics.printf(npc.speaker or "Guide", npc.x - 10, npc.y - 14, npc.width + 20, "center")
+        end
     end
 
     love.graphics.setColor(1, 1, 1, 1)
@@ -490,7 +549,7 @@ function Level:handle_hazards_collision(player)
     return false
 end
 
-function Level:update(dt)
+function Level:update(dt, player)
     for _, trap in ipairs(self.timed_traps) do
         trap.timer = trap.timer - dt
         if trap.timer <= 0 then
@@ -534,6 +593,33 @@ function Level:update(dt)
             end
         end
     end
+
+    if player then
+        self:update_npcs(player)
+    end
+end
+
+function Level:update_npcs(player)
+    local ui = self.services and self.services.ui or g_ui
+    local player_center_x = player.x + player.width / 2
+    local player_center_y = player.y + player.height / 2
+
+    for _, npc in ipairs(self.npcs) do
+        local npc_center_x = npc.x + npc.width / 2
+        local npc_center_y = npc.y + npc.height / 2
+        local radius = npc.trigger_radius or 60
+        local in_range = distance_sq(player_center_x, player_center_y, npc_center_x, npc_center_y) <= (radius * radius)
+        npc.active_hint = in_range
+
+        if in_range and not npc.triggered and npc.line and ui and ui.show_story_callout then
+            npc.triggered = true
+            ui:show_story_callout(npc.speaker or self.scene_title, npc.line, self.accent_color, 3.2)
+            local mark_meaningful_action = get_mark_meaningful_action(self)
+            if mark_meaningful_action then
+                mark_meaningful_action()
+            end
+        end
+    end
 end
 
 function Level:handle_tile_effects(player, dt)
@@ -552,11 +638,41 @@ function Level:handle_tile_effects(player, dt)
             and center_y >= wind.y
             and center_y <= wind.y + wind.height
         then
-            player.environment_force_x = player.environment_force_x + (wind.force_x or 0)
-            player.environment_force_y = player.environment_force_y + (wind.force_y or 0)
+            local force_x = wind.force_x or 0
+            local force_y = wind.force_y or 0
+            if player.is_crouching and player.on_ground then
+                force_x = force_x * 0.28
+                force_y = force_y * 0.55
+            end
+            player.environment_force_x = player.environment_force_x + force_x
+            player.environment_force_y = player.environment_force_y + force_y
             player.environment_label = wind.label or self.environment_hook
+            if player.environment_label and player.environment_label ~= "" then
+                player.seen_environment_labels = player.seen_environment_labels or {}
+                if not player.seen_environment_labels[player.environment_label] then
+                    player.seen_environment_labels[player.environment_label] = true
+                    local ui = self.services and self.services.ui or g_ui
+                    if ui then
+                        local subtitle = self.environment_hook or player.environment_label
+                        if self.removed_ability ~= "none" then
+                            subtitle = "No " .. self.removed_ability .. ". " .. subtitle
+                        end
+                        ui:show_story_callout(
+                            self.scene_title,
+                            subtitle,
+                            self.accent_color,
+                            1.8
+                        )
+                    end
+                    local record_environment_label = get_record_environment_label(self)
+                    if record_environment_label then
+                        record_environment_label(player.environment_label)
+                    end
+                end
+            end
             if dt and math.random() < dt * 12 then
-                g_effects:run_dust(center_x, center_y + math.random(-8, 8))
+                local effects = self.services and self.services.effects or g_effects
+                effects:run_dust(center_x, center_y + math.random(-8, 8))
             end
         end
     end
@@ -587,6 +703,10 @@ function Level:check_checkpoint_collision(player)
             end
             checkpoint.active = true
             self.active_checkpoint = checkpoint
+            local record_checkpoint_activated = get_record_checkpoint_activated(self)
+            if record_checkpoint_activated then
+                record_checkpoint_activated(checkpoint)
+            end
             return checkpoint
         end
     end

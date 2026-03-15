@@ -11,6 +11,7 @@ g_projectiles = nil
 g_preview = nil
 g_preview_mode = false
 g_autoplay = nil
+g_encounters = nil
 g_input_override = {}
 g_game_mode = "proving_ground"
 g_current_circle = 0
@@ -21,6 +22,9 @@ g_death_timer = 0
 g_respawn_point = nil
 g_debug_overlay = false
 g_run_stats = nil
+g_qa_capture = nil
+g_services = nil
+g_hitstop_timer = 0
 
 g_native_width, g_native_height = 480, 270
 g_main_canvas = nil
@@ -28,6 +32,8 @@ g_main_canvas = nil
 circle_data = require("circles")
 local campaign = require("campaign")
 local proving_ground = require("proving_ground")
+local SceneContract = require("scene_contract")
+local RuntimeServices = require("runtime_services")
 Player = require("player")
 Level = require("level")
 Camera = require("camera")
@@ -39,6 +45,7 @@ Collectibles = require("collectibles")
 Enemies = require("enemies")
 Projectiles = require("projectiles")
 PreviewPlayer = require("preview_player")
+EncounterController = require("encounter_controller")
 local Autoplay = require("autoplay")
 
 local native_is_down = love.keyboard.isDown
@@ -73,6 +80,82 @@ local function get_flag_value(args, prefix)
     return nil
 end
 
+local function absolute_path(path)
+    if not path or path == "" then
+        return path
+    end
+    if path:sub(1, 1) == "/" then
+        return path
+    end
+    return love.filesystem.getWorkingDirectory() .. "/" .. path
+end
+
+local function parent_directory(path)
+    return path:match("^(.*)/[^/]+$") or "."
+end
+
+local function ensure_directory(path)
+    if not path or path == "" then
+        return
+    end
+    os.execute("mkdir -p " .. string.format("%q", path))
+end
+
+local function should_use_qa_window_mode(args)
+    return has_flag(args, "--qa-background")
+end
+
+local function apply_game_window_mode(args)
+    local options = { resizable = true, vsync = true }
+    if should_use_qa_window_mode(args) then
+        options = {
+            resizable = false,
+            vsync = false,
+            borderless = true,
+            centered = false,
+            x = -2200,
+            y = 40,
+        }
+    end
+
+    love.window.setMode(g_native_width * 3, g_native_height * 3, options)
+    love.window.setTitle("Infernal Ascent")
+
+    if should_use_qa_window_mode(args) then
+        love.mouse.setVisible(false)
+        pcall(love.window.minimize)
+    end
+end
+
+local function request_qa_capture_if_ready()
+    if not g_qa_capture or g_qa_capture.requested or g_preview_mode then
+        return
+    end
+
+    if (g_run_stats and g_run_stats.total_time or 0) < g_qa_capture.delay then
+        return
+    end
+
+    g_qa_capture.requested = true
+    ensure_directory(parent_directory(g_qa_capture.path))
+    love.graphics.captureScreenshot(function(image_data)
+        local ok, file_data = pcall(function()
+            return image_data:encode("png")
+        end)
+
+        if ok and file_data then
+            local handle = io.open(g_qa_capture.path, "wb")
+            if handle then
+                handle:write(file_data:getString())
+                handle:close()
+            end
+        end
+
+        g_qa_capture.completed = true
+        os.exit(0)
+    end)
+end
+
 local function init_run_stats()
     g_run_stats = {
         total_time = 0,
@@ -84,16 +167,45 @@ local function init_run_stats()
         shots_hit = 0,
         room_shots_fired = 0,
         room_shots_hit = 0,
+        shot_ricochets = 0,
+        room_shot_ricochets = 0,
+        shot_bank_kills = 0,
+        room_shot_bank_kills = 0,
         jumps = 0,
         room_jumps = 0,
         grapples_fired = 0,
         room_grapples_fired = 0,
         grapple_latches = 0,
         room_grapple_latches = 0,
+        dashes = 0,
+        room_dashes = 0,
+        rolls = 0,
+        room_rolls = 0,
+        crouch_time = 0,
+        room_crouch_time = 0,
         distance = 0,
         room_distance = 0,
+        checkpoints = 0,
+        room_checkpoints = 0,
+        room_last_checkpoint_at = nil,
+        room_last_checkpoint_id = nil,
+        respawns = 0,
+        room_respawns = 0,
+        last_respawn_latency = nil,
+        room_last_respawn_latency = nil,
+        room_gate_entered = false,
         rooms_cleared = 0,
+        first_meaningful_action_at = nil,
+        room_first_meaningful_action_at = nil,
+        room_environment_label_seen = false,
+        room_environment_label = nil,
+        room_removed_ability_notice_shown = false,
+        room_encounter_complete = false,
+        room_notice_events = 0,
     }
+    if g_services then
+        g_services.run_stats = g_run_stats
+    end
 end
 
 local function reset_room_stats()
@@ -101,22 +213,112 @@ local function reset_room_stats()
     g_run_stats.room_deaths = 0
     g_run_stats.room_shots_fired = 0
     g_run_stats.room_shots_hit = 0
+    g_run_stats.room_shot_ricochets = 0
+    g_run_stats.room_shot_bank_kills = 0
     g_run_stats.room_jumps = 0
     g_run_stats.room_grapples_fired = 0
     g_run_stats.room_grapple_latches = 0
+    g_run_stats.room_dashes = 0
+    g_run_stats.room_rolls = 0
+    g_run_stats.room_crouch_time = 0
     g_run_stats.room_distance = 0
+    g_run_stats.room_checkpoints = 0
+    g_run_stats.room_last_checkpoint_at = nil
+    g_run_stats.room_last_checkpoint_id = nil
+    g_run_stats.room_respawns = 0
+    g_run_stats.room_last_respawn_latency = nil
+    g_run_stats.room_gate_entered = false
+    g_run_stats.room_first_meaningful_action_at = nil
+    g_run_stats.room_environment_label_seen = false
+    g_run_stats.room_environment_label = nil
+    g_run_stats.room_removed_ability_notice_shown = false
+    g_run_stats.room_encounter_complete = false
+    g_run_stats.room_notice_events = 0
+end
+
+local function mark_meaningful_action()
+    if not g_run_stats then
+        return
+    end
+    if g_run_stats.first_meaningful_action_at == nil then
+        g_run_stats.first_meaningful_action_at = g_run_stats.total_time
+    end
+    if g_run_stats.room_first_meaningful_action_at == nil then
+        g_run_stats.room_first_meaningful_action_at = g_run_stats.room_time
+    end
+end
+
+local function record_removed_ability_notice()
+    if not g_run_stats then
+        return
+    end
+    g_run_stats.room_removed_ability_notice_shown = true
+    g_run_stats.room_notice_events = (g_run_stats.room_notice_events or 0) + 1
+    mark_meaningful_action()
+end
+
+local function record_environment_label(label)
+    if not g_run_stats or not label or label == "" then
+        return
+    end
+    g_run_stats.room_environment_label_seen = true
+    g_run_stats.room_environment_label = label
+    mark_meaningful_action()
+end
+
+local function trigger_hitstop(duration)
+    g_hitstop_timer = math.max(g_hitstop_timer or 0, duration or 0)
+end
+
+g_trigger_hitstop = trigger_hitstop
+
+local function record_encounter_complete()
+    if not g_run_stats then
+        return
+    end
+    g_run_stats.room_encounter_complete = true
+    mark_meaningful_action()
+end
+
+local function record_checkpoint_activated(checkpoint)
+    if not g_run_stats or not checkpoint then
+        return
+    end
+    g_run_stats.checkpoints = (g_run_stats.checkpoints or 0) + 1
+    g_run_stats.room_checkpoints = (g_run_stats.room_checkpoints or 0) + 1
+    g_run_stats.room_last_checkpoint_at = g_run_stats.room_time
+    g_run_stats.room_last_checkpoint_id = checkpoint.id
+    mark_meaningful_action()
+end
+
+local function record_gate_entered()
+    if not g_run_stats then
+        return
+    end
+    g_run_stats.room_gate_entered = true
+    mark_meaningful_action()
 end
 
 local function resolve_scene()
     if g_current_flow then
-        return g_current_flow.rooms[g_current_room_index]
+        return SceneContract.normalize(g_current_flow.rooms[g_current_room_index])
     end
-    return circle_data[g_current_circle + 1]
+    return SceneContract.normalize(circle_data[g_current_circle + 1])
 end
 
 local function load_scene(scene)
     g_current_scene = scene
-    g_level = Level:new(scene)
+    g_level = Level:new(scene, g_services)
+    if g_services then
+        g_services:set_scene(scene, g_level)
+        g_services:set_progress(
+            g_game_mode,
+            g_current_flow and g_current_room_index or (g_current_circle + 1),
+            g_current_flow and #g_current_flow.rooms or #circle_data
+        )
+    end
+    g_hitstop_timer = 0
+    g_encounters:load_scene(scene)
     g_player:apply_scene_rules(scene)
     g_player:set_start_pos(g_level.start_pos)
     g_respawn_point = g_level:get_respawn_point()
@@ -148,14 +350,15 @@ local function advance_current_room()
         end
         load_scene(resolve_scene())
         if completed_slice then
-            g_ui:show_scene_intro({
-                title = "SLICE COMPLETE",
-                subtitle = "Looping back to the first room.",
-                accent_color = { 0.95, 0.62, 0.22 },
-                mode = "campaign",
-                room_type = "transition",
-                removed_ability = "none",
-                environment_hook = "Vertical slice complete",
+        g_ui:show_scene_intro({
+            title = "SLICE COMPLETE",
+            subtitle = "Looping back to the first room.",
+            transition_beat = "The proving ascent loops until the rule truly lands.",
+            accent_color = { 0.95, 0.62, 0.22 },
+            mode = "campaign",
+            room_type = "transition",
+            removed_ability = "none",
+            environment_hook = "Vertical slice complete",
             }, #g_current_flow.rooms, #g_current_flow.rooms)
         end
         return
@@ -186,12 +389,26 @@ local function select_flow_room(index)
 end
 
 local function respawn_player()
+    local latency = g_death_timer
     g_death_timer = 0
     g_respawn_point = g_level:get_respawn_point()
     g_player:respawn(g_respawn_point)
     g_collectibles:respawn()
     g_camera:reset()
     g_effects:reset()
+    g_effects:spawn("jump_dust", g_respawn_point.x + g_player.width / 2, g_respawn_point.y + g_player.height)
+    g_ui:trigger_flash()
+    if g_game_mode == "proving_ground" and g_level.recovery_hint and g_level.recovery_hint ~= "" then
+        g_ui:show_story_callout(g_level.scene_title, g_level.recovery_hint, g_level.accent_color, 2.2)
+    else
+        g_ui:show_banner(g_level.scene_title, "Back in. Reclaim the line.", g_level.accent_color, 1.1)
+    end
+    if g_run_stats then
+        g_run_stats.respawns = (g_run_stats.respawns or 0) + 1
+        g_run_stats.room_respawns = (g_run_stats.room_respawns or 0) + 1
+        g_run_stats.last_respawn_latency = latency
+        g_run_stats.room_last_respawn_latency = latency
+    end
 end
 
 function love.load(args)
@@ -201,8 +418,8 @@ function love.load(args)
     if has_flag(args, "--preview-player") then
         g_preview_mode = true
         love.window.setMode(
-            g_native_width * 2,
-            g_native_height * 2,
+            g_native_width * 3,
+            g_native_height * 3,
             { resizable = true, vsync = true }
         )
         love.window.setTitle("Infernal Ascent - Player Preview")
@@ -211,31 +428,70 @@ function love.load(args)
         return
     end
 
-    love.window.setMode(g_native_width * 3, g_native_height * 3, { resizable = true, vsync = true })
-    love.window.setTitle("Infernal Ascent")
+    apply_game_window_mode(args)
 
     g_main_canvas = love.graphics.newCanvas(g_native_width, g_native_height)
 
+    g_services = RuntimeServices:new()
     g_sfx = Sfx:new()
     g_effects = Effects:new()
-    g_ui = UI:new()
-    g_collectibles = Collectibles:new()
-    g_enemies = Enemies:new()
+    g_ui = UI:new(g_services)
+    g_collectibles = Collectibles:new(g_services)
+    g_enemies = Enemies:new(g_services)
     g_background = Background:new()
-    g_player = Player:new()
-    g_projectiles = Projectiles:new()
+    g_player = Player:new(g_services)
+    g_projectiles = Projectiles:new(g_services)
     g_camera = Camera:new(g_player)
+    g_encounters = EncounterController:new(g_services)
+    g_services.sfx = g_sfx
+    g_services.effects = g_effects
+    g_services.ui = g_ui
+    g_services.collectibles = g_collectibles
+    g_services.enemies = g_enemies
+    g_services.background = g_background
+    g_services.player = g_player
+    g_services.projectiles = g_projectiles
+    g_services.camera = g_camera
+    g_services.encounters = g_encounters
+    g_services.trigger_hitstop = trigger_hitstop
+    g_services.mark_meaningful_action = mark_meaningful_action
+    g_services.record_removed_ability_notice = record_removed_ability_notice
+    g_services.record_environment_label = record_environment_label
+    g_services.record_encounter_complete = record_encounter_complete
+    g_services.record_checkpoint_activated = record_checkpoint_activated
+    g_services.record_gate_entered = record_gate_entered
+    g_services.advance_current_room = advance_current_room
+    g_services.quick_reset = quick_reset
+    g_services.respawn_player = respawn_player
+    g_services.select_flow_room = select_flow_room
+    g_services.input_override = g_input_override
+    g_services.debug_overlay = g_debug_overlay
     init_run_stats()
 
     if has_flag(args, "--autoplay") then
         install_input_override()
-        g_autoplay = Autoplay:new(get_flag_value(args, "--autoplay-report="))
+        g_autoplay = Autoplay:new(
+            g_services,
+            get_flag_value(args, "--autoplay-report="),
+            get_flag_value(args, "--autoplay-variant=") or "a"
+        )
+        g_services.autoplay = g_autoplay
         if not has_flag(args, "--autoplay-audio") then
             g_sfx:set_muted(true)
         end
         if not has_flag(args, "--autoplay-no-screenshots") then
             g_autoplay:set_screenshot_dir(get_flag_value(args, "--autoplay-shots=") or "tmp/autoplay-shots")
         end
+    end
+
+    local qa_shot_path = get_flag_value(args, "--qa-shot=")
+    if qa_shot_path then
+        g_qa_capture = {
+            path = absolute_path(qa_shot_path),
+            delay = tonumber(get_flag_value(args, "--qa-shot-delay=") or "0.25") or 0.25,
+            requested = false,
+            completed = false,
+        }
     end
 
     if has_flag(args, "--campaign") then
@@ -273,14 +529,27 @@ function love.update(dt)
         g_autoplay:update(dt)
     end
 
+    if g_hitstop_timer > 0 then
+        g_hitstop_timer = math.max(0, g_hitstop_timer - dt)
+        g_camera:update(dt)
+        g_effects:update(dt)
+        g_background:update(dt)
+        g_ui:update(dt)
+        return
+    end
+
     g_run_stats.total_time = g_run_stats.total_time + dt
     g_run_stats.room_time = g_run_stats.room_time + dt
     g_run_stats.distance = g_run_stats.distance + math.abs(g_player.vx) * dt
     g_run_stats.room_distance = g_run_stats.room_distance + math.abs(g_player.vx) * dt
+    if g_player.is_crouching then
+        g_run_stats.crouch_time = g_run_stats.crouch_time + dt
+        g_run_stats.room_crouch_time = g_run_stats.room_crouch_time + dt
+    end
 
     if g_player.is_dead then
         g_death_timer = g_death_timer + dt
-        if g_death_timer > 0.75 then
+        if g_death_timer > 0.16 then
             respawn_player()
         end
         g_camera:update(dt)
@@ -290,8 +559,10 @@ function love.update(dt)
         return
     end
 
-    g_level:update(dt)
+    g_level:update(dt, g_player)
     g_player:update(dt, g_level)
+    g_encounters:update(dt, g_player)
+    g_encounters:constrain_player(g_player)
     g_camera:update(dt)
     g_effects:update(dt)
     g_background:update(dt)
@@ -303,7 +574,21 @@ function love.update(dt)
     local checkpoint = g_level:check_checkpoint_collision(g_player)
     if checkpoint then
         g_respawn_point = g_level:get_respawn_point()
-        g_ui:show_banner(g_level.scene_title, "Checkpoint secured.", g_level.accent_color)
+        g_effects:rumble(checkpoint.x + checkpoint.width / 2, checkpoint.y + checkpoint.height)
+        g_ui:trigger_flash()
+        local checkpoint_message = "Checkpoint secured."
+        if g_level.show_gate then
+            if g_player.fragments >= g_level.fragments_required then
+                checkpoint_message = "Checkpoint secured. Head right into the glowing EXIT gate."
+            else
+                checkpoint_message = string.format(
+                    "Checkpoint secured. Collect %d more fragment%s, then enter the EXIT gate.",
+                    g_level.fragments_required - g_player.fragments,
+                    (g_level.fragments_required - g_player.fragments) == 1 and "" or "s"
+                )
+            end
+        end
+        g_ui:show_banner(g_level.scene_title, checkpoint_message, g_level.accent_color)
     end
 
     if g_level:handle_hazards_collision(g_player) then
@@ -313,7 +598,9 @@ function love.update(dt)
     if
         g_level:check_gate_collision(g_player)
         and g_player.fragments >= g_level.fragments_required
+        and g_encounters:is_complete()
     then
+        record_gate_entered()
         advance_current_room()
     end
 end
@@ -330,6 +617,7 @@ function love.draw()
     g_background:draw()
     g_camera:attach()
     g_level:draw()
+    g_encounters:draw()
     g_player:draw()
     g_effects:draw()
     g_collectibles:draw()
@@ -337,14 +625,26 @@ function love.draw()
     g_projectiles:draw()
     g_camera:detach()
 
-    g_ui:draw_fragments(g_player.fragments, g_level.fragments_required, g_level.scene_title)
-    g_ui:draw_health(g_player.health, g_player.max_health)
+    local hide_standard_hud = g_ui:should_hide_standard_hud()
+    if not hide_standard_hud then
+        g_ui:draw_fragments(
+            g_player.fragments,
+            g_level.fragments_required,
+            g_level.scene_title,
+            g_level.room_type
+        )
+        g_ui:draw_health(g_player.health, g_player.max_health)
+    end
     g_ui:draw_banner()
     g_ui:draw_chapter_card()
-    g_ui:draw_campaign_progress(
-        g_current_flow and #g_current_flow.rooms or nil,
-        g_current_room_index
-    )
+    g_ui:draw_story_callout()
+    if not hide_standard_hud then
+        g_ui:draw_encounter_status()
+        g_ui:draw_campaign_progress(
+            g_current_flow and #g_current_flow.rooms or nil,
+            g_current_room_index
+        )
+    end
     g_ui:draw_debug(
         g_level,
         g_run_stats,
@@ -352,10 +652,6 @@ function love.draw()
         g_current_room_index,
         g_debug_overlay
     )
-    if g_player.is_dead then
-        g_ui:draw_death_screen()
-    end
-
     love.graphics.setCanvas()
 
     local scale = math.min(
@@ -367,6 +663,7 @@ function love.draw()
     if g_autoplay then
         g_autoplay:process_screenshot()
     end
+    request_qa_capture_if_ready()
 end
 
 function love.keypressed(key)
@@ -377,6 +674,9 @@ function love.keypressed(key)
 
     if key == "f3" then
         g_debug_overlay = not g_debug_overlay
+        if g_services then
+            g_services.debug_overlay = g_debug_overlay
+        end
         return
     end
 
@@ -432,3 +732,7 @@ function love.mousepressed(x, y, button)
 end
 
 g_select_flow_room = select_flow_room
+g_mark_meaningful_action = mark_meaningful_action
+g_record_removed_ability_notice = record_removed_ability_notice
+g_record_environment_label = record_environment_label
+g_record_encounter_complete = record_encounter_complete

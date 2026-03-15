@@ -5,9 +5,10 @@ local Effects = {}
 Effects.__index = Effects
 
 function Effects:new()
-    local self = setmetatable({}, Effects)
-    self.particles = {}
-    return self
+    local class = self or Effects
+    local instance = setmetatable({}, class)
+    instance.particles = {}
+    return instance
 end
 
 function Effects:update(dt)
@@ -50,6 +51,12 @@ function Effects:spawn(type, x, y, options)
         self:muzzle_flash(x, y, options.dir)
     elseif type == 'sparks' then
         self:sparks(x, y)
+    elseif type == 'ricochet_sparks' then
+        self:ricochet_sparks(x, y)
+    elseif type == 'dash_burst' then
+        self:dash_burst(x, y, options.dir_x or 1, options.dir_y or 0)
+    elseif type == 'dash_impact' then
+        self:dash_impact(x, y, options.kind)
     elseif type == 'blood' then
         self:blood(x, y)
     elseif type == 'run_dust' then
@@ -60,7 +67,7 @@ function Effects:spawn(type, x, y, options)
 end
 
 function Effects:muzzle_flash(x, y, dir)
-    for i = 1, 15 do
+    for _ = 1, 15 do
         local angle = (dir > 0 and 0 or math.pi) + math.rad(math.random(-45, 45))
         local speed = math.random(150, 400)
         table.insert(self.particles, {
@@ -76,7 +83,7 @@ function Effects:muzzle_flash(x, y, dir)
 end
 
 function Effects:sparks(x, y)
-    for i = 1, 10 do
+    for _ = 1, 10 do
         local angle = math.random() * 2 * math.pi
         local speed = math.random(50, 200)
         table.insert(self.particles, {
@@ -91,8 +98,64 @@ function Effects:sparks(x, y)
     end
 end
 
+function Effects:ricochet_sparks(x, y)
+    for _ = 1, 16 do
+        local angle = math.random() * 2 * math.pi
+        local speed = math.random(120, 280)
+        table.insert(self.particles, {
+            x = x, y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            lifetime = math.random() * 0.25 + 0.12,
+            max_lifetime = 0.37,
+            size = math.random(2, 4),
+            color = {1, 0.78, 0.38},
+            drag = 0.03
+        })
+    end
+end
+
+function Effects:dash_burst(x, y, dir_x, dir_y)
+    for _ = 1, 14 do
+        local angle = math.atan(dir_y, dir_x) + math.rad(math.random(-28, 28)) + math.pi
+        local speed = math.random(90, 260)
+        table.insert(self.particles, {
+            x = x + (math.random() - 0.5) * 10,
+            y = y + (math.random() - 0.5) * 10,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            lifetime = math.random() * 0.16 + 0.08,
+            max_lifetime = 0.24,
+            size = math.random(2, 4),
+            color = {1, 0.82, 0.45},
+            drag = 0.03
+        })
+    end
+end
+
+function Effects:dash_impact(x, y, kind)
+    local count = kind == "wall" and 18 or 12
+    local speed_min = kind == "wall" and 140 or 90
+    local speed_max = kind == "wall" and 320 or 220
+    for _ = 1, count do
+        local angle = math.random() * 2 * math.pi
+        local speed = math.random(speed_min, speed_max)
+        table.insert(self.particles, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            lifetime = math.random() * 0.18 + 0.08,
+            max_lifetime = 0.26,
+            size = math.random(2, 5),
+            color = kind == "wall" and {1, 0.9, 0.55} or {0.95, 0.75, 0.48},
+            drag = 0.05
+        })
+    end
+end
+
 function Effects:blood(x, y)
-    for i = 1, 20 do
+    for _ = 1, 20 do
         local angle = math.random() * 2 * math.pi
         local speed = math.random(100, 300)
         table.insert(self.particles, {
@@ -109,7 +172,7 @@ function Effects:blood(x, y)
 end
 
 function Effects:land_dust(x, y)
-    for i = 1, 20 do
+    for _ = 1, 20 do
         local angle = math.pi + math.random() * math.pi
         local speed = math.random(50, 150)
         table.insert(self.particles, {
@@ -125,7 +188,7 @@ function Effects:land_dust(x, y)
 end
 
 function Effects:wall_slide_dust(x, y, dir)
-    for i = 1, 3 do
+    for _ = 1, 3 do
         table.insert(self.particles, {
             x = x, y = y,
             vx = math.random(20, 50) * dir,
@@ -151,7 +214,7 @@ function Effects:run_dust(x, y)
 end
 
 function Effects:jump_dust(x, y)
-    for i=1, 15 do
+    for _ = 1, 15 do
         local angle = math.pi + math.random() * math.pi
         local speed = math.random(20, 120)
         table.insert(self.particles, {
@@ -168,7 +231,7 @@ end
 
 function Effects:stomp(x, y)
     -- Enemy stomp effect - burst of particles
-    for i = 1, 25 do
+    for _ = 1, 25 do
         local angle = math.random() * 2 * math.pi
         local speed = math.random(80, 250)
         table.insert(self.particles, {
@@ -186,7 +249,7 @@ end
 
 function Effects:rumble(x, y)
     -- Ground impact effect - debris flying up
-    for i = 1, 12 do
+    for _ = 1, 12 do
         local angle = -math.pi/2 + (math.random() - 0.5) * math.pi * 0.6
         local speed = math.random(60, 180)
         table.insert(self.particles, {
@@ -203,4 +266,4 @@ function Effects:rumble(x, y)
     end
 end
 
-return Effects 
+return Effects

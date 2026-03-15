@@ -1,0 +1,7 @@
+Intended use: candidate production spritesheet for a 2D side-view platformer hurt animation review. Edit the provided transparent reference-canvas image into a single horizontal 4-frame hurt spritesheet. The existing sprite in the leftmost slot is the exact shipped seed frame and must remain the starting frame for this sequence: same compact hero, same right-facing side view, same silhouette family, same proportions, same palette discipline, same readable face, same outfit identity.
+Composition: keep the image transparent, keep exactly one row of 4 equal 256x256 frame slots laid out left to right across the 1024x1024 canvas, centered vertically, with no overlap between frame slots, no extra characters, no labels, and no UI.
+Action: frame 1 stays as the approved starting pose. Frames 2 through 4 show a short hurt recoil from a hit, torso pulled back, head jolted, brief pain expression, then slight recovery. Keep the same compact gameplay silhouette in every frame.
+Consistency: keep body size, head size, limb proportions, and costume proportions consistent across all frames. Favor animation readability over exaggerated perspective.
+Style: authentic 16-bit pixel art, crisp pixel clusters, stepped shading, restrained palette, production game asset, not concept art.
+Constraints: no weapon, no scenery, no floor, no glow, no atmospheric haze, no impact effects, no shadows outside the sprite contours, no collage, no poster layout, no blurry details
+Keep wide transparent empty space outside the frame slots.

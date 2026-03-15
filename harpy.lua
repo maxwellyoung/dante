@@ -4,9 +4,22 @@
 local Harpy = {}
 Harpy.__index = Harpy
 
-function Harpy:new(x, y)
+local function get_sfx(self)
+    return self.services and self.services.sfx or g_sfx
+end
+
+local function get_effects(self)
+    return self.services and self.services.effects or g_effects
+end
+
+local function get_enemies(self)
+    return self.services and self.services.enemies or g_enemies
+end
+
+function Harpy:new(x, y, services)
     local class = self or Harpy
     local instance = setmetatable({}, class)
+    instance.services = services
     instance.x = x
     instance.y = y
     instance.start_y = y
@@ -72,9 +85,15 @@ function Harpy:has_line_of_sight(player, level)
 end
 
 function Harpy:fire(player)
-    g_sfx:play("shriek")
+    local sfx = get_sfx(self)
+    local enemies = get_enemies(self)
+    if sfx then
+        sfx:play("shriek")
+    end
     local projectile_dir = (player.x < self.x) and -1 or 1
-    g_enemies:spawn_projectile(self.x, self.y, projectile_dir)
+    if enemies then
+        enemies:spawn_projectile(self.x, self.y, projectile_dir)
+    end
 end
 
 function Harpy:draw()
@@ -94,8 +113,14 @@ end
 
 function Harpy:destroy()
     self.is_active = false
-    g_sfx:play("stomp")
-    g_effects:stomp(self.x + self.width / 2, self.y + self.height / 2)
+    local sfx = get_sfx(self)
+    local effects = get_effects(self)
+    if sfx then
+        sfx:play("stomp")
+    end
+    if effects then
+        effects:stomp(self.x + self.width / 2, self.y + self.height / 2)
+    end
 end
 
 return Harpy
