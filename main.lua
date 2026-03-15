@@ -38,7 +38,7 @@ g_ambient_circle_id = nil
 g_native_width, g_native_height = 480, 270
 g_main_canvas = nil
 
-circle_data = require("circles")
+circle_data = {}
 local campaign = require("campaign")
 local proving_ground = require("proving_ground")
 local SceneContract = require("scene_contract")

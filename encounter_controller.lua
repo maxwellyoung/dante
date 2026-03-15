@@ -96,7 +96,9 @@ function EncounterController:start()
     end
     self.state = "arming"
     self.wave_index = 0
-    self.wave_delay = 0.18
+    -- Longer arming delay for instant-trigger encounters so player reads the room
+    local instant_trigger = (self.config.trigger_x or math.huge) <= 32
+    self.wave_delay = instant_trigger and 1.0 or 0.18
     if self.config.intro_title then
         local ui = get_ui(self)
         ui:show_banner(
