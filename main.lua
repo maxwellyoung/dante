@@ -1075,6 +1075,12 @@ function love.mousemoved(x, y, dx, dy)
     end
 end
 
+function love.mousereleased(x, y, button)
+    if g_fps_active then
+        g_fps_mode:mousereleased(x, y, button)
+    end
+end
+
 function love.mousepressed(x, y, button)
     if g_fps_active then
         g_fps_mode:mousepressed(x, y, button)

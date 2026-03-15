@@ -88,6 +88,36 @@ function FPSMap:load(data)
                     has_face = false,
                     width_ratio = 0.4,
                 })
+            elseif char == "S" then
+                table.insert(self.sprites, {
+                    x = x - 0.5, y = y - 0.5,
+                    type = "pickup_weapon",
+                    weapon_name = "shotgun",
+                    color = { 1, 0.7, 0.3 },
+                    active = true,
+                    has_face = false,
+                    width_ratio = 0.6,
+                })
+            elseif char == "B" then
+                table.insert(self.sprites, {
+                    x = x - 0.5, y = y - 0.5,
+                    type = "pickup_weapon",
+                    weapon_name = "bouncer",
+                    color = { 0.4, 0.8, 1 },
+                    active = true,
+                    has_face = false,
+                    width_ratio = 0.5,
+                })
+            elseif char == "R" then
+                table.insert(self.sprites, {
+                    x = x - 0.5, y = y - 0.5,
+                    type = "pickup_weapon",
+                    weapon_name = "auto_rifle",
+                    color = { 1, 0.5, 0.3 },
+                    active = true,
+                    has_face = false,
+                    width_ratio = 0.5,
+                })
             end
 
             self.grid[y][x] = tile

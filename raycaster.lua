@@ -249,40 +249,83 @@ function Raycaster:draw_sprites(sprites, px, py, angle)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-function Raycaster:draw_weapon(weapon_state, time)
+function Raycaster:draw_weapon(weapon_state, time, weapon_name, flash_color)
     local w = self.screen_width
     local h = self.screen_height
+    local fc = flash_color or { 1, 0.9, 0.4 }
 
-    -- Weapon bob
-    local bob_x = math.sin(time * 6) * 3
-    local bob_y = math.abs(math.sin(time * 6)) * 2
+    -- Weapon bob (faster when sprinting)
+    local bob_speed = 6
+    local bob_amount = 3
+    local bob_x = math.sin(time * bob_speed) * bob_amount
+    local bob_y = math.abs(math.sin(time * bob_speed)) * (bob_amount * 0.7)
 
-    -- Gun position
     local gun_x = w / 2 - 16 + bob_x
     local gun_y = h - 40 + bob_y
+    local kick = weapon_state == "firing" and -8 or 0
 
-    -- Recoil
-    if weapon_state == "firing" then
-        gun_y = gun_y - 6
+    if weapon_name == "shotgun" then
+        -- Wider, chunkier gun
+        love.graphics.setColor(0.28, 0.26, 0.3, 1)
+        love.graphics.rectangle("fill", gun_x - 4, gun_y + kick, 40, 26, 2, 2)
+        love.graphics.setColor(0.35, 0.33, 0.38, 1)
+        love.graphics.rectangle("fill", gun_x + 8, gun_y - 10 + kick, 12, 14)
+        love.graphics.setColor(0.22, 0.2, 0.25, 1)
+        love.graphics.rectangle("fill", gun_x + 9, gun_y - 20 + kick, 10, 12)
+    elseif weapon_name == "bouncer" then
+        -- Sleek, blue-tinted
+        love.graphics.setColor(0.2, 0.3, 0.4, 1)
+        love.graphics.rectangle("fill", gun_x, gun_y + kick, 32, 22, 3, 3)
+        love.graphics.setColor(0.3, 0.5, 0.65, 1)
+        love.graphics.rectangle("fill", gun_x + 10, gun_y - 10 + kick, 8, 14)
+        love.graphics.setColor(0.15, 0.25, 0.35, 1)
+        love.graphics.rectangle("fill", gun_x + 11, gun_y - 18 + kick, 6, 10)
+        -- Glow ring
+        love.graphics.setColor(0.4, 0.8, 1, 0.4)
+        love.graphics.circle("line", gun_x + 14, gun_y - 12 + kick, 5)
+    elseif weapon_name == "auto_rifle" then
+        -- Long barrel
+        love.graphics.setColor(0.32, 0.28, 0.3, 1)
+        love.graphics.rectangle("fill", gun_x, gun_y + kick, 34, 20, 2, 2)
+        love.graphics.setColor(0.4, 0.36, 0.38, 1)
+        love.graphics.rectangle("fill", gun_x + 10, gun_y - 12 + kick, 6, 16)
+        love.graphics.setColor(0.25, 0.22, 0.25, 1)
+        love.graphics.rectangle("fill", gun_x + 11, gun_y - 24 + kick, 4, 14)
+    else
+        -- Pistol (default)
+        love.graphics.setColor(0.3, 0.3, 0.35, 1)
+        love.graphics.rectangle("fill", gun_x, gun_y + kick, 32, 24, 2, 2)
+        love.graphics.setColor(0.4, 0.4, 0.45, 1)
+        love.graphics.rectangle("fill", gun_x + 12, gun_y - 8 + kick, 8, 12)
+        love.graphics.setColor(0.25, 0.25, 0.3, 1)
+        love.graphics.rectangle("fill", gun_x + 13, gun_y - 16 + kick, 6, 10)
     end
-
-    -- Gun body (lo-fi rectangles)
-    love.graphics.setColor(0.3, 0.3, 0.35, 1)
-    love.graphics.rectangle("fill", gun_x, gun_y, 32, 24, 2, 2)
-    love.graphics.setColor(0.4, 0.4, 0.45, 1)
-    love.graphics.rectangle("fill", gun_x + 12, gun_y - 8, 8, 12)
-    -- Barrel
-    love.graphics.setColor(0.25, 0.25, 0.3, 1)
-    love.graphics.rectangle("fill", gun_x + 13, gun_y - 16, 6, 10)
 
     -- Muzzle flash
     if weapon_state == "firing" then
-        love.graphics.setColor(1, 0.9, 0.4, 0.9)
-        love.graphics.circle("fill", gun_x + 16, gun_y - 18, 6)
-        love.graphics.setColor(1, 1, 0.8, 0.5)
-        love.graphics.circle("fill", gun_x + 16, gun_y - 18, 10)
+        love.graphics.setColor(fc[1], fc[2], fc[3], 0.9)
+        love.graphics.circle("fill", gun_x + 16, gun_y - 18 + kick, 6)
+        love.graphics.setColor(fc[1], fc[2], fc[3], 0.4)
+        love.graphics.circle("fill", gun_x + 16, gun_y - 18 + kick, 12)
     end
 
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function Raycaster:draw_sprint_bar(stamina, is_sprinting)
+    if stamina >= 1 and not is_sprinting then return end
+    local bar_width = 60
+    local bar_height = 4
+    local x = self.screen_width / 2 - bar_width / 2
+    local y = self.screen_height - 14
+
+    love.graphics.setColor(0.15, 0.15, 0.18, 0.8)
+    love.graphics.rectangle("fill", x - 1, y - 1, bar_width + 2, bar_height + 2, 2, 2)
+
+    local r = is_sprinting and 0.9 or 0.5
+    local g = stamina > 0.3 and 0.8 or 0.3
+    love.graphics.setColor(r, g, 0.2, 0.9)
+    love.graphics.rectangle("fill", x, y, bar_width * stamina, bar_height, 1, 1)
     love.graphics.setColor(1, 1, 1, 1)
 end
 

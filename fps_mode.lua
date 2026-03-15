@@ -43,8 +43,9 @@ function FPSMode:new()
     instance.room_tint = nil
     instance.flash_timer = 0
 
-    love.mouse.setRelativeMode(true)
-    love.mouse.setGrabbed(true)
+    -- Menu state
+    instance.in_menu = true
+    instance.menu_selection = 1
 
     return instance
 end
@@ -200,16 +201,16 @@ function FPSMode:load_rooms()
             end,
         },
 
-        -- 4. DARK. Nearly black. Spotlight follows you. Something is breathing.
+        -- 4. DARK. Nearly black. Shotgun pickup. Something is breathing.
         {
             ambient_tone = 30, ambient_volume = 0.08, ambient_character = "dread",
             fog_color = { 0.005, 0.005, 0.008 },
             floor_color = { 0.02, 0.02, 0.03 },
             ceiling_color = { 0.01, 0.01, 0.015 },
-            completion = "exit", can_shoot = false,
+            completion = "exit", can_shoot = true,
             grid = {
                 "##############",
-                "#P...........#",
+                "#P..S........#",
                 "#............#",
                 "#............#",
                 "#............#",
@@ -281,17 +282,16 @@ function FPSMode:load_rooms()
             },
         },
 
-        -- 7. MAZE. But the walls keep changing. Dead ends seal behind you.
-        -- New paths open ahead. The maze is alive.
+        -- 7. MAZE. But the walls keep changing. Bouncer pickup inside.
         {
             ambient_tone = 52, ambient_volume = 0.06, ambient_character = "cold",
             fog_color = { 0.03, 0.03, 0.05 },
             floor_color = { 0.1, 0.1, 0.13 },
             ceiling_color = { 0.04, 0.04, 0.06 },
-            completion = "exit", can_shoot = false,
+            completion = "exit", can_shoot = true,
             grid = {
                 "################",
-                "#P.#...........#",
+                "#P.#.....B.....#",
                 "#..#.#####.###.#",
                 "#..#.......#...#",
                 "#..#####.#.#.###",
@@ -394,16 +394,16 @@ function FPSMode:load_rooms()
             triggers = {},
         },
 
-        -- 10. THE SAME CORRIDOR. But backwards. You recognize it.
+        -- 10. THE SAME CORRIDOR. But backwards. Auto rifle pickup.
         {
             ambient_tone = 55, ambient_volume = 0.04, ambient_character = "warm",
             fog_color = { 0.02, 0.02, 0.04 },
             floor_color = { 0.1, 0.1, 0.13 },
             ceiling_color = { 0.04, 0.04, 0.06 },
-            completion = "exit", can_shoot = false,
+            completion = "exit", can_shoot = true,
             grid = {
                 "################",
-                "#X............P#",
+                "#X.......R....P#",
                 "################",
             },
             spawn_angle = 3.14,
@@ -510,6 +510,9 @@ function FPSMode:load_room(index)
     if index > #self.rooms then
         index = 1
         self.visit_count = self.visit_count + 1
+        -- Reset weapons on loop
+        self.player.weapons = { "pistol" }
+        self.player.current_weapon = 1
     end
     self.room_index = index
 
@@ -611,6 +614,8 @@ function FPSMode:trigger_hard_cut()
 end
 
 function FPSMode:update(dt)
+    if self.in_menu then return end
+
     -- Hard cut
     if self.hard_cut_pending then
         self.hard_cut_timer = self.hard_cut_timer + dt
@@ -745,6 +750,33 @@ function FPSMode:draw()
     local w = love.graphics.getWidth()
     local h = love.graphics.getHeight()
 
+    if self.in_menu then
+        love.graphics.setCanvas(self.canvas)
+        love.graphics.clear(0.02, 0.02, 0.03, 1)
+
+        -- Title
+        love.graphics.setColor(0.92, 0.55, 0.18, 1)
+        love.graphics.printf("INFERNAL ASCENT", 0, RENDER_HEIGHT / 2 - 40, RENDER_WIDTH, "center")
+
+        love.graphics.setColor(0.6, 0.62, 0.7, 0.8)
+        love.graphics.printf("A descent in first person", 0, RENDER_HEIGHT / 2 - 20, RENDER_WIDTH, "center")
+
+        -- Controls
+        love.graphics.setColor(0.5, 0.52, 0.6, 0.6)
+        love.graphics.printf("WASD move    Mouse look    Shift sprint", 0, RENDER_HEIGHT / 2 + 10, RENDER_WIDTH, "center")
+        love.graphics.printf("Left click shoot    Space wall-jump    Q switch weapon", 0, RENDER_HEIGHT / 2 + 24, RENDER_WIDTH, "center")
+
+        -- Start prompt
+        local pulse = 0.5 + 0.5 * math.sin(love.timer.getTime() * 3)
+        love.graphics.setColor(0.92, 0.55, 0.18, pulse)
+        love.graphics.printf("PRESS ENTER TO DESCEND", 0, RENDER_HEIGHT / 2 + 50, RENDER_WIDTH, "center")
+
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setCanvas()
+        love.graphics.draw(self.canvas, 0, 0, 0, w / RENDER_WIDTH, h / RENDER_HEIGHT)
+        return
+    end
+
     love.graphics.setCanvas(self.canvas)
     love.graphics.clear(0, 0, 0, 1)
 
@@ -786,8 +818,27 @@ function FPSMode:draw()
 
     -- Weapon
     if self.can_shoot then
-        self.raycaster:draw_weapon(self.player.weapon_state, self.player.move_time)
+        local weapon, weapon_name = self.player:get_weapon()
+        self.raycaster:draw_weapon(
+            self.player.weapon_state, self.player.move_time,
+            weapon_name, weapon.color
+        )
         self.raycaster:draw_crosshair()
+        -- Weapon name
+        love.graphics.setColor(0.7, 0.72, 0.8, 0.5)
+        love.graphics.printf(weapon.name, RENDER_WIDTH - 80, RENDER_HEIGHT - 16, 70, "right")
+    end
+
+    -- Sprint bar
+    self.raycaster:draw_sprint_bar(self.player.sprint_stamina, self.player.is_sprinting)
+
+    -- Health
+    if self.player.health < self.player.max_health then
+        love.graphics.setColor(0.9, 0.3, 0.2, 0.9)
+        love.graphics.printf(
+            string.format("VITAE %d", self.player.health),
+            8, RENDER_HEIGHT - 16, 80, "left"
+        )
     end
 
     -- Screen effects
@@ -840,12 +891,44 @@ function FPSMode:draw()
 end
 
 function FPSMode:keypressed(key)
+    -- Menu
+    if self.in_menu then
+        if key == "return" or key == "space" then
+            self.in_menu = false
+            love.mouse.setRelativeMode(true)
+            love.mouse.setGrabbed(true)
+            self:load_rooms()
+            self:load_room(1)
+        end
+        if key == "escape" then
+            love.event.quit()
+        end
+        return
+    end
+
     if key == "escape" then
+        self.in_menu = true
         love.mouse.setRelativeMode(false)
-        love.event.quit()
+        love.mouse.setGrabbed(false)
+        return
     end
     if key == "tab" then
         self:load_room(self.room_index)
+    end
+    -- Wall-jump
+    if key == "space" then
+        self.player:try_wall_jump(self.map, self.sfx)
+    end
+    -- Weapon switch
+    if key == "q" or key == "1" or key == "2" or key == "3" or key == "4" then
+        if key == "q" then
+            self.player:next_weapon()
+        else
+            local idx = tonumber(key)
+            if idx and idx <= #self.player.weapons then
+                self.player.current_weapon = idx
+            end
+        end
     end
 end
 
@@ -855,7 +938,9 @@ function FPSMode:mousemoved(_, _, dx)
 end
 
 function FPSMode:mousepressed(_, _, button)
+    if self.in_menu then return end
     if button == 1 and self.can_shoot then
+        self.player.holding_fire = true
         local hit = self.player:fire(self.map, self.sfx)
         if hit then
             local room = self.rooms[self.room_index]
@@ -863,6 +948,12 @@ function FPSMode:mousepressed(_, _, button)
                 room.on_kill(self)
             end
         end
+    end
+end
+
+function FPSMode:mousereleased(_, _, button)
+    if button == 1 then
+        self.player.holding_fire = false
     end
 end
 
