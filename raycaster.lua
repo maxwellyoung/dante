@@ -341,4 +341,37 @@ function Raycaster:draw_crosshair()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+-- Screen distortion effects
+function Raycaster:draw_static(intensity, time)
+    for _ = 1, math.floor(intensity * 800) do
+        local x = math.random(0, self.screen_width - 1)
+        local y = math.random(0, self.screen_height - 1)
+        local v = math.random() * 0.4
+        love.graphics.setColor(v, v, v, intensity * 0.6)
+        love.graphics.rectangle("fill", x, y, math.random(1, 3), 1)
+    end
+    -- Scanlines
+    for y = 0, self.screen_height - 1, 2 do
+        love.graphics.setColor(0, 0, 0, intensity * 0.15)
+        love.graphics.rectangle("fill", 0, y, self.screen_width, 1)
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function Raycaster:draw_vignette(intensity, color)
+    local c = color or {0, 0, 0}
+    local w = self.screen_width
+    local h = self.screen_height
+    -- Edges darken
+    for i = 0, 30 do
+        local a = intensity * (1 - i / 30) * 0.5
+        love.graphics.setColor(c[1], c[2], c[3], a)
+        love.graphics.rectangle("fill", 0, i, w, 1)
+        love.graphics.rectangle("fill", 0, h - 1 - i, w, 1)
+        love.graphics.rectangle("fill", i, 0, 1, h)
+        love.graphics.rectangle("fill", w - 1 - i, 0, 1, h)
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 return Raycaster

@@ -108,6 +108,24 @@ function FPSMap:is_solid(x, y)
     return self:get(x, y) > 0
 end
 
+function FPSMap:set(x, y, value)
+    local gy = math.floor(y) + 1
+    local gx = math.floor(x) + 1
+    if gy >= 1 and gy <= self.height and gx >= 1 and gx <= self.width then
+        if self.grid[gy] then
+            self.grid[gy][gx] = value
+        end
+    end
+end
+
+function FPSMap:clear_tile(x, y)
+    self:set(x, y, 0)
+end
+
+function FPSMap:fill_tile(x, y, tile_type)
+    self:set(x, y, tile_type or 1)
+end
+
 function FPSMap:get_enemies()
     local enemies = {}
     for _, s in ipairs(self.sprites) do
