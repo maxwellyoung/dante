@@ -211,10 +211,12 @@ function FPSMode:load_rooms()
                   screen_text = "The walls are closing. Sprint.", duration = 2 },
             },
             on_update = function(self, dt)
-                local col = 2 + math.floor(self.time / 1.2)
-                if col < 13 then
+                -- Walls close in from left, but never on the player's column
+                local col = 1 + math.floor(self.time / 1.5)
+                local player_col = math.floor(self.player.x)
+                if col < 13 and col < player_col then
                     for row = 1, 6 do
-                        self.map:fill_tile(col - 1, row)
+                        self.map:fill_tile(col, row)
                     end
                 end
             end,
@@ -382,8 +384,12 @@ function FPSMode:load_room(index)
     self.room_index = index
 
     local room = self.rooms[index]
+    print(string.format("[ROOM %d] Loading — completion: %s, can_shoot: %s",
+        index, room.completion or "?", tostring(room.can_shoot)))
     self.map = FPSMap:new(room)
     self.player:spawn(self.map.spawn)
+    print(string.format("[ROOM %d] Player spawn at %.1f, %.1f angle %.2f",
+        index, self.map.spawn.x, self.map.spawn.y, self.map.spawn.angle or 0))
     self.player.is_dead = false
     self.player.health = self.player.max_health
     self.time = 0
@@ -503,7 +509,10 @@ function FPSMode:update(dt)
     end
 
     if self.player.is_dead then
-        if self.time > 0.8 then self:load_room(self.room_index) end
+        if self.time > 0.8 then
+            print(string.format("[ROOM %d] Respawning after death", self.room_index))
+            self:load_room(self.room_index)
+        end
         return
     end
 
@@ -667,7 +676,10 @@ function FPSMode:update(dt)
         end
     end
 
-    if self:check_completion() then self:trigger_hard_cut() end
+    if self:check_completion() then
+        print(string.format("[ROOM %d] Complete at t=%.1f", self.room_index, self.time))
+        self:trigger_hard_cut()
+    end
 end
 
 function FPSMode:draw()

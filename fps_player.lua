@@ -366,9 +366,12 @@ function FPSPlayer:take_damage(amount, sfx)
     self.health = self.health - (amount or 1)
     self.damage_flash = 1
     self.view_punch_velocity = self.view_punch_velocity + (math.random() - 0.5) * 6
+    print(string.format("[PLAYER] Took %d damage, health now %d at pos %.1f,%.1f",
+        amount or 1, self.health, self.x, self.y))
     if sfx then sfx:play("hit_enemy") end
     if self.health <= 0 then
         self.is_dead = true
+        print("[PLAYER] Dead")
         if sfx then sfx:play("death") end
     end
 end
