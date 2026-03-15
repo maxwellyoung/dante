@@ -331,9 +331,25 @@ function FPSPlayer:fire(map, sfx)
 
         if best_target then
             best_target.health = (best_target.health or 1) - weapon.damage
+
+            -- Knockback: push enemy away from player
+            local knock_dx = best_target.x - self.x
+            local knock_dy = best_target.y - self.y
+            local knock_dist = math.sqrt(knock_dx * knock_dx + knock_dy * knock_dy)
+            if knock_dist > 0.1 then
+                local push = 0.4 * weapon.recoil
+                best_target.x = best_target.x + (knock_dx / knock_dist) * push
+                best_target.y = best_target.y + (knock_dy / knock_dist) * push
+            end
+
+            -- Flinch
+            best_target.flinch_timer = 0.15
+
             if best_target.health <= 0 then
                 best_target.active = false
                 self.kills = self.kills + 1
+                -- Bigger view punch on kill (Vlambeer)
+                self.view_punch_velocity = self.view_punch_velocity - 3
                 if sfx then sfx:play("stomp") end
             else
                 if sfx then sfx:play("hit_enemy") end

@@ -42,6 +42,7 @@ function FPSMode:new()
     instance.chase_entity = nil
     instance.room_tint = nil
     instance.flash_timer = 0
+    instance.hitstop_timer = 0
 
     -- Menu state
     instance.in_menu = true
@@ -367,29 +368,30 @@ function FPSMode:load_rooms()
             end,
         },
 
-        -- 9. ENEMIES. Real ones. Tight T-shaped room. They're close.
-        -- You hear them before you see them. Short and violent.
+        -- 9. ARENA. Real combat. Mixed enemies. Demon strafes and shoots.
+        -- Walkers weave toward you. Tight space, multiple angles.
         {
-            ambient_tone = 45, ambient_volume = 0.08, ambient_character = "chase",
+            ambient_tone = 45, ambient_volume = 0.09, ambient_character = "chase",
             fog_color = { 0.06, 0.02, 0.03 },
             floor_color = { 0.15, 0.08, 0.08 },
             ceiling_color = { 0.06, 0.03, 0.03 },
             completion = "kill_all", can_shoot = true,
-            override_fog = 6,
             grid = {
-                "##########",
-                "#...P....#",
-                "#........#",
-                "###....###",
-                "  #....#  ",
-                "  #.E..#  ",
-                "  #....#  ",
-                "###....###",
-                "#.E..E...#",
-                "#........#",
-                "##########",
+                "################",
+                "#P.............#",
+                "#..............#",
+                "#.....##.......#",
+                "#.....##...E...#",
+                "#..............#",
+                "#..E.......##..#",
+                "#..........##..#",
+                "#..............#",
+                "#......D.......#",
+                "#..............#",
+                "#.........E....#",
+                "################",
             },
-            spawn_angle = 3.14,
+            spawn_angle = 0,
             world_texts = {},
             triggers = {},
         },
@@ -633,8 +635,16 @@ function FPSMode:update(dt)
         return
     end
 
+    -- Hitstop: freeze the game briefly on big hits (Vlambeer)
+    if self.hitstop_timer > 0 then
+        self.hitstop_timer = self.hitstop_timer - dt
+        self.raycaster:update_shake(dt)
+        return
+    end
+
     self.time = self.time + dt
     self.flash_timer = math.max(0, self.flash_timer - dt)
+    self.raycaster:update_shake(dt)
 
     -- Screen text
     if self.screen_text_timer > 0 then
@@ -698,24 +708,136 @@ function FPSMode:update(dt)
         end
     end
 
-    -- Enemy AI
+    -- Enemy AI — Vlambeer-grade: strafe, flank, lunge, flinch, ranged
     for _, sprite in ipairs(self.map.sprites) do
         if sprite.active and sprite ~= self.chase_entity and (sprite.type == "enemy" or sprite.type == "demon") then
             if (sprite.speed or 0) > 0 then
                 local dx = self.player.x - sprite.x
                 local dy = self.player.y - sprite.y
                 local dist = math.sqrt(dx * dx + dy * dy)
-                if dist < 8 and dist > 0.5 then
-                    local nx = dx / dist * sprite.speed * dt
-                    local ny = dy / dist * sprite.speed * dt
-                    if not self.map:is_solid(sprite.x + nx, sprite.y) then sprite.x = sprite.x + nx end
-                    if not self.map:is_solid(sprite.x, sprite.y + ny) then sprite.y = sprite.y + ny end
+
+                -- Init AI state
+                if not sprite.ai_state then
+                    sprite.ai_state = "chase"
+                    sprite.strafe_dir = math.random() > 0.5 and 1 or -1
+                    sprite.strafe_timer = 0
+                    sprite.lunge_timer = 0
+                    sprite.flinch_timer = 0
+                    sprite.fire_cooldown = math.random() * 2
                 end
+
                 sprite.attack_cooldown = math.max(0, (sprite.attack_cooldown or 0) - dt)
-                if dist < (sprite.attack_range or 1.5) and sprite.attack_cooldown <= 0 then
-                    self.player:take_damage(1, self.sfx)
-                    sprite.attack_cooldown = 1.5
+                sprite.strafe_timer = math.max(0, sprite.strafe_timer - dt)
+                sprite.lunge_timer = math.max(0, sprite.lunge_timer - dt)
+                sprite.flinch_timer = math.max(0, sprite.flinch_timer - dt)
+
+                -- Flinch: freeze briefly when hit
+                if sprite.flinch_timer > 0 then
+                    -- Don't move during flinch
+                elseif dist < 10 and dist > 0.4 then
+                    local speed = sprite.speed
+                    local nx, ny = dx / dist, dy / dist
+
+                    if sprite.type == "demon" then
+                        -- Demons: strafe at medium range, lunge at close range
+                        if dist > 3 and dist < 7 then
+                            -- Strafe: move perpendicular to player
+                            sprite.ai_state = "strafe"
+                            if sprite.strafe_timer <= 0 then
+                                sprite.strafe_dir = -sprite.strafe_dir
+                                sprite.strafe_timer = 0.8 + math.random() * 0.6
+                            end
+                            local sx = -ny * sprite.strafe_dir * speed * 0.7 * dt
+                            local sy = nx * sprite.strafe_dir * speed * 0.7 * dt
+                            -- Also creep closer
+                            sx = sx + nx * speed * 0.3 * dt
+                            sy = sy + ny * speed * 0.3 * dt
+                            if not self.map:is_solid(sprite.x + sx, sprite.y) then sprite.x = sprite.x + sx end
+                            if not self.map:is_solid(sprite.x, sprite.y + sy) then sprite.y = sprite.y + sy end
+                        elseif dist <= 3 then
+                            -- Lunge: burst of speed toward player
+                            sprite.ai_state = "lunge"
+                            local lunge_speed = speed * 2.5
+                            local lx = nx * lunge_speed * dt
+                            local ly = ny * lunge_speed * dt
+                            if not self.map:is_solid(sprite.x + lx, sprite.y) then sprite.x = sprite.x + lx end
+                            if not self.map:is_solid(sprite.x, sprite.y + ly) then sprite.y = sprite.y + ly end
+                        else
+                            -- Far: beeline
+                            sprite.ai_state = "chase"
+                            local mx = nx * speed * dt
+                            local my = ny * speed * dt
+                            if not self.map:is_solid(sprite.x + mx, sprite.y) then sprite.x = sprite.x + mx end
+                            if not self.map:is_solid(sprite.x, sprite.y + my) then sprite.y = sprite.y + my end
+                        end
+
+                        -- Demon ranged attack: fire projectile at player
+                        sprite.fire_cooldown = (sprite.fire_cooldown or 0) - dt
+                        if sprite.fire_cooldown <= 0 and dist > 2 and dist < 8 then
+                            sprite.fire_cooldown = 2.0 + math.random() * 1.5
+                            -- Spawn a projectile sprite that moves toward player
+                            table.insert(self.map.sprites, {
+                                x = sprite.x, y = sprite.y,
+                                type = "projectile",
+                                vx = nx * 4, vy = ny * 4,
+                                lifetime = 3,
+                                active = true,
+                                color = { 1, 0.3, 0.15 },
+                                has_face = false,
+                                width_ratio = 0.3,
+                                damage = 1,
+                            })
+                            self.sfx:play("shriek")
+                        end
+                    else
+                        -- Regular enemies: simple chase with slight weave
+                        sprite.ai_state = "chase"
+                        local weave = math.sin(self.time * 3 + sprite.x * 7) * 0.3
+                        local mx = (nx + weave * (-ny)) * speed * dt
+                        local my = (ny + weave * nx) * speed * dt
+                        if not self.map:is_solid(sprite.x + mx, sprite.y) then sprite.x = sprite.x + mx end
+                        if not self.map:is_solid(sprite.x, sprite.y + my) then sprite.y = sprite.y + my end
+                    end
                 end
+
+                -- Melee attack
+                if dist < (sprite.attack_range or 1.5) and sprite.attack_cooldown <= 0 and sprite.flinch_timer <= 0 then
+                    self.player:take_damage(1, self.sfx)
+                    sprite.attack_cooldown = sprite.type == "demon" and 1.0 or 1.5
+                    -- Vlambeer: shake + flash + hitstop on taking damage
+                    self.raycaster:shake(5, 0.15)
+                    self.flash_timer = 0.2
+                    self.hitstop_timer = 0.04
+                end
+            end
+        end
+    end
+
+    -- Update enemy projectiles
+    for i = #self.map.sprites, 1, -1 do
+        local sprite = self.map.sprites[i]
+        if sprite.type == "projectile" and sprite.active then
+            sprite.x = sprite.x + sprite.vx * dt
+            sprite.y = sprite.y + sprite.vy * dt
+            sprite.lifetime = sprite.lifetime - dt
+
+            -- Hit wall
+            if self.map:is_solid(sprite.x, sprite.y) then
+                sprite.active = false
+            end
+            -- Hit player
+            local pdx = self.player.x - sprite.x
+            local pdy = self.player.y - sprite.y
+            if pdx * pdx + pdy * pdy < 0.3 then
+                self.player:take_damage(sprite.damage or 1, self.sfx)
+                sprite.active = false
+                self.flash_timer = 0.2
+                self.raycaster:shake(6, 0.15)
+                self.hitstop_timer = 0.05
+            end
+            -- Expired
+            if sprite.lifetime <= 0 then
+                sprite.active = false
             end
         end
     end
@@ -884,7 +1006,10 @@ function FPSMode:draw()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setCanvas()
 
-    love.graphics.draw(self.canvas, 0, 0, 0, w / RENDER_WIDTH, h / RENDER_HEIGHT)
+    -- Apply screenshake offset to final render
+    local sx = self.raycaster.shake_x * (w / RENDER_WIDTH)
+    local sy = self.raycaster.shake_y * (h / RENDER_HEIGHT)
+    love.graphics.draw(self.canvas, sx, sy, 0, w / RENDER_WIDTH, h / RENDER_HEIGHT)
 end
 
 function FPSMode:keypressed(key)
@@ -938,8 +1063,24 @@ function FPSMode:mousepressed(_, _, button)
     if self.in_menu then return end
     if button == 1 and self.can_shoot then
         self.player.holding_fire = true
+        local kills_before = self.player.kills
         local hit = self.player:fire(self.map, self.sfx)
+
+        -- Screenshake on every shot
+        local weapon = self.player:get_weapon()
+        self.raycaster:shake(weapon.recoil * 0.8, 0.08)
+
         if hit then
+            -- Extra shake on hit
+            self.raycaster:shake(weapon.recoil * 1.5, 0.12)
+
+            -- Hitstop on kill (Vlambeer freeze-frame)
+            if self.player.kills > kills_before then
+                self.hitstop_timer = 0.06
+                self.raycaster:shake(4, 0.15)
+                self.flash_timer = 0.1
+            end
+
             local room = self.rooms[self.room_index]
             if room and room.on_kill then
                 room.on_kill(self)

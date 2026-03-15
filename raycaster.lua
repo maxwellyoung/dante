@@ -25,7 +25,29 @@ function Raycaster:new(width, height)
     instance.floor_color = { 0.12, 0.13, 0.16 }
     instance.ceiling_color = { 0.06, 0.06, 0.08 }
     instance.z_buffer = {}
+    instance.shake_x = 0
+    instance.shake_y = 0
+    instance.shake_intensity = 0
+    instance.shake_timer = 0
     return instance
+end
+
+function Raycaster:shake(intensity, duration)
+    self.shake_intensity = math.max(self.shake_intensity, intensity)
+    self.shake_timer = math.max(self.shake_timer, duration)
+end
+
+function Raycaster:update_shake(dt)
+    if self.shake_timer > 0 then
+        self.shake_timer = self.shake_timer - dt
+        self.shake_x = (math.random() - 0.5) * self.shake_intensity * 2
+        self.shake_y = (math.random() - 0.5) * self.shake_intensity * 2
+        self.shake_intensity = self.shake_intensity * (1 - dt * 8)
+    else
+        self.shake_x = 0
+        self.shake_y = 0
+        self.shake_intensity = 0
+    end
 end
 
 function Raycaster:cast_walls(map, px, py, angle)
