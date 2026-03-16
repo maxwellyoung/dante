@@ -39,6 +39,7 @@ typedef struct {
     Vector3 size;
     Color color;
     bool active;
+    bool cylinder;  // if true, draw as cylinder instead of cube
 } Wall;
 
 typedef struct {

@@ -31,9 +31,10 @@ static EVPostFX postfx = {0};
 static EVAudio audio = {0};
 static Model cube_model = {0};
 static bool cube_model_loaded = false;
+static Model cyl_model = {0};
+static bool cyl_model_loaded = false;
 static RenderTexture2D render_target;
 static RenderTexture2D postfx_target;
-static float planet_angle = 0;
 
 static int tasks_done = 0;
 static const int total_tasks = 5;
@@ -78,11 +79,16 @@ static InteractSoundType get_interact_sound(const char *name) {
     return INTERACT_CLICK;
 }
 
+static float transition_hold = 0.3f;
+static float hold_timer = 0;
+
 static void transition_to(GameState s) {
     transitioning = true;
     next_state = s;
     fade_target = 1.0f;
     fade_speed = 2.0f;
+    transition_hold = 0.3f;
+    hold_timer = 0;
     PlayDoorSound(&audio);
 }
 
@@ -91,6 +97,8 @@ static void transition_to_slow(GameState s, float spd) {
     next_state = s;
     fade_target = 1.0f;
     fade_speed = spd;
+    transition_hold = (s == STATE_BED) ? 1.0f : 0.3f;
+    hold_timer = 0;
     PlayDoorSound(&audio);
 }
 
@@ -381,6 +389,11 @@ int main(void) {
     if (lighting.ready) cube_model.materials[0].shader = lighting.shader;
     cube_model_loaded = true;
 
+    Mesh cyl_mesh = GenMeshCylinder(0.5f, 1.0f, 16);
+    cyl_model = LoadModelFromMesh(cyl_mesh);
+    if (lighting.ready) cyl_model.materials[0].shader = lighting.shader;
+    cyl_model_loaded = true;
+
     DisableCursor();
     load_state(STATE_TITLE);
 
@@ -392,13 +405,22 @@ int main(void) {
         if (IsKeyPressed(KEY_F3)) show_debug = !show_debug;
         if (IsKeyPressed(KEY_F4)) player.noclip = !player.noclip;
 
-        // Fade
-        if (fade_alpha != fade_target) {
+        // Fade with hold-in-black for doorway transitions
+        if (hold_timer > 0) {
+            hold_timer -= dt;
+            if (hold_timer <= 0) {
+                hold_timer = 0;
+                transitioning = false;
+                load_state(next_state);
+            }
+        } else if (fade_alpha != fade_target) {
             float dir = (fade_target > fade_alpha) ? 1 : -1;
             fade_alpha += dir * fade_speed * dt;
             if ((dir > 0 && fade_alpha >= fade_target) || (dir < 0 && fade_alpha <= fade_target)) {
                 fade_alpha = fade_target;
-                if (transitioning) { transitioning = false; load_state(next_state); }
+                if (transitioning) {
+                    hold_timer = transition_hold;
+                }
             }
         }
 
@@ -422,7 +444,6 @@ int main(void) {
         // ---- UPDATE ----
         switch (state) {
             case STATE_TITLE:
-                planet_angle += dt * 0.2f;
                 if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) transition_to(STATE_CAR);
                 break;
 
@@ -677,7 +698,7 @@ int main(void) {
 
         switch (state) {
             case STATE_TITLE:
-                draw_title(planet_angle);
+                draw_title();
                 break;
 
             case STATE_CAR:
@@ -695,7 +716,14 @@ int main(void) {
             case STATE_ROOM:
             case STATE_BATHROOM:
             case STATE_BALCONY:
-                draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded);
+                if (state == STATE_HOTEL_EXT || state == STATE_BALCONY) {
+                    ClearBackground((Color){8, 12, 28, 255});
+                    draw_night_sky(state_time);
+                } else {
+                    ClearBackground(scene.fog_color);
+                }
+                draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
+                              &cyl_model, cyl_model_loaded);
                 if (state == STATE_BALCONY && eiffel_sparkle && sparkle_timer < 8.0f) {
                     SetRandomSeed((unsigned int)(sparkle_timer * 10));
                     int sc = 6 + (int)(sparkle_timer * 3); if (sc > 30) sc = 30;
@@ -847,6 +875,7 @@ int main(void) {
     }
 
     if (cube_model_loaded) UnloadModel(cube_model);
+    if (cyl_model_loaded) UnloadModel(cyl_model);
     UnloadEVLighting(&lighting);
     UnloadEVPostFX(&postfx);
     UnloadEVAudio(&audio);

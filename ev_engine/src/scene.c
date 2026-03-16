@@ -9,6 +9,15 @@ void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Co
     if (s->wall_count >= MAX_WALLS) return;
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {w, h, d}, .color = c, .active = true,
+        .cylinder = false,
+    };
+}
+
+void add_cylinder(Scene *s, float x, float y, float z, float diameter, float height, Color c) {
+    if (s->wall_count >= MAX_WALLS) return;
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
+        .active = true, .cylinder = true,
     };
 }
 
@@ -22,15 +31,7 @@ void add_object(Scene *s, float x, float y, float z, const char *name, Color c, 
 }
 
 static void add_column(Scene *s, float x, float z, float r, float h, Color c) {
-    for (int i = 0; i < 8; i++) {
-        float angle = i * 3.14159f / 4.0f;
-        float wx = x + cosf(angle) * r;
-        float wz = z + sinf(angle) * r;
-        float seg = r * 0.8f;
-        add_wall(s, wx, h/2, wz,
-                 fabsf(sinf(angle)) * seg + 0.1f, h,
-                 fabsf(cosf(angle)) * seg + 0.1f, c);
-    }
+    add_cylinder(s, x, h/2, z, r*2, h, c);
 }
 
 void add_light_panel(Scene *s, float x, float y, float z,
@@ -194,8 +195,11 @@ void build_lobby(Scene *s) {
         }
 
     add_wall(s, 0, 7, 0, 30, 0.2f, 20, cream);
-    add_light_panel(s, -4, 6.8f, 0, 6, 0.1f, 0.6f, gold);
-    add_light_panel(s, 4, 6.8f, -3, 5, 0.1f, 0.6f, warm_white);
+    // Hanging cylindrical lights — replacing flat panels
+    add_cylinder(s, -4, 6.4f, 0, 0.4f, 0.6f, gold);
+    add_cylinder(s, -2, 6.4f, -2, 0.35f, 0.5f, gold);
+    add_cylinder(s, 4, 6.4f, -3, 0.4f, 0.6f, warm_white);
+    add_cylinder(s, 2, 6.4f, 1, 0.35f, 0.5f, warm_white);
 
     add_wall(s, 0, 3.5f, -10, 30, 7, 0.3f, cream);
     add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, cream);
@@ -361,6 +365,9 @@ void build_hotel_room(Scene *s) {
 
     add_wall(s, -2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
     add_wall(s, 2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
+    // Lamp bases — thin cylinders on bedside tables
+    add_cylinder(s, -2.5f, 0.72f, -3.8f, 0.1f, 0.22f, gold);
+    add_cylinder(s, 2.5f, 0.72f, -3.8f, 0.1f, 0.22f, gold);
     add_light_panel(s, -2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
     add_light_panel(s, 2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
 
@@ -538,8 +545,8 @@ void build_bathroom(Scene *s) {
 
     // Floor — darker concrete
     add_wall(s, 0, -0.05f, 0, bw, 0.1f, bd, floor_concrete);
-    // Drain — small dark circle approximation
-    add_wall(s, 1.0f, 0.01f, 0.5f, 0.15f, 0.02f, 0.15f, (Color){60,58,55,255});
+    // Drain — small flat dark cylinder on floor
+    add_cylinder(s, 1.0f, 0.01f, 0.5f, 0.15f, 0.02f, (Color){60,58,55,255});
 
     // Ceiling — white plaster
     add_wall(s, 0, bh, 0, bw, 0.2f, bd, ceiling);
@@ -666,11 +673,11 @@ void build_stairwell(Scene *s) {
     // Landing 4 (top)
     add_wall(s, -2.0f, 7.8f, 1.5f, 1.5f, 0.2f, 2.0f, step_color);
 
-    // Vertical handrails on landings
-    add_wall(s, 1.2f, 1.0f, -0.5f, 0.04f, 1.5f, 0.04f, metal);
-    add_wall(s, -1.2f, 3.0f, 2.5f, 0.04f, 1.5f, 0.04f, metal);
-    add_wall(s, 1.2f, 5.0f, -0.5f, 0.04f, 1.5f, 0.04f, metal);
-    add_wall(s, -1.2f, 7.0f, 2.5f, 0.04f, 1.5f, 0.04f, metal);
+    // Handrail supports — thin vertical cylinders on landings
+    add_cylinder(s, 1.2f, 1.0f, -0.5f, 0.06f, 1.5f, metal);
+    add_cylinder(s, -1.2f, 3.0f, 2.5f, 0.06f, 1.5f, metal);
+    add_cylinder(s, 1.2f, 5.0f, -0.5f, 0.06f, 1.5f, metal);
+    add_cylinder(s, -1.2f, 7.0f, 2.5f, 0.06f, 1.5f, metal);
 
     // Fire extinguisher — ONE accent, on the left wall
     add_wall(s, -sw/2+0.15f, 1.2f, 0, 0.2f, 0.5f, 0.15f, fire_ext);

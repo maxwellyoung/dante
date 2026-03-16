@@ -18,9 +18,11 @@ void UnloadEVPostFX(EVPostFX *pfx);
 void SetPostFXWarmth(EVPostFX *pfx, float warmth);
 
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
-                   Model *cube_model, bool cube_model_loaded);
+                   Model *cube_model, bool cube_model_loaded,
+                   Model *cyl_model, bool cyl_model_loaded);
 void draw_hud(Player *player, Scene *scene);
-void draw_title(float planet_angle);
+void draw_title(void);
+void draw_night_sky(float time);
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target);
 
 #endif

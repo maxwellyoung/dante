@@ -104,9 +104,8 @@ void SetPostFXWarmth(EVPostFX *pfx, float warmth) {
 }
 
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
-                   Model *cube_model, bool cube_model_loaded) {
-    ClearBackground(scene->fog_color);
-
+                   Model *cube_model, bool cube_model_loaded,
+                   Model *cyl_model, bool cyl_model_loaded) {
     if (lighting->ready) {
         UpdateEVLighting(lighting, player->camera, scene->fog_color, scene->fog_density);
     }
@@ -118,7 +117,11 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         Wall *w = &scene->walls[i];
         if (!w->active) continue;
 
-        if (lighting->ready && cube_model_loaded) {
+        if (w->cylinder && lighting->ready && cyl_model_loaded) {
+            cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+            DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, 0,
+                       (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
+        } else if (lighting->ready && cube_model_loaded) {
             cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
             DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, 0,
                        w->size, WHITE);
@@ -186,42 +189,67 @@ void draw_hud(Player *player, Scene *scene) {
     }
 }
 
-void draw_title(float planet_angle) {
-    ClearBackground((Color){8, 10, 22, 255});
+void draw_title(void) {
+    ClearBackground((Color){5, 5, 8, 255});
 
-    SetRandomSeed(42);
-    for (int i = 0; i < 120; i++) {
-        int sx = GetRandomValue(0, RENDER_W);
-        int sy = GetRandomValue(0, RENDER_H);
-        float bri = 0.3f + (GetRandomValue(0, 100) / 100.0f) * 0.7f;
-        float twinkle = 0.7f + 0.3f * sinf(GetTime() * (1 + GetRandomValue(0, 20) / 10.0f) + i);
-        DrawPixel(sx, sy, (Color){240, 235, 220, (unsigned char)(255 * bri * twinkle)});
-    }
+    float t = (float)GetTime();
+    // Fade-in alpha for the horizon line (ramps over first 2 seconds)
+    float line_alpha = fminf(1.0f, t / 2.0f);
 
-    float cx = RENDER_W / 2, cy = RENDER_H / 2 + 15;
-    DrawCircle((int)cx, (int)cy, 45, (Color){60, 55, 72, 255});
-    for (int i = 0; i < 6; i++) {
-        float crat_x = sinf(i * 1.7f + planet_angle) * 25;
-        float crat_y = cosf(i * 2.3f) * 18;
-        if (sqrtf(crat_x*crat_x + crat_y*crat_y) < 38) {
-            DrawCircle((int)(cx + crat_x), (int)(cy + crat_y), 3 + i % 3, (Color){45, 40, 55, 150});
-        }
-    }
-    DrawCircleLines((int)cx, (int)cy, 47, (Color){100, 110, 150, 40});
+    // Horizon line — 1px, warm brass, centered vertically
+    int line_y = RENDER_H / 2;
+    DrawRectangle(0, line_y, RENDER_W, 1,
+                  (Color){178, 155, 107, (unsigned char)(180 * line_alpha)});
 
+    // Title — above the line
     const char *title = "E N D E A R I N G   V O I D";
-    int tw = MeasureText(title, 12);
-    DrawText(title, RENDER_W/2 - tw/2, 25, 12, (Color){240, 232, 210, 230});
+    int tw = MeasureText(title, 14);
+    DrawText(title, RENDER_W/2 - tw/2, line_y - 22, 14,
+             (Color){200, 178, 130, (unsigned char)(230 * line_alpha)});
 
-    const char *sub = "A game by Glitched Games";
+    // Studio name — below the line
+    const char *sub = "Glitched Games";
     int sw = MeasureText(sub, 8);
-    DrawText(sub, RENDER_W/2 - sw/2, RENDER_H - 35, 8, (Color){180, 175, 165, 140});
+    DrawText(sub, RENDER_W/2 - sw/2, line_y + 8, 8,
+             (Color){140, 135, 128, (unsigned char)(120 * line_alpha)});
 
-    float pulse = 0.4f + 0.4f * sinf(GetTime() * 3);
+    // Press enter — bottom, pulsing gently
+    float pulse = 0.5f + 0.3f * sinf(t * 2.5f);
     const char *prompt = "PRESS ENTER";
-    int pw = MeasureText(prompt, 10);
-    DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H - 20, 10,
-             (Color){230, 190, 90, (unsigned char)(255 * pulse)});
+    int pw = MeasureText(prompt, 8);
+    DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H - 20, 8,
+             (Color){235, 228, 218, (unsigned char)(200 * pulse * line_alpha)});
+}
+
+void draw_night_sky(float time) {
+    // Gradient from deep navy (top) to dark blue-gray (horizon)
+    for (int y = 0; y < RENDER_H; y++) {
+        float t = (float)y / RENDER_H;
+        unsigned char r = (unsigned char)(8 + t * 17);
+        unsigned char g = (unsigned char)(12 + t * 18);
+        unsigned char b = (unsigned char)(28 + t * 22);
+        DrawRectangle(0, y, RENDER_W, 1, (Color){r, g, b, 255});
+    }
+
+    // Stars — 80 dots, seeded random, subtle twinkle
+    SetRandomSeed(73);
+    for (int i = 0; i < 80; i++) {
+        int sx = GetRandomValue(0, RENDER_W);
+        int sy = GetRandomValue(0, RENDER_H * 3 / 4);
+        float bri = 0.3f + (GetRandomValue(0, 70) / 100.0f);
+        float twinkle = 0.7f + 0.3f * sinf(time * (0.8f + GetRandomValue(0, 15) / 10.0f) + i * 2.1f);
+        DrawPixel(sx, sy, (Color){230, 225, 215, (unsigned char)(255 * bri * twinkle)});
+    }
+
+    // Moon — upper right, pale with darker crescent overlay
+    int mx = RENDER_W - 50;
+    int my = 35;
+    DrawCircle(mx, my, 8, (Color){220, 218, 212, 180});
+    DrawCircle(mx + 3, my - 2, 7, (Color){15, 18, 35, 200});  // crescent shadow
+
+    // City light pollution — faint warm glow along bottom quarter
+    DrawRectangle(0, RENDER_H * 3 / 4, RENDER_W, RENDER_H / 4,
+                  (Color){60, 45, 30, 15});
 }
 
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target) {
