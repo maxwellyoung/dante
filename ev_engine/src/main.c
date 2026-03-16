@@ -1,0 +1,888 @@
+// ENDEARING VOID — Custom engine on Raylib
+// Glitched Games — Maxwell Young & Adam Van der Voorn
+//
+// First-person exploration. Walter Neistat. Paris hotel. Then space.
+// Lo-fi PS1 aesthetic. Entirely code. No editor.
+
+#include "raylib.h"
+#include "raymath.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+#define RENDER_W 480
+#define RENDER_H 300
+#define MOVE_SPEED 4.0f
+#define SPRINT_SPEED 7.0f
+#define MOUSE_SENS 0.003f
+#define MAX_OBJECTS 64
+#define MAX_WALLS 256
+
+// ============================================================
+// TYPES
+// ============================================================
+
+typedef enum {
+    STATE_TITLE,
+    STATE_CAR,
+    STATE_DRIVING,
+    STATE_HOTEL_EXT,
+    STATE_LOBBY,
+    STATE_HALLWAY,
+    STATE_ROOM,
+    STATE_BED,
+    STATE_STARS,
+} GameState;
+
+typedef struct {
+    Vector3 pos;
+    Vector3 size;
+    Color color;
+    bool active;
+} Wall;
+
+typedef struct {
+    Vector3 pos;
+    Color color;
+    const char *name;
+    const char *prompt;
+    const char *done_text;
+    bool done;
+    bool active;
+    float radius;
+} InteractObject;
+
+typedef struct {
+    Camera3D camera;
+    Vector3 velocity;
+    bool sprinting;
+    float sprint_stamina;
+    float bob_timer;
+} Player;
+
+typedef struct {
+    Wall walls[MAX_WALLS];
+    int wall_count;
+    InteractObject objects[MAX_OBJECTS];
+    int object_count;
+    Vector3 spawn;
+    Vector3 exit_pos;
+    bool has_exit;
+    Color floor_color;
+    Color ceiling_color;
+    Color fog_color;
+    float fog_density;
+} Scene;
+
+// ============================================================
+// GLOBALS
+// ============================================================
+
+static GameState state = STATE_TITLE;
+static float state_time = 0;
+static float fade_alpha = 1.0f;
+static float fade_target = 0.0f;
+static GameState next_state = STATE_TITLE;
+static bool transitioning = false;
+
+static Player player = {0};
+static Scene scene = {0};
+
+static RenderTexture2D render_target;
+static float planet_angle = 0;
+static float drive_speed = 0;
+static float drive_time = 0;
+
+static const char *screen_text = NULL;
+static float screen_text_timer = 0;
+
+static int tasks_done = 0;
+static const int total_tasks = 5;
+
+// ============================================================
+// SCENE BUILDING — entirely in code, no files
+// ============================================================
+
+static void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
+    if (s->wall_count >= MAX_WALLS) return;
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z},
+        .size = {w, h, d},
+        .color = c,
+        .active = true,
+    };
+}
+
+static void add_object(Scene *s, float x, float y, float z, const char *name,
+                       const char *prompt, const char *done_text, Color c) {
+    if (s->object_count >= MAX_OBJECTS) return;
+    s->objects[s->object_count++] = (InteractObject){
+        .pos = {x, y, z},
+        .color = c,
+        .name = name,
+        .prompt = prompt,
+        .done_text = done_text,
+        .done = false,
+        .active = true,
+        .radius = 2.0f,
+    };
+}
+
+// Build a box room from walls
+static void build_room(Scene *s, float cx, float cz, float w, float d, float h,
+                       Color wall_c, Color floor_c, Color ceil_c) {
+    float hw = w / 2, hd = d / 2;
+    s->floor_color = floor_c;
+    s->ceiling_color = ceil_c;
+
+    // Floor
+    add_wall(s, cx, -0.1f, cz, w, 0.2f, d, floor_c);
+    // Ceiling
+    add_wall(s, cx, h, cz, w, 0.2f, d, ceil_c);
+    // Walls — North
+    add_wall(s, cx, h/2, cz - hd, w, h, 0.3f, wall_c);
+    // South
+    add_wall(s, cx, h/2, cz + hd, w, h, 0.3f, wall_c);
+    // East
+    add_wall(s, cx + hw, h/2, cz, 0.3f, h, d, wall_c);
+    // West
+    add_wall(s, cx - hw, h/2, cz, 0.3f, h, d, wall_c);
+}
+
+// Add a pillar (brutalist concrete column)
+static void add_pillar(Scene *s, float x, float z, float radius, float height, Color c) {
+    add_wall(s, x, height/2, z, radius*2, height, radius*2, c);
+}
+
+// Add a doorway (gap in a wall) — represented by two wall segments with a gap
+static void add_wall_with_door(Scene *s, float x, float y, float z,
+                               float total_w, float h, float d,
+                               float door_offset, float door_w, Color c) {
+    float left_w = door_offset - door_w/2;
+    float right_w = total_w - door_offset - door_w/2;
+    if (left_w > 0.1f) {
+        add_wall(s, x - total_w/2 + left_w/2, y, z, left_w, h, d, c);
+    }
+    if (right_w > 0.1f) {
+        add_wall(s, x + total_w/2 - right_w/2, y, z, right_w, h, d, c);
+    }
+    // Door frame top
+    add_wall(s, x - total_w/2 + door_offset, y + h*0.35f, z, door_w, h*0.3f, d, c);
+}
+
+static void build_lobby(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    Color concrete = {140, 140, 148, 255};
+    Color gold = {190, 158, 90, 255};
+    Color plant = {40, 90, 50, 255};
+    Color titanium = {190, 172, 115, 255};
+    Color dark_floor = {60, 45, 25, 255};
+    Color warm_ceil = {50, 38, 22, 255};
+
+    s->fog_color = (Color){15, 12, 6, 255};
+    s->fog_density = 0.04f;
+
+    // Main lobby volume — wide, tall, asymmetric
+    // Floor
+    add_wall(s, 0, -0.1f, 0, 30, 0.2f, 20, dark_floor);
+    // Ceiling — high
+    add_wall(s, 0, 6, 0, 30, 0.2f, 20, warm_ceil);
+
+    // Back wall
+    add_wall(s, 0, 3, -10, 30, 6, 0.3f, concrete);
+    // Front wall with entrance
+    add_wall_with_door(s, 0, 3, 10, 30, 6, 0.3f, 15, 4, concrete);
+    // Left wall
+    add_wall(s, -15, 3, 0, 0.3f, 6, 20, concrete);
+    // Right wall with exit door
+    add_wall_with_door(s, 15, 3, 0, 0.3f, 6, 20, 14, 3, gold);
+
+    // Gehry-inspired angular pillars — asymmetric placement
+    add_pillar(s, -8, -4, 0.8f, 6, titanium);
+    add_pillar(s, -3, 2, 0.6f, 6, titanium);
+    add_pillar(s, 5, -6, 0.7f, 6, concrete);
+    add_pillar(s, 8, 3, 0.5f, 6, titanium);
+
+    // Plant walls — eco-brutalist accents
+    add_wall(s, -10, 1.5f, -8, 3, 3, 0.4f, plant);
+    add_wall(s, 6, 1.5f, -8, 2, 3, 0.4f, plant);
+
+    // Reception desk
+    add_wall(s, 0, 0.5f, -7, 6, 1.0f, 1.5f, gold);
+
+    // Godard color accents — red and blue panels
+    add_wall(s, -14.8f, 3, -5, 0.15f, 2, 2, (Color){200, 50, 40, 255});
+    add_wall(s, -14.8f, 3, 5, 0.15f, 2, 2, (Color){40, 75, 180, 255});
+
+    s->spawn = (Vector3){0, 1.6f, 8};
+    s->exit_pos = (Vector3){14.5f, 1.6f, 6};
+    s->has_exit = true;
+}
+
+static void build_hallway(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    Color concrete = {130, 130, 135, 255};
+    Color gold = {190, 155, 90, 255};
+    Color red = {200, 50, 40, 255};
+    Color blue = {40, 75, 180, 255};
+    Color floor_c = {55, 40, 25, 255};
+    Color ceil_c = {40, 32, 20, 255};
+
+    s->fog_color = (Color){12, 10, 6, 255};
+    s->fog_density = 0.03f;
+
+    float hall_length = 40;
+    float hall_width = 4;
+    float hall_height = 3.5f;
+
+    // Floor and ceiling
+    add_wall(s, 0, -0.1f, -hall_length/2, hall_width, 0.2f, hall_length, floor_c);
+    add_wall(s, 0, hall_height, -hall_length/2, hall_width, 0.2f, hall_length, ceil_c);
+
+    // Side walls
+    add_wall(s, -hall_width/2, hall_height/2, -hall_length/2, 0.3f, hall_height, hall_length, concrete);
+    add_wall(s, hall_width/2, hall_height/2, -hall_length/2, 0.3f, hall_height, hall_length, concrete);
+
+    // End walls
+    add_wall(s, 0, hall_height/2, 0, hall_width, hall_height, 0.3f, concrete);
+    add_wall(s, 0, hall_height/2, -hall_length, hall_width, hall_height, 0.3f, concrete);
+
+    // Alternating Godard doors along the hallway
+    for (int i = 0; i < 8; i++) {
+        float z = -4 - i * 4.5f;
+        Color door_c = (i % 2 == 0) ? red : blue;
+        float side = (i % 2 == 0) ? -1.8f : 1.8f;
+        add_wall(s, side, 1.2f, z, 0.15f, 2.4f, 1.2f, door_c);
+        // Gold door frame
+        add_wall(s, side, 2.6f, z, 0.15f, 0.3f, 1.4f, gold);
+    }
+
+    s->spawn = (Vector3){0, 1.6f, -1};
+    s->exit_pos = (Vector3){0, 1.6f, -hall_length + 1};
+    s->has_exit = true;
+}
+
+static void build_hotel_room(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    Color warm_wall = {155, 125, 80, 255};
+    Color floor_c = {80, 60, 35, 255};
+    Color ceil_c = {55, 42, 25, 255};
+    Color gold = {190, 155, 90, 255};
+    Color cream = {240, 230, 210, 255};
+    Color burgundy = {140, 40, 48, 255};
+    Color wood = {100, 70, 40, 255};
+
+    s->fog_color = (Color){12, 10, 5, 255};
+    s->fog_density = 0.025f;
+
+    float rw = 12, rd = 10, rh = 3.5f;
+
+    // Room shell
+    add_wall(s, 0, -0.1f, 0, rw, 0.2f, rd, floor_c);
+    add_wall(s, 0, rh, 0, rw, 0.2f, rd, ceil_c);
+    add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, warm_wall);    // back
+    add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, warm_wall);     // front (entrance)
+    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, warm_wall);    // left
+    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, warm_wall);     // right
+
+    // Bed — large, centered against back wall
+    add_wall(s, 0, 0.4f, -3.5f, 3.5f, 0.8f, 2.0f, cream);
+    // Bed frame
+    add_wall(s, 0, 0.8f, -4.4f, 3.8f, 1.2f, 0.15f, wood);
+
+    // Bedside tables
+    add_wall(s, -2.8f, 0.35f, -3.5f, 0.8f, 0.7f, 0.8f, wood);
+    add_wall(s, 2.8f, 0.35f, -3.5f, 0.8f, 0.7f, 0.8f, wood);
+
+    // Desk against right wall
+    add_wall(s, 5.0f, 0.4f, 0, 2.5f, 0.8f, 1.2f, wood);
+    // Desk chair
+    add_wall(s, 4.0f, 0.4f, 0, 0.6f, 0.8f, 0.6f, burgundy);
+
+    // Sofa against left wall
+    add_wall(s, -4.5f, 0.35f, 1.5f, 2.5f, 0.7f, 1.0f, burgundy);
+
+    // Coffee table
+    add_wall(s, -4.5f, 0.2f, 3.0f, 1.5f, 0.4f, 0.8f, wood);
+
+    // Suitcase on floor near entrance
+    add_wall(s, 2, 0.25f, 3.5f, 0.8f, 0.5f, 0.5f, (Color){130, 90, 55, 255});
+
+    // Balcony door (gold frame, slightly recessed)
+    add_wall(s, -5.8f, 1.5f, -1, 0.15f, 2.8f, 1.8f, (Color){180, 200, 220, 128});
+    add_wall(s, -5.85f, 3.1f, -1, 0.1f, 0.3f, 2.0f, gold);
+
+    // Interactive objects
+    add_object(s, -2.8f, 1.2f, -3.5f, "lamp", "Change the lightbulb", "Better.",
+               (Color){220, 190, 100, 255});
+    add_object(s, 5.0f, 1.0f, 0, "drawers", "Unpack your clothes",  "Home for now.",
+               (Color){180, 130, 80, 255});
+    add_object(s, -4.5f, 0.6f, 3.0f, "candles", "Light the candles", "Warm.",
+               cream);
+    add_object(s, 5.5f, 0.6f, -2, "ashtray", "Clear the cigarettes", "Clean air.",
+               (Color){130, 120, 110, 255});
+    add_object(s, 0, 0.8f, -3.5f, "bed", "Make the bed", "Smooth.",
+               cream);
+
+    s->spawn = (Vector3){0, 1.6f, 4};
+    s->has_exit = false;
+}
+
+// ============================================================
+// PLAYER
+// ============================================================
+
+static void init_player(Vector3 pos) {
+    player.camera.position = pos;
+    player.camera.target = (Vector3){pos.x, pos.y, pos.z - 1};
+    player.camera.up = (Vector3){0, 1, 0};
+    player.camera.fovy = 65.0f;
+    player.camera.projection = CAMERA_PERSPECTIVE;
+    player.velocity = (Vector3){0, 0, 0};
+    player.sprinting = false;
+    player.sprint_stamina = 1.0f;
+    player.bob_timer = 0;
+}
+
+static void update_player(float dt) {
+    // Mouse look
+    Vector2 mouse_delta = GetMouseDelta();
+    float yaw = -mouse_delta.x * MOUSE_SENS;
+    float pitch = -mouse_delta.y * MOUSE_SENS;
+
+    // Get camera forward/right vectors
+    Vector3 forward = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+    Vector3 right = Vector3Normalize(Vector3CrossProduct(forward, player.camera.up));
+
+    // Apply yaw
+    Matrix yaw_mat = MatrixRotateY(yaw);
+    forward = Vector3Transform(forward, yaw_mat);
+    // Apply pitch (clamped)
+    Vector3 pitch_axis = right;
+    float current_pitch = asinf(forward.y);
+    float new_pitch = current_pitch + pitch;
+    if (new_pitch > 1.2f) pitch = 1.2f - current_pitch;
+    if (new_pitch < -1.2f) pitch = -1.2f - current_pitch;
+    Matrix pitch_mat = MatrixRotate(pitch_axis, pitch);
+    forward = Vector3Transform(forward, pitch_mat);
+
+    player.camera.target = Vector3Add(player.camera.position, forward);
+
+    // Sprint
+    player.sprinting = IsKeyDown(KEY_LEFT_SHIFT) && player.sprint_stamina > 0;
+    if (player.sprinting) {
+        player.sprint_stamina -= dt * 0.5f;
+        if (player.sprint_stamina < 0) player.sprint_stamina = 0;
+    } else {
+        player.sprint_stamina += dt * 0.3f;
+        if (player.sprint_stamina > 1) player.sprint_stamina = 1;
+    }
+    float speed = player.sprinting ? SPRINT_SPEED : MOVE_SPEED;
+
+    // Movement
+    Vector3 flat_forward = {forward.x, 0, forward.z};
+    flat_forward = Vector3Normalize(flat_forward);
+    Vector3 flat_right = {right.x, 0, right.z};
+    flat_right = Vector3Normalize(flat_right);
+
+    Vector3 move = {0, 0, 0};
+    bool moving = false;
+    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) { move = Vector3Add(move, flat_forward); moving = true; }
+    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) { move = Vector3Subtract(move, flat_forward); moving = true; }
+    if (IsKeyDown(KEY_A)) { move = Vector3Add(move, flat_right); moving = true; }
+    if (IsKeyDown(KEY_D)) { move = Vector3Subtract(move, flat_right); moving = true; }
+
+    if (moving) {
+        move = Vector3Normalize(move);
+        move = Vector3Scale(move, speed * dt);
+        player.bob_timer += dt * (player.sprinting ? 12 : 8);
+    }
+
+    // Simple collision with scene walls
+    Vector3 new_pos = Vector3Add(player.camera.position, move);
+
+    // Check collision against walls (simple AABB)
+    bool blocked = false;
+    for (int i = 0; i < scene.wall_count; i++) {
+        Wall *w = &scene.walls[i];
+        if (!w->active) continue;
+        // Expand wall by player radius
+        float pr = 0.4f;
+        if (new_pos.x > w->pos.x - w->size.x/2 - pr &&
+            new_pos.x < w->pos.x + w->size.x/2 + pr &&
+            new_pos.z > w->pos.z - w->size.z/2 - pr &&
+            new_pos.z < w->pos.z + w->size.z/2 + pr &&
+            new_pos.y > w->pos.y - w->size.y/2 &&
+            new_pos.y < w->pos.y + w->size.y/2) {
+            // Try sliding along axes
+            Vector3 try_x = {new_pos.x, player.camera.position.y, player.camera.position.z};
+            Vector3 try_z = {player.camera.position.x, player.camera.position.y, new_pos.z};
+
+            bool block_x = (try_x.x > w->pos.x - w->size.x/2 - pr &&
+                           try_x.x < w->pos.x + w->size.x/2 + pr &&
+                           try_x.z > w->pos.z - w->size.z/2 - pr &&
+                           try_x.z < w->pos.z + w->size.z/2 + pr);
+            bool block_z = (try_z.x > w->pos.x - w->size.x/2 - pr &&
+                           try_z.x < w->pos.x + w->size.x/2 + pr &&
+                           try_z.z > w->pos.z - w->size.z/2 - pr &&
+                           try_z.z < w->pos.z + w->size.z/2 + pr);
+
+            if (block_x) new_pos.x = player.camera.position.x;
+            if (block_z) new_pos.z = player.camera.position.z;
+            blocked = true;
+        }
+    }
+
+    // Head bob
+    float bob = sinf(player.bob_timer) * 0.06f;
+    new_pos.y = 1.6f + (moving ? bob : 0);
+
+    player.camera.position = new_pos;
+    player.camera.target = Vector3Add(new_pos, forward);
+}
+
+// ============================================================
+// DRAWING
+// ============================================================
+
+static void draw_scene_3d(void) {
+    BeginMode3D(player.camera);
+
+    // Draw all walls as cubes
+    for (int i = 0; i < scene.wall_count; i++) {
+        Wall *w = &scene.walls[i];
+        if (!w->active) continue;
+        DrawCube(w->pos, w->size.x, w->size.y, w->size.z, w->color);
+        // Subtle edge lines for depth
+        DrawCubeWires(w->pos, w->size.x, w->size.y, w->size.z,
+                      (Color){w->color.r/2, w->color.g/2, w->color.b/2, 80});
+    }
+
+    // Draw interactive objects as glowing spheres
+    for (int i = 0; i < scene.object_count; i++) {
+        InteractObject *obj = &scene.objects[i];
+        if (!obj->active || obj->done) continue;
+        float pulse = 0.7f + 0.3f * sinf(GetTime() * 3 + i * 1.5f);
+        Color c = obj->color;
+        c.a = (unsigned char)(200 * pulse);
+        DrawSphere(obj->pos, 0.3f, c);
+        // Glow
+        DrawSphere(obj->pos, 0.5f, (Color){c.r, c.g, c.b, (unsigned char)(40 * pulse)});
+    }
+
+    // Exit beacon
+    if (scene.has_exit) {
+        float pulse = 0.5f + 0.3f * sinf(GetTime() * 2);
+        DrawSphere(scene.exit_pos, 0.4f, (Color){230, 200, 100, (unsigned char)(100 * pulse)});
+    }
+
+    EndMode3D();
+}
+
+static void draw_dither_overlay(void) {
+    // Scanlines
+    for (int y = 0; y < RENDER_H; y += 2) {
+        DrawRectangle(0, y, RENDER_W, 1, (Color){0, 0, 0, 12});
+    }
+}
+
+static void draw_hud(void) {
+    // Interaction prompt
+    for (int i = 0; i < scene.object_count; i++) {
+        InteractObject *obj = &scene.objects[i];
+        if (!obj->active || obj->done) continue;
+        float dist = Vector3Distance(player.camera.position, obj->pos);
+        if (dist < obj->radius) {
+            // Check if looking at it (dot product)
+            Vector3 to_obj = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+            float dot = Vector3DotProduct(to_obj, look);
+            if (dot > 0.7f) {
+                DrawRectangle(RENDER_W/2 - 90, RENDER_H/2 + 20, 180, 24, (Color){0, 0, 0, 140});
+                DrawText(TextFormat("[E] %s", obj->prompt),
+                         RENDER_W/2 - 80, RENDER_H/2 + 25, 10, (Color){240, 230, 210, 230});
+            }
+        }
+    }
+
+    // Task counter
+    if (state == STATE_ROOM) {
+        DrawText(TextFormat("%d/%d", tasks_done, total_tasks),
+                 RENDER_W - 45, 10, 10, (Color){190, 155, 90, 150});
+    }
+
+    // Screen text
+    if (screen_text && screen_text_timer > 0) {
+        float alpha = screen_text_timer < 0.5f ? screen_text_timer / 0.5f : 1.0f;
+        DrawRectangle(0, RENDER_H - 36, RENDER_W, 28, (Color){0, 0, 0, (unsigned char)(100 * alpha)});
+        DrawText(screen_text, 14, RENDER_H - 30, 10, (Color){230, 225, 215, (unsigned char)(230 * alpha)});
+    }
+}
+
+static void draw_title(void) {
+    ClearBackground((Color){8, 10, 22, 255});
+
+    // Stars
+    SetRandomSeed(42);
+    for (int i = 0; i < 120; i++) {
+        int sx = GetRandomValue(0, RENDER_W);
+        int sy = GetRandomValue(0, RENDER_H);
+        float bri = 0.3f + (GetRandomValue(0, 100) / 100.0f) * 0.7f;
+        float twinkle = 0.7f + 0.3f * sinf(GetTime() * (1 + GetRandomValue(0, 20) / 10.0f) + i);
+        DrawPixel(sx, sy, (Color){240, 235, 220, (unsigned char)(255 * bri * twinkle)});
+    }
+
+    // Planet
+    float cx = RENDER_W / 2, cy = RENDER_H / 2 + 15;
+    DrawCircle((int)cx, (int)cy, 45, (Color){60, 55, 72, 255});
+    // Craters shift with rotation
+    for (int i = 0; i < 6; i++) {
+        float crat_x = sinf(i * 1.7f + planet_angle) * 25;
+        float crat_y = cosf(i * 2.3f) * 18;
+        if (sqrtf(crat_x*crat_x + crat_y*crat_y) < 38) {
+            DrawCircle((int)(cx + crat_x), (int)(cy + crat_y), 3 + i % 3, (Color){45, 40, 55, 150});
+        }
+    }
+    // Atmosphere
+    DrawCircleLines((int)cx, (int)cy, 47, (Color){100, 110, 150, 40});
+
+    // Title
+    const char *title = "E N D E A R I N G   V O I D";
+    int tw = MeasureText(title, 12);
+    DrawText(title, RENDER_W/2 - tw/2, 25, 12, (Color){240, 232, 210, 230});
+
+    // Subtitle
+    const char *sub = "A game by Glitched Games";
+    int sw = MeasureText(sub, 8);
+    DrawText(sub, RENDER_W/2 - sw/2, RENDER_H - 35, 8, (Color){180, 175, 165, 140});
+
+    // Prompt
+    float pulse = 0.4f + 0.4f * sinf(GetTime() * 3);
+    const char *prompt = "PRESS ENTER";
+    int pw = MeasureText(prompt, 10);
+    DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H - 20, 10,
+             (Color){230, 190, 90, (unsigned char)(255 * pulse)});
+}
+
+// ============================================================
+// STATE MANAGEMENT
+// ============================================================
+
+static void transition_to(GameState s) {
+    transitioning = true;
+    next_state = s;
+    fade_target = 1.0f;
+}
+
+static void load_state(GameState s) {
+    state = s;
+    state_time = 0;
+    screen_text = NULL;
+    screen_text_timer = 0;
+
+    switch (s) {
+        case STATE_TITLE:
+            DisableCursor();
+            break;
+        case STATE_CAR:
+            screen_text = "You wake up.";
+            screen_text_timer = 3;
+            break;
+        case STATE_DRIVING:
+            drive_time = 0;
+            drive_speed = 0;
+            screen_text = "Hold W to drive.";
+            screen_text_timer = 3;
+            break;
+        case STATE_HOTEL_EXT:
+            screen_text = "Hotel Chevalier.";
+            screen_text_timer = 2.5f;
+            break;
+        case STATE_LOBBY:
+            EnableCursor();
+            DisableCursor();
+            build_lobby(&scene);
+            init_player(scene.spawn);
+            screen_text = "Find your room.";
+            screen_text_timer = 3;
+            break;
+        case STATE_HALLWAY:
+            build_hallway(&scene);
+            init_player(scene.spawn);
+            break;
+        case STATE_ROOM:
+            build_hotel_room(&scene);
+            init_player(scene.spawn);
+            tasks_done = 0;
+            screen_text = "Make this place yours.";
+            screen_text_timer = 3;
+            break;
+        case STATE_BED:
+            screen_text = NULL;
+            break;
+        case STATE_STARS:
+            break;
+    }
+
+    fade_alpha = 1.0f;
+    fade_target = 0.0f;
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+
+int main(void) {
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(960, 600, "Endearing Void");
+    SetTargetFPS(60);
+
+    render_target = LoadRenderTexture(RENDER_W, RENDER_H);
+    SetTextureFilter(render_target.texture, TEXTURE_FILTER_POINT);
+
+    DisableCursor();
+    load_state(STATE_TITLE);
+
+    while (!WindowShouldClose()) {
+        float dt = GetFrameTime();
+        state_time += dt;
+
+        // Fade
+        if (fade_alpha != fade_target) {
+            float dir = (fade_target > fade_alpha) ? 1 : -1;
+            fade_alpha += dir * 2.0f * dt;
+            if ((dir > 0 && fade_alpha >= fade_target) || (dir < 0 && fade_alpha <= fade_target)) {
+                fade_alpha = fade_target;
+                if (transitioning) {
+                    transitioning = false;
+                    load_state(next_state);
+                }
+            }
+        }
+
+        // Screen text timer
+        if (screen_text_timer > 0) {
+            screen_text_timer -= dt;
+            if (screen_text_timer <= 0) screen_text = NULL;
+        }
+
+        // State update
+        switch (state) {
+            case STATE_TITLE:
+                planet_angle += dt * 0.2f;
+                if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+                    transition_to(STATE_CAR);
+                }
+                break;
+
+            case STATE_CAR:
+                if (state_time > 4 || IsKeyPressed(KEY_ENTER)) {
+                    transition_to(STATE_DRIVING);
+                }
+                break;
+
+            case STATE_DRIVING:
+                drive_time += dt;
+                if (IsKeyDown(KEY_W)) drive_speed = fminf(1, drive_speed + dt * 0.5f);
+                else drive_speed = fmaxf(0, drive_speed - dt * 0.8f);
+                if (drive_time > 10 || IsKeyPressed(KEY_ENTER)) {
+                    transition_to(STATE_HOTEL_EXT);
+                }
+                break;
+
+            case STATE_HOTEL_EXT:
+                if (state_time > 4 || IsKeyPressed(KEY_ENTER)) {
+                    transition_to(STATE_LOBBY);
+                }
+                break;
+
+            case STATE_LOBBY:
+            case STATE_HALLWAY:
+                update_player(dt);
+                // Check exit
+                if (scene.has_exit) {
+                    float dist = Vector3Distance(player.camera.position, scene.exit_pos);
+                    if (dist < 1.5f) {
+                        if (state == STATE_LOBBY) transition_to(STATE_HALLWAY);
+                        else if (state == STATE_HALLWAY) transition_to(STATE_ROOM);
+                    }
+                }
+                break;
+
+            case STATE_ROOM:
+                update_player(dt);
+                // Interaction
+                if (IsKeyPressed(KEY_E)) {
+                    for (int i = 0; i < scene.object_count; i++) {
+                        InteractObject *obj = &scene.objects[i];
+                        if (!obj->active || obj->done) continue;
+                        float dist = Vector3Distance(player.camera.position, obj->pos);
+                        if (dist < obj->radius) {
+                            Vector3 to_obj = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            if (Vector3DotProduct(to_obj, look) > 0.5f) {
+                                obj->done = true;
+                                tasks_done++;
+                                screen_text = obj->done_text;
+                                screen_text_timer = 2;
+                                if (tasks_done >= total_tasks) {
+                                    screen_text = "Time to rest.";
+                                    screen_text_timer = 3;
+                                    // Will transition after text
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                // All tasks done → bed
+                if (tasks_done >= total_tasks && screen_text_timer <= 0) {
+                    transition_to(STATE_BED);
+                }
+                break;
+
+            case STATE_BED:
+                if (state_time > 6 || IsKeyPressed(KEY_ENTER)) {
+                    transition_to(STATE_STARS);
+                }
+                break;
+
+            case STATE_STARS:
+                if (IsKeyPressed(KEY_ESCAPE)) {
+                    CloseWindow();
+                    return 0;
+                }
+                break;
+        }
+
+        // ---- RENDER ----
+        BeginTextureMode(render_target);
+        ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8, 10, 22, 255});
+
+        switch (state) {
+            case STATE_TITLE:
+                draw_title();
+                break;
+            case STATE_CAR:
+            case STATE_DRIVING:
+            case STATE_HOTEL_EXT:
+                // 2D scenes — simplified for now
+                ClearBackground((Color){5, 5, 10, 255});
+                if (state == STATE_DRIVING) {
+                    // Road
+                    DrawRectangle(0, RENDER_H/2, RENDER_W, RENDER_H/2, (Color){30, 30, 35, 255});
+                    float scroll = drive_time * drive_speed * 200;
+                    for (int i = 0; i < 8; i++) {
+                        float d = fmodf(i * 40 + scroll, 320) / 320.0f;
+                        if (d > 0.02f) {
+                            int ly = RENDER_H/2 + (int)((RENDER_H/2) * d);
+                            int lw = (int)(2 + d * 20);
+                            DrawRectangle(RENDER_W/2 - lw/2, ly, lw, 2,
+                                         (Color){230, 215, 130, (unsigned char)(100 * (1 - d))});
+                        }
+                    }
+                    // Dashboard
+                    DrawRectangle(0, RENDER_H - 40, RENDER_W, 40, (Color){35, 28, 22, 255});
+                    DrawText(TextFormat("%d km/h", (int)(drive_speed * 80)),
+                             RENDER_W - 70, RENDER_H - 18, 10, (Color){200, 190, 170, 160});
+                }
+                if (state == STATE_HOTEL_EXT) {
+                    // Hotel facade
+                    DrawRectangle(RENDER_W/6, RENDER_H/6, RENDER_W*2/3, RENDER_H*2/3,
+                                 (Color){180, 150, 90, 255});
+                    // Windows
+                    for (int r = 0; r < 4; r++) {
+                        for (int c = 0; c < 5; c++) {
+                            int wx = RENDER_W/6 + 12 + c * ((RENDER_W*2/3 - 24) / 4);
+                            int wy = RENDER_H/6 + 10 + r * ((RENDER_H*2/3 - 20) / 4);
+                            DrawRectangle(wx, wy, 12, 18, (Color){230, 190, 100, 180});
+                        }
+                    }
+                    DrawText("HOTEL CHEVALIER", RENDER_W/2 - 55, RENDER_H/6 - 14, 10,
+                             (Color){230, 190, 90, 230});
+                }
+                if (state == STATE_CAR) {
+                    // Phone glow
+                    float glow = 0.5f + 0.5f * sinf(state_time * 4);
+                    DrawRectangle(RENDER_W/2 - 20, RENDER_H/2 - 14, 40, 28,
+                                 (Color){40, 55, 90, (unsigned char)(200 * glow)});
+                }
+                break;
+
+            case STATE_LOBBY:
+            case STATE_HALLWAY:
+            case STATE_ROOM:
+                draw_scene_3d();
+                break;
+
+            case STATE_BED: {
+                ClearBackground((Color){30, 25, 18, 255});
+                int star_count = (int)fminf(20, state_time * 4);
+                SetRandomSeed(99);
+                for (int i = 0; i < star_count; i++) {
+                    int sx = GetRandomValue(RENDER_W/10, RENDER_W*9/10);
+                    int sy = GetRandomValue(RENDER_H/10, RENDER_H*7/10);
+                    float gl = 0.4f + 0.4f * sinf(GetTime() * (0.5f + i * 0.1f) + i * 2);
+                    DrawCircle(sx, sy, 2, (Color){130, 230, 130, (unsigned char)(150 * gl)});
+                    DrawCircle(sx, sy, 6, (Color){130, 230, 130, (unsigned char)(30 * gl)});
+                }
+                break;
+            }
+
+            case STATE_STARS: {
+                ClearBackground((Color){4, 5, 12, 255});
+                float zoom = fminf(1, state_time / 3.0f);
+                SetRandomSeed(77);
+                int count = 60 + (int)(zoom * 140);
+                for (int i = 0; i < count; i++) {
+                    int sx = GetRandomValue(0, RENDER_W);
+                    int sy = GetRandomValue(0, RENDER_H);
+                    float bri = (0.2f + (GetRandomValue(0, 80) / 100.0f)) * zoom;
+                    float twk = 0.7f + 0.3f * sinf(GetTime() * (0.5f + GetRandomValue(0, 30)/10.0f) + i);
+                    DrawPixel(sx, sy, (Color){255, 250, 230, (unsigned char)(255 * bri * twk)});
+                }
+                if (state_time > 2) {
+                    float a = fminf(1, (state_time - 2) / 2.0f);
+                    const char *t = "E N D E A R I N G   V O I D";
+                    int tw2 = MeasureText(t, 14);
+                    DrawText(t, RENDER_W/2 - tw2/2, RENDER_H/2 - 8, 14,
+                             (Color){240, 232, 210, (unsigned char)(230 * a)});
+                }
+                break;
+            }
+        }
+
+        // Dither overlay
+        draw_dither_overlay();
+
+        // HUD
+        draw_hud();
+
+        // Fade
+        if (fade_alpha > 0.01f) {
+            DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){0, 0, 0, (unsigned char)(255 * fade_alpha)});
+        }
+
+        EndTextureMode();
+
+        // Draw render target scaled to window
+        BeginDrawing();
+        ClearBackground(BLACK);
+        float scale = fminf((float)GetScreenWidth() / RENDER_W, (float)GetScreenHeight() / RENDER_H);
+        float ox = (GetScreenWidth() - RENDER_W * scale) / 2;
+        float oy = (GetScreenHeight() - RENDER_H * scale) / 2;
+        DrawTexturePro(render_target.texture,
+            (Rectangle){0, 0, RENDER_W, -RENDER_H},
+            (Rectangle){ox, oy, RENDER_W * scale, RENDER_H * scale},
+            (Vector2){0, 0}, 0, WHITE);
+        EndDrawing();
+    }
+
+    UnloadRenderTexture(render_target);
+    CloseWindow();
+    return 0;
+}
