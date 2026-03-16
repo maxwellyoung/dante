@@ -51,6 +51,16 @@ static float sparkle_timer = 0;
 
 static bool elevator_ding_played = false;
 
+static bool returning_to_room = false;
+
+static float lobby_text_timer = 0;
+static bool lobby_text_active = false;
+
+static float balcony_text_timer = 0;
+static bool balcony_text_active = false;
+
+static bool room_intro_shown = false;
+
 static bool show_debug = false;
 static bool wireframe = false;
 
@@ -133,14 +143,18 @@ static void load_state(GameState s) {
             build_hotel_exterior(&scene);
             init_player(&player, scene.spawn);
             StopAmbient(&audio);
+            StopClockAmbient(&audio);
             StopStairwellAmbient(&audio);
-            StopWindAmbient(&audio);
+            PlayCityAmbient(&audio);
+            PlayWindAmbient(&audio);
             break;
 
         case STATE_LOBBY:
             EnableCursor(); DisableCursor();
             build_lobby(&scene);
             init_player(&player, scene.spawn);
+            lobby_text_active = false;
+            lobby_text_timer = 0;
             StartAmbient(&audio, DRONE_LOBBY);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
@@ -181,17 +195,24 @@ static void load_state(GameState s) {
             break;
 
         case STATE_ROOM:
-            build_hotel_room(&scene);
-            init_player(&player, scene.spawn);
-            tasks_done = 0;
-            phone_triggered = false;
-            phone_text_timer = 0;
+            if (!returning_to_room) {
+                build_hotel_room(&scene);
+                init_player(&player, scene.spawn);
+                tasks_done = 0;
+                phone_triggered = false;
+                phone_text_timer = 0;
+                room_intro_shown = false;
+                SetPostFXWarmth(&postfx, 0.0f);
+            } else {
+                // Returning from bathroom — preserve room state
+                init_player(&player, (Vector3){5.0f, 1.6f, -3.0f});
+                returning_to_room = false;
+            }
             StartAmbient(&audio, DRONE_ROOM);
             PlayClockAmbient(&audio);
             StopCityAmbient(&audio);
             StopStairwellAmbient(&audio);
             StopWindAmbient(&audio);
-            SetPostFXWarmth(&postfx, 0.0f);
             break;
 
         case STATE_BATHROOM:
@@ -210,6 +231,7 @@ static void load_state(GameState s) {
             build_balcony(&scene);
             init_player(&player, scene.spawn);
             eiffel_sparkle = false; sparkle_timer = 0;
+            balcony_text_active = false; balcony_text_timer = 0;
             StopAmbient(&audio);
             StopClockAmbient(&audio);
             StopStairwellAmbient(&audio);
@@ -532,17 +554,21 @@ int main(void) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
                                     show_text("Yesterday's Le Monde.");
+                                    lobby_text_active = true;
+                                    lobby_text_timer = 0;
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                // Auto-hide storytelling text after showing for 3s
-                if (vig_text_alpha > 0.5f && vig_text_target > 0.5f) {
-                    static float lobby_text_t = 0;
-                    lobby_text_t += dt;
-                    if (lobby_text_t > 3.0f) { hide_text(); lobby_text_t = 0; }
+                // Auto-hide storytelling text after 3s
+                if (lobby_text_active) {
+                    lobby_text_timer += dt;
+                    if (lobby_text_timer > 3.0f) {
+                        hide_text();
+                        lobby_text_active = false;
+                    }
                 }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
@@ -594,8 +620,13 @@ int main(void) {
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 // "Three hours to kill." — connects taxi to room (Vanaman, Wreden)
-                if (state_time > 3.0f && state_time < 3.5f) show_text("Three hours to kill.");
-                if (state_time > 7.0f && state_time < 7.5f) hide_text();
+                if (!room_intro_shown && state_time > 3.0f) {
+                    room_intro_shown = true;
+                    show_text("Three hours to kill.");
+                }
+                if (room_intro_shown && state_time > 7.0f && vig_text != NULL) {
+                    hide_text();
+                }
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -694,7 +725,11 @@ int main(void) {
 
                 if (tasks_done >= total_tasks) {
                     done_pause += dt;
-                    if (done_pause > 0.5f && done_pause < 1.0f) show_text("She'll be here soon.");
+                    if (done_pause > 0.5f && done_pause < 1.0f) {
+                        // Force-clear any lingering phone text
+                        phone_text_timer = 10.0f;
+                        show_text("She'll be here soon.");
+                    }
                     if (done_pause > 4.5f && done_pause < 5.0f) hide_text();
                     if (done_pause > 5.5f) transition_to(STATE_BALCONY);
                 }
@@ -713,6 +748,7 @@ int main(void) {
                             Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                             if (Vector3DotProduct(to, look) > 0.5f) {
                                 if (strcmp(obj->name, "door") == 0) {
+                                    returning_to_room = true;
                                     transition_to(STATE_ROOM);
                                     break;
                                 }
@@ -774,10 +810,20 @@ int main(void) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
                                     show_text("You quit last year.");
+                                    balcony_text_active = true;
+                                    balcony_text_timer = 0;
                                     break;
                                 }
                             }
                         }
+                    }
+                }
+                // Balcony text auto-hide after 3 seconds
+                if (balcony_text_active) {
+                    balcony_text_timer += dt;
+                    if (balcony_text_timer > 3.0f) {
+                        hide_text();
+                        balcony_text_active = false;
                     }
                 }
                 if (!eiffel_sparkle && state_time > 6) {
@@ -939,7 +985,8 @@ int main(void) {
 
         // HUD
         if (state == STATE_ROOM || state == STATE_BATHROOM ||
-            state == STATE_LOBBY || state == STATE_ELEVATOR || state == STATE_BALCONY) {
+            state == STATE_LOBBY || state == STATE_ELEVATOR || state == STATE_BALCONY ||
+            state == STATE_HALLWAY || state == STATE_STAIRWELL || state == STATE_ROOF) {
             draw_hud(&player, &scene);
             for (int i = 0; i < scene.object_count; i++) {
                 InteractObject *obj = &scene.objects[i];

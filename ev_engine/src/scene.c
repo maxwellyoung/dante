@@ -539,6 +539,10 @@ void build_balcony(Scene *s) {
     add_wall(s, -1.5f, 0.22f, 0.2f, 0.45f, 0.44f, 0.45f, (Color){120,100,70,255});
     add_wall(s, -1.5f, 0.58f, 0.42f, 0.45f, 0.4f, 0.06f, (Color){120,100,70,255});
 
+    // Second wine glass — she'll be here soon
+    add_wall(s, -1.2f, 0.49f, -0.7f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160}); // glass stem
+    add_wall(s, -1.2f, 0.52f, -0.7f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200}); // dark liquid
+
     // Ashtray with cigarette on railing table
     add_cylinder(s, -1.5f, 0.49f, -0.3f, 0.12f, 0.04f, (Color){140,135,130,255});
     add_object(s, -1.5f, 0.55f, -0.3f, "cigarette", (Color){200,195,185,255}, 1);

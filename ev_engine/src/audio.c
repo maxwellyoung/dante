@@ -510,15 +510,15 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_reward, 0.4f);
     SetSoundVolume(audio->snd_sparkle, 0.2f);
     SetSoundVolume(audio->door, 0.25f);
-    SetSoundVolume(audio->elevator_hum, 0.08f);
-    SetSoundVolume(audio->elevator_ding, 0.35f);
-    SetSoundVolume(audio->drone_lobby, 0.06f);    // barely there — through walls
-    SetSoundVolume(audio->drone_hallway, 0.05f);  // anticipation, not presence
-    SetSoundVolume(audio->drone_room, 0.10f);     // the room's own music
-    SetSoundVolume(audio->snd_city, 0.04f);       // distant city — barely audible
-    SetSoundVolume(audio->snd_clock, 0.03f);      // clock — peripheral awareness
-    SetSoundVolume(audio->snd_stairwell, 0.03f);  // distant door thuds — reverberant
-    SetSoundVolume(audio->snd_wind, 0.05f);       // wind — gusting on rooftop/balcony
+    SetSoundVolume(audio->elevator_hum, 0.04f);    // very quiet, more felt than heard
+    SetSoundVolume(audio->elevator_ding, 0.3f);    // clear but not jarring
+    SetSoundVolume(audio->drone_lobby, 0.06f);     // barely there — through walls
+    SetSoundVolume(audio->drone_hallway, 0.05f);   // anticipation, not presence
+    SetSoundVolume(audio->drone_room, 0.10f);      // the room's own music
+    SetSoundVolume(audio->snd_city, 0.03f);        // distant city
+    SetSoundVolume(audio->snd_clock, 0.025f);      // clock — barely there
+    SetSoundVolume(audio->snd_stairwell, 0.025f);  // distant door thuds — ambient
+    SetSoundVolume(audio->snd_wind, 0.04f);        // wind — gentle
 }
 
 void UnloadEVAudio(EVAudio *audio) {
