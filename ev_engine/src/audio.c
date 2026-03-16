@@ -314,6 +314,53 @@ static Sound gen_door_sound(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// --- AMBIENT SCENE SOUNDS ---
+
+// City traffic: low-pass filtered noise with occasional swells (10s loop)
+static Sound gen_city_ambient(void) {
+    int len = SAMPLE_RATE * 10;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    float prev = 0;
+    float prev2 = 0;
+    srand(555);
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // White noise
+        float noise = ((float)(rand() % 32768) / 16384.0f - 1.0f);
+        // Two-pole low pass for rumble
+        prev = prev * 0.95f + noise * 0.05f;
+        prev2 = prev2 * 0.92f + prev * 0.08f;
+        // Occasional swells (cars passing) — slow sine modulation
+        float swell = 1.0f + 0.4f * sinf(t * 1.2f) + 0.3f * sinf(t * 0.7f + 1.0f);
+        // Loop crossfade
+        float env = 1.0f;
+        if (lt < 0.02f) env = lt / 0.02f;
+        if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
+        d[i] = (short)(prev2 * swell * env * 5000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Clock tick: short click every 1 second (4s loop)
+static Sound gen_clock_ambient(void) {
+    int len = SAMPLE_RATE * 4;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int sec = 0; sec < 4; sec++) {
+        int start = sec * SAMPLE_RATE;
+        int tick_len = SAMPLE_RATE / 30;  // ~33ms tick
+        for (int i = 0; i < tick_len && (start + i) < len; i++) {
+            float t = (float)i / SAMPLE_RATE;
+            float env = expf(-60.0f * t);
+            float click = sinf(2 * PI * 3500 * t) * 0.5f + sinf(2 * PI * 1200 * t) * 0.3f;
+            d[start + i] = (short)(click * env * 6000);
+        }
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // --- ENGINE ---
 
 void InitEVAudio(EVAudio *audio) {
@@ -333,6 +380,10 @@ void InitEVAudio(EVAudio *audio) {
     audio->drone_lobby = gen_ambient_lobby();
     audio->drone_hallway = gen_ambient_hallway();
     audio->drone_room = gen_ambient_room();
+    audio->snd_city = gen_city_ambient();
+    audio->snd_clock = gen_clock_ambient();
+    audio->city_playing = false;
+    audio->clock_playing = false;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
     audio->step_index = 0;
@@ -353,6 +404,8 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->drone_lobby, 0.06f);    // barely there — through walls
     SetSoundVolume(audio->drone_hallway, 0.05f);  // anticipation, not presence
     SetSoundVolume(audio->drone_room, 0.10f);     // the room's own music
+    SetSoundVolume(audio->snd_city, 0.04f);       // distant city — barely audible
+    SetSoundVolume(audio->snd_clock, 0.03f);      // clock — peripheral awareness
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -367,6 +420,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_sparkle); UnloadSound(audio->door);
     UnloadSound(audio->drone_lobby); UnloadSound(audio->drone_hallway);
     UnloadSound(audio->drone_room);
+    UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -390,6 +444,8 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
         Sound *drone = get_drone(audio, audio->current_drone);
         if (!IsSoundPlaying(*drone)) PlaySound(*drone);
     }
+    if (audio->city_playing && !IsSoundPlaying(audio->snd_city)) PlaySound(audio->snd_city);
+    if (audio->clock_playing && !IsSoundPlaying(audio->snd_clock)) PlaySound(audio->snd_clock);
     Sound *steps = get_steps(audio, surface);
     audio->step_interval = sprinting ? 0.32f : 0.50f;
     if (moving) {
@@ -426,4 +482,29 @@ void StopAmbient(EVAudio *audio) {
     if (!audio->initialized || !audio->ambient_playing) return;
     StopSound(*get_drone(audio, audio->current_drone));
     audio->ambient_playing = false;
+}
+
+void PlayCityAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->city_playing) {
+        PlaySound(audio->snd_city);
+        audio->city_playing = true;
+    }
+}
+void StopCityAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_city);
+    audio->city_playing = false;
+}
+void PlayClockAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->clock_playing) {
+        PlaySound(audio->snd_clock);
+        audio->clock_playing = true;
+    }
+}
+void StopClockAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_clock);
+    audio->clock_playing = false;
 }

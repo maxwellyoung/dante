@@ -36,6 +36,11 @@ typedef struct {
     DroneType current_drone;
     bool ambient_playing;
 
+    Sound snd_city;
+    Sound snd_clock;
+    bool city_playing;
+    bool clock_playing;
+
     float step_timer;
     float step_interval;
     int step_index;
@@ -51,5 +56,9 @@ void PlaySparkleSound(EVAudio *audio);
 void PlayDoorSound(EVAudio *audio);
 void StartAmbient(EVAudio *audio, DroneType type);
 void StopAmbient(EVAudio *audio);
+void PlayCityAmbient(EVAudio *audio);
+void StopCityAmbient(EVAudio *audio);
+void PlayClockAmbient(EVAudio *audio);
+void StopClockAmbient(EVAudio *audio);
 
 #endif

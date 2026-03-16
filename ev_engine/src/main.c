@@ -39,6 +39,12 @@ static int tasks_done = 0;
 static const int total_tasks = 5;
 static float done_pause = 0;
 
+static bool phone_triggered = false;
+static float phone_text_timer = 0;
+
+static float bathroom_text_timer = 0;
+static bool bathroom_text_active = false;
+
 static bool eiffel_sparkle = false;
 static float sparkle_timer = 0;
 
@@ -124,20 +130,46 @@ static void load_state(GameState s) {
             build_lobby(&scene);
             init_player(&player, scene.spawn);
             StartAmbient(&audio, DRONE_LOBBY);
+            StopClockAmbient(&audio);
+            StopCityAmbient(&audio);
+            break;
+
+        case STATE_STAIRWELL:
+            build_stairwell(&scene);
+            init_player(&player, scene.spawn);
+            StopAmbient(&audio);
+            StopClockAmbient(&audio);
+            StopCityAmbient(&audio);
             break;
 
         case STATE_HALLWAY:
             build_hallway(&scene);
             init_player(&player, scene.spawn);
             StartAmbient(&audio, DRONE_HALLWAY);
+            StopClockAmbient(&audio);
+            StopCityAmbient(&audio);
             break;
 
         case STATE_ROOM:
             build_hotel_room(&scene);
             init_player(&player, scene.spawn);
             tasks_done = 0;
+            phone_triggered = false;
+            phone_text_timer = 0;
             StartAmbient(&audio, DRONE_ROOM);
+            PlayClockAmbient(&audio);
+            StopCityAmbient(&audio);
             SetPostFXWarmth(&postfx, 0.0f);
+            break;
+
+        case STATE_BATHROOM:
+            build_bathroom(&scene);
+            init_player(&player, scene.spawn);
+            bathroom_text_active = false;
+            bathroom_text_timer = 0;
+            StartAmbient(&audio, DRONE_ROOM);
+            StopClockAmbient(&audio);
+            StopCityAmbient(&audio);
             break;
 
         case STATE_BALCONY:
@@ -145,11 +177,13 @@ static void load_state(GameState s) {
             init_player(&player, scene.spawn);
             eiffel_sparkle = false; sparkle_timer = 0;
             StopAmbient(&audio);
+            StopClockAmbient(&audio);
+            PlayCityAmbient(&audio);
             SetPostFXWarmth(&postfx, 1.0f);
             break;
 
-        case STATE_BED: StopAmbient(&audio); break;
-        case STATE_STARS: StopAmbient(&audio); break;
+        case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); break;
+        case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); break;
     }
     fade_alpha = 1.0f;
     fade_target = 0.0f;
@@ -423,6 +457,15 @@ int main(void) {
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
+                    if (dist < 1.5f) transition_to(STATE_STAIRWELL);
+                }
+                break;
+
+            case STATE_STAIRWELL:
+                update_player(&player, &scene, dt);
+                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                if (scene.has_exit) {
+                    float dist = Vector3Distance(player.camera.position, scene.exit_pos);
                     if (dist < 1.5f) transition_to(STATE_HALLWAY);
                 }
                 break;
@@ -451,9 +494,36 @@ int main(void) {
                             Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
                             Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                             if (Vector3DotProduct(to, look) > 0.5f) {
+                                // Bathroom door — transition, not a task
+                                if (strcmp(obj->name, "bathroom") == 0) {
+                                    transition_to(STATE_BATHROOM);
+                                    break;
+                                }
                                 obj->step++;
                                 PlayInteract(&audio, get_interact_sound(obj->name));
                                 kick_camera(&player, -0.01f, 0.005f);
+
+                                // Per-step visual feedback — world accumulates changes
+                                if (strcmp(obj->name, "lamp") == 0 && obj->step == 1) {
+                                    // Lamp shade tilting — warm rectangle
+                                    add_wall(&scene, -2.5f, 1.0f, -3.65f, 0.15f, 0.25f, 0.15f, (Color){220,210,185,180});
+                                } else if (strcmp(obj->name, "candles") == 0 && obj->step == 1) {
+                                    // First flame
+                                    add_wall(&scene, -4.0f, 0.55f, 3.0f, 0.06f, 0.12f, 0.06f, (Color){255,200,80,200});
+                                } else if (strcmp(obj->name, "candles") == 0 && obj->step == 2) {
+                                    // Second flame, offset
+                                    add_wall(&scene, -4.2f, 0.55f, 3.0f, 0.06f, 0.12f, 0.06f, (Color){255,200,80,200});
+                                } else if (strcmp(obj->name, "bed") == 0 && obj->step == 1) {
+                                    // Sheets smoothed — brighter rectangle on bed
+                                    add_wall(&scene, 0.0f, 0.54f, -3.3f, 2.8f, 0.02f, 1.4f, (Color){245,242,235,255});
+                                } else if (strcmp(obj->name, "drawers") == 0 && obj->step == 1) {
+                                    // First item unpacked — blue shirt
+                                    add_wall(&scene, 2.0f, 0.4f, 3.4f, 0.5f, 0.04f, 0.35f, (Color){55,85,175,255});
+                                } else if (strcmp(obj->name, "drawers") == 0 && obj->step == 2) {
+                                    // Second item — red scarf
+                                    add_wall(&scene, 2.5f, 0.4f, 3.3f, 0.35f, 0.04f, 0.4f, (Color){200,50,45,255});
+                                }
+
                                 if (obj->step >= obj->max_steps) {
                                     obj->done = true;
                                     obj->reward_timer = 1.5f;
@@ -498,9 +568,73 @@ int main(void) {
                         }
                     }
                 }
+                // Phone lights up at 3 tasks — "Missed call."
+                if (tasks_done >= 3 && !phone_triggered) {
+                    phone_triggered = true;
+                    phone_text_timer = 0;
+                    // Bright screen on phone
+                    add_wall(&scene, 5.2f, 0.87f, 0.15f, 0.12f, 0.01f, 0.06f, (Color){120,180,230,180});
+                    show_text("Missed call.");
+                }
+                if (phone_triggered && phone_text_timer < 10.0f) {
+                    phone_text_timer += dt;
+                    if (phone_text_timer > 4.0f && phone_text_timer < 4.5f) hide_text();
+                }
+
                 if (tasks_done >= total_tasks) {
                     done_pause += dt;
-                    if (done_pause > 3.0f) transition_to(STATE_BALCONY);
+                    if (done_pause > 0.5f && done_pause < 1.0f) show_text("She'll be here soon.");
+                    if (done_pause > 4.5f && done_pause < 5.0f) hide_text();
+                    if (done_pause > 5.5f) transition_to(STATE_BALCONY);
+                }
+                break;
+
+            case STATE_BATHROOM:
+                update_player(&player, &scene, dt);
+                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                if (IsKeyPressed(KEY_E)) {
+                    for (int i = 0; i < scene.object_count; i++) {
+                        InteractObject *obj = &scene.objects[i];
+                        if (!obj->active || obj->done) continue;
+                        float dist = Vector3Distance(player.camera.position, obj->pos);
+                        if (dist < obj->radius) {
+                            Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            if (Vector3DotProduct(to, look) > 0.5f) {
+                                if (strcmp(obj->name, "door") == 0) {
+                                    transition_to(STATE_ROOM);
+                                    break;
+                                }
+                                if (strcmp(obj->name, "tap") == 0) {
+                                    obj->step++;
+                                    obj->done = true;
+                                    PlayInteract(&audio, INTERACT_CLICK);
+                                    kick_camera(&player, -0.01f, 0.005f);
+                                    // Running water under the tap
+                                    add_wall(&scene, 2.0f, 0.78f, 0.5f, 0.06f, 0.14f, 0.04f, (Color){180,200,220,120});
+                                    break;
+                                }
+                                if (strcmp(obj->name, "mirror") == 0) {
+                                    obj->step++;
+                                    obj->done = true;
+                                    PlayInteract(&audio, INTERACT_CLICK);
+                                    kick_camera(&player, -0.01f, 0.005f);
+                                    show_text("You look tired.");
+                                    bathroom_text_active = true;
+                                    bathroom_text_timer = 0;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Bathroom text auto-hide after 3 seconds
+                if (bathroom_text_active) {
+                    bathroom_text_timer += dt;
+                    if (bathroom_text_timer > 3.0f) {
+                        hide_text();
+                        bathroom_text_active = false;
+                    }
                 }
                 break;
 
@@ -556,8 +690,10 @@ int main(void) {
 
             case STATE_HOTEL_EXT:
             case STATE_LOBBY:
+            case STATE_STAIRWELL:
             case STATE_HALLWAY:
             case STATE_ROOM:
+            case STATE_BATHROOM:
             case STATE_BALCONY:
                 draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded);
                 if (state == STATE_BALCONY && eiffel_sparkle && sparkle_timer < 8.0f) {
@@ -650,7 +786,7 @@ int main(void) {
         if (wireframe) rlDisableWireMode();
 
         // HUD
-        if (state == STATE_ROOM) {
+        if (state == STATE_ROOM || state == STATE_BATHROOM) {
             draw_hud(&player, &scene);
             for (int i = 0; i < scene.object_count; i++) {
                 InteractObject *obj = &scene.objects[i];

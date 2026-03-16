@@ -11,7 +11,7 @@
 #define SPRINT_SPEED 8.5f
 #define MOUSE_SENS 0.003f
 #define MAX_OBJECTS 64
-#define MAX_WALLS 512
+#define MAX_WALLS 768
 
 typedef enum {
     STATE_TITLE,
@@ -19,8 +19,10 @@ typedef enum {
     STATE_DRIVING,
     STATE_HOTEL_EXT,
     STATE_LOBBY,
+    STATE_STAIRWELL,
     STATE_HALLWAY,
     STATE_ROOM,
+    STATE_BATHROOM,
     STATE_BALCONY,
     STATE_BED,
     STATE_STARS,

@@ -12,5 +12,7 @@ void build_hallway(Scene *s);
 void build_hotel_room(Scene *s);
 void build_hotel_exterior(Scene *s);
 void build_balcony(Scene *s);
+void build_bathroom(Scene *s);
+void build_stairwell(Scene *s);
 
 #endif
