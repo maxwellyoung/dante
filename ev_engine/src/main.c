@@ -564,8 +564,8 @@ static void init_player(Vector3 pos) {
 static void update_player(float dt) {
     // Mouse look
     Vector2 mouse_delta = GetMouseDelta();
-    float yaw = mouse_delta.x * MOUSE_SENS;
-    float pitch = -mouse_delta.y * MOUSE_SENS;
+    float yaw = -mouse_delta.x * MOUSE_SENS;
+    float pitch = mouse_delta.y * MOUSE_SENS;
 
     // Get camera forward/right vectors
     Vector3 forward = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
