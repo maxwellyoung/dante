@@ -20,7 +20,7 @@
 #define SPRINT_SPEED 7.0f
 #define MOUSE_SENS 0.003f
 #define MAX_OBJECTS 64
-#define MAX_WALLS 256
+#define MAX_WALLS 512
 
 // ============================================================
 // TYPES
@@ -174,154 +174,363 @@ static void add_wall_with_door(Scene *s, float x, float y, float z,
     add_wall(s, x - total_w/2 + door_offset, y + h*0.35f, z, door_w, h*0.3f, d, c);
 }
 
+// Jeremy Blake color helpers — luminous, saturated, layered
+static Color blake_lerp(Color a, Color b, float t) {
+    return (Color){
+        (unsigned char)(a.r + (b.r - a.r) * t),
+        (unsigned char)(a.g + (b.g - a.g) * t),
+        (unsigned char)(a.b + (b.b - a.b) * t),
+        (unsigned char)(a.a + (b.a - a.a) * t),
+    };
+}
+
+// Octagonal column approximation — 8 thin walls arranged in a circle
+static void add_column(Scene *s, float x, float z, float r, float h, Color c) {
+    for (int i = 0; i < 8; i++) {
+        float angle = i * 3.14159f / 4.0f;
+        float wx = x + cosf(angle) * r;
+        float wz = z + sinf(angle) * r;
+        float nx = cosf(angle);
+        float nz = sinf(angle);
+        // Wall segment tangent to the circle
+        float seg_len = r * 0.8f;
+        add_wall(s, wx, h/2, wz,
+                 fabsf(nz) * seg_len + 0.1f, h,
+                 fabsf(nx) * seg_len + 0.1f, c);
+    }
+}
+
+// Graduated color wall — multiple thin slices that shift color top to bottom
+static void add_gradient_wall(Scene *s, float x, float z, float w, float d,
+                              float h, int slices, Color bottom, Color top) {
+    float slice_h = h / slices;
+    for (int i = 0; i < slices; i++) {
+        float t = (float)i / (slices - 1);
+        Color c = blake_lerp(bottom, top, t);
+        add_wall(s, x, slice_h * i + slice_h/2, z, w, slice_h + 0.02f, d, c);
+    }
+}
+
+// Light panel — thin translucent glowing surface
+static void add_light_panel(Scene *s, float x, float y, float z,
+                            float w, float h, float d, Color c) {
+    Color glow = {c.r, c.g, c.b, 120};
+    add_wall(s, x, y, z, w, h, d, glow);
+    // Slightly larger soft glow behind
+    add_wall(s, x, y, z + (d > 0.2f ? 0 : 0.05f), w + 0.3f, h + 0.3f, d + 0.1f,
+             (Color){c.r, c.g, c.b, 40});
+}
+
+// Floor tiles — alternating color pattern
+static void add_floor_tiles(Scene *s, float cx, float cz, float w, float d,
+                            float tile_size, Color a, Color b) {
+    int cols = (int)(w / tile_size);
+    int rows = (int)(d / tile_size);
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            float tx = cx - w/2 + c * tile_size + tile_size/2;
+            float tz = cz - d/2 + r * tile_size + tile_size/2;
+            Color tc = ((r + c) % 2 == 0) ? a : b;
+            add_wall(s, tx, -0.05f, tz, tile_size - 0.02f, 0.1f, tile_size - 0.02f, tc);
+        }
+    }
+}
+
 static void build_lobby(Scene *s) {
     memset(s, 0, sizeof(Scene));
+
+    // Jeremy Blake palette — saturated, luminous
     Color concrete = {140, 140, 148, 255};
-    Color gold = {190, 158, 90, 255};
-    Color plant = {40, 90, 50, 255};
-    Color titanium = {190, 172, 115, 255};
-    Color dark_floor = {60, 45, 25, 255};
-    Color warm_ceil = {50, 38, 22, 255};
+    Color gold = {210, 175, 95, 255};
+    Color deep_gold = {160, 120, 55, 255};
+    Color plant = {35, 100, 45, 255};
+    Color dark_plant = {20, 60, 30, 255};
+    Color titanium = {195, 180, 125, 255};
+    Color warm_cream = {220, 200, 160, 255};
+    Color blake_magenta = {180, 50, 90, 255};
+    Color blake_coral = {220, 100, 80, 255};
+    Color blake_teal = {40, 140, 130, 255};
+    Color blake_violet = {100, 50, 150, 255};
+    Color dark_floor_a = {55, 42, 22, 255};
+    Color dark_floor_b = {65, 50, 28, 255};
 
-    s->fog_color = (Color){15, 12, 6, 255};
-    s->fog_density = 0.04f;
+    s->fog_color = (Color){12, 10, 5, 255};
+    s->fog_density = 0.03f;
 
-    // Main lobby volume — wide, tall, asymmetric
-    // Floor
-    add_wall(s, 0, -0.1f, 0, 30, 0.2f, 20, dark_floor);
-    // Ceiling — high
-    add_wall(s, 0, 6, 0, 30, 0.2f, 20, warm_ceil);
+    // Checkered marble floor
+    add_floor_tiles(s, 0, 0, 30, 20, 2.0f, dark_floor_a, dark_floor_b);
 
-    // Back wall
-    add_wall(s, 0, 3, -10, 30, 6, 0.3f, concrete);
-    // Front wall with entrance
-    add_wall_with_door(s, 0, 3, 10, 30, 6, 0.3f, 15, 4, concrete);
-    // Left wall
-    add_wall(s, -15, 3, 0, 0.3f, 6, 20, concrete);
-    // Right wall with exit door
-    add_wall_with_door(s, 15, 3, 0, 0.3f, 6, 20, 14, 3, gold);
+    // Ceiling — warm with recessed light panels
+    add_wall(s, 0, 7, 0, 30, 0.2f, 20, (Color){45, 35, 20, 255});
+    // Ceiling light strips — Blake luminous accents
+    add_light_panel(s, -5, 6.8f, 0, 8, 0.1f, 0.8f, warm_cream);
+    add_light_panel(s, 5, 6.8f, -3, 6, 0.1f, 0.8f, gold);
+    add_light_panel(s, 0, 6.8f, 5, 10, 0.1f, 0.6f, blake_coral);
 
-    // Gehry-inspired angular pillars — asymmetric placement
-    add_pillar(s, -8, -4, 0.8f, 6, titanium);
-    add_pillar(s, -3, 2, 0.6f, 6, titanium);
-    add_pillar(s, 5, -6, 0.7f, 6, concrete);
-    add_pillar(s, 8, 3, 0.5f, 6, titanium);
+    // Back wall — gradient from concrete to Blake violet at top
+    add_gradient_wall(s, 0, -10, 30, 0.3f, 7, 6, concrete, blake_violet);
 
-    // Plant walls — eco-brutalist accents
-    add_wall(s, -10, 1.5f, -8, 3, 3, 0.4f, plant);
-    add_wall(s, 6, 1.5f, -8, 2, 3, 0.4f, plant);
+    // Front wall with entrance — gradient to magenta
+    add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, concrete);
+    add_wall(s, 10, 3.5f, 10, 8, 7, 0.3f, concrete);
+    // Entrance opening
+    add_wall(s, -2, 5.5f, 10, 6, 3, 0.3f, concrete);
+    // Magenta glow above entrance
+    add_light_panel(s, -2, 4.5f, 10.1f, 6, 1.5f, 0.1f, blake_magenta);
 
-    // Reception desk
-    add_wall(s, 0, 0.5f, -7, 6, 1.0f, 1.5f, gold);
+    // Left wall — layered: concrete base, plant mid, teal accent top
+    add_wall(s, -15, 2, 0, 0.3f, 4, 20, concrete);
+    add_wall(s, -15, 5, 0, 0.3f, 2, 20, (Color){60, 70, 80, 255});
+    add_wall(s, -15, 6.5f, 0, 0.3f, 1, 20, blake_teal);
 
-    // Godard color accents — red and blue panels
-    add_wall(s, -14.8f, 3, -5, 0.15f, 2, 2, (Color){200, 50, 40, 255});
-    add_wall(s, -14.8f, 3, 5, 0.15f, 2, 2, (Color){40, 75, 180, 255});
+    // Right wall — similar layering with exit
+    add_wall(s, 15, 2, -5, 0.3f, 4, 10, concrete);
+    add_wall(s, 15, 2, 6, 0.3f, 4, 8, concrete);
+    add_wall(s, 15, 5, 0, 0.3f, 2, 20, deep_gold);
+    add_wall(s, 15, 6.5f, 0, 0.3f, 1, 20, gold);
+    // Exit glow
+    add_light_panel(s, 14.9f, 1.5f, 1, 0.1f, 3, 2.5f, gold);
+
+    // Gehry columns — octagonal, varying height, titanium + concrete mix
+    add_column(s, -9, -5, 0.6f, 7, titanium);
+    add_column(s, -4, 1, 0.5f, 7, concrete);
+    add_column(s, 4, -6, 0.55f, 7, titanium);
+    add_column(s, 8, 2, 0.45f, 7, (Color){170, 160, 130, 255});
+    add_column(s, -1, -3, 0.4f, 7, gold);
+
+    // Eco-brutalist plant walls — vertical gardens
+    add_gradient_wall(s, -11, -8, 3, 0.5f, 4, 4, dark_plant, plant);
+    add_gradient_wall(s, 7, -8, 2.5f, 0.5f, 3.5f, 4, dark_plant, plant);
+    // Smaller plant accents
+    add_wall(s, -6, 1.5f, -9.5f, 1.5f, 3, 0.3f, plant);
+    add_wall(s, 10, 1, -9.5f, 1, 2, 0.3f, plant);
+
+    // Reception desk — multi-layered
+    add_wall(s, 0, 0.55f, -7, 7, 1.1f, 1.8f, deep_gold);
+    add_wall(s, 0, 0.3f, -7, 7.2f, 0.6f, 1.9f, (Color){90, 65, 35, 255});
+    // Desk top accent
+    add_wall(s, 0, 1.12f, -7, 7.1f, 0.05f, 1.85f, gold);
+    // Desk lamp glow
+    add_light_panel(s, -2, 1.3f, -7, 0.3f, 0.5f, 0.3f, warm_cream);
+
+    // Blake color field panels — the signature move
+    // Large luminous panels on walls, layered and saturated
+    add_light_panel(s, -14.8f, 3.5f, -6, 0.1f, 3, 4, blake_magenta);
+    add_light_panel(s, -14.8f, 2.5f, 3, 0.1f, 2.5f, 3, blake_teal);
+    add_light_panel(s, -14.8f, 4.5f, 0, 0.1f, 1.5f, 5, blake_coral);
+
+    // Right wall Blake accents
+    add_light_panel(s, 14.8f, 4, -4, 0.1f, 2, 3, blake_violet);
+    add_light_panel(s, 14.8f, 2, -8, 0.1f, 1.5f, 2, blake_coral);
+
+    // Freestanding art piece — angular Gehry-style sculptural element
+    add_wall(s, 6, 1, 3, 0.8f, 2, 0.15f, blake_magenta);
+    add_wall(s, 6.3f, 1.5f, 3.2f, 0.15f, 1.5f, 0.6f, blake_coral);
+    add_wall(s, 5.7f, 0.8f, 2.8f, 0.5f, 0.3f, 0.8f, titanium);
+
+    // Benches
+    add_wall(s, -8, 0.3f, 5, 3, 0.6f, 0.8f, (Color){80, 60, 40, 255});
+    add_wall(s, -8, 0.3f, -1, 3, 0.6f, 0.8f, (Color){80, 60, 40, 255});
 
     s->spawn = (Vector3){0, 1.6f, 8};
-    s->exit_pos = (Vector3){14.5f, 1.6f, 6};
+    s->exit_pos = (Vector3){14.5f, 1.6f, 1};
     s->has_exit = true;
 }
 
 static void build_hallway(Scene *s) {
     memset(s, 0, sizeof(Scene));
-    Color concrete = {130, 130, 135, 255};
-    Color gold = {190, 155, 90, 255};
-    Color red = {200, 50, 40, 255};
-    Color blue = {40, 75, 180, 255};
-    Color floor_c = {55, 40, 25, 255};
-    Color ceil_c = {40, 32, 20, 255};
 
-    s->fog_color = (Color){12, 10, 6, 255};
-    s->fog_density = 0.03f;
+    // Blake hallway palette
+    Color concrete = {120, 120, 128, 255};
+    Color gold = {200, 165, 90, 255};
+    Color red = {210, 55, 45, 255};
+    Color blue = {45, 80, 190, 255};
+    Color warm_floor = {50, 38, 22, 255};
+    Color dark_floor = {40, 30, 18, 255};
+    Color blake_pink = {220, 120, 140, 255};
+    Color blake_amber = {230, 170, 60, 255};
 
-    float hall_length = 40;
-    float hall_width = 4;
-    float hall_height = 3.5f;
+    s->fog_color = (Color){10, 8, 5, 255};
+    s->fog_density = 0.025f;
 
-    // Floor and ceiling
-    add_wall(s, 0, -0.1f, -hall_length/2, hall_width, 0.2f, hall_length, floor_c);
-    add_wall(s, 0, hall_height, -hall_length/2, hall_width, 0.2f, hall_length, ceil_c);
+    float L = 40, W = 4.5f, H = 4;
 
-    // Side walls
-    add_wall(s, -hall_width/2, hall_height/2, -hall_length/2, 0.3f, hall_height, hall_length, concrete);
-    add_wall(s, hall_width/2, hall_height/2, -hall_length/2, 0.3f, hall_height, hall_length, concrete);
+    // Floor — alternating runner strip
+    add_floor_tiles(s, 0, -L/2, W, L, 1.5f, warm_floor, dark_floor);
 
-    // End walls
-    add_wall(s, 0, hall_height/2, 0, hall_width, hall_height, 0.3f, concrete);
-    add_wall(s, 0, hall_height/2, -hall_length, hall_width, hall_height, 0.3f, concrete);
-
-    // Alternating Godard doors along the hallway
+    // Ceiling with recessed light troughs
+    add_wall(s, 0, H, -L/2, W, 0.2f, L, (Color){38, 30, 18, 255});
+    // Warm ceiling lights — every 5 meters
     for (int i = 0; i < 8; i++) {
-        float z = -4 - i * 4.5f;
-        Color door_c = (i % 2 == 0) ? red : blue;
-        float side = (i % 2 == 0) ? -1.8f : 1.8f;
-        add_wall(s, side, 1.2f, z, 0.15f, 2.4f, 1.2f, door_c);
-        // Gold door frame
-        add_wall(s, side, 2.6f, z, 0.15f, 0.3f, 1.4f, gold);
+        float z = -3 - i * 5;
+        add_light_panel(s, 0, H - 0.1f, z, 2, 0.05f, 0.6f, blake_amber);
     }
 
+    // Side walls — gradient from dark base to lighter top
+    add_gradient_wall(s, -W/2, -L/2, 0.3f, L, H, 5, (Color){70, 65, 60, 255}, concrete);
+    add_gradient_wall(s, W/2, -L/2, 0.3f, L, H, 5, (Color){70, 65, 60, 255}, concrete);
+
+    // End walls
+    add_wall(s, 0, H/2, 0, W, H, 0.3f, concrete);
+    add_wall(s, 0, H/2, -L, W, H, 0.3f, concrete);
+
+    // Wainscoting — dark wood strip at bottom of walls
+    add_wall(s, -W/2 + 0.05f, 0.5f, -L/2, 0.1f, 1, L, (Color){60, 42, 25, 255});
+    add_wall(s, W/2 - 0.05f, 0.5f, -L/2, 0.1f, 1, L, (Color){60, 42, 25, 255});
+    // Gold trim strip above wainscoting
+    add_wall(s, -W/2 + 0.05f, 1.02f, -L/2, 0.1f, 0.04f, L, gold);
+    add_wall(s, W/2 - 0.05f, 1.02f, -L/2, 0.1f, 0.04f, L, gold);
+
+    // Doors — alternating Godard red/blue with Blake glow panels
+    for (int i = 0; i < 8; i++) {
+        float z = -3.5f - i * 4.5f;
+        Color door_c = (i % 2 == 0) ? red : blue;
+        Color glow_c = (i % 2 == 0) ? blake_pink : (Color){80, 120, 220, 200};
+        float side = (i % 2 == 0) ? -(W/2 - 0.1f) : (W/2 - 0.1f);
+
+        // Door body
+        add_wall(s, side, 1.3f, z, 0.12f, 2.6f, 1.3f, door_c);
+        // Gold frame
+        add_wall(s, side, 2.75f, z, 0.12f, 0.2f, 1.5f, gold);
+        add_wall(s, side, 1.3f, z - 0.7f, 0.12f, 2.6f, 0.08f, gold);
+        add_wall(s, side, 1.3f, z + 0.7f, 0.12f, 2.6f, 0.08f, gold);
+        // Blake glow panel above door
+        add_light_panel(s, side, 3.2f, z, 0.08f, 0.6f, 1.4f, glow_c);
+
+        // Room number placard
+        add_wall(s, side * 0.95f, 2, z - 0.9f, 0.08f, 0.3f, 0.2f, gold);
+    }
+
+    // Carpet runner — dark red stripe down center
+    add_wall(s, 0, 0.01f, -L/2, 1.8f, 0.02f, L, (Color){100, 30, 25, 255});
+
     s->spawn = (Vector3){0, 1.6f, -1};
-    s->exit_pos = (Vector3){0, 1.6f, -hall_length + 1};
+    s->exit_pos = (Vector3){0, 1.6f, -L + 1};
     s->has_exit = true;
 }
 
 static void build_hotel_room(Scene *s) {
     memset(s, 0, sizeof(Scene));
-    Color warm_wall = {155, 125, 80, 255};
-    Color floor_c = {80, 60, 35, 255};
-    Color ceil_c = {55, 42, 25, 255};
-    Color gold = {190, 155, 90, 255};
-    Color cream = {240, 230, 210, 255};
-    Color burgundy = {140, 40, 48, 255};
-    Color wood = {100, 70, 40, 255};
 
-    s->fog_color = (Color){12, 10, 5, 255};
-    s->fog_density = 0.025f;
+    // Blake hotel room palette — warm, intimate, luminous
+    Color warm_wall = {155, 128, 82, 255};
+    Color wall_base = {100, 78, 48, 255};
+    Color gold = {210, 175, 95, 255};
+    Color cream = {240, 232, 212, 255};
+    Color burgundy = {145, 38, 48, 255};
+    Color wood = {95, 65, 38, 255};
+    Color dark_wood = {65, 45, 28, 255};
+    Color pillow_white = {235, 228, 215, 255};
+    Color leather = {110, 55, 35, 255};
+    Color blake_warm = {230, 160, 100, 200};
+    Color blake_rose = {200, 100, 110, 180};
+    Color curtain = {130, 90, 65, 255};
+    Color mirror = {180, 190, 200, 180};
 
-    float rw = 12, rd = 10, rh = 3.5f;
+    s->fog_color = (Color){10, 8, 4, 255};
+    s->fog_density = 0.02f;
 
-    // Room shell
-    add_wall(s, 0, -0.1f, 0, rw, 0.2f, rd, floor_c);
-    add_wall(s, 0, rh, 0, rw, 0.2f, rd, ceil_c);
-    add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, warm_wall);    // back
-    add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, warm_wall);     // front (entrance)
-    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, warm_wall);    // left
-    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, warm_wall);     // right
+    float rw = 12, rd = 10, rh = 3.8f;
 
-    // Bed — large, centered against back wall
-    add_wall(s, 0, 0.4f, -3.5f, 3.5f, 0.8f, 2.0f, cream);
-    // Bed frame
-    add_wall(s, 0, 0.8f, -4.4f, 3.8f, 1.2f, 0.15f, wood);
+    // Floor — herringbone pattern approximation
+    add_floor_tiles(s, 0, 0, rw, rd, 1.0f,
+                    (Color){75, 55, 32, 255}, (Color){85, 65, 38, 255});
+
+    // Ceiling
+    add_wall(s, 0, rh, 0, rw, 0.2f, rd, (Color){50, 40, 24, 255});
+    // Crown molding — gold strip at ceiling edge
+    add_wall(s, 0, rh - 0.1f, -rd/2 + 0.1f, rw, 0.15f, 0.08f, gold);
+    add_wall(s, 0, rh - 0.1f, rd/2 - 0.1f, rw, 0.15f, 0.08f, gold);
+    add_wall(s, -rw/2 + 0.1f, rh - 0.1f, 0, 0.08f, 0.15f, rd, gold);
+    add_wall(s, rw/2 - 0.1f, rh - 0.1f, 0, 0.08f, 0.15f, rd, gold);
+
+    // Walls — gradient from darker base to warmer top
+    add_gradient_wall(s, 0, -rd/2, rw, 0.3f, rh, 4, wall_base, warm_wall);      // back
+    add_gradient_wall(s, 0, rd/2, rw, 0.3f, rh, 4, wall_base, warm_wall);       // front
+    add_gradient_wall(s, -rw/2, 0, 0.3f, rd, rh, 4, wall_base, warm_wall);      // left
+    add_gradient_wall(s, rw/2, 0, 0.3f, rd, rh, 4, wall_base, warm_wall);       // right
+
+    // Wainscoting on all walls
+    add_wall(s, 0, 0.5f, -rd/2 + 0.1f, rw, 1.0f, 0.08f, dark_wood);
+    add_wall(s, 0, 0.5f, rd/2 - 0.1f, rw, 1.0f, 0.08f, dark_wood);
+    add_wall(s, -rw/2 + 0.1f, 0.5f, 0, 0.08f, 1.0f, rd, dark_wood);
+    add_wall(s, rw/2 - 0.1f, 0.5f, 0, 0.08f, 1.0f, rd, dark_wood);
+
+    // == BED AREA ==
+    // Bed frame — detailed
+    add_wall(s, 0, 0.2f, -3.5f, 3.6f, 0.4f, 2.2f, dark_wood);   // base
+    add_wall(s, 0, 0.5f, -3.5f, 3.4f, 0.3f, 2.0f, cream);        // mattress
+    // Pillows
+    add_wall(s, -0.7f, 0.7f, -4.3f, 0.8f, 0.25f, 0.5f, pillow_white);
+    add_wall(s, 0.7f, 0.7f, -4.3f, 0.8f, 0.25f, 0.5f, pillow_white);
+    // Headboard — tall, upholstered
+    add_wall(s, 0, 1.2f, -4.6f, 3.8f, 1.8f, 0.15f, burgundy);
+    // Headboard gold trim
+    add_wall(s, 0, 2.15f, -4.58f, 3.9f, 0.06f, 0.08f, gold);
 
     // Bedside tables
-    add_wall(s, -2.8f, 0.35f, -3.5f, 0.8f, 0.7f, 0.8f, wood);
-    add_wall(s, 2.8f, 0.35f, -3.5f, 0.8f, 0.7f, 0.8f, wood);
+    add_wall(s, -2.8f, 0.3f, -3.8f, 0.7f, 0.6f, 0.7f, wood);
+    add_wall(s, 2.8f, 0.3f, -3.8f, 0.7f, 0.6f, 0.7f, wood);
+    // Lamps on bedside tables — Blake warm glow
+    add_light_panel(s, -2.8f, 0.9f, -3.8f, 0.25f, 0.4f, 0.25f, blake_warm);
+    add_light_panel(s, 2.8f, 0.9f, -3.8f, 0.25f, 0.4f, 0.25f, blake_warm);
 
-    // Desk against right wall
-    add_wall(s, 5.0f, 0.4f, 0, 2.5f, 0.8f, 1.2f, wood);
+    // == DESK AREA ==
+    add_wall(s, 5.0f, 0.4f, 0, 2.8f, 0.8f, 1.0f, wood);
+    add_wall(s, 5.0f, 0.82f, 0, 2.9f, 0.04f, 1.05f, gold);  // desk top edge
     // Desk chair
-    add_wall(s, 4.0f, 0.4f, 0, 0.6f, 0.8f, 0.6f, burgundy);
+    add_wall(s, 3.8f, 0.35f, 0, 0.55f, 0.7f, 0.55f, leather);
+    add_wall(s, 3.8f, 0.8f, -0.2f, 0.55f, 0.6f, 0.1f, leather);  // chair back
+    // Mirror above desk
+    add_wall(s, 5.8f, 1.8f, 0, 0.05f, 1.2f, 1.5f, mirror);
+    // Mirror frame
+    add_wall(s, 5.82f, 1.8f, 0, 0.04f, 1.3f, 0.06f, gold);
 
-    // Sofa against left wall
-    add_wall(s, -4.5f, 0.35f, 1.5f, 2.5f, 0.7f, 1.0f, burgundy);
+    // == SOFA AREA ==
+    add_wall(s, -4.5f, 0.25f, 1.5f, 2.8f, 0.5f, 1.0f, burgundy);   // seat
+    add_wall(s, -4.5f, 0.6f, 2.0f, 2.8f, 0.7f, 0.2f, burgundy);    // back
+    add_wall(s, -5.85f, 0.4f, 1.5f, 0.1f, 0.5f, 1.0f, burgundy);   // arm
+    add_wall(s, -3.15f, 0.4f, 1.5f, 0.1f, 0.5f, 1.0f, burgundy);   // arm
 
     // Coffee table
-    add_wall(s, -4.5f, 0.2f, 3.0f, 1.5f, 0.4f, 0.8f, wood);
+    add_wall(s, -4.5f, 0.2f, 3.2f, 1.6f, 0.4f, 0.9f, wood);
+    add_wall(s, -4.5f, 0.42f, 3.2f, 1.65f, 0.03f, 0.95f, gold);  // edge
 
-    // Suitcase on floor near entrance
-    add_wall(s, 2, 0.25f, 3.5f, 0.8f, 0.5f, 0.5f, (Color){130, 90, 55, 255});
+    // == SUITCASE ==
+    add_wall(s, 2.2f, 0.2f, 3.8f, 0.9f, 0.4f, 0.55f, (Color){130, 90, 55, 255});
+    // Travel stickers (color patches)
+    add_wall(s, 2.0f, 0.35f, 4.06f, 0.2f, 0.15f, 0.02f, (Color){40, 100, 180, 255});  // NZ blue
+    add_wall(s, 2.3f, 0.3f, 4.06f, 0.15f, 0.12f, 0.02f, (Color){200, 50, 40, 255});   // Japan red
+    add_wall(s, 2.45f, 0.38f, 4.06f, 0.12f, 0.1f, 0.02f, (Color){40, 140, 60, 255});   // SA green
 
-    // Balcony door (gold frame, slightly recessed)
-    add_wall(s, -5.8f, 1.5f, -1, 0.15f, 2.8f, 1.8f, (Color){180, 200, 220, 128});
-    add_wall(s, -5.85f, 3.1f, -1, 0.1f, 0.3f, 2.0f, gold);
+    // == BALCONY DOOR ==
+    // Glass door — translucent
+    add_wall(s, -5.8f, 1.5f, -1, 0.1f, 2.8f, 1.8f, (Color){170, 190, 215, 100});
+    // Gold frame
+    add_wall(s, -5.85f, 3.0f, -1, 0.08f, 0.15f, 2.0f, gold);
+    add_wall(s, -5.85f, 0.05f, -1, 0.08f, 0.1f, 2.0f, gold);
+    add_wall(s, -5.85f, 1.5f, -1.95f, 0.08f, 2.9f, 0.08f, gold);
+    add_wall(s, -5.85f, 1.5f, -0.05f, 0.08f, 2.9f, 0.08f, gold);
+    // Curtains
+    add_wall(s, -5.7f, 1.8f, -2.3f, 0.06f, 3.2f, 0.6f, curtain);
+    add_wall(s, -5.7f, 1.8f, 0.3f, 0.06f, 3.2f, 0.6f, curtain);
+
+    // == BLAKE LIGHT ACCENTS ==
+    // Warm light wash on the wall behind the bed
+    add_light_panel(s, 0, 2.5f, -4.9f, 4, 2, 0.05f, blake_rose);
+    // Ceiling light
+    add_light_panel(s, 0, rh - 0.15f, 0, 1, 0.05f, 1, blake_warm);
+
+    // == EN SUITE DOOR ==
+    add_wall(s, 5.8f, 1.3f, -3.5f, 0.1f, 2.5f, 1.2f, (Color){110, 85, 55, 255});
+    add_wall(s, 5.82f, 2.65f, -3.5f, 0.08f, 0.12f, 1.3f, gold);
 
     // Interactive objects
-    add_object(s, -2.8f, 1.2f, -3.5f, "lamp", "Change the lightbulb", "Better.",
+    add_object(s, -2.8f, 1.2f, -3.8f, "lamp", "Change the lightbulb", "Better.",
                (Color){220, 190, 100, 255});
-    add_object(s, 5.0f, 1.0f, 0, "drawers", "Unpack your clothes",  "Home for now.",
+    add_object(s, 5.0f, 1.0f, 0, "drawers", "Unpack your clothes", "Home for now.",
                (Color){180, 130, 80, 255});
-    add_object(s, -4.5f, 0.6f, 3.0f, "candles", "Light the candles", "Warm.",
+    add_object(s, -4.5f, 0.6f, 3.2f, "candles", "Light the candles", "Warm.",
                cream);
     add_object(s, 5.5f, 0.6f, -2, "ashtray", "Clear the cigarettes", "Clean air.",
                (Color){130, 120, 110, 255});
