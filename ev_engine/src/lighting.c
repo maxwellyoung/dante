@@ -1,12 +1,12 @@
 // lighting.c — Custom shader lighting for EV engine
-// Embedded GLSL shaders — no external files needed
+// Two-light setup: warm key + cool fill, rim light, color temperature split
 
 #include "lighting.h"
 #include "raymath.h"
 #include <stdio.h>
 
 // ============================================================
-// VERTEX SHADER — passes world position and normal to fragment
+// VERTEX SHADER
 // ============================================================
 static const char *vs_source =
     "#version 330\n"
@@ -30,8 +30,7 @@ static const char *vs_source =
     "}\n";
 
 // ============================================================
-// FRAGMENT SHADER — directional light + ambient + distance fog
-// Jeremy Blake aesthetic: warm light, saturated fog, soft normals
+// FRAGMENT SHADER — warm key + cool fill + rim + color temp fog
 // ============================================================
 static const char *fs_source =
     "#version 330\n"
@@ -45,6 +44,8 @@ static const char *fs_source =
     "uniform float fogDensity;\n"
     "uniform vec3 lightDir;\n"
     "uniform vec3 lightColor;\n"
+    "uniform vec3 fillDir;\n"
+    "uniform vec3 fillColor;\n"
     "uniform sampler2D texture0;\n"
     "uniform vec4 colDiffuse;\n"
     "out vec4 finalColor;\n"
@@ -52,20 +53,33 @@ static const char *fs_source =
     "    vec4 texColor = texture(texture0, fragTexCoord);\n"
     "    vec3 baseColor = texColor.rgb * colDiffuse.rgb * fragColor.rgb;\n"
     "\n"
-    "    // Directional light with half-lambert for softer shading\n"
     "    vec3 norm = normalize(fragNormal);\n"
+    "\n"
+    "    // Key light — half-Lambert with stronger contrast\n"
     "    float NdotL = dot(norm, -lightDir);\n"
     "    float halfLambert = NdotL * 0.5 + 0.5;\n"
-    "    halfLambert = halfLambert * halfLambert;  // softer falloff\n"
-    "    vec3 diffuse = lightColor * halfLambert;\n"
+    "    halfLambert = halfLambert * halfLambert;\n"
+    "    vec3 keyDiffuse = lightColor * halfLambert * 1.3;\n"
     "\n"
-    "    // Subtle rim light for depth\n"
+    "    // Fill light — cool blue from below-behind, softer\n"
+    "    float NdotF = dot(norm, -fillDir);\n"
+    "    float fillLambert = max(NdotF * 0.5 + 0.5, 0.0);\n"
+    "    vec3 fillDiffuse = fillColor * fillLambert * 0.4;\n"
+    "\n"
+    "    // Rim light — stronger for visible edge definition\n"
     "    vec3 viewDir = normalize(viewPos - fragPosition);\n"
     "    float rim = 1.0 - max(dot(viewDir, norm), 0.0);\n"
-    "    rim = pow(rim, 3.0) * 0.15;\n"
+    "    rim = pow(rim, 2.5) * 0.25;\n"
+    "    vec3 rimColor = mix(fillColor, lightColor, 0.5) * rim;\n"
+    "\n"
+    "    // Color temperature split: warm on lit faces, cool ambient on shadow\n"
+    "    vec3 warmAmbient = ambient * vec3(1.1, 1.0, 0.85);\n"
+    "    vec3 coolAmbient = ambient * vec3(0.85, 0.95, 1.15);\n"
+    "    float shadow = smoothstep(-0.2, 0.3, NdotL);\n"
+    "    vec3 ambientMix = mix(coolAmbient, warmAmbient, shadow);\n"
     "\n"
     "    // Combine\n"
-    "    vec3 lit = baseColor * (ambient + diffuse) + rim * lightColor * 0.3;\n"
+    "    vec3 lit = baseColor * (ambientMix + keyDiffuse + fillDiffuse) + rimColor;\n"
     "\n"
     "    // Distance fog\n"
     "    float dist = length(viewPos - fragPosition);\n"
@@ -82,7 +96,6 @@ EVLighting LoadEVLighting(void) {
     lighting.shader = LoadShaderFromMemory(vs_source, fs_source);
 
     if (lighting.shader.id > 0) {
-        // Get uniform locations
         lighting.shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(lighting.shader, "matModel");
         lighting.shader.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(lighting.shader, "mvp");
         lighting.shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(lighting.shader, "viewPos");
@@ -93,24 +106,34 @@ EVLighting LoadEVLighting(void) {
         lighting.fogDensityLoc = GetShaderLocation(lighting.shader, "fogDensity");
         lighting.lightDirLoc = GetShaderLocation(lighting.shader, "lightDir");
         lighting.lightColorLoc = GetShaderLocation(lighting.shader, "lightColor");
+        lighting.fillDirLoc = GetShaderLocation(lighting.shader, "fillDir");
+        lighting.fillColorLoc = GetShaderLocation(lighting.shader, "fillColor");
 
-        // matNormal location
         int matNormalLoc = GetShaderLocation(lighting.shader, "matNormal");
         lighting.shader.locs[SHADER_LOC_MATRIX_NORMAL] = matNormalLoc;
 
-        // Default values — warm interior light from above-front
+        // Key light — warm from above-front, higher intensity
         Vector3 lightDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f});
         float lightDirArr[3] = {lightDir.x, lightDir.y, lightDir.z};
         SetShaderValue(lighting.shader, lighting.lightDirLoc, lightDirArr, SHADER_UNIFORM_VEC3);
 
-        float lightColor[3] = {1.0f, 0.92f, 0.78f};  // warm white
+        float lightColor[3] = {1.1f, 0.95f, 0.75f};  // warm, punchy
         SetShaderValue(lighting.shader, lighting.lightColorLoc, lightColor, SHADER_UNIFORM_VEC3);
 
-        float ambient[3] = {0.25f, 0.22f, 0.18f};  // warm ambient
+        // Fill light — cool blue from below-behind
+        Vector3 fillDir = Vector3Normalize((Vector3){0.4f, 0.6f, 0.3f});
+        float fillDirArr[3] = {fillDir.x, fillDir.y, fillDir.z};
+        SetShaderValue(lighting.shader, lighting.fillDirLoc, fillDirArr, SHADER_UNIFORM_VEC3);
+
+        float fillColor[3] = {0.4f, 0.5f, 0.7f};  // cool blue
+        SetShaderValue(lighting.shader, lighting.fillColorLoc, fillColor, SHADER_UNIFORM_VEC3);
+
+        // Ambient — darker for more contrast
+        float ambient[3] = {0.15f, 0.12f, 0.10f};
         SetShaderValue(lighting.shader, lighting.ambientLoc, ambient, SHADER_UNIFORM_VEC3);
 
         lighting.ready = true;
-        printf("[EV] Custom lighting shader loaded\n");
+        printf("[EV] Custom lighting shader loaded (2-light setup)\n");
     } else {
         printf("[EV] WARNING: Failed to load lighting shader\n");
         lighting.ready = false;

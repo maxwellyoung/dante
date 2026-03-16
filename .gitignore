@@ -1,5 +1,8 @@
 __pycache__/
 *.pyc
+*.o
+ev_engine/endearing_void
 
 tmp/
 output/
+.claude/

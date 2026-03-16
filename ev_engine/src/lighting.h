@@ -1,5 +1,5 @@
 // lighting.h — Custom shader-based lighting for the EV engine
-// Directional light + ambient + per-face normal shading + fog
+// Directional light + fill light + ambient + per-face normal shading + fog
 
 #ifndef EV_LIGHTING_H
 #define EV_LIGHTING_H
@@ -14,6 +14,8 @@ typedef struct {
     int fogDensityLoc;
     int lightDirLoc;
     int lightColorLoc;
+    int fillDirLoc;
+    int fillColorLoc;
     bool ready;
 } EVLighting;
 
