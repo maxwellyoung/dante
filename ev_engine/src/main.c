@@ -560,7 +560,7 @@ static void init_player(Vector3 pos) {
 static void update_player(float dt) {
     // Mouse look
     Vector2 mouse_delta = GetMouseDelta();
-    float yaw = -mouse_delta.x * MOUSE_SENS;
+    float yaw = mouse_delta.x * MOUSE_SENS;
     float pitch = -mouse_delta.y * MOUSE_SENS;
 
     // Get camera forward/right vectors
@@ -659,34 +659,48 @@ static void update_player(float dt) {
 // ============================================================
 
 static void draw_scene_3d(void) {
+    // Fog via background clear color
+    ClearBackground(scene.fog_color);
+
     BeginMode3D(player.camera);
 
-    // Draw all walls as cubes
+    // Distance-based color darkening for fake fog
+    Vector3 cam = player.camera.position;
+
     for (int i = 0; i < scene.wall_count; i++) {
         Wall *w = &scene.walls[i];
         if (!w->active) continue;
-        DrawCube(w->pos, w->size.x, w->size.y, w->size.z, w->color);
-        // Subtle edge lines for depth
-        DrawCubeWires(w->pos, w->size.x, w->size.y, w->size.z,
-                      (Color){w->color.r/2, w->color.g/2, w->color.b/2, 80});
+
+        // Simple distance fog — darken color based on distance from camera
+        float dx = w->pos.x - cam.x;
+        float dz = w->pos.z - cam.z;
+        float dist = sqrtf(dx*dx + dz*dz);
+        float fog = fminf(1.0f, dist * scene.fog_density);
+
+        Color c = w->color;
+        c.r = (unsigned char)(c.r * (1 - fog) + scene.fog_color.r * fog);
+        c.g = (unsigned char)(c.g * (1 - fog) + scene.fog_color.g * fog);
+        c.b = (unsigned char)(c.b * (1 - fog) + scene.fog_color.b * fog);
+
+        DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
     }
 
-    // Draw interactive objects as glowing spheres
+    // Interactive objects — soft glowing orbs
     for (int i = 0; i < scene.object_count; i++) {
         InteractObject *obj = &scene.objects[i];
         if (!obj->active || obj->done) continue;
-        float pulse = 0.7f + 0.3f * sinf(GetTime() * 3 + i * 1.5f);
+        float pulse = 0.6f + 0.4f * sinf(GetTime() * 2.5f + i * 1.7f);
         Color c = obj->color;
-        c.a = (unsigned char)(200 * pulse);
-        DrawSphere(obj->pos, 0.3f, c);
-        // Glow
-        DrawSphere(obj->pos, 0.5f, (Color){c.r, c.g, c.b, (unsigned char)(40 * pulse)});
+        c.a = (unsigned char)(180 * pulse);
+        DrawSphere(obj->pos, 0.2f, c);
+        DrawSphere(obj->pos, 0.4f, (Color){c.r, c.g, c.b, (unsigned char)(25 * pulse)});
     }
 
     // Exit beacon
     if (scene.has_exit) {
-        float pulse = 0.5f + 0.3f * sinf(GetTime() * 2);
-        DrawSphere(scene.exit_pos, 0.4f, (Color){230, 200, 100, (unsigned char)(100 * pulse)});
+        float pulse = 0.4f + 0.3f * sinf(GetTime() * 2);
+        DrawSphere(scene.exit_pos, 0.3f, (Color){230, 200, 100, (unsigned char)(80 * pulse)});
+        DrawSphere(scene.exit_pos, 0.6f, (Color){230, 200, 100, (unsigned char)(20 * pulse)});
     }
 
     EndMode3D();
