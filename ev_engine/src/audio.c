@@ -759,3 +759,6 @@ void PlayElevatorHum(EVAudio *audio) {
 void PlayElevatorDing(EVAudio *audio) {
     if (audio->initialized) PlaySound(audio->elevator_ding);
 }
+void SetCityAmbientVolume(EVAudio *audio, float vol) {
+    if (audio->initialized) SetSoundVolume(audio->snd_city, vol);
+}

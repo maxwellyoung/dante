@@ -494,6 +494,18 @@ void build_hotel_room(Scene *s) {
     // Phone on desk — mobile face-down
     add_wall(s, 5.2f, 0.85f, 0.15f, 0.12f, 0.02f, 0.06f, (Color){35,35,38,255});
 
+    // Environmental story objects — visual only, not interactable
+    // Boarding pass on desk — white rectangle + blue airline stripe (tells "06:00" departure)
+    add_wall(s, 4.5f, 0.85f, -0.3f, 0.4f, 0.01f, 0.2f, (Color){245,242,235,255});  // paper
+    add_wall(s, 4.5f, 0.86f, -0.35f, 0.4f, 0.005f, 0.04f, (Color){50,80,180,255});  // blue stripe
+
+    // Pilot's logbook near suitcase — thick brown leather rectangle
+    add_wall(s, 1.8f, 0.22f, 4.1f, 0.35f, 0.08f, 0.25f, (Color){95,60,30,255});     // cover
+    add_wall(s, 1.8f, 0.27f, 4.1f, 0.33f, 0.01f, 0.23f, (Color){235,230,215,255});  // pages edge
+
+    // Face-down photograph on nightstand — NOT interactable. You can't flip it.
+    add_wall(s, -2.5f, 0.62f, -3.5f, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255}); // photo back
+
     // En-suite bathroom door — right wall, near back
     add_wall(s, rw/2-0.12f, 1.3f, -3.0f, 0.12f, 2.6f, 1.0f, (Color){210,207,202,255});  // door
     add_wall(s, rw/2-0.12f, 2.75f, -3.0f, 0.12f, 0.12f, 1.1f, gold);                    // frame top
@@ -507,7 +519,7 @@ void build_balcony(Scene *s) {
     memset(s, 0, sizeof(Scene));
     s->surface = SURFACE_MARBLE;
 
-    s->fog_color = (Color){30, 40, 70, 255};
+    s->fog_color = (Color){35, 45, 80, 255};  // pre-dawn navy — time has passed
     s->fog_density = 0.003f;
 
     Color stone = {195, 190, 182, 255};       // cleaner stone
@@ -911,5 +923,200 @@ void build_elevator(Scene *s) {
     add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
 
     s->spawn = (Vector3){0, 1.6f, 0};
+    s->has_exit = false;
+}
+
+void build_taxi_ride(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
+
+    // Michael Mann night palette
+    Color fog_teal = {12, 18, 28, 255};
+    Color dash_dark = {25, 22, 18, 255};
+    Color leather = {45, 35, 25, 255};
+    Color driver_coat = {20, 18, 15, 255};
+    Color driver_head = {150, 130, 100, 255};
+    Color window_frame = {20, 18, 15, 255};
+    Color meter_bg = {30, 35, 28, 255};
+    Color meter_glow = {80, 200, 100, 180};
+    Color mirror_c = {60, 65, 70, 180};
+
+    // City palette
+    Color road = {25, 28, 32, 255};
+    Color bldg_a = {18, 22, 30, 255};
+    Color bldg_b = {22, 26, 35, 255};
+    Color bldg_c = {15, 18, 25, 255};
+    Color window_amber = {230, 180, 80, 100};
+    Color streetlight_glow = {240, 190, 90, 180};
+    Color streetlight_pole = {50, 48, 45, 255};
+    Color road_marking = {180, 175, 165, 80};
+    Color wet_reflect = {240, 190, 90, 30};
+
+    s->fog_color = fog_teal;
+    s->fog_density = 0.004f;
+
+    // Player sits in backseat at (0, 1.0, 0), looking forward (-Z)
+    // Taxi interior — walls 0..static_wall_count move with camera
+
+    // Dashboard — wide dark slab in front, below eye level
+    add_wall(s, 0, 0.55f, -1.2f, 1.6f, 0.15f, 0.6f, dash_dark);
+    // Dashboard top surface
+    add_wall(s, 0, 0.64f, -1.2f, 1.6f, 0.03f, 0.6f, (Color){30, 27, 22, 255});
+
+    // Steering wheel — front-left, small cylinder
+    add_cylinder(s, -0.35f, 0.75f, -1.3f, 0.25f, 0.03f, (Color){35, 32, 28, 255});
+    // Steering column
+    add_cylinder(s, -0.35f, 0.65f, -1.35f, 0.04f, 0.2f, (Color){40, 38, 35, 255});
+
+    // Driver — simple figure in front-left seat
+    // Body (dark coat)
+    add_wall(s, -0.4f, 0.75f, -0.9f, 0.4f, 0.5f, 0.3f, driver_coat);
+    // Head
+    add_wall(s, -0.4f, 1.12f, -0.85f, 0.18f, 0.2f, 0.18f, driver_head);
+    // Shoulders
+    add_wall(s, -0.4f, 0.95f, -0.9f, 0.5f, 0.1f, 0.3f, driver_coat);
+
+    // Rear-view mirror — small rectangle above dashboard center
+    add_wall(s, 0, 1.15f, -1.1f, 0.2f, 0.1f, 0.04f, mirror_c);
+    // Mirror support
+    add_wall(s, 0, 1.2f, -1.05f, 0.02f, 0.06f, 0.08f, (Color){40, 38, 35, 255});
+
+    // Backseat — player sits here
+    add_wall(s, 0, 0.35f, 0.1f, 1.4f, 0.12f, 0.5f, leather);
+    // Seat back
+    add_wall(s, 0, 0.65f, 0.35f, 1.4f, 0.5f, 0.1f, leather);
+
+    // A-pillars (window frames) — left and right
+    add_wall(s, -0.85f, 0.85f, -0.5f, 0.06f, 1.0f, 1.4f, window_frame);
+    add_wall(s, 0.85f, 0.85f, -0.5f, 0.06f, 1.0f, 1.4f, window_frame);
+
+    // B-pillars — behind player
+    add_wall(s, -0.85f, 0.85f, 0.4f, 0.06f, 1.0f, 0.1f, window_frame);
+    add_wall(s, 0.85f, 0.85f, 0.4f, 0.06f, 1.0f, 0.1f, window_frame);
+
+    // Roof
+    add_wall(s, 0, 1.35f, -0.2f, 1.8f, 0.05f, 1.2f, (Color){22, 20, 17, 255});
+
+    // Floor
+    add_wall(s, 0, 0.18f, -0.2f, 1.8f, 0.04f, 1.2f, (Color){18, 16, 14, 255});
+
+    // Front windshield frame — top
+    add_wall(s, 0, 1.3f, -1.4f, 1.7f, 0.06f, 0.04f, window_frame);
+
+    // Center console / gear area
+    add_wall(s, 0, 0.45f, -0.6f, 0.15f, 0.3f, 0.5f, dash_dark);
+
+    // Taxi meter — on dashboard, right side
+    add_wall(s, 0.45f, 0.72f, -1.1f, 0.18f, 0.1f, 0.08f, meter_bg);
+    add_wall(s, 0.45f, 0.72f, -1.06f, 0.15f, 0.07f, 0.02f, meter_glow);
+
+    // Door panels — inner surfaces
+    add_wall(s, -0.82f, 0.5f, -0.1f, 0.04f, 0.5f, 0.8f, (Color){30, 27, 22, 255});
+    add_wall(s, 0.82f, 0.5f, -0.1f, 0.04f, 0.5f, 0.8f, (Color){30, 27, 22, 255});
+
+    // Mark end of taxi interior walls
+    s->static_wall_count = s->wall_count;
+
+    // ====== CITY — scrolling walls (indices >= static_wall_count) ======
+
+    // Road — long continuous surface, segments every 20m
+    for (int i = 0; i < 11; i++) {
+        float z = -10.0f - i * 20.0f;
+        add_wall(s, 0, -0.3f, z, 10.0f, 0.05f, 20.0f, road);
+        // Road markings — center dashes
+        add_wall(s, 0, -0.27f, z - 3.0f, 0.12f, 0.02f, 2.0f, road_marking);
+        add_wall(s, 0, -0.27f, z - 9.0f, 0.12f, 0.02f, 2.0f, road_marking);
+        add_wall(s, 0, -0.27f, z - 15.0f, 0.12f, 0.02f, 2.0f, road_marking);
+    }
+
+    // Sidewalks
+    for (int i = 0; i < 11; i++) {
+        float z = -10.0f - i * 20.0f;
+        add_wall(s, -5.5f, -0.15f, z, 1.5f, 0.2f, 20.0f, (Color){35, 38, 42, 255});
+        add_wall(s, 5.5f, -0.15f, z, 1.5f, 0.2f, 20.0f, (Color){35, 38, 42, 255});
+    }
+
+    // Buildings — LEFT side, varying heights and depths
+    float left_bldg_x = -8.0f;
+    for (int i = 0; i < 10; i++) {
+        float z = -5.0f - i * 22.0f;
+        float h = 6.0f + (i * 7 % 5) * 2.0f;
+        float w = 4.0f + (i * 3 % 3);
+        Color bc = (i % 3 == 0) ? bldg_a : (i % 3 == 1) ? bldg_b : bldg_c;
+        add_wall(s, left_bldg_x, h / 2.0f, z, w, h, 3.0f, bc);
+
+        // Windows — amber sodium vapor glow, 2 columns, multiple floors
+        for (int floor = 0; floor < (int)(h / 2.5f); floor++) {
+            for (int col = 0; col < 2; col++) {
+                if ((floor + col + i) % 3 == 0) continue; // some dark
+                float wx = left_bldg_x + 1.2f + col * 1.5f;
+                float wy = 1.5f + floor * 2.5f;
+                if (wy > h - 1.0f) continue;
+                add_wall(s, wx, wy, z + 1.55f, 0.6f, 0.9f, 0.04f, window_amber);
+            }
+        }
+    }
+
+    // Buildings — RIGHT side
+    float right_bldg_x = 8.0f;
+    for (int i = 0; i < 10; i++) {
+        float z = -12.0f - i * 20.0f;
+        float h = 5.0f + (i * 5 % 6) * 2.0f;
+        float w = 3.5f + (i * 4 % 4);
+        Color bc = (i % 3 == 0) ? bldg_b : (i % 3 == 1) ? bldg_c : bldg_a;
+        add_wall(s, right_bldg_x, h / 2.0f, z, w, h, 3.0f, bc);
+
+        // Windows
+        for (int floor = 0; floor < (int)(h / 2.5f); floor++) {
+            for (int col = 0; col < 2; col++) {
+                if ((floor + col + i) % 4 == 0) continue;
+                float wx = right_bldg_x - 1.2f - col * 1.5f;
+                float wy = 1.5f + floor * 2.5f;
+                if (wy > h - 1.0f) continue;
+                add_wall(s, wx, wy, z - 1.55f, 0.6f, 0.9f, 0.04f, window_amber);
+            }
+        }
+    }
+
+    // Streetlights — left side every ~25m
+    for (int i = 0; i < 8; i++) {
+        float z = -15.0f - i * 28.0f;
+        // Pole
+        add_wall(s, -4.8f, 2.0f, z, 0.08f, 4.0f, 0.08f, streetlight_pole);
+        // Light fixture
+        add_wall(s, -4.8f, 4.2f, z, 0.4f, 0.15f, 0.2f, streetlight_glow);
+        // Wet road reflection below
+        add_wall(s, -3.0f, -0.26f, z, 1.5f, 0.02f, 2.0f, wet_reflect);
+    }
+
+    // Streetlights — right side, offset
+    for (int i = 0; i < 8; i++) {
+        float z = -28.0f - i * 28.0f;
+        add_wall(s, 4.8f, 2.0f, z, 0.08f, 4.0f, 0.08f, streetlight_pole);
+        add_wall(s, 4.8f, 4.2f, z, 0.4f, 0.15f, 0.2f, streetlight_glow);
+        add_wall(s, 3.0f, -0.26f, z, 1.5f, 0.02f, 2.0f, wet_reflect);
+    }
+
+    // Parked cars (dark silhouettes on sides of road)
+    for (int i = 0; i < 5; i++) {
+        float z = -20.0f - i * 40.0f;
+        float side = (i % 2 == 0) ? -4.0f : 4.0f;
+        // Car body
+        add_wall(s, side, 0.35f, z, 1.8f, 0.6f, 0.8f, (Color){15, 15, 18, 255});
+        // Car roof
+        add_wall(s, side, 0.7f, z, 1.2f, 0.3f, 0.7f, (Color){18, 18, 22, 255});
+        // Taillight (red glow if behind camera direction)
+        add_wall(s, side - 0.85f, 0.35f, z + 0.35f, 0.06f, 0.06f, 0.04f,
+                 (Color){180, 20, 20, 120});
+    }
+
+    // Distant city skyline — tall dark silhouettes at far Z
+    add_wall(s, -15, 8, -220, 6, 16, 3, (Color){10, 14, 22, 255});
+    add_wall(s, 0, 12, -230, 4, 24, 3, (Color){12, 16, 24, 255});
+    add_wall(s, 12, 6, -215, 8, 12, 3, (Color){8, 12, 20, 255});
+    add_wall(s, -8, 10, -225, 5, 20, 3, (Color){11, 15, 23, 255});
+    add_wall(s, 20, 7, -220, 5, 14, 3, (Color){9, 13, 21, 255});
+
+    s->spawn = (Vector3){0, 1.0f, 0};
     s->has_exit = false;
 }

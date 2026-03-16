@@ -41,10 +41,7 @@ static const int total_tasks = 5;
 static float done_pause = 0;
 
 static bool phone_triggered = false;
-static float phone_text_timer = 0;
 
-static float bathroom_text_timer = 0;
-static bool bathroom_text_active = false;
 
 static bool eiffel_sparkle = false;
 static float sparkle_timer = 0;
@@ -53,13 +50,12 @@ static bool elevator_ding_played = false;
 
 static bool returning_to_room = false;
 
-static float lobby_text_timer = 0;
-static bool lobby_text_active = false;
 
-static float balcony_text_timer = 0;
-static bool balcony_text_active = false;
-
-static bool room_intro_shown = false;
+// Cigarette camera animation (Phase 5)
+static bool cigarette_anim = false;
+static float cigarette_anim_timer = 0;
+static Vector3 cigarette_cam_origin = {0};
+static Vector3 cigarette_cam_target = {0};
 
 static bool show_debug = false;
 static bool wireframe = false;
@@ -94,7 +90,11 @@ static InteractSoundType get_interact_sound(const char *name) {
 static float transition_hold = 0.3f;
 static float hold_timer = 0;
 
+// Forward declaration
+static void load_state(GameState s);
+
 static void transition_to(GameState s) {
+    if (transitioning) return;  // already in flight — don't reset
     transitioning = true;
     next_state = s;
     fade_target = 1.0f;
@@ -105,6 +105,7 @@ static void transition_to(GameState s) {
 }
 
 static void transition_to_slow(GameState s, float spd) {
+    if (transitioning) return;  // already in flight — don't reset
     transitioning = true;
     next_state = s;
     fade_target = 1.0f;
@@ -112,6 +113,14 @@ static void transition_to_slow(GameState s, float spd) {
     transition_hold = (s == STATE_BED) ? 1.0f : 0.3f;
     hold_timer = 0;
     PlayDoorSound(&audio);
+}
+
+// Hard cut — bypasses fade, instantly loads state (Blendo-style ellipsis)
+static void hard_cut_to(GameState s) {
+    printf("[HARDCUT] cutting to state %d\n", s);
+    load_state(s);
+    fade_alpha = 0.0f;  fade_target = 0.0f;
+    transitioning = false;  hold_timer = 0;
 }
 
 static void load_state(GameState s) {
@@ -126,17 +135,25 @@ static void load_state(GameState s) {
         case STATE_TITLE: DisableCursor(); StopAmbient(&audio); break;
 
         case STATE_CAR:
-            // Init rain
+            build_taxi_ride(&scene);
+            init_player(&player, scene.spawn);
+            // Look forward (-Z)
+            player.camera.target = (Vector3){0, 0.9f, -1.0f};
+            // Init rain (2D overlay)
             for (int i = 0; i < MAX_RAIN; i++) {
-                rain[i].x = GetRandomValue(0, RENDER_W);
-                rain[i].y = GetRandomValue(-RENDER_H, 0);
-                rain[i].speed = 80 + GetRandomValue(0, 120);
-                rain[i].len = 3 + GetRandomValue(0, 8);
+                rain[i].x = (float)GetRandomValue(0, RENDER_W);
+                rain[i].y = (float)GetRandomValue(-RENDER_H, 0);
+                rain[i].speed = 80.0f + (float)GetRandomValue(0, 120);
+                rain[i].len = 3.0f + (float)GetRandomValue(0, 8);
             }
+            StopAmbient(&audio);
+            PlayCityAmbient(&audio);
+            SetCityAmbientVolume(&audio, 0.04f);
             break;
 
         case STATE_DRIVING:
-            // Taxi arriving — auto scene
+            // Taxi arriving — same scene, just stopped
+            // Don't rebuild — keep the scene from STATE_CAR
             break;
 
         case STATE_HOTEL_EXT:
@@ -153,8 +170,6 @@ static void load_state(GameState s) {
             EnableCursor(); DisableCursor();
             build_lobby(&scene);
             init_player(&player, scene.spawn);
-            lobby_text_active = false;
-            lobby_text_timer = 0;
             StartAmbient(&audio, DRONE_LOBBY);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
@@ -200,8 +215,6 @@ static void load_state(GameState s) {
                 init_player(&player, scene.spawn);
                 tasks_done = 0;
                 phone_triggered = false;
-                phone_text_timer = 0;
-                room_intro_shown = false;
                 SetPostFXWarmth(&postfx, 0.0f);
             } else {
                 // Returning from bathroom — preserve room state
@@ -218,8 +231,6 @@ static void load_state(GameState s) {
         case STATE_BATHROOM:
             build_bathroom(&scene);
             init_player(&player, scene.spawn);
-            bathroom_text_active = false;
-            bathroom_text_timer = 0;
             StartAmbient(&audio, DRONE_ROOM);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
@@ -231,11 +242,12 @@ static void load_state(GameState s) {
             build_balcony(&scene);
             init_player(&player, scene.spawn);
             eiffel_sparkle = false; sparkle_timer = 0;
-            balcony_text_active = false; balcony_text_timer = 0;
+            cigarette_anim = false; cigarette_anim_timer = 0;
             StopAmbient(&audio);
             StopClockAmbient(&audio);
             StopStairwellAmbient(&audio);
             PlayCityAmbient(&audio);
+            SetCityAmbientVolume(&audio, 0.015f);  // pre-dawn quiet — half volume
             PlayWindAmbient(&audio);
             SetPostFXWarmth(&postfx, 1.0f);
             break;
@@ -256,141 +268,15 @@ static void load_state(GameState s) {
     }
     fade_alpha = 1.0f;
     fade_target = 0.0f;
+    printf("[LOAD] state=%d fade_alpha=%.2f fade_target=%.2f fade_speed=%.2f walls=%d\n",
+           s, fade_alpha, fade_target, fade_speed, scene.wall_count);
 }
 
 // ============================================================
 // VIGNETTE DRAWING
 // ============================================================
 
-static void draw_taxi_ride(float t) {
-    // Jeremy Blake — abstract luminous color fields seen through wet glass
-    // NOT literal: the FEELING of Paris at 2 AM from a moving taxi
-    ClearBackground((Color){4, 4, 8, 255});
-
-    // Speed factor — shapes slow as taxi approaches destination
-    float speed = 1.0f;
-    if (t > 10) speed = fmaxf(0.05f, 1.0f - (t - 10) / 4.0f);
-
-    // 4 large overlapping color fields drifting leftward at different speeds (parallax)
-    // Colors: warm amber, deep blue, soft rose, white
-    typedef struct { float base_x; float drift_speed; int w; int h; int y_off;
-                     unsigned char r, g, b, a; } BlakeShape;
-    BlakeShape shapes[] = {
-        {  0, 55, 180, RENDER_H,      0,   240, 180,  80,  55},  // warm amber, full height
-        {120, 35, 140, RENDER_H*2/3, 40,    40,  60, 140,  50},  // deep blue, 2/3 height
-        {300, 45, 120, RENDER_H,      0,   200, 120, 130,  45},  // soft rose, full height
-        {200, 20, 160, RENDER_H*3/4, 20,   245, 240, 235,  40},  // white, 3/4 height
-    };
-    int shape_count = 4;
-
-    for (int i = 0; i < shape_count; i++) {
-        BlakeShape *s = &shapes[i];
-        // Drift leftward, wrapping
-        float x = fmodf(s->base_x - t * s->drift_speed * speed + RENDER_W * 3, (float)(RENDER_W + s->w)) - s->w;
-        // Alpha modulated slightly by time for breathing effect
-        float breath = 0.85f + 0.15f * sinf(t * 0.7f + i * 1.5f);
-        unsigned char a = (unsigned char)(s->a * breath);
-        DrawRectangle((int)x, s->y_off, s->w, s->h, (Color){s->r, s->g, s->b, a});
-        // Softer edge glow
-        DrawRectangle((int)x - 10, s->y_off, 10, s->h, (Color){s->r, s->g, s->b, (unsigned char)(a / 3)});
-        DrawRectangle((int)x + s->w, s->y_off, 10, s->h, (Color){s->r, s->g, s->b, (unsigned char)(a / 3)});
-    }
-
-    // Occasional bright horizontal streak — headlight passing
-    // Fast, thin, white, random timing
-    SetRandomSeed(42);
-    for (int i = 0; i < 3; i++) {
-        float streak_time = 2.5f + i * 4.3f;
-        float streak_dur = 0.15f;
-        if (t > streak_time && t < streak_time + streak_dur) {
-            float streak_t = (t - streak_time) / streak_dur;
-            int sy = 40 + GetRandomValue(0, RENDER_H - 80);
-            unsigned char sa = (unsigned char)(180 * (1.0f - fabsf(streak_t * 2.0f - 1.0f)));
-            DrawRectangle(0, sy, RENDER_W, 2, (Color){255, 252, 245, sa});
-        }
-    }
-
-    // Rain — small, fast, light drizzle (not defined drops)
-    for (int i = 0; i < MAX_RAIN; i++) {
-        rain[i].y += rain[i].speed * 1.5f * GetFrameTime();  // faster
-        if (rain[i].y > RENDER_H) {
-            rain[i].y = -(rain[i].len * 0.5f);
-            rain[i].x = GetRandomValue(0, RENDER_W);
-        }
-        // Smaller drops — 1px dots instead of lines
-        DrawPixel((int)rain[i].x, (int)rain[i].y, (Color){200, 210, 225, 35});
-    }
-
-    // Taxi meter in the corner — concrete anchor
-    DrawRectangle(RENDER_W - 80, RENDER_H - 50, 55, 25, (Color){20, 18, 15, 255});
-    DrawRectangle(RENDER_W - 78, RENDER_H - 48, 51, 21, (Color){40, 50, 35, 255});
-    float fare = 12.40f + t * 0.15f;
-    DrawText(TextFormat("%.2f", fare), RENDER_W - 74, RENDER_H - 45, 12,
-             (Color){120, 230, 120, 200});
-
-    // Driver silhouette — anchoring detail
-    DrawRectangle(55, RENDER_H - 80, 35, 30, (Color){10, 8, 6, 255});
-    DrawCircle(72, RENDER_H - 82, 12, (Color){10, 8, 6, 255});
-}
-
-static void draw_arrival(float t) {
-    // Jeremy Blake — the abstract color fields SLOW and SETTLE
-    // Motion resolves into warmth. A large golden rectangle centers itself.
-    // The hotel emerging from abstraction.
-    ClearBackground((Color){4, 4, 8, 255});
-
-    // Shapes settle: drift speed decays to near zero over 5 seconds
-    float settle = fminf(1.0f, t / 5.0f);  // 0 = moving, 1 = still
-    float drift_mul = 1.0f - settle * 0.95f;  // shapes nearly stop
-
-    // Same 4 Blake shapes but converging to center, warm tones dominating
-    // As settle increases, shapes drift toward center and alpha increases for warm tones
-    typedef struct { float start_x; float end_x; int w; int h; int y_off;
-                     unsigned char r, g, b; float start_a, end_a; } ArrivalShape;
-    ArrivalShape shapes[] = {
-        // Warm amber — grows dominant, centers
-        { 50, RENDER_W/2 - 100, 180, RENDER_H, 0,   240, 195, 100, 55, 80},
-        // Deep blue — fades and moves off left
-        {200, -60, 120, RENDER_H*2/3, 40,    40,  60, 140, 40, 15},
-        // Soft rose — settles right of center
-        {350, RENDER_W/2 + 30, 130, RENDER_H, 0,   210, 140, 130, 45, 55},
-        // White glow — centers and brightens (the hotel entrance light)
-        {180, RENDER_W/2 - 80, 160, RENDER_H*3/4, 20,   250, 245, 235, 30, 60},
-    };
-    int shape_count = 4;
-
-    for (int i = 0; i < shape_count; i++) {
-        ArrivalShape *s = &shapes[i];
-        // Interpolate position from start to settled end
-        float x = s->start_x + (s->end_x - s->start_x) * settle;
-        // Small residual drift
-        x += sinf(t * 0.3f + i * 2.0f) * 5.0f * drift_mul;
-        // Alpha interpolates too
-        float a = s->start_a + (s->end_a - s->start_a) * settle;
-        float breath = 0.9f + 0.1f * sinf(t * 0.5f + i * 1.3f);
-        unsigned char alpha = (unsigned char)(a * breath);
-        DrawRectangle((int)x, s->y_off, s->w, s->h, (Color){s->r, s->g, s->b, alpha});
-        // Soft edges
-        DrawRectangle((int)x - 8, s->y_off, 8, s->h, (Color){s->r, s->g, s->b, (unsigned char)(alpha / 3)});
-        DrawRectangle((int)x + s->w, s->y_off, 8, s->h, (Color){s->r, s->g, s->b, (unsigned char)(alpha / 3)});
-    }
-
-    // "HOTEL CHEVALIER" text fades in over the settled composition
-    float text_alpha = fmaxf(0, fminf(1.0f, (t - 2.5f) / 2.0f));
-    if (text_alpha > 0) {
-        const char *name = "HOTEL CHEVALIER";
-        int tw = MeasureText(name, 10);
-        DrawText(name, RENDER_W/2 - tw/2, RENDER_H/2 - 20, 10,
-                 (Color){240, 220, 160, (unsigned char)(230 * text_alpha)});
-    }
-
-    // Subtle rain — lighter, slower, dots
-    for (int i = 0; i < MAX_RAIN / 3; i++) {
-        rain[i].y += rain[i].speed * GetFrameTime() * 0.2f;
-        if (rain[i].y > RENDER_H) rain[i].y = -(rain[i].len * 0.3f);
-        DrawPixel((int)rain[i].x, (int)rain[i].y, (Color){200, 210, 225, 25});
-    }
-}
+// Old 2D draw_taxi_ride and draw_arrival removed — replaced by 3D taxi scene
 
 static void draw_vignette_text(void) {
     if (!vig_text || vig_text_alpha < 0.01f) return;
@@ -446,6 +332,7 @@ int main(void) {
             if (hold_timer <= 0) {
                 hold_timer = 0;
                 transitioning = false;
+                printf("[FADE] hold done, loading state %d\n", next_state);
                 load_state(next_state);
             }
         } else if (fade_alpha != fade_target) {
@@ -456,6 +343,17 @@ int main(void) {
                 if (transitioning) {
                     hold_timer = transition_hold;
                 }
+            }
+        }
+
+        // DIAGNOSTIC: log fade state every second in early game
+        {
+            static float diag_timer = 0;
+            diag_timer += dt;
+            if (diag_timer > 1.0f) {
+                diag_timer = 0;
+                printf("[DIAG] state=%d fade_alpha=%.2f fade_target=%.2f fade_speed=%.2f transitioning=%d hold=%.2f walls=%d st=%.1f\n",
+                       state, fade_alpha, fade_target, fade_speed, transitioning, hold_timer, scene.wall_count, state_time);
             }
         }
 
@@ -482,23 +380,69 @@ int main(void) {
                 if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) transition_to(STATE_CAR);
                 break;
 
-            case STATE_CAR:
-                // Taxi ride — auto-playing cinematic
+            case STATE_CAR: {
+                // 3D taxi ride — mouse look, no movement, city scrolls past
+                // Mouse look (yaw/pitch only, no position change)
+                Vector2 md = GetMouseDelta();
+                float car_yaw = -md.x * MOUSE_SENS;
+                float car_pitch = -md.y * MOUSE_SENS;
+                Vector3 car_fwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                Vector3 car_right = Vector3Normalize(Vector3CrossProduct(car_fwd, player.camera.up));
+                Matrix car_ym = MatrixRotateY(car_yaw);
+                car_fwd = Vector3Transform(car_fwd, car_ym);
+                float car_cp = asinf(car_fwd.y);
+                float car_np = car_cp + car_pitch;
+                if (car_np > 0.8f) car_pitch = 0.8f - car_cp;
+                if (car_np < -0.6f) car_pitch = -0.6f - car_cp;
+                Matrix car_pm = MatrixRotate(car_right, car_pitch);
+                car_fwd = Vector3Transform(car_fwd, car_pm);
+                player.camera.target = Vector3Add(player.camera.position, car_fwd);
+
+                // Auto-scroll city walls — taxi speed decreasing toward end
+                float taxi_speed = 8.0f;
+                if (state_time > 10.0f) taxi_speed = fmaxf(0.5f, 8.0f - (state_time - 10.0f) * 2.5f);
+                for (int i = scene.static_wall_count; i < scene.wall_count; i++) {
+                    scene.walls[i].pos.z += taxi_speed * dt;
+                    // Wrap city walls that pass behind us
+                    if (scene.walls[i].pos.z > 10.0f) {
+                        scene.walls[i].pos.z -= 220.0f;
+                    }
+                }
+
+                // Vignette text
                 if (state_time > 1.5f && state_time < 2.0f) show_text("Paris. 2:47 AM.");
-                if (state_time > 5.0f) hide_text();
+                if (state_time > 5.0f && state_time < 5.5f) hide_text();
                 if (state_time > 7.0f && state_time < 7.5f) show_text("You arrived three hours early.");
-                if (state_time > 10.0f) hide_text();
+                if (state_time > 10.5f) hide_text();
                 if (state_time > 13.5f) transition_to(STATE_DRIVING);
                 if (IsKeyPressed(KEY_ENTER) && state_time > 3) transition_to(STATE_DRIVING);
                 break;
+            }
 
-            case STATE_DRIVING:
-                // Arrival — taxi stopped, looking at hotel through window
+            case STATE_DRIVING: {
+                // Arrival — taxi stopped, same scene, mouse look only
+                Vector2 md2 = GetMouseDelta();
+                float drv_yaw = -md2.x * MOUSE_SENS;
+                float drv_pitch = -md2.y * MOUSE_SENS;
+                Vector3 drv_fwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                Vector3 drv_right = Vector3Normalize(Vector3CrossProduct(drv_fwd, player.camera.up));
+                Matrix drv_ym = MatrixRotateY(drv_yaw);
+                drv_fwd = Vector3Transform(drv_fwd, drv_ym);
+                float drv_cp = asinf(drv_fwd.y);
+                float drv_np = drv_cp + drv_pitch;
+                if (drv_np > 0.8f) drv_pitch = 0.8f - drv_cp;
+                if (drv_np < -0.6f) drv_pitch = -0.6f - drv_cp;
+                Matrix drv_pm = MatrixRotate(drv_right, drv_pitch);
+                drv_fwd = Vector3Transform(drv_fwd, drv_pm);
+                player.camera.target = Vector3Add(player.camera.position, drv_fwd);
+
+                // Text
                 if (state_time > 1.5f && state_time < 2.0f) show_text("Nous sommes arrives, monsieur.");
                 if (state_time > 5.5f) hide_text();
                 if (state_time > 7.0f) transition_to(STATE_HOTEL_EXT);
                 if (IsKeyPressed(KEY_ENTER) && state_time > 2) transition_to(STATE_HOTEL_EXT);
                 break;
+            }
 
             case STATE_HOTEL_EXT:
                 update_player(&player, &scene, dt);
@@ -527,21 +471,11 @@ int main(void) {
                                 if (strcmp(obj->name, "newspaper") == 0) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
-                                    show_text("Yesterday's Le Monde.");
-                                    lobby_text_active = true;
-                                    lobby_text_timer = 0;
+                                    // No text — it's just a newspaper
                                     break;
                                 }
                             }
                         }
-                    }
-                }
-                // Auto-hide storytelling text after 3s
-                if (lobby_text_active) {
-                    lobby_text_timer += dt;
-                    if (lobby_text_timer > 3.0f) {
-                        hide_text();
-                        lobby_text_active = false;
                     }
                 }
                 if (scene.has_exit) {
@@ -555,13 +489,11 @@ int main(void) {
                 // Subtle upward drift to simulate going up
                 player.camera.position.y += 0.3f * dt;
                 player.camera.target.y += 0.3f * dt;
-                // Ding at 2 seconds
+                // Ding at 2 seconds — the sound is enough
                 if (state_time > 2.0f && !elevator_ding_played) {
                     elevator_ding_played = true;
                     PlayElevatorDing(&audio);
-                    show_text("2");
                 }
-                if (state_time > 3.0f) hide_text();
                 // Auto-transition to hallway at 4 seconds
                 if (state_time > 4.0f) transition_to(STATE_HALLWAY);
                 break;
@@ -593,14 +525,7 @@ int main(void) {
             case STATE_ROOM:
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
-                // "Three hours to kill." — connects taxi to room (Vanaman, Wreden)
-                if (!room_intro_shown && state_time > 3.0f) {
-                    room_intro_shown = true;
-                    show_text("Three hours to kill.");
-                }
-                if (room_intro_shown && state_time > 7.0f && vig_text != NULL) {
-                    hide_text();
-                }
+                // Boarding pass on desk tells the story — no text needed
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -684,28 +609,17 @@ int main(void) {
                         }
                     }
                 }
-                // Phone lights up at 3 tasks — "Missed call."
+                // Phone lights up at 3 tasks — screen glow is enough
                 if (tasks_done >= 3 && !phone_triggered) {
                     phone_triggered = true;
-                    phone_text_timer = 0;
-                    // Bright screen on phone
+                    // Bright screen on phone — no text, the glow tells the story
                     add_wall(&scene, 5.2f, 0.87f, 0.15f, 0.12f, 0.01f, 0.06f, (Color){120,180,230,180});
-                    show_text("Missed call.");
-                }
-                if (phone_triggered && phone_text_timer < 10.0f) {
-                    phone_text_timer += dt;
-                    if (phone_text_timer > 4.0f && phone_text_timer < 4.5f) hide_text();
                 }
 
                 if (tasks_done >= total_tasks) {
                     done_pause += dt;
-                    if (done_pause > 0.5f && done_pause < 1.0f) {
-                        // Force-clear any lingering phone text
-                        phone_text_timer = 10.0f;
-                        show_text("She'll be here soon.");
-                    }
-                    if (done_pause > 4.5f && done_pause < 5.0f) hide_text();
-                    if (done_pause > 5.5f) transition_to(STATE_BALCONY);
+                    // Two wine glasses on balcony tell the story — no text
+                    if (done_pause > 3.0f) hard_cut_to(STATE_BALCONY);
                 }
                 break;
 
@@ -740,21 +654,11 @@ int main(void) {
                                     obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
                                     kick_camera(&player, -0.01f, 0.005f);
-                                    show_text("You look tired.");
-                                    bathroom_text_active = true;
-                                    bathroom_text_timer = 0;
+                                    // No text — the mirror reflects enough
                                     break;
                                 }
                             }
                         }
-                    }
-                }
-                // Bathroom text auto-hide after 3 seconds
-                if (bathroom_text_active) {
-                    bathroom_text_timer += dt;
-                    if (bathroom_text_timer > 3.0f) {
-                        hide_text();
-                        bathroom_text_active = false;
                     }
                 }
                 break;
@@ -769,8 +673,8 @@ int main(void) {
                 break;
 
             case STATE_BALCONY:
-                update_player(&player, &scene, dt);
-                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                if (!cigarette_anim) update_player(&player, &scene, dt);
+                UpdateEVAudio(&audio, player.moving && !cigarette_anim, player.sprinting, scene.surface, dt);
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -783,44 +687,60 @@ int main(void) {
                                 if (strcmp(obj->name, "cigarette") == 0) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
-                                    show_text("You quit last year.");
-                                    balcony_text_active = true;
-                                    balcony_text_timer = 0;
+                                    // Camera animation handles this — Phase 5
+                                    cigarette_anim = true;
+                                    cigarette_anim_timer = 0;
+                                    cigarette_cam_origin = player.camera.position;
+                                    // Target: lean toward the cigarette
+                                    Vector3 to_cig = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                                    cigarette_cam_target = Vector3Add(player.camera.position, Vector3Scale(to_cig, 0.5f));
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                // Balcony text auto-hide after 3 seconds
-                if (balcony_text_active) {
-                    balcony_text_timer += dt;
-                    if (balcony_text_timer > 3.0f) {
-                        hide_text();
-                        balcony_text_active = false;
+                // Cigarette camera animation — camera tells the story
+                if (cigarette_anim) {
+                    cigarette_anim_timer += dt;
+                    float t = cigarette_anim_timer;
+                    if (t < 0.8f) {
+                        // Lean toward cigarette (smoothstep)
+                        float s = t / 0.8f;
+                        s = s * s * (3.0f - 2.0f * s); // smoothstep
+                        player.camera.position = Vector3Lerp(cigarette_cam_origin, cigarette_cam_target, s);
+                    } else if (t < 1.3f) {
+                        // Hold — Walter considers
+                        player.camera.position = cigarette_cam_target;
+                    } else if (t < 2.1f) {
+                        // Pull back
+                        float s = (t - 1.3f) / 0.8f;
+                        s = s * s * (3.0f - 2.0f * s);
+                        player.camera.position = Vector3Lerp(cigarette_cam_target, cigarette_cam_origin, s);
+                    } else {
+                        // Done
+                        player.camera.position = cigarette_cam_origin;
+                        cigarette_anim = false;
                     }
+                    // Disable player movement during animation
+                    player.camera.target = Vector3Add(player.camera.position, Vector3Normalize(Vector3Subtract(cigarette_cam_target, cigarette_cam_origin)));
                 }
-                if (!eiffel_sparkle && state_time > 6) {
+                if (!eiffel_sparkle && state_time > 0.5f) {
                     eiffel_sparkle = true; sparkle_timer = 0;
                     PlaySparkleSound(&audio);
                 }
                 if (eiffel_sparkle) sparkle_timer += dt;
-                // Resignation text — "..." (Wreden)
-                if (state_time > 25.0f && state_time < 25.5f) show_text("...");
-                if (state_time > 30.0f && state_time < 30.5f) {
-                    hide_text();
+                // Silence — then bed
+                if (state_time > 30.0f)
                     transition_to_slow(STATE_BED, 0.7f);
-                }
                 if (state_time > 12 && IsKeyPressed(KEY_ENTER))
                     transition_to_slow(STATE_BED, 0.7f);
                 break;
 
             case STATE_BED:
-                // "..." fades in during black, then ceiling, then stars
-                if (state_time > 0.5f && state_time < 1.0f) show_text("...");
-                if (state_time > 3.0f) hide_text();
-                if (state_time > 18 || (state_time > 8 && IsKeyPressed(KEY_ENTER)))
-                    transition_to_slow(STATE_STARS, 0.7f);
+                // Ceiling materializes, stars emerge, then hard cut to void
+                if (state_time > 16 || (state_time > 10 && IsKeyPressed(KEY_ENTER)))
+                    hard_cut_to(STATE_STARS);
                 break;
 
             case STATE_STARS:
@@ -841,11 +761,23 @@ int main(void) {
                 break;
 
             case STATE_CAR:
-                draw_taxi_ride(state_time);
-                break;
-
             case STATE_DRIVING:
-                draw_arrival(state_time);
+                // 3D taxi scene with night sky
+                ClearBackground((Color){8, 12, 28, 255});
+                draw_night_sky(state_time);
+                draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
+                              &cyl_model, cyl_model_loaded, false, state_time);
+                // Rain overlay on windshield — 2D after 3D
+                for (int i = 0; i < MAX_RAIN; i++) {
+                    rain[i].y += rain[i].speed * 1.5f * dt;
+                    if (rain[i].y > RENDER_H) {
+                        rain[i].y = -(rain[i].len * 0.5f);
+                        rain[i].x = (float)GetRandomValue(0, RENDER_W);
+                    }
+                    DrawLine((int)rain[i].x, (int)rain[i].y,
+                             (int)(rain[i].x - 0.5f), (int)(rain[i].y + rain[i].len),
+                             (Color){180, 195, 210, 30});
+                }
                 break;
 
             case STATE_HOTEL_EXT:
@@ -983,7 +915,8 @@ int main(void) {
         // Crosshair — subtle dot, always visible in 3D scenes
         if (state == STATE_HOTEL_EXT || state == STATE_LOBBY || state == STATE_ELEVATOR ||
             state == STATE_STAIRWELL || state == STATE_HALLWAY || state == STATE_ROOM ||
-            state == STATE_BATHROOM || state == STATE_BALCONY || state == STATE_ROOF) {
+            state == STATE_BATHROOM || state == STATE_BALCONY || state == STATE_ROOF ||
+            state == STATE_CAR || state == STATE_DRIVING) {
             DrawPixel(RENDER_W/2, RENDER_H/2, (Color){220, 215, 205, 60});
         }
 

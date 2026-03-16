@@ -72,5 +72,6 @@ void PlayWindAmbient(EVAudio *audio);
 void StopWindAmbient(EVAudio *audio);
 void PlayElevatorHum(EVAudio *audio);
 void PlayElevatorDing(EVAudio *audio);
+void SetCityAmbientVolume(EVAudio *audio, float vol);
 
 #endif

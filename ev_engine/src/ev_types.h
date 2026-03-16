@@ -11,7 +11,7 @@
 #define SPRINT_SPEED 8.5f
 #define MOUSE_SENS 0.003f
 #define MAX_OBJECTS 64
-#define MAX_WALLS 768
+#define MAX_WALLS 1024
 
 typedef enum {
     STATE_TITLE,
@@ -91,6 +91,7 @@ typedef struct {
     Color fog_color;
     float fog_density;
     SurfaceType surface;
+    int static_wall_count;  // walls below this index move with camera (taxi interior)
 } Scene;
 
 #endif
