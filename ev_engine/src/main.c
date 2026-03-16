@@ -6,6 +6,7 @@
 
 #include "raylib.h"
 #include "raymath.h"
+#include "lighting.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -92,6 +93,9 @@ static bool transitioning = false;
 static Player player = {0};
 static Scene scene = {0};
 
+static EVLighting lighting = {0};
+static Model cube_model = {0};
+static bool cube_model_loaded = false;
 static RenderTexture2D render_target;
 static float planet_angle = 0;
 static float drive_speed = 0;
@@ -659,33 +663,40 @@ static void update_player(float dt) {
 // ============================================================
 
 static void draw_scene_3d(void) {
-    // Fog via background clear color
     ClearBackground(scene.fog_color);
+
+    // Update lighting shader uniforms
+    if (lighting.ready) {
+        UpdateEVLighting(&lighting, player.camera, scene.fog_color, scene.fog_density);
+    }
 
     BeginMode3D(player.camera);
 
-    // Distance-based color darkening for fake fog
-    Vector3 cam = player.camera.position;
-
+    // Draw walls — use cube models with lighting shader for proper normals
     for (int i = 0; i < scene.wall_count; i++) {
         Wall *w = &scene.walls[i];
         if (!w->active) continue;
 
-        // Simple distance fog — darken color based on distance from camera
-        float dx = w->pos.x - cam.x;
-        float dz = w->pos.z - cam.z;
-        float dist = sqrtf(dx*dx + dz*dz);
-        float fog = fminf(1.0f, dist * scene.fog_density);
-
-        Color c = w->color;
-        c.r = (unsigned char)(c.r * (1 - fog) + scene.fog_color.r * fog);
-        c.g = (unsigned char)(c.g * (1 - fog) + scene.fog_color.g * fog);
-        c.b = (unsigned char)(c.b * (1 - fog) + scene.fog_color.b * fog);
-
-        DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
+        if (lighting.ready && cube_model_loaded) {
+            cube_model.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+            DrawModelEx(cube_model, w->pos, (Vector3){0,1,0}, 0,
+                       w->size, WHITE);
+        } else {
+            // Fallback with manual fog
+            Vector3 cam = player.camera.position;
+            float dx = w->pos.x - cam.x;
+            float dz = w->pos.z - cam.z;
+            float dist = sqrtf(dx*dx + dz*dz);
+            float fog = fminf(1.0f, dist * scene.fog_density);
+            Color c = w->color;
+            c.r = (unsigned char)(c.r * (1 - fog) + scene.fog_color.r * fog);
+            c.g = (unsigned char)(c.g * (1 - fog) + scene.fog_color.g * fog);
+            c.b = (unsigned char)(c.b * (1 - fog) + scene.fog_color.b * fog);
+            DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
+        }
     }
 
-    // Interactive objects — soft glowing orbs
+    // Interactive objects — unlit for glow effect
     for (int i = 0; i < scene.object_count; i++) {
         InteractObject *obj = &scene.objects[i];
         if (!obj->active || obj->done) continue;
@@ -866,6 +877,17 @@ int main(void) {
 
     render_target = LoadRenderTexture(RENDER_W, RENDER_H);
     SetTextureFilter(render_target.texture, TEXTURE_FILTER_POINT);
+
+    // Load lighting system
+    lighting = LoadEVLighting();
+
+    // Create a unit cube mesh with normals for lit rendering
+    Mesh cube_mesh = GenMeshCube(1.0f, 1.0f, 1.0f);
+    cube_model = LoadModelFromMesh(cube_mesh);
+    if (lighting.ready) {
+        cube_model.materials[0].shader = lighting.shader;
+    }
+    cube_model_loaded = true;
 
     DisableCursor();
     load_state(STATE_TITLE);
@@ -1105,6 +1127,8 @@ int main(void) {
         EndDrawing();
     }
 
+    if (cube_model_loaded) UnloadModel(cube_model);
+    UnloadEVLighting(&lighting);
     UnloadRenderTexture(render_target);
     CloseWindow();
     return 0;
