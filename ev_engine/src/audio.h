@@ -38,8 +38,12 @@ typedef struct {
 
     Sound snd_city;
     Sound snd_clock;
+    Sound snd_stairwell;
+    Sound snd_wind;
     bool city_playing;
     bool clock_playing;
+    bool stairwell_playing;
+    bool wind_playing;
 
     float step_timer;
     float step_interval;
@@ -60,5 +64,9 @@ void PlayCityAmbient(EVAudio *audio);
 void StopCityAmbient(EVAudio *audio);
 void PlayClockAmbient(EVAudio *audio);
 void StopClockAmbient(EVAudio *audio);
+void PlayStairwellAmbient(EVAudio *audio);
+void StopStairwellAmbient(EVAudio *audio);
+void PlayWindAmbient(EVAudio *audio);
+void StopWindAmbient(EVAudio *audio);
 
 #endif

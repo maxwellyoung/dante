@@ -234,6 +234,10 @@ void build_lobby(Scene *s) {
     // Terracotta bench — ONE accent
     add_wall(s, 5, 0.25f, -8, 2.5f, 0.5f, 0.7f, terracotta);
 
+    // Newspaper on bench — environmental storytelling
+    add_wall(s, 5.1f, 0.52f, -8, 0.6f, 0.02f, 0.4f, (Color){235,232,228,255});
+    add_object(s, 5.1f, 0.6f, -8, "newspaper", (Color){235,232,228,255}, 1);
+
     add_light_panel(s, 14.8f, 1.5f, 1, 0.1f, 3, 2.5f, gold);
 
     // Dropped ceiling — coffered effect in lobby center
@@ -309,6 +313,14 @@ void build_hallway(Scene *s) {
     add_wall(s, 0, 0.02f, -L+4, 2.0f, 0.02f, 2.0f, (Color){230,225,215,70});
     add_wall(s, 0, 0.02f, -L+6, 2.5f, 0.02f, 2.0f, (Color){230,225,215,50});
 
+    // "Do Not Disturb" sign on door 3 (left side)
+    add_wall(s, -(W/2-0.1f)-0.02f, 1.1f, -3.5f - 2*4.5f, 0.3f, 0.15f, 0.04f, (Color){200,50,40,255});
+
+    // Room service tray outside door 4 (right side)
+    add_wall(s, (W/2-0.1f)*0.95f, 0.03f, -3.5f - 3*4.5f, 0.5f, 0.04f, 0.35f, (Color){200,198,195,255});
+    add_cylinder(s, (W/2-0.1f)*0.95f - 0.1f, 0.1f, -3.5f - 3*4.5f, 0.08f, 0.1f, (Color){240,238,234,255});
+    add_wall(s, (W/2-0.1f)*0.95f + 0.1f, 0.06f, -3.5f - 3*4.5f, 0.2f, 0.02f, 0.2f, (Color){240,238,234,255});
+
     s->spawn = (Vector3){0, 1.6f, -1};
     s->exit_pos = (Vector3){0, 1.6f, -L+1};
     s->has_exit = true;
@@ -365,17 +377,31 @@ void build_hotel_room(Scene *s) {
 
     add_wall(s, -2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
     add_wall(s, 2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
-    // Lamp bases — thin cylinders on bedside tables
-    add_cylinder(s, -2.5f, 0.72f, -3.8f, 0.1f, 0.22f, gold);
-    add_cylinder(s, 2.5f, 0.72f, -3.8f, 0.1f, 0.22f, gold);
+    // Bedside lamps — cylinder base + shaft + shade + glow
+    Color brass_lamp = {178,155,107,255};
+    Color cream_shade = {235,228,215,255};
+    // Left lamp
+    add_cylinder(s, -2.5f, 0.62f, -3.8f, 0.08f, 0.04f, brass_lamp);  // base
+    add_cylinder(s, -2.5f, 0.74f, -3.8f, 0.03f, 0.2f, brass_lamp);   // shaft
+    add_cylinder(s, -2.5f, 0.90f, -3.8f, 0.15f, 0.12f, cream_shade); // shade
     add_light_panel(s, -2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
+    // Right lamp
+    add_cylinder(s, 2.5f, 0.62f, -3.8f, 0.08f, 0.04f, brass_lamp);
+    add_cylinder(s, 2.5f, 0.74f, -3.8f, 0.03f, 0.2f, brass_lamp);
+    add_cylinder(s, 2.5f, 0.90f, -3.8f, 0.15f, 0.12f, cream_shade);
     add_light_panel(s, 2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
 
     // Desk
     add_wall(s, 5.0f, 0.4f, 0, 2.5f, 0.8f, 0.9f, wood);
     add_wall(s, 5.0f, 0.82f, 0, 2.6f, 0.03f, 0.95f, gold);
-    add_wall(s, 3.8f, 0.35f, 0, 0.5f, 0.7f, 0.5f, (Color){160,90,50,255});
-    add_wall(s, 3.8f, 0.75f, -0.18f, 0.5f, 0.55f, 0.08f, (Color){160,90,50,255});
+    // Desk chair — seat with 4 cylinder legs + back
+    Color chair_c = {160,90,50,255};
+    add_wall(s, 3.8f, 0.35f, 0, 0.5f, 0.04f, 0.5f, chair_c);          // seat (thin)
+    add_cylinder(s, 3.57f, 0.165f, -0.22f, 0.025f, 0.3f, chair_c);     // leg FL
+    add_cylinder(s, 4.03f, 0.165f, -0.22f, 0.025f, 0.3f, chair_c);     // leg FR
+    add_cylinder(s, 3.57f, 0.165f, 0.22f, 0.025f, 0.3f, chair_c);      // leg BL
+    add_cylinder(s, 4.03f, 0.165f, 0.22f, 0.025f, 0.3f, chair_c);      // leg BR
+    add_wall(s, 3.8f, 0.75f, -0.22f, 0.5f, 0.55f, 0.08f, chair_c);    // back (angled via offset)
     add_wall(s, 5.75f, 1.8f, 0, 0.04f, 1.1f, 1.3f, (Color){200,205,210,180});
     add_wall(s, 5.78f, 1.8f, 0, 0.03f, 1.2f, 0.05f, gold);
 
@@ -385,8 +411,12 @@ void build_hotel_room(Scene *s) {
     add_wall(s, -5.4f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
     add_wall(s, -3.0f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
 
-    add_wall(s, -4.2f, 0.2f, 3.0f, 1.4f, 0.4f, 0.8f, wood);
-    add_wall(s, -4.2f, 0.42f, 3.0f, 1.45f, 0.03f, 0.85f, gold);
+    // Coffee table — flat top with 4 cylinder legs
+    add_wall(s, -4.2f, 0.38f, 3.0f, 1.45f, 0.03f, 0.85f, gold);       // top surface
+    add_cylinder(s, -4.85f, 0.18f, 2.62f, 0.025f, 0.35f, wood);        // leg FL
+    add_cylinder(s, -3.55f, 0.18f, 2.62f, 0.025f, 0.35f, wood);        // leg FR
+    add_cylinder(s, -4.85f, 0.18f, 3.38f, 0.025f, 0.35f, wood);        // leg BL
+    add_cylinder(s, -3.55f, 0.18f, 3.38f, 0.025f, 0.35f, wood);        // leg BR
 
     // Suitcase
     add_wall(s, 2.2f, 0.2f, 3.8f, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
@@ -481,6 +511,10 @@ void build_balcony(Scene *s) {
     add_wall(s, -1.5f, 0.22f, 0.2f, 0.45f, 0.44f, 0.45f, (Color){120,100,70,255});
     add_wall(s, -1.5f, 0.58f, 0.42f, 0.45f, 0.4f, 0.06f, (Color){120,100,70,255});
 
+    // Ashtray with cigarette on railing table
+    add_cylinder(s, -1.5f, 0.49f, -0.3f, 0.12f, 0.04f, (Color){140,135,130,255});
+    add_object(s, -1.5f, 0.55f, -0.3f, "cigarette", (Color){200,195,185,255}, 1);
+
     add_wall(s, -12, 4, -30, 4, 8, 2, bldg_near);
     add_wall(s, -8, 5.5f, -28, 3, 11, 2, bldg_near);
     add_wall(s, -16, 3, -32, 5, 6, 2, bldg_near);
@@ -557,13 +591,19 @@ void build_bathroom(Scene *s) {
     add_wall(s, -bw/2, bh/2, 0, 0.2f, bh, bd, concrete);       // left wall
     add_wall(s, bw/2, bh/2, 0, 0.2f, bh, bd, concrete);        // right wall
 
-    // Bathtub — large freestanding, wide low rectangle with raised edges
+    // Bathtub — large freestanding, with curved half-cylinder ends and brass faucet
     add_wall(s, -1.2f, 0.25f, -1.0f, 1.8f, 0.5f, 0.9f, porcelain);  // tub body
     // Raised edges
     add_wall(s, -1.2f, 0.55f, -1.45f, 1.8f, 0.1f, 0.06f, porcelain); // back edge
     add_wall(s, -1.2f, 0.55f, -0.55f, 1.8f, 0.1f, 0.06f, porcelain); // front edge
     add_wall(s, -2.1f, 0.55f, -1.0f, 0.06f, 0.1f, 0.9f, porcelain);  // left edge
     add_wall(s, -0.3f, 0.55f, -1.0f, 0.06f, 0.1f, 0.9f, porcelain);  // right edge
+    // Curved ends — half-cylinders at each end of the tub
+    add_cylinder(s, -2.1f, 0.3f, -1.0f, 0.5f, 0.5f, porcelain);      // left end
+    add_cylinder(s, -0.3f, 0.3f, -1.0f, 0.5f, 0.5f, porcelain);      // right end
+    // Brass faucet — on back wall above tub
+    add_cylinder(s, -1.2f, 0.75f, -1.42f, 0.06f, 0.15f, brass);      // faucet pipe
+    add_cylinder(s, -1.2f, 0.85f, -1.38f, 0.04f, 0.06f, brass);      // faucet spout
 
     // Sink — wall-mounted slab on right wall
     add_wall(s, 2.2f, 0.85f, 0.5f, 0.8f, 0.06f, 0.5f, porcelain);   // sink basin
@@ -583,6 +623,10 @@ void build_bathroom(Scene *s) {
     add_wall(s, -2.38f, 1.4f, 0.0f, 0.06f, 0.9f, 0.5f, terracotta);
     // Towel bar
     add_wall(s, -2.4f, 1.9f, 0.0f, 0.04f, 0.04f, 0.7f, brass);
+
+    // Toiletries bag on counter near sink
+    add_wall(s, 1.8f, 0.92f, 0.8f, 0.25f, 0.15f, 0.12f, (Color){60,55,50,255});
+    add_wall(s, 1.8f, 1.0f, 0.8f, 0.25f, 0.02f, 0.01f, (Color){178,155,107,255}); // brass zipper
 
     // Ando moment — horizontal slot window near ceiling on back wall
     // Narrow opening letting light pour in
@@ -683,10 +727,104 @@ void build_stairwell(Scene *s) {
     add_wall(s, -sw/2+0.15f, 1.2f, 0, 0.2f, 0.5f, 0.15f, fire_ext);
     add_wall(s, -sw/2+0.12f, 1.55f, 0, 0.08f, 0.15f, 0.06f, (Color){50,50,50,255});  // nozzle
 
+    // Graffiti — small blue paint rectangle on left wall at odd height
+    add_wall(s, -sw/2+0.12f, 3.2f, -1.5f, 0.04f, 0.4f, 0.6f, (Color){80,120,180,255});
+
     // Light shaft from skylight falling down center
     add_wall(s, 0, 0.02f, 0, 2.0f, 0.02f, 2.0f, (Color){240,238,232,80});
 
+    // Two exit points: lower landing goes to hallway, upper goes to roof
+    // exit_pos is the lower exit (hallway); roof exit checked by y-position in main.c
     s->spawn = (Vector3){0, 1.6f, 2.0f};
     s->exit_pos = (Vector3){0, 1.6f, -2.5f};
+    s->has_exit = true;
+}
+
+void build_roof(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
+
+    Color concrete = {175,172,168,255};
+    Color concrete_dark = {155,152,148,255};
+    Color metal = {140,138,135,255};
+    Color tower = {70,75,95,255};
+    Color bldg_near = {60,65,85,255};
+    Color bldg_mid = {45,50,72,255};
+    Color bldg_far = {35,40,62,255};
+    Color window = {240,200,110,140};
+
+    s->fog_color = (Color){20,25,45,255};  // night blue — minimal fog
+    s->fog_density = 0.002f;
+
+    // Concrete floor — 20x20m
+    add_wall(s, 0, -0.1f, 0, 20, 0.2f, 20, concrete);
+
+    // Parapet walls — 0.8m high around edges
+    add_wall(s, 0, 0.4f, -10, 20, 0.8f, 0.3f, concrete);   // back
+    add_wall(s, 0, 0.4f, 10, 20, 0.8f, 0.3f, concrete);    // front
+    add_wall(s, -10, 0.4f, 0, 0.3f, 0.8f, 20, concrete);   // left
+    add_wall(s, 10, 0.4f, 0, 0.3f, 0.8f, 20, concrete);    // right
+
+    // Water tank / AC unit — blocky industrial in corner
+    add_wall(s, 7, 1.2f, 7, 3, 2.4f, 2.5f, concrete_dark);
+    add_wall(s, 7, 2.5f, 7, 3.2f, 0.1f, 2.7f, concrete);   // lid
+    // Smaller AC unit
+    add_wall(s, 7, 0.6f, 4, 1.5f, 1.2f, 1.2f, concrete_dark);
+    add_wall(s, 7, 1.3f, 4, 1.6f, 0.08f, 1.3f, metal);      // grate top
+
+    // Metal pipes/vents
+    add_cylinder(s, -6, 0.8f, 6, 0.3f, 1.6f, metal);
+    add_cylinder(s, -7, 0.5f, 7, 0.2f, 1.0f, metal);
+    add_cylinder(s, 5, 0.6f, -7, 0.25f, 1.2f, metal);
+
+    // Stairwell exit structure — small concrete housing
+    add_wall(s, 0, 1.5f, 8, 2.5f, 3, 2, concrete);
+    // Door opening
+    add_wall(s, 0, 1.3f, 7, 1.0f, 2.6f, 0.12f, (Color){120,100,75,255}); // rusted door
+
+    // Distant cityscape — same buildings as balcony but from higher vantage
+    add_wall(s, -12, 2, -30, 4, 8, 2, bldg_near);
+    add_wall(s, -8, 3.5f, -28, 3, 11, 2, bldg_near);
+    add_wall(s, -16, 1, -32, 5, 6, 2, bldg_near);
+    add_wall(s, 16, 2.5f, -25, 3.5f, 9, 2, bldg_near);
+    add_wall(s, 5, 4, -50, 6, 12, 3, bldg_mid);
+    add_wall(s, -5, 3, -55, 8, 10, 3, bldg_mid);
+    add_wall(s, 15, 2, -45, 5, 8, 3, bldg_mid);
+    add_wall(s, -20, 3.5f, -48, 4, 11, 3, bldg_mid);
+    add_wall(s, 0, 1, -80, 25, 6, 4, bldg_far);
+    add_wall(s, -25, 2, -85, 15, 8, 4, bldg_far);
+    add_wall(s, 22, 1.5f, -82, 12, 7, 4, bldg_far);
+
+    // Building windows
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 2; c++)
+            if ((r+c)%2==0)
+                add_wall(s, -8.5f+c*1.2f, -0.5f+r*2.0f, -26.9f, 0.4f, 0.7f, 0.04f, window);
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 3; c++)
+            if ((r*3+c)%2==0)
+                add_wall(s, 3.5f+c*1.5f, -0.5f+r*2.5f, -48.5f, 0.45f, 0.7f, 0.04f, window);
+
+    // Eiffel Tower — from higher vantage
+    float tx = 8, tz = -90;
+    add_wall(s, tx, 8, tz, 0.7f, 20, 0.7f, tower);
+    add_wall(s, tx-2, 0, tz, 0.9f, 4, 0.9f, tower);
+    add_wall(s, tx+2, 0, tz, 0.9f, 4, 0.9f, tower);
+    add_wall(s, tx, 2.5f, tz, 4.5f, 0.35f, 0.5f, tower);
+    add_wall(s, tx, 7, tz, 2.8f, 0.25f, 0.4f, tower);
+    add_wall(s, tx, 12, tz, 1.3f, 0.25f, 0.35f, tower);
+    add_light_panel(s, tx, 2.5f, tz-0.3f, 4.6f, 0.15f, 0.04f, (Color){240,210,130,100});
+    add_light_panel(s, tx, 18.2f, tz, 0.25f, 0.4f, 0.25f, (Color){255,245,200,180});
+
+    // Stars scattered in the sky
+    for (int i = 0; i < 20; i++) {
+        float sx = -45+(i*41)%90, sy = 20+(i*17)%18, sz = -95-(i*13)%25;
+        add_wall(s, sx, sy, sz, 0.12f, 0.12f, 0.12f,
+                 (Color){240,235,225,(unsigned char)(120+(i*19)%80)});
+    }
+
+    // Exit — goes to STATE_BALCONY (back to the room eventually)
+    s->spawn = (Vector3){0, 8.0f, 6};
+    s->exit_pos = (Vector3){0, 8.0f, -8};
     s->has_exit = true;
 }

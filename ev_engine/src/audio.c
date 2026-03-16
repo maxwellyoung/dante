@@ -361,6 +361,69 @@ static Sound gen_clock_ambient(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Stairwell ambient: reverberant enclosed space, distant door thuds every ~2s (6s loop)
+static Sound gen_stairwell_ambient(void) {
+    int len = SAMPLE_RATE * 6;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    srand(777);
+    for (int thud = 0; thud < 3; thud++) {
+        int start = thud * SAMPLE_RATE * 2 + (rand() % (SAMPLE_RATE / 4));
+        // Low thud — 60Hz, sharp attack, quick decay
+        int thud_len = SAMPLE_RATE / 3;  // ~330ms with echo tail
+        for (int i = 0; i < thud_len && (start + i) < len; i++) {
+            float t = (float)i / SAMPLE_RATE;
+            // Initial thud
+            float thud_env = expf(-8.0f * t);
+            float thud_sig = sinf(2 * PI * 60 * t) * thud_env;
+            // Echo tail — filtered, longer decay
+            float echo_env = expf(-2.0f * t) * 0.3f;
+            float echo_sig = sinf(2 * PI * 55 * t) * echo_env;
+            // High-freq click for the "door" sound
+            float click = sinf(2 * PI * 800 * t) * expf(-30.0f * t) * 0.2f;
+            float sample = (thud_sig + echo_sig + click) * 0.4f;
+            d[start + i] += (short)(sample * 4000);
+        }
+    }
+    // Loop crossfade
+    int fade_len = SAMPLE_RATE / 20;
+    for (int i = 0; i < fade_len; i++) {
+        float f = (float)i / fade_len;
+        d[i] = (short)(d[i] * f);
+        d[len - 1 - i] = (short)(d[len - 1 - i] * f);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Wind: filtered noise with slow amplitude modulation (10s loop)
+static Sound gen_wind(void) {
+    int len = SAMPLE_RATE * 10;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    float prev1 = 0, prev2 = 0, prev3 = 0;
+    srand(888);
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // White noise source
+        float noise = ((float)(rand() % 32768) / 16384.0f - 1.0f);
+        // Band-pass via cascaded filters — mid frequency
+        prev1 = prev1 * 0.85f + noise * 0.15f;
+        prev2 = prev2 * 0.90f + prev1 * 0.10f;
+        prev3 = prev3 * 0.80f + (prev1 - prev2) * 0.20f;  // high-pass element
+        float filtered = prev2 + prev3 * 0.5f;
+        // Slow amplitude modulation — gusting
+        float gust = 0.5f + 0.3f * sinf(t * 0.8f) + 0.2f * sinf(t * 1.3f + 0.5f)
+                     + 0.15f * sinf(t * 0.3f + 1.2f);
+        // Loop crossfade
+        float env = 1.0f;
+        if (lt < 0.02f) env = lt / 0.02f;
+        if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
+        d[i] = (short)(filtered * gust * env * 6000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // --- ENGINE ---
 
 void InitEVAudio(EVAudio *audio) {
@@ -382,8 +445,12 @@ void InitEVAudio(EVAudio *audio) {
     audio->drone_room = gen_ambient_room();
     audio->snd_city = gen_city_ambient();
     audio->snd_clock = gen_clock_ambient();
+    audio->snd_stairwell = gen_stairwell_ambient();
+    audio->snd_wind = gen_wind();
     audio->city_playing = false;
     audio->clock_playing = false;
+    audio->stairwell_playing = false;
+    audio->wind_playing = false;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
     audio->step_index = 0;
@@ -406,6 +473,8 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->drone_room, 0.10f);     // the room's own music
     SetSoundVolume(audio->snd_city, 0.04f);       // distant city — barely audible
     SetSoundVolume(audio->snd_clock, 0.03f);      // clock — peripheral awareness
+    SetSoundVolume(audio->snd_stairwell, 0.03f);  // distant door thuds — reverberant
+    SetSoundVolume(audio->snd_wind, 0.05f);       // wind — gusting on rooftop/balcony
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -421,6 +490,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->drone_lobby); UnloadSound(audio->drone_hallway);
     UnloadSound(audio->drone_room);
     UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
+    UnloadSound(audio->snd_stairwell); UnloadSound(audio->snd_wind);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -446,6 +516,8 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
     }
     if (audio->city_playing && !IsSoundPlaying(audio->snd_city)) PlaySound(audio->snd_city);
     if (audio->clock_playing && !IsSoundPlaying(audio->snd_clock)) PlaySound(audio->snd_clock);
+    if (audio->stairwell_playing && !IsSoundPlaying(audio->snd_stairwell)) PlaySound(audio->snd_stairwell);
+    if (audio->wind_playing && !IsSoundPlaying(audio->snd_wind)) PlaySound(audio->snd_wind);
     Sound *steps = get_steps(audio, surface);
     audio->step_interval = sprinting ? 0.32f : 0.50f;
     if (moving) {
@@ -507,4 +579,28 @@ void StopClockAmbient(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_clock);
     audio->clock_playing = false;
+}
+void PlayStairwellAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->stairwell_playing) {
+        PlaySound(audio->snd_stairwell);
+        audio->stairwell_playing = true;
+    }
+}
+void StopStairwellAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_stairwell);
+    audio->stairwell_playing = false;
+}
+void PlayWindAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->wind_playing) {
+        PlaySound(audio->snd_wind);
+        audio->wind_playing = true;
+    }
+}
+void StopWindAmbient(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_wind);
+    audio->wind_playing = false;
 }

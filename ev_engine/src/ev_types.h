@@ -24,6 +24,7 @@ typedef enum {
     STATE_ROOM,
     STATE_BATHROOM,
     STATE_BALCONY,
+    STATE_ROOF,
     STATE_BED,
     STATE_STARS,
 } GameState;

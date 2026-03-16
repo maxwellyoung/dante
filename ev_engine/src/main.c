@@ -131,6 +131,8 @@ static void load_state(GameState s) {
             build_hotel_exterior(&scene);
             init_player(&player, scene.spawn);
             StopAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            StopWindAmbient(&audio);
             break;
 
         case STATE_LOBBY:
@@ -140,6 +142,8 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_LOBBY);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            StopWindAmbient(&audio);
             break;
 
         case STATE_STAIRWELL:
@@ -148,6 +152,8 @@ static void load_state(GameState s) {
             StopAmbient(&audio);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
+            StopWindAmbient(&audio);
+            PlayStairwellAmbient(&audio);
             break;
 
         case STATE_HALLWAY:
@@ -156,6 +162,8 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_HALLWAY);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            StopWindAmbient(&audio);
             break;
 
         case STATE_ROOM:
@@ -167,6 +175,8 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_ROOM);
             PlayClockAmbient(&audio);
             StopCityAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            StopWindAmbient(&audio);
             SetPostFXWarmth(&postfx, 0.0f);
             break;
 
@@ -178,6 +188,8 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_ROOM);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            StopWindAmbient(&audio);
             break;
 
         case STATE_BALCONY:
@@ -186,12 +198,25 @@ static void load_state(GameState s) {
             eiffel_sparkle = false; sparkle_timer = 0;
             StopAmbient(&audio);
             StopClockAmbient(&audio);
+            StopStairwellAmbient(&audio);
             PlayCityAmbient(&audio);
+            PlayWindAmbient(&audio);
             SetPostFXWarmth(&postfx, 1.0f);
             break;
 
-        case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); break;
-        case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); break;
+        case STATE_ROOF:
+            build_roof(&scene);
+            init_player(&player, scene.spawn);
+            StopAmbient(&audio);
+            StopClockAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            PlayCityAmbient(&audio);
+            PlayWindAmbient(&audio);
+            SetPostFXWarmth(&postfx, 1.0f);
+            break;
+
+        case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopStairwellAmbient(&audio); StopWindAmbient(&audio); break;
+        case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopStairwellAmbient(&audio); StopWindAmbient(&audio); break;
     }
     fade_alpha = 1.0f;
     fade_target = 0.0f;
@@ -476,6 +501,31 @@ int main(void) {
             case STATE_LOBBY:
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                if (IsKeyPressed(KEY_E)) {
+                    for (int i = 0; i < scene.object_count; i++) {
+                        InteractObject *obj = &scene.objects[i];
+                        if (!obj->active || obj->done) continue;
+                        float dist = Vector3Distance(player.camera.position, obj->pos);
+                        if (dist < obj->radius) {
+                            Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            if (Vector3DotProduct(to, look) > 0.5f) {
+                                if (strcmp(obj->name, "newspaper") == 0) {
+                                    obj->step++; obj->done = true;
+                                    PlayInteract(&audio, INTERACT_CLICK);
+                                    show_text("Yesterday's Le Monde.");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Auto-hide storytelling text after showing for 3s
+                if (vig_text_alpha > 0.5f && vig_text_target > 0.5f) {
+                    static float lobby_text_t = 0;
+                    lobby_text_t += dt;
+                    if (lobby_text_t > 3.0f) { hide_text(); lobby_text_t = 0; }
+                }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
                     if (dist < 1.5f) transition_to(STATE_STAIRWELL);
@@ -487,7 +537,13 @@ int main(void) {
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 1.5f) transition_to(STATE_HALLWAY);
+                    if (dist < 1.5f) {
+                        // Upper landing (y > 5) goes to roof, lower goes to hallway
+                        if (player.camera.position.y > 5.0f)
+                            transition_to(STATE_ROOF);
+                        else
+                            transition_to(STATE_HALLWAY);
+                    }
                 }
                 break;
 
@@ -659,8 +715,37 @@ int main(void) {
                 }
                 break;
 
+            case STATE_ROOF:
+                update_player(&player, &scene, dt);
+                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                if (scene.has_exit) {
+                    float dist = Vector3Distance(player.camera.position, scene.exit_pos);
+                    if (dist < 2.0f) transition_to(STATE_BALCONY);
+                }
+                break;
+
             case STATE_BALCONY:
                 update_player(&player, &scene, dt);
+                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                if (IsKeyPressed(KEY_E)) {
+                    for (int i = 0; i < scene.object_count; i++) {
+                        InteractObject *obj = &scene.objects[i];
+                        if (!obj->active || obj->done) continue;
+                        float dist = Vector3Distance(player.camera.position, obj->pos);
+                        if (dist < obj->radius) {
+                            Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            if (Vector3DotProduct(to, look) > 0.5f) {
+                                if (strcmp(obj->name, "cigarette") == 0) {
+                                    obj->step++; obj->done = true;
+                                    PlayInteract(&audio, INTERACT_CLICK);
+                                    show_text("You quit last year.");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 if (!eiffel_sparkle && state_time > 6) {
                     eiffel_sparkle = true; sparkle_timer = 0;
                     PlaySparkleSound(&audio);
@@ -716,7 +801,8 @@ int main(void) {
             case STATE_ROOM:
             case STATE_BATHROOM:
             case STATE_BALCONY:
-                if (state == STATE_HOTEL_EXT || state == STATE_BALCONY) {
+            case STATE_ROOF:
+                if (state == STATE_HOTEL_EXT || state == STATE_BALCONY || state == STATE_ROOF) {
                     ClearBackground((Color){8, 12, 28, 255});
                     draw_night_sky(state_time);
                 } else {
@@ -814,7 +900,8 @@ int main(void) {
         if (wireframe) rlDisableWireMode();
 
         // HUD
-        if (state == STATE_ROOM || state == STATE_BATHROOM) {
+        if (state == STATE_ROOM || state == STATE_BATHROOM ||
+            state == STATE_LOBBY || state == STATE_BALCONY) {
             draw_hud(&player, &scene);
             for (int i = 0; i < scene.object_count; i++) {
                 InteractObject *obj = &scene.objects[i];
