@@ -20,48 +20,71 @@ static Wave gen_wave(int samples) {
     return w;
 }
 
+// Deterministic PRNG — better than rand(), no global state
+static float ev_randf(unsigned int *seed) {
+    *seed = (*seed * 1103515245 + 12345);
+    return (float)((*seed >> 16) & 0x7fff) / 32768.0f;
+}
+
 // --- FOOTSTEPS ---
 
 static Sound gen_step_marble(int seed) {
     int len = SAMPLE_RATE / 10;
-    Wave w = gen_wave(len);
+    // Extra samples for reverb tail
+    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    int total = len + reverb_delay;
+    Wave w = gen_wave(total);
     short *d = (short *)w.data;
-    srand(seed);
-    float pitch = 0.9f + (rand() % 20) / 100.0f;
+    unsigned int rng = (unsigned int)seed;
+    float pitch = 0.9f + ev_randf(&rng) * 0.2f;
     for (int i = 0; i < len; i++) {
         float t = (float)i / len;
         float env = (t < 0.02f) ? t / 0.02f : expf(-12.0f * (t - 0.02f));
         float click = sinf(2 * PI * 2200 * pitch * t) * expf(-30.0f * t);
         float body = sinf(2 * PI * 180 * pitch * t) * expf(-10.0f * t);
-        float noise = ((rand() % 32768) / 16384.0f - 1.0f) * expf(-20.0f * t);
+        float noise = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-20.0f * t);
         d[i] = (short)((click * 0.3f + body * 0.4f + noise * 0.3f) * env * 10000);
     }
+    // Indoor reverb tail
+    for (int i = reverb_delay; i < total; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.1f);
+    }
+    w.frameCount = total;
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
 static Sound gen_step_carpet(int seed) {
     int len = SAMPLE_RATE / 8;
-    Wave w = gen_wave(len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    int total = len + reverb_delay;
+    Wave w = gen_wave(total);
     short *d = (short *)w.data;
-    srand(seed);
-    float pitch = 0.85f + (rand() % 30) / 100.0f;
+    unsigned int rng = (unsigned int)seed;
+    float pitch = 0.85f + ev_randf(&rng) * 0.3f;
     for (int i = 0; i < len; i++) {
         float t = (float)i / len;
         float env = (t < 0.08f) ? t / 0.08f : expf(-6.0f * (t - 0.08f));
         float thud = sinf(2 * PI * 45 * pitch * t) * expf(-8.0f * t);
-        float noise = ((rand() % 32768) / 16384.0f - 1.0f);
+        float noise = (ev_randf(&rng) * 2.0f - 1.0f);
         float lp = noise * 0.15f + thud * 0.85f;
         d[i] = (short)(lp * env * 7000);
     }
+    // Indoor reverb tail
+    for (int i = reverb_delay; i < total; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.1f);
+    }
+    w.frameCount = total;
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
 static Sound gen_step_wood(int seed) {
     int len = SAMPLE_RATE / 10;
-    Wave w = gen_wave(len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    int total = len + reverb_delay;
+    Wave w = gen_wave(total);
     short *d = (short *)w.data;
-    srand(seed);
-    float pitch = 0.85f + (rand() % 30) / 100.0f;
+    unsigned int rng = (unsigned int)seed;
+    float pitch = 0.85f + ev_randf(&rng) * 0.3f;
     for (int i = 0; i < len; i++) {
         float t = (float)i / len;
         float env = (t < 0.03f) ? t / 0.03f : expf(-10.0f * (t - 0.03f));
@@ -69,6 +92,11 @@ static Sound gen_step_wood(int seed) {
         float body = sinf(2 * PI * 80 * pitch * t) * expf(-8.0f * t);
         d[i] = (short)((tap * 0.5f + body * 0.5f) * env * 9000);
     }
+    // Indoor reverb tail
+    for (int i = reverb_delay; i < total; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.1f);
+    }
+    w.frameCount = total;
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
@@ -77,9 +105,10 @@ static Sound gen_step_wood(int seed) {
 // Lobby: same melody as room but one octave higher, slower decay (reverb-like)
 // Heard through walls — distant, ethereal
 static Sound gen_ambient_lobby(void) {
-    float beat = 0.5f;
+    float beat = 0.6f;  // slower tempo — more contemplative
     float loop_len = 16.0f * beat * 2;
     int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.1f);
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
@@ -105,17 +134,30 @@ static Sound gen_ambient_lobby(void) {
             float dur = melody[n][2] * beat;
             float nt = t - start;
             if (nt < 0 || nt > dur + 3.0f) continue;
-            // Slower decay — more reverb-like, heard through walls
+            // Hammer noise on attack (first 10ms)
+            float noise_burst = 0;
+            if (nt < 0.01f) {
+                unsigned int ns = (unsigned int)(n * 997 + i);
+                noise_burst = (ev_randf(&ns) * 2.0f - 1.0f) * (1.0f - nt / 0.01f) * 0.2f;
+            }
             float attack = (nt < 0.05f) ? nt / 0.05f : 1.0f;
             float env = attack * expf(-0.8f * nt);
+            // Rich harmonics + detuning for chorus warmth
+            float detune = 0.5f;  // Hz
             float tone = sinf(2 * PI * freq * t) +
-                         0.15f * sinf(2 * PI * freq * 2.0f * t);
-            sample += tone * env;
+                         0.3f * sinf(2 * PI * (freq * 2.0f + detune) * t) +
+                         0.1f * sinf(2 * PI * (freq * 3.0f - detune) * t) +
+                         0.05f * sinf(2 * PI * freq * 5.0f * t);
+            sample += (tone * env + noise_burst);
         }
         float lt = (float)i / len;
         if (lt > 0.95f) sample *= (1.0f - lt) / 0.05f;
         if (lt < 0.02f) sample *= lt / 0.02f;
-        d[i] = (short)(sample * 2000);
+        d[i] = (short)(sample * 1800);
+    }
+    // Reverb approximation
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
@@ -123,9 +165,10 @@ static Sound gen_ambient_lobby(void) {
 // Hallway: just root notes as sustained tones — building anticipation
 // E3, A2, E3, D3 — the skeleton of the melody, stripped bare
 static Sound gen_ambient_hallway(void) {
-    float beat = 0.5f;
+    float beat = 0.6f;  // slower tempo
     float loop_len = 16.0f * beat * 2;
     int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.1f);
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
@@ -147,28 +190,43 @@ static Sound gen_ambient_hallway(void) {
             float dur = roots[n][2] * beat;
             float nt = t - start;
             if (nt < 0 || nt > dur) continue;
-            // Long sustain, gentle fade at end of each note
+            // Hammer noise on attack
+            float noise_burst = 0;
+            if (nt < 0.01f) {
+                unsigned int ns = (unsigned int)(n * 1013 + i);
+                noise_burst = (ev_randf(&ns) * 2.0f - 1.0f) * (1.0f - nt / 0.01f) * 0.15f;
+            }
             float attack = (nt < 0.1f) ? nt / 0.1f : 1.0f;
             float release = (nt > dur - 0.5f) ? (dur - nt) / 0.5f : 1.0f;
             float env = attack * release;
+            // Rich harmonics + detuning
+            float detune = 0.5f;
             float tone = sinf(2 * PI * freq * t) +
-                         0.15f * sinf(2 * PI * freq * 2.0f * t);
-            sample += tone * env;
+                         0.3f * sinf(2 * PI * (freq * 2.0f + detune) * t) +
+                         0.1f * sinf(2 * PI * (freq * 3.0f - detune) * t) +
+                         0.05f * sinf(2 * PI * freq * 5.0f * t);
+            sample += (tone * env + noise_burst);
         }
         float lt = (float)i / len;
         if (lt > 0.95f) sample *= (1.0f - lt) / 0.05f;
         if (lt < 0.02f) sample *= lt / 0.02f;
-        d[i] = (short)(sample * 2500);
+        d[i] = (short)(sample * 2200);
+    }
+    // Reverb approximation
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
 // Room: composed piano melody — Satie-inspired descending phrase
-// 8 bars at ~120 BPM (0.5s per beat), loops every 16 seconds
+// 8 bars, slower tempo (0.6s per beat), loops every ~19 seconds
+// Rich harmonics, hammer noise attack, bass note in bar 3, delay reverb
 static Sound gen_ambient_room(void) {
-    float beat = 0.5f;  // 120 BPM
-    float loop_len = 16.0f * beat * 2;  // 8 bars of 4 beats = 16 seconds
+    float beat = 0.6f;  // ~100 BPM — more contemplative than 120
+    float loop_len = 16.0f * beat * 2;  // 8 bars of 4 beats
     int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.1f);
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
@@ -191,29 +249,69 @@ static Sound gen_ambient_room(void) {
     };
     int note_count = 16;
 
+    // Bass notes — octave below, entering softly in bar 3 onward
+    float bass[][3] = {
+        {164.81f, 8, 4},   // E3 under bar 3
+        {146.83f, 12, 4},  // D3 under bar 4
+        {164.81f, 24, 4},  // E3 under bar 7
+        {146.83f, 28, 4},  // D3 under bar 8
+    };
+    int bass_count = 4;
+
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float sample = 0;
+
+        // Melody notes — rich harmonics
         for (int n = 0; n < note_count; n++) {
             float freq = melody[n][0];
             float start = melody[n][1] * beat;
             float dur = melody[n][2] * beat;
             float nt = t - start;
-            if (nt < 0 || nt > dur + 1.5f) continue;  // note + tail
-            // Gentle attack (50ms ramp) + exponential decay
+            if (nt < 0 || nt > dur + 2.0f) continue;
+            // Hammer noise on attack (first 10ms) — simulates key strike
+            float noise_burst = 0;
+            if (nt < 0.01f) {
+                unsigned int ns = (unsigned int)(n * 997 + i);
+                noise_burst = (ev_randf(&ns) * 2.0f - 1.0f) * (1.0f - nt / 0.01f) * 0.25f;
+            }
             float attack = (nt < 0.05f) ? nt / 0.05f : 1.0f;
             float env = attack * expf(-1.5f * nt);
-            // Fundamental + soft 2nd harmonic for warmth
+            // 3 harmonics: fundamental + 2nd (0.3) + 3rd (0.1) + 5th (0.05)
+            // Bell-like timbre with richer upper partials
             float tone = sinf(2 * PI * freq * t) +
-                         0.15f * sinf(2 * PI * freq * 2.0f * t);
-            sample += tone * env;
+                         0.3f * sinf(2 * PI * freq * 2.0f * t) +
+                         0.1f * sinf(2 * PI * freq * 3.0f * t) +
+                         0.05f * sinf(2 * PI * freq * 5.0f * t);
+            sample += (tone * env + noise_burst) * 0.7f;
         }
+
+        // Bass notes — soft, warm, supporting
+        for (int n = 0; n < bass_count; n++) {
+            float freq = bass[n][0];
+            float start = bass[n][1] * beat;
+            float dur = bass[n][2] * beat;
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 1.5f) continue;
+            float attack = (nt < 0.1f) ? nt / 0.1f : 1.0f;
+            float env = attack * expf(-1.2f * nt);
+            float tone = sinf(2 * PI * freq * t) +
+                         0.2f * sinf(2 * PI * freq * 2.0f * t);
+            sample += tone * env * 0.35f;
+        }
+
         // Loop crossfade
         float lt = (float)i / len;
         if (lt > 0.95f) sample *= (1.0f - lt) / 0.05f;
         if (lt < 0.02f) sample *= lt / 0.02f;
-        d[i] = (short)(sample * 3000);
+        d[i] = (short)(sample * 2400);
     }
+
+    // Reverb approximation — mix delayed sample at 0.15 amplitude
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.15f);
+    }
+
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
@@ -307,9 +405,15 @@ static Sound gen_door_sound(void) {
     short *d = (short *)w.data;
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
+        // Latch click — very short (5ms) high-frequency burst before main tone
+        float latch = 0;
+        if (t < 0.005f) {
+            latch = sinf(2 * PI * 4500 * t) * (1.0f - t / 0.005f) * 0.6f;
+        }
         float env = (t < 0.05f) ? t/0.05f : expf(-4.0f*(t-0.05f));
         // Rising pitch — arrival, not descent (Remo)
-        d[i] = (short)(sinf(2*PI*(150+120*t)*t)*env * 8000);
+        float main_tone = sinf(2*PI*(150+120*t)*t)*env;
+        d[i] = (short)((main_tone + latch) * 8000);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
@@ -512,9 +616,9 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->door, 0.25f);
     SetSoundVolume(audio->elevator_hum, 0.04f);    // very quiet, more felt than heard
     SetSoundVolume(audio->elevator_ding, 0.3f);    // clear but not jarring
-    SetSoundVolume(audio->drone_lobby, 0.06f);     // barely there — through walls
-    SetSoundVolume(audio->drone_hallway, 0.05f);   // anticipation, not presence
-    SetSoundVolume(audio->drone_room, 0.10f);      // the room's own music
+    SetSoundVolume(audio->drone_lobby, 0.04f);     // barely there — through walls
+    SetSoundVolume(audio->drone_hallway, 0.03f);   // anticipation, not presence
+    SetSoundVolume(audio->drone_room, 0.06f);      // the room's own music — present but not prominent
     SetSoundVolume(audio->snd_city, 0.03f);        // distant city
     SetSoundVolume(audio->snd_clock, 0.025f);      // clock — barely there
     SetSoundVolume(audio->snd_stairwell, 0.025f);  // distant door thuds — ambient

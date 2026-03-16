@@ -184,8 +184,8 @@ void build_lobby(Scene *s) {
     Color plant = {60, 130, 65, 255};
     Color terracotta = {175, 85, 65, 255};    // accent
 
-    s->fog_color = (Color){215, 212, 208, 255};  // cool neutral morning mist
-    s->fog_density = 0.012f;
+    s->fog_color = (Color){180, 175, 168, 255};  // darker — more contrast with cream walls
+    s->fog_density = 0.006f;
 
     int cols = 15, rows = 10;
     for (int r = 0; r < rows; r++)
@@ -293,8 +293,8 @@ void build_hallway(Scene *s) {
     Color carpet_b = {165, 82, 65, 255};
     Color warm_amber = {240, 200, 100, 255};
 
-    s->fog_color = (Color){210, 208, 204, 255};
-    s->fog_density = 0.010f;
+    s->fog_color = (Color){175, 170, 165, 255};  // darker — more contrast with cream walls
+    s->fog_density = 0.005f;
     float L = 40, W = 4.5f, H = 4;
 
     int cols = 3, rows = (int)(L / 1.5f);
@@ -368,8 +368,8 @@ void build_hotel_room(Scene *s) {
     Color warm_gray = {165, 160, 152, 255};   // replaces godard_blue sofa
     Color warm_light = {235, 220, 190, 150};  // softer, less saturated
 
-    s->fog_color = (Color){218, 215, 210, 255};
-    s->fog_density = 0.008f;
+    s->fog_color = (Color){185, 180, 172, 255};  // darker — more contrast with wall gold
+    s->fog_density = 0.004f;
     float rw = 12, rd = 10, rh = 3.8f;
 
     int cols = (int)(rw/0.8f), rows = (int)(rd/0.8f);
@@ -606,8 +606,8 @@ void build_bathroom(Scene *s) {
 
     float bw = 5, bd = 4, bh = 3;
 
-    s->fog_color = (Color){200,198,195,255};   // cool neutral
-    s->fog_density = 0.005f;
+    s->fog_color = (Color){170,168,164,255};   // darker — more contrast with concrete
+    s->fog_density = 0.003f;
 
     // Floor — darker concrete
     add_wall(s, 0, -0.05f, 0, bw, 0.1f, bd, floor_concrete);
@@ -690,8 +690,8 @@ void build_stairwell(Scene *s) {
 
     float sw = 6, sd = 6, sh = 12;
 
-    s->fog_color = (Color){195,193,190,255};
-    s->fog_density = 0.015f;
+    s->fog_color = (Color){160,158,155,255};   // darker — more contrast with step_color
+    s->fog_density = 0.008f;
 
     // Floor
     add_wall(s, 0, -0.05f, 0, sw, 0.1f, sd, concrete);
@@ -874,7 +874,7 @@ void build_elevator(Scene *s) {
 
     float ew = 2, ed = 2, eh = 2.5f;
 
-    s->fog_color = (Color){210, 208, 205, 255};
+    s->fog_color = (Color){178, 175, 170, 255};  // darker — more contrast with brass
     s->fog_density = 0.002f;
 
     // Floor — dark marble

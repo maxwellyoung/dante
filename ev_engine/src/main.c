@@ -263,158 +263,132 @@ static void load_state(GameState s) {
 // ============================================================
 
 static void draw_taxi_ride(float t) {
-    // Backseat of a taxi. Paris at 2 AM through a rain-streaked window.
-    ClearBackground((Color){8, 10, 18, 255});
+    // Jeremy Blake — abstract luminous color fields seen through wet glass
+    // NOT literal: the FEELING of Paris at 2 AM from a moving taxi
+    ClearBackground((Color){4, 4, 8, 255});
 
-    // Window frame — you're looking out the right-side window
-    // Dark interior surrounds a bright window
-    Color interior = {15, 12, 10, 255};
-    DrawRectangle(0, 0, 30, RENDER_H, interior);                    // left pillar
-    DrawRectangle(RENDER_W - 25, 0, 25, RENDER_H, interior);       // right pillar
-    DrawRectangle(0, 0, RENDER_W, 20, interior);                    // roof
-    DrawRectangle(0, RENDER_H - 55, RENDER_W, 55, interior);       // door panel
-
-    // Window area — deep blue Paris night
-    int wx = 30, wy = 20, ww = RENDER_W - 55, wh = RENDER_H - 75;
-    for (int y = 0; y < wh; y++) {
-        float gt = (float)y / wh;
-        unsigned char r = (unsigned char)(12 + gt * 15);
-        unsigned char g = (unsigned char)(15 + gt * 12);
-        unsigned char b = (unsigned char)(30 + gt * 15);
-        DrawRectangle(wx, wy + y, ww, 1, (Color){r, g, b, 255});
-    }
-
-    // City lights streaking past — faster = longer streaks
+    // Speed factor — shapes slow as taxi approaches destination
     float speed = 1.0f;
-    if (t > 10) speed = fmaxf(0, 1.0f - (t - 10) / 4.0f);  // slow down at end
+    if (t > 10) speed = fmaxf(0.05f, 1.0f - (t - 10) / 4.0f);
 
+    // 4 large overlapping color fields drifting leftward at different speeds (parallax)
+    // Colors: warm amber, deep blue, soft rose, white
+    typedef struct { float base_x; float drift_speed; int w; int h; int y_off;
+                     unsigned char r, g, b, a; } BlakeShape;
+    BlakeShape shapes[] = {
+        {  0, 55, 180, RENDER_H,      0,   240, 180,  80,  55},  // warm amber, full height
+        {120, 35, 140, RENDER_H*2/3, 40,    40,  60, 140,  50},  // deep blue, 2/3 height
+        {300, 45, 120, RENDER_H,      0,   200, 120, 130,  45},  // soft rose, full height
+        {200, 20, 160, RENDER_H*3/4, 20,   245, 240, 235,  40},  // white, 3/4 height
+    };
+    int shape_count = 4;
+
+    for (int i = 0; i < shape_count; i++) {
+        BlakeShape *s = &shapes[i];
+        // Drift leftward, wrapping
+        float x = fmodf(s->base_x - t * s->drift_speed * speed + RENDER_W * 3, (float)(RENDER_W + s->w)) - s->w;
+        // Alpha modulated slightly by time for breathing effect
+        float breath = 0.85f + 0.15f * sinf(t * 0.7f + i * 1.5f);
+        unsigned char a = (unsigned char)(s->a * breath);
+        DrawRectangle((int)x, s->y_off, s->w, s->h, (Color){s->r, s->g, s->b, a});
+        // Softer edge glow
+        DrawRectangle((int)x - 10, s->y_off, 10, s->h, (Color){s->r, s->g, s->b, (unsigned char)(a / 3)});
+        DrawRectangle((int)x + s->w, s->y_off, 10, s->h, (Color){s->r, s->g, s->b, (unsigned char)(a / 3)});
+    }
+
+    // Occasional bright horizontal streak — headlight passing
+    // Fast, thin, white, random timing
     SetRandomSeed(42);
-    for (int i = 0; i < 12; i++) {
-        float bx_base = GetRandomValue(wx, wx + ww);
-        float by = GetRandomValue(wy + 5, wy + wh - 20);
-        float bspeed = (0.3f + GetRandomValue(0, 70) / 100.0f) * speed;
-
-        // Streak position — scrolling
-        float bx = fmodf(bx_base + t * bspeed * 200, ww) + wx;
-
-        // Light streak
-        int streak_len = (int)(3 + bspeed * 25 * speed);
-        Color lc;
-        int type = GetRandomValue(0, 3);
-        if (type == 0) lc = (Color){240, 200, 100, 120};       // warm streetlight
-        else if (type == 1) lc = (Color){255, 100, 80, 100};   // tail light red
-        else if (type == 2) lc = (Color){100, 180, 255, 80};   // neon blue
-        else lc = (Color){255, 255, 240, 60};                  // white
-
-        DrawRectangle((int)bx, (int)by, streak_len, 2, lc);
-
-        // Occasional window glow (building)
-        if (i < 5) {
-            float building_x = fmodf(i * 70 + t * bspeed * 100, ww) + wx;
-            int bh = 20 + GetRandomValue(0, 40);
-            DrawRectangle((int)building_x, wy + wh - bh, 12, bh,
-                         (Color){18, 20, 30, 255});
-            // Windows
-            for (int wy2 = 0; wy2 < bh - 5; wy2 += 7) {
-                if (GetRandomValue(0, 2) > 0)
-                    DrawRectangle((int)building_x + 3, wy + wh - bh + wy2 + 2, 3, 3,
-                                 (Color){220, 185, 100, (unsigned char)(40 + GetRandomValue(0, 60))});
-            }
+    for (int i = 0; i < 3; i++) {
+        float streak_time = 2.5f + i * 4.3f;
+        float streak_dur = 0.15f;
+        if (t > streak_time && t < streak_time + streak_dur) {
+            float streak_t = (t - streak_time) / streak_dur;
+            int sy = 40 + GetRandomValue(0, RENDER_H - 80);
+            unsigned char sa = (unsigned char)(180 * (1.0f - fabsf(streak_t * 2.0f - 1.0f)));
+            DrawRectangle(0, sy, RENDER_W, 2, (Color){255, 252, 245, sa});
         }
     }
 
-    // Rain on window
+    // Rain — small, fast, light drizzle (not defined drops)
     for (int i = 0; i < MAX_RAIN; i++) {
-        rain[i].y += rain[i].speed * GetFrameTime();
+        rain[i].y += rain[i].speed * 1.5f * GetFrameTime();  // faster
         if (rain[i].y > RENDER_H) {
-            rain[i].y = -rain[i].len;
-            rain[i].x = GetRandomValue(wx, wx + ww);
+            rain[i].y = -(rain[i].len * 0.5f);
+            rain[i].x = GetRandomValue(0, RENDER_W);
         }
-        if (rain[i].x >= wx && rain[i].x < wx + ww &&
-            rain[i].y >= wy && rain[i].y < wy + wh) {
-            DrawLine((int)rain[i].x, (int)rain[i].y,
-                    (int)rain[i].x, (int)(rain[i].y + rain[i].len),
-                    (Color){180, 190, 210, 60});
-        }
+        // Smaller drops — 1px dots instead of lines
+        DrawPixel((int)rain[i].x, (int)rain[i].y, (Color){200, 210, 225, 35});
     }
 
-    // Reflection on window — subtle
-    DrawRectangle(wx, wy, ww, wh, (Color){100, 120, 150, 8});
-
-    // Dashboard / taxi interior details
-    // Taxi meter
+    // Taxi meter in the corner — concrete anchor
     DrawRectangle(RENDER_W - 80, RENDER_H - 50, 55, 25, (Color){20, 18, 15, 255});
     DrawRectangle(RENDER_W - 78, RENDER_H - 48, 51, 21, (Color){40, 50, 35, 255});
     float fare = 12.40f + t * 0.15f;
     DrawText(TextFormat("%.2f", fare), RENDER_W - 74, RENDER_H - 45, 12,
              (Color){120, 230, 120, 200});
 
-    // Headrest silhouette of driver
-    DrawRectangle(55, RENDER_H - 80, 35, 30, (Color){20, 18, 15, 255});
-    DrawCircle(72, RENDER_H - 82, 12, (Color){20, 18, 15, 255});
+    // Driver silhouette — anchoring detail
+    DrawRectangle(55, RENDER_H - 80, 35, 30, (Color){10, 8, 6, 255});
+    DrawCircle(72, RENDER_H - 82, 12, (Color){10, 8, 6, 255});
 }
 
 static void draw_arrival(float t) {
-    // Taxi has stopped. Through the window: the hotel facade, warm and golden.
-    ClearBackground((Color){8, 10, 18, 255});
+    // Jeremy Blake — the abstract color fields SLOW and SETTLE
+    // Motion resolves into warmth. A large golden rectangle centers itself.
+    // The hotel emerging from abstraction.
+    ClearBackground((Color){4, 4, 8, 255});
 
-    Color interior = {15, 12, 10, 255};
-    DrawRectangle(0, 0, 20, RENDER_H, interior);
-    DrawRectangle(RENDER_W - 20, 0, 20, RENDER_H, interior);
-    DrawRectangle(0, 0, RENDER_W, 15, interior);
-    DrawRectangle(0, RENDER_H - 45, RENDER_W, 45, interior);
+    // Shapes settle: drift speed decays to near zero over 5 seconds
+    float settle = fminf(1.0f, t / 5.0f);  // 0 = moving, 1 = still
+    float drift_mul = 1.0f - settle * 0.95f;  // shapes nearly stop
 
-    int wx = 20, wy = 15, ww = RENDER_W - 40, wh = RENDER_H - 60;
+    // Same 4 Blake shapes but converging to center, warm tones dominating
+    // As settle increases, shapes drift toward center and alpha increases for warm tones
+    typedef struct { float start_x; float end_x; int w; int h; int y_off;
+                     unsigned char r, g, b; float start_a, end_a; } ArrivalShape;
+    ArrivalShape shapes[] = {
+        // Warm amber — grows dominant, centers
+        { 50, RENDER_W/2 - 100, 180, RENDER_H, 0,   240, 195, 100, 55, 80},
+        // Deep blue — fades and moves off left
+        {200, -60, 120, RENDER_H*2/3, 40,    40,  60, 140, 40, 15},
+        // Soft rose — settles right of center
+        {350, RENDER_W/2 + 30, 130, RENDER_H, 0,   210, 140, 130, 45, 55},
+        // White glow — centers and brightens (the hotel entrance light)
+        {180, RENDER_W/2 - 80, 160, RENDER_H*3/4, 20,   250, 245, 235, 30, 60},
+    };
+    int shape_count = 4;
 
-    // Night sky through window
-    for (int y = 0; y < wh; y++) {
-        float gt = (float)y / wh;
-        DrawRectangle(wx, wy + y, ww, 1,
-            (Color){(unsigned char)(10+gt*12), (unsigned char)(12+gt*10), (unsigned char)(25+gt*12), 255});
+    for (int i = 0; i < shape_count; i++) {
+        ArrivalShape *s = &shapes[i];
+        // Interpolate position from start to settled end
+        float x = s->start_x + (s->end_x - s->start_x) * settle;
+        // Small residual drift
+        x += sinf(t * 0.3f + i * 2.0f) * 5.0f * drift_mul;
+        // Alpha interpolates too
+        float a = s->start_a + (s->end_a - s->start_a) * settle;
+        float breath = 0.9f + 0.1f * sinf(t * 0.5f + i * 1.3f);
+        unsigned char alpha = (unsigned char)(a * breath);
+        DrawRectangle((int)x, s->y_off, s->w, s->h, (Color){s->r, s->g, s->b, alpha});
+        // Soft edges
+        DrawRectangle((int)x - 8, s->y_off, 8, s->h, (Color){s->r, s->g, s->b, (unsigned char)(alpha / 3)});
+        DrawRectangle((int)x + s->w, s->y_off, 8, s->h, (Color){s->r, s->g, s->b, (unsigned char)(alpha / 3)});
     }
 
-    // Hotel facade — centered, golden, warm
-    int hx = wx + ww/2 - 80, hw = 160, hh_start = wy + 15;
-    DrawRectangle(hx, hh_start, hw, wh - 20, (Color){190, 160, 95, 255});
-
-    // Windows — warm golden glow
-    for (int floor = 0; floor < 4; floor++) {
-        for (int col = 0; col < 5; col++) {
-            int fwx = hx + 10 + col * 30;
-            int fwy = hh_start + 8 + floor * (wh - 30) / 4;
-            DrawRectangle(fwx, fwy, 18, 22, (Color){240, 210, 130, 180});
-            // Warm glow spill
-            DrawRectangle(fwx - 2, fwy + 22, 22, 3, (Color){240, 210, 130, 40});
-        }
+    // "HOTEL CHEVALIER" text fades in over the settled composition
+    float text_alpha = fmaxf(0, fminf(1.0f, (t - 2.5f) / 2.0f));
+    if (text_alpha > 0) {
+        const char *name = "HOTEL CHEVALIER";
+        int tw = MeasureText(name, 10);
+        DrawText(name, RENDER_W/2 - tw/2, RENDER_H/2 - 20, 10,
+                 (Color){240, 220, 160, (unsigned char)(230 * text_alpha)});
     }
 
-    // Entrance — bright warm light pouring out
-    DrawRectangle(hx + hw/2 - 20, hh_start + wh - 45, 40, 35,
-                 (Color){250, 235, 180, 220});
-
-    // Red awning
-    DrawRectangle(hx + hw/2 - 30, hh_start + wh - 50, 60, 6,
-                 (Color){210, 55, 50, 255});
-
-    // "HOTEL CHEVALIER" text on facade
-    float text_alpha = fminf(1, t / 2.0f);
-    const char *name = "HOTEL CHEVALIER";
-    int tw = MeasureText(name, 8);
-    DrawText(name, wx + ww/2 - tw/2, hh_start + 2, 8,
-             (Color){240, 210, 120, (unsigned char)(230 * text_alpha)});
-
-    // Lamppost glow outside
-    DrawCircle(hx - 15, hh_start + wh - 30, 8, (Color){240, 210, 120, 50});
-    DrawCircle(hx + hw + 15, hh_start + wh - 30, 8, (Color){240, 210, 120, 50});
-
-    // Rain still visible but lighter
+    // Subtle rain — lighter, slower, dots
     for (int i = 0; i < MAX_RAIN / 3; i++) {
-        rain[i].y += rain[i].speed * GetFrameTime() * 0.3f;
-        if (rain[i].y > RENDER_H) rain[i].y = -rain[i].len;
-        if (rain[i].x >= wx && rain[i].x < wx + ww)
-            DrawLine((int)rain[i].x, (int)rain[i].y,
-                    (int)rain[i].x, (int)(rain[i].y + rain[i].len * 0.5f),
-                    (Color){180, 190, 210, 35});
+        rain[i].y += rain[i].speed * GetFrameTime() * 0.2f;
+        if (rain[i].y > RENDER_H) rain[i].y = -(rain[i].len * 0.3f);
+        DrawPixel((int)rain[i].x, (int)rain[i].y, (Color){200, 210, 225, 25});
     }
 }
 

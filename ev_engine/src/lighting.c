@@ -116,8 +116,8 @@ EVLighting LoadEVLighting(void) {
         float fillColor[3] = {0.35f, 0.38f, 0.45f};  // cool fill — warm/cool contrast
         SetShaderValue(lighting.shader, lighting.fillColorLoc, fillColor, SHADER_UNIFORM_VEC3);
 
-        // Ambient — low for dramatic contrast
-        float ambient[3] = {0.28f, 0.27f, 0.26f};
+        // Ambient — warm enough to see, dramatic but not dark
+        float ambient[3] = {0.32f, 0.30f, 0.28f};
         SetShaderValue(lighting.shader, lighting.ambientLoc, ambient, SHADER_UNIFORM_VEC3);
 
         lighting.ready = true;
