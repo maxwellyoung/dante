@@ -1,71 +1,23 @@
-// scene.c — Scene construction — entirely in code, no files
+// scene.c — Scene construction
+// Material palette. Clean volumes. Dramatic light.
 #include "scene.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
     if (s->wall_count >= MAX_WALLS) return;
     s->walls[s->wall_count++] = (Wall){
-        .pos = {x, y, z},
-        .size = {w, h, d},
-        .color = c,
-        .active = true,
+        .pos = {x, y, z}, .size = {w, h, d}, .color = c, .active = true,
     };
 }
 
-void add_object(Scene *s, float x, float y, float z, const char *name,
-                const char *prompt, const char *done_text, Color c) {
+void add_object(Scene *s, float x, float y, float z, const char *name, Color c, int max_steps) {
     if (s->object_count >= MAX_OBJECTS) return;
     s->objects[s->object_count++] = (InteractObject){
-        .pos = {x, y, z},
-        .color = c,
-        .name = name,
-        .prompt = prompt,
-        .done_text = done_text,
-        .done = false,
-        .active = true,
-        .radius = 2.0f,
-    };
-}
-
-// Build a box room from walls
-static void build_room(Scene *s, float cx, float cz, float w, float d, float h,
-                       Color wall_c, Color floor_c, Color ceil_c) {
-    float hw = w / 2, hd = d / 2;
-    s->floor_color = floor_c;
-    s->ceiling_color = ceil_c;
-    add_wall(s, cx, -0.1f, cz, w, 0.2f, d, floor_c);
-    add_wall(s, cx, h, cz, w, 0.2f, d, ceil_c);
-    add_wall(s, cx, h/2, cz - hd, w, h, 0.3f, wall_c);
-    add_wall(s, cx, h/2, cz + hd, w, h, 0.3f, wall_c);
-    add_wall(s, cx + hw, h/2, cz, 0.3f, h, d, wall_c);
-    add_wall(s, cx - hw, h/2, cz, 0.3f, h, d, wall_c);
-}
-
-static void add_pillar(Scene *s, float x, float z, float radius, float height, Color c) {
-    add_wall(s, x, height/2, z, radius*2, height, radius*2, c);
-}
-
-static void add_wall_with_door(Scene *s, float x, float y, float z,
-                               float total_w, float h, float d,
-                               float door_offset, float door_w, Color c) {
-    float left_w = door_offset - door_w/2;
-    float right_w = total_w - door_offset - door_w/2;
-    if (left_w > 0.1f) {
-        add_wall(s, x - total_w/2 + left_w/2, y, z, left_w, h, d, c);
-    }
-    if (right_w > 0.1f) {
-        add_wall(s, x + total_w/2 - right_w/2, y, z, right_w, h, d, c);
-    }
-    add_wall(s, x - total_w/2 + door_offset, y + h*0.35f, z, door_w, h*0.3f, d, c);
-}
-
-static Color blake_lerp(Color a, Color b, float t) {
-    return (Color){
-        (unsigned char)(a.r + (b.r - a.r) * t),
-        (unsigned char)(a.g + (b.g - a.g) * t),
-        (unsigned char)(a.b + (b.b - a.b) * t),
-        (unsigned char)(a.a + (b.a - a.a) * t),
+        .pos = {x, y, z}, .color = c, .name = name,
+        .done = false, .active = true, .radius = 2.0f,
+        .reward_timer = 0, .step = 0, .max_steps = max_steps,
     };
 }
 
@@ -74,120 +26,214 @@ static void add_column(Scene *s, float x, float z, float r, float h, Color c) {
         float angle = i * 3.14159f / 4.0f;
         float wx = x + cosf(angle) * r;
         float wz = z + sinf(angle) * r;
-        float nx = cosf(angle);
-        float nz = sinf(angle);
-        float seg_len = r * 0.8f;
+        float seg = r * 0.8f;
         add_wall(s, wx, h/2, wz,
-                 fabsf(nz) * seg_len + 0.1f, h,
-                 fabsf(nx) * seg_len + 0.1f, c);
+                 fabsf(sinf(angle)) * seg + 0.1f, h,
+                 fabsf(cosf(angle)) * seg + 0.1f, c);
     }
 }
 
-static void add_gradient_wall(Scene *s, float x, float z, float w, float d,
-                              float h, int slices, Color bottom, Color top) {
-    float slice_h = h / slices;
-    for (int i = 0; i < slices; i++) {
-        float t = (float)i / (slices - 1);
-        Color c = blake_lerp(bottom, top, t);
-        add_wall(s, x, slice_h * i + slice_h/2, z, w, slice_h + 0.02f, d, c);
-    }
+void add_light_panel(Scene *s, float x, float y, float z,
+                     float w, float h, float d, Color c) {
+    add_wall(s, x, y, z, w, h, d, (Color){c.r, c.g, c.b, 160});
+    add_wall(s, x, y, z + (d > 0.2f ? 0 : 0.05f), w + 0.2f, h + 0.2f, d + 0.08f,
+             (Color){c.r, c.g, c.b, 50});
 }
 
-static void add_light_panel(Scene *s, float x, float y, float z,
-                            float w, float h, float d, Color c) {
-    Color glow = {c.r, c.g, c.b, 120};
-    add_wall(s, x, y, z, w, h, d, glow);
-    add_wall(s, x, y, z + (d > 0.2f ? 0 : 0.05f), w + 0.3f, h + 0.3f, d + 0.1f,
-             (Color){c.r, c.g, c.b, 40});
+// Recessed panel — creates depth illusion with inset + frame
+// Main wall already exists; this adds a darker inset and thin frame border
+static void add_recessed_panel(Scene *s, float x, float y, float z,
+                               float w, float h, float inset_depth,
+                               Color wall_color) {
+    // Darken the wall color for the recessed area
+    unsigned char dr = (unsigned char)(wall_color.r * 0.82f);
+    unsigned char dg = (unsigned char)(wall_color.g * 0.82f);
+    unsigned char db = (unsigned char)(wall_color.b * 0.82f);
+    Color dark = {dr, dg, db, 255};
+    // Slightly lighter for the frame
+    unsigned char fr = (unsigned char)fminf(255, wall_color.r * 0.9f);
+    unsigned char fg = (unsigned char)fminf(255, wall_color.g * 0.88f);
+    unsigned char fb = (unsigned char)fminf(255, wall_color.b * 0.85f);
+    Color frame = {fr, fg, fb, 255};
+    float frame_w = 0.06f;
+
+    // Inset panel — slightly recessed
+    add_wall(s, x, y, z - inset_depth, w, h, 0.02f, dark);
+    // Frame — four thin strips around the panel
+    add_wall(s, x, y + h/2 + frame_w/2, z - inset_depth*0.5f,
+             w + frame_w*2, frame_w, 0.03f, frame);  // top
+    add_wall(s, x, y - h/2 - frame_w/2, z - inset_depth*0.5f,
+             w + frame_w*2, frame_w, 0.03f, frame);  // bottom
+    add_wall(s, x - w/2 - frame_w/2, y, z - inset_depth*0.5f,
+             frame_w, h, 0.03f, frame);              // left
+    add_wall(s, x + w/2 + frame_w/2, y, z - inset_depth*0.5f,
+             frame_w, h, 0.03f, frame);              // right
 }
 
-static void add_floor_tiles(Scene *s, float cx, float cz, float w, float d,
-                            float tile_size, Color a, Color b) {
-    int cols = (int)(w / tile_size);
-    int rows = (int)(d / tile_size);
-    for (int r = 0; r < rows; r++) {
-        for (int c = 0; c < cols; c++) {
-            float tx = cx - w/2 + c * tile_size + tile_size/2;
-            float tz = cz - d/2 + r * tile_size + tile_size/2;
-            Color tc = ((r + c) % 2 == 0) ? a : b;
-            add_wall(s, tx, -0.05f, tz, tile_size - 0.02f, 0.1f, tile_size - 0.02f, tc);
+// Dropped ceiling section — coffered ceiling effect
+static void add_dropped_ceiling(Scene *s, float x, float y, float z,
+                                float w, float d, float drop,
+                                Color ceil_color, Color light_color) {
+    // Lowered ceiling panel
+    unsigned char dr = (unsigned char)(ceil_color.r * 0.88f);
+    unsigned char dg = (unsigned char)(ceil_color.g * 0.88f);
+    unsigned char db = (unsigned char)(ceil_color.b * 0.88f);
+    Color lowered = {dr, dg, db, 255};
+    add_wall(s, x, y - drop, z, w, 0.1f, d, lowered);
+    // Edge trim — four sides hanging down
+    float trim = 0.08f;
+    add_wall(s, x, y - drop/2, z + d/2, w, drop, trim, ceil_color);  // front
+    add_wall(s, x, y - drop/2, z - d/2, w, drop, trim, ceil_color);  // back
+    add_wall(s, x - w/2, y - drop/2, z, trim, drop, d, ceil_color);  // left
+    add_wall(s, x + w/2, y - drop/2, z, trim, drop, d, ceil_color);  // right
+    // Light panels underneath
+    add_light_panel(s, x - w/4, y - drop - 0.02f, z,
+                    w/3, 0.03f, d*0.6f, light_color);
+    add_light_panel(s, x + w/4, y - drop - 0.02f, z,
+                    w/3, 0.03f, d*0.6f, light_color);
+}
+
+// ============================================================
+// SCENES
+// ============================================================
+
+void build_hotel_exterior(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
+
+    Color gold_facade = {205, 198, 185, 255};  // sandstone
+    Color dark_gold = {170, 140, 80, 255};
+    Color gold = {178, 155, 107, 255};         // brass
+    Color window_lit = {240, 210, 130, 180};
+    Color sidewalk = {160, 155, 145, 255};
+    Color road = {50, 50, 55, 255};
+    Color godard_red = {210, 55, 50, 255};
+
+    s->fog_color = (Color){20, 25, 45, 255};  // night blue
+    s->fog_density = 0.005f;
+
+    // Sidewalk
+    add_wall(s, 0, -0.1f, 0, 20, 0.2f, 8, sidewalk);
+    // Road
+    add_wall(s, 0, -0.15f, -8, 30, 0.15f, 12, road);
+
+    // Hotel facade — 6 floors
+    float bw = 16, bh = 22, bd = 0.5f;
+    add_wall(s, 0, bh/2, 4, bw, bh, bd, gold_facade);
+
+    // Windows — 5 across, 5 floors
+    for (int floor = 0; floor < 5; floor++) {
+        for (int col = 0; col < 5; col++) {
+            float wx = -6 + col * 3;
+            float wy = 3 + floor * 3.5f;
+            // Window frame
+            add_wall(s, wx, wy, 3.7f, 1.8f, 2.4f, 0.1f, dark_gold);
+            // Glass — warm lit
+            if (floor != 2 || col != 3) {  // one dark window
+                add_wall(s, wx, wy, 3.65f, 1.5f, 2.0f, 0.05f, window_lit);
+            }
         }
     }
+
+    // Ground floor — entrance
+    add_wall(s, 0, 1.8f, 3.5f, 4, 3.6f, 0.1f, (Color){250, 230, 170, 200});  // lit entrance
+    // Awning
+    add_wall(s, 0, 3.8f, 2.5f, 5, 0.1f, 2, godard_red);
+    // Awning supports
+    add_wall(s, -2.4f, 2.5f, 2, 0.06f, 2.5f, 0.06f, gold);
+    add_wall(s, 2.4f, 2.5f, 2, 0.06f, 2.5f, 0.06f, gold);
+
+    // Hotel name
+    add_wall(s, 0, 4.2f, 3.68f, 6, 0.4f, 0.04f, gold);
+
+    // Cornice/trim at each floor
+    for (int f = 0; f < 6; f++) {
+        float y = 1.2f + f * 3.5f;
+        add_wall(s, 0, y, 3.72f, bw + 0.2f, 0.1f, 0.06f, gold);
+    }
+
+    // Lamppost left — bold, visible at 480x300
+    add_wall(s, -6, 1.8f, -1, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
+    add_light_panel(s, -6, 3.8f, -1, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
+    // Lamppost right — bold
+    add_wall(s, 6, 1.8f, -1, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
+    add_light_panel(s, 6, 3.8f, -1, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
+
+    // Sky — distant building silhouettes
+    add_wall(s, -20, 8, 15, 8, 16, 2, (Color){20, 22, 38, 255});
+    add_wall(s, 18, 6, 18, 6, 12, 2, (Color){18, 20, 35, 255});
+    add_wall(s, -12, 5, 20, 10, 10, 2, (Color){22, 24, 40, 255});
+
+    s->spawn = (Vector3){0, 1.6f, -3};
+    s->exit_pos = (Vector3){0, 1.6f, 2.5f};
+    s->has_exit = true;
 }
 
 void build_lobby(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
 
-    Color concrete = {140, 140, 148, 255};
-    Color gold = {210, 175, 95, 255};
-    Color deep_gold = {160, 120, 55, 255};
-    Color plant = {35, 100, 45, 255};
-    Color dark_plant = {20, 60, 30, 255};
-    Color titanium = {195, 180, 125, 255};
-    Color warm_cream = {220, 200, 160, 255};
-    Color blake_magenta = {180, 50, 90, 255};
-    Color blake_coral = {220, 100, 80, 255};
-    Color blake_teal = {40, 140, 130, 255};
-    Color blake_violet = {100, 50, 150, 255};
-    Color dark_floor_a = {55, 42, 22, 255};
-    Color dark_floor_b = {65, 50, 28, 255};
+    Color cream = {238, 236, 232, 255};       // white plaster
+    Color gold = {178, 155, 107, 255};        // brass
+    Color warm_white = {235, 232, 226, 255};
+    Color concrete_a = {190, 187, 183, 255};  // concrete reveal panel
+    Color concrete_b = {180, 177, 173, 255};  // slightly darker concrete
+    Color marble_a = {210, 207, 202, 255};    // lighter marble
+    Color marble_b = {198, 195, 190, 255};
+    Color plant = {60, 130, 65, 255};
+    Color terracotta = {175, 85, 65, 255};    // accent
 
-    s->fog_color = (Color){12, 10, 5, 255};
-    s->fog_density = 0.03f;
+    s->fog_color = (Color){215, 212, 208, 255};  // cool neutral morning mist
+    s->fog_density = 0.012f;
 
-    add_floor_tiles(s, 0, 0, 30, 20, 2.0f, dark_floor_a, dark_floor_b);
+    int cols = 15, rows = 10;
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            float tx = -15 + c * 2 + 1, tz = -10 + r * 2 + 1;
+            add_wall(s, tx, -0.05f, tz, 1.98f, 0.1f, 1.98f, ((r+c)%2==0) ? marble_a : marble_b);
+        }
 
-    add_wall(s, 0, 7, 0, 30, 0.2f, 20, (Color){45, 35, 20, 255});
-    add_light_panel(s, -5, 6.8f, 0, 8, 0.1f, 0.8f, warm_cream);
-    add_light_panel(s, 5, 6.8f, -3, 6, 0.1f, 0.8f, gold);
-    add_light_panel(s, 0, 6.8f, 5, 10, 0.1f, 0.6f, blake_coral);
+    add_wall(s, 0, 7, 0, 30, 0.2f, 20, cream);
+    add_light_panel(s, -4, 6.8f, 0, 6, 0.1f, 0.6f, gold);
+    add_light_panel(s, 4, 6.8f, -3, 5, 0.1f, 0.6f, warm_white);
 
-    add_gradient_wall(s, 0, -10, 30, 0.3f, 7, 6, concrete, blake_violet);
+    add_wall(s, 0, 3.5f, -10, 30, 7, 0.3f, cream);
+    add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, cream);
+    add_wall(s, 10, 3.5f, 10, 8, 7, 0.3f, cream);
+    add_wall(s, -2, 5.5f, 10, 6, 3, 0.3f, cream);
+    add_wall(s, -15, 3.5f, 0, 0.3f, 7, 20, cream);
+    add_wall(s, 15, 3.5f, -5, 0.3f, 7, 10, cream);
+    add_wall(s, 15, 3.5f, 6, 0.3f, 7, 8, cream);
 
-    add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, concrete);
-    add_wall(s, 10, 3.5f, 10, 8, 7, 0.3f, concrete);
-    add_wall(s, -2, 5.5f, 10, 6, 3, 0.3f, concrete);
-    add_light_panel(s, -2, 4.5f, 10.1f, 6, 1.5f, 0.1f, blake_magenta);
+    add_wall(s, 0, 1.0f, -9.85f, 30, 0.06f, 0.1f, gold);
+    add_wall(s, -14.85f, 1.0f, 0, 0.1f, 0.06f, 20, gold);
+    add_wall(s, 14.85f, 1.0f, 0, 0.1f, 0.06f, 20, gold);
 
-    add_wall(s, -15, 2, 0, 0.3f, 4, 20, concrete);
-    add_wall(s, -15, 5, 0, 0.3f, 2, 20, (Color){60, 70, 80, 255});
-    add_wall(s, -15, 6.5f, 0, 0.3f, 1, 20, blake_teal);
+    // Concrete reveal panel — architectural, not pop art
+    add_wall(s, 0, 3.5f, -9.8f, 8, 3.5f, 0.08f, concrete_a);
+    add_wall(s, 0, 3.5f, -9.75f, 7.8f, 3.3f, 0.04f, concrete_b);
 
-    add_wall(s, 15, 2, -5, 0.3f, 4, 10, concrete);
-    add_wall(s, 15, 2, 6, 0.3f, 4, 8, concrete);
-    add_wall(s, 15, 5, 0, 0.3f, 2, 20, deep_gold);
-    add_wall(s, 15, 6.5f, 0, 0.3f, 1, 20, gold);
-    add_light_panel(s, 14.9f, 1.5f, 1, 0.1f, 3, 2.5f, gold);
+    add_column(s, -8, -4, 0.5f, 7, cream);
+    add_column(s, -3, 1, 0.45f, 7, cream);
+    add_column(s, 4, -5, 0.5f, 7, cream);
+    add_column(s, 7, 2, 0.4f, 7, cream);
 
-    add_column(s, -9, -5, 0.6f, 7, titanium);
-    add_column(s, -4, 1, 0.5f, 7, concrete);
-    add_column(s, 4, -6, 0.55f, 7, titanium);
-    add_column(s, 8, 2, 0.45f, 7, (Color){170, 160, 130, 255});
-    add_column(s, -1, -3, 0.4f, 7, gold);
+    add_wall(s, -11, 1.5f, -8, 2, 3, 0.4f, plant);
+    add_wall(s, 10, 1, -8, 1.5f, 2, 0.4f, plant);
 
-    add_gradient_wall(s, -11, -8, 3, 0.5f, 4, 4, dark_plant, plant);
-    add_gradient_wall(s, 7, -8, 2.5f, 0.5f, 3.5f, 4, dark_plant, plant);
-    add_wall(s, -6, 1.5f, -9.5f, 1.5f, 3, 0.3f, plant);
-    add_wall(s, 10, 1, -9.5f, 1, 2, 0.3f, plant);
+    add_wall(s, 0, 0.5f, -7, 6, 1.0f, 1.5f, gold);
+    add_wall(s, 0, 1.02f, -7, 6.1f, 0.04f, 1.55f, (Color){230, 200, 110, 255});
 
-    add_wall(s, 0, 0.55f, -7, 7, 1.1f, 1.8f, deep_gold);
-    add_wall(s, 0, 0.3f, -7, 7.2f, 0.6f, 1.9f, (Color){90, 65, 35, 255});
-    add_wall(s, 0, 1.12f, -7, 7.1f, 0.05f, 1.85f, gold);
-    add_light_panel(s, -2, 1.3f, -7, 0.3f, 0.5f, 0.3f, warm_cream);
+    add_wall(s, -7, 0.3f, 5, 2.5f, 0.6f, 0.7f, (Color){165, 130, 85, 255});
+    add_wall(s, -7, 0.3f, -1, 2.5f, 0.6f, 0.7f, (Color){165, 130, 85, 255});
 
-    add_light_panel(s, -14.8f, 3.5f, -6, 0.1f, 3, 4, blake_magenta);
-    add_light_panel(s, -14.8f, 2.5f, 3, 0.1f, 2.5f, 3, blake_teal);
-    add_light_panel(s, -14.8f, 4.5f, 0, 0.1f, 1.5f, 5, blake_coral);
+    // Terracotta bench — ONE accent
+    add_wall(s, 5, 0.25f, -8, 2.5f, 0.5f, 0.7f, terracotta);
 
-    add_light_panel(s, 14.8f, 4, -4, 0.1f, 2, 3, blake_violet);
-    add_light_panel(s, 14.8f, 2, -8, 0.1f, 1.5f, 2, blake_coral);
+    add_light_panel(s, 14.8f, 1.5f, 1, 0.1f, 3, 2.5f, gold);
 
-    add_wall(s, 6, 1, 3, 0.8f, 2, 0.15f, blake_magenta);
-    add_wall(s, 6.3f, 1.5f, 3.2f, 0.15f, 1.5f, 0.6f, blake_coral);
-    add_wall(s, 5.7f, 0.8f, 2.8f, 0.5f, 0.3f, 0.8f, titanium);
-
-    add_wall(s, -8, 0.3f, 5, 3, 0.6f, 0.8f, (Color){80, 60, 40, 255});
-    add_wall(s, -8, 0.3f, -1, 3, 0.6f, 0.8f, (Color){80, 60, 40, 255});
+    // Dropped ceiling — coffered effect in lobby center
+    add_dropped_ceiling(s, 0, 7, -2, 8, 6, 0.3f, cream, gold);
 
     s->spawn = (Vector3){0, 1.6f, 8};
     s->exit_pos = (Vector3){14.5f, 1.6f, 1};
@@ -196,169 +242,258 @@ void build_lobby(Scene *s) {
 
 void build_hallway(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_CARPET;
 
-    Color concrete = {120, 120, 128, 255};
-    Color gold = {200, 165, 90, 255};
-    Color red = {210, 55, 45, 255};
-    Color blue = {45, 80, 190, 255};
-    Color warm_floor = {50, 38, 22, 255};
-    Color dark_floor = {40, 30, 18, 255};
-    Color blake_pink = {220, 120, 140, 255};
-    Color blake_amber = {230, 170, 60, 255};
+    Color cream = {238, 236, 232, 255};       // white plaster
+    Color gold = {178, 155, 107, 255};        // brass
+    Color godard_red = {210, 55, 50, 255};    // door accent — stays
+    Color godard_blue = {50, 80, 180, 255};   // door accent — stays
+    Color carpet_a = {155, 75, 60, 255};      // muted carpet
+    Color carpet_b = {165, 82, 65, 255};
+    Color warm_amber = {240, 200, 100, 255};
 
-    s->fog_color = (Color){10, 8, 5, 255};
-    s->fog_density = 0.025f;
-
+    s->fog_color = (Color){210, 208, 204, 255};
+    s->fog_density = 0.010f;
     float L = 40, W = 4.5f, H = 4;
 
-    add_floor_tiles(s, 0, -L/2, W, L, 1.5f, warm_floor, dark_floor);
+    int cols = 3, rows = (int)(L / 1.5f);
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            float tx = -W/2 + c*1.5f + 0.75f, tz = -r*1.5f - 0.75f;
+            add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f, ((r+c)%2==0) ? carpet_a : carpet_b);
+        }
 
-    add_wall(s, 0, H, -L/2, W, 0.2f, L, (Color){38, 30, 18, 255});
+    add_wall(s, 0, H, -L/2, W, 0.2f, L, cream);
+    for (int i = 0; i < 8; i++)
+        add_light_panel(s, 0, H-0.1f, -3 - i*5, 1.5f, 0.05f, 0.5f, warm_amber);
+
+    add_wall(s, -W/2, H/2, -L/2, 0.3f, H, L, cream);
+    add_wall(s, W/2, H/2, -L/2, 0.3f, H, L, cream);
+    add_wall(s, 0, H/2, 0, W, H, 0.3f, cream);
+    add_wall(s, 0, H/2, -L, W, H, 0.3f, cream);
+
+    add_wall(s, -W/2+0.05f, 1.0f, -L/2, 0.08f, 0.04f, L, gold);
+    add_wall(s, W/2-0.05f, 1.0f, -L/2, 0.08f, 0.04f, L, gold);
+
     for (int i = 0; i < 8; i++) {
-        float z = -3 - i * 5;
-        add_light_panel(s, 0, H - 0.1f, z, 2, 0.05f, 0.6f, blake_amber);
-    }
-
-    add_gradient_wall(s, -W/2, -L/2, 0.3f, L, H, 5, (Color){70, 65, 60, 255}, concrete);
-    add_gradient_wall(s, W/2, -L/2, 0.3f, L, H, 5, (Color){70, 65, 60, 255}, concrete);
-
-    add_wall(s, 0, H/2, 0, W, H, 0.3f, concrete);
-    add_wall(s, 0, H/2, -L, W, H, 0.3f, concrete);
-
-    add_wall(s, -W/2 + 0.05f, 0.5f, -L/2, 0.1f, 1, L, (Color){60, 42, 25, 255});
-    add_wall(s, W/2 - 0.05f, 0.5f, -L/2, 0.1f, 1, L, (Color){60, 42, 25, 255});
-    add_wall(s, -W/2 + 0.05f, 1.02f, -L/2, 0.1f, 0.04f, L, gold);
-    add_wall(s, W/2 - 0.05f, 1.02f, -L/2, 0.1f, 0.04f, L, gold);
-
-    for (int i = 0; i < 8; i++) {
-        float z = -3.5f - i * 4.5f;
-        Color door_c = (i % 2 == 0) ? red : blue;
-        Color glow_c = (i % 2 == 0) ? blake_pink : (Color){80, 120, 220, 200};
-        float side = (i % 2 == 0) ? -(W/2 - 0.1f) : (W/2 - 0.1f);
-
+        float z = -3.5f - i*4.5f;
+        Color door_c = (i%2==0) ? godard_red : godard_blue;
+        float side = (i%2==0) ? -(W/2-0.1f) : (W/2-0.1f);
         add_wall(s, side, 1.3f, z, 0.12f, 2.6f, 1.3f, door_c);
-        add_wall(s, side, 2.75f, z, 0.12f, 0.2f, 1.5f, gold);
-        add_wall(s, side, 1.3f, z - 0.7f, 0.12f, 2.6f, 0.08f, gold);
-        add_wall(s, side, 1.3f, z + 0.7f, 0.12f, 2.6f, 0.08f, gold);
-        add_light_panel(s, side, 3.2f, z, 0.08f, 0.6f, 1.4f, glow_c);
-        add_wall(s, side * 0.95f, 2, z - 0.9f, 0.08f, 0.3f, 0.2f, gold);
+        add_wall(s, side, 2.75f, z, 0.12f, 0.15f, 1.4f, gold);
+        add_wall(s, side, 1.3f, z-0.7f, 0.12f, 2.6f, 0.06f, gold);
+        add_wall(s, side, 1.3f, z+0.7f, 0.12f, 2.6f, 0.06f, gold);
+        add_wall(s, side*0.95f, 2, z-0.9f, 0.06f, 0.25f, 0.18f, gold);
+        if (i != 5) add_light_panel(s, side, 0.03f, z, 0.06f, 0.05f, 1.1f, warm_amber);
     }
 
-    add_wall(s, 0, 0.01f, -L/2, 1.8f, 0.02f, L, (Color){100, 30, 25, 255});
+    add_wall(s, 0, 0.01f, -L/2, 1.6f, 0.02f, L, (Color){170, 65, 50, 255});
+    add_light_panel(s, 0, 2.2f, -L+0.2f, 2.5f, 1.8f, 0.05f, (Color){230, 200, 120, 180});
+
+    // Flowers
+    add_wall(s, W/2-0.12f, 0.8f, -18, 0.35f, 0.04f, 0.22f, gold);
+    add_wall(s, W/2-0.12f, 0.92f, -18, 0.07f, 0.18f, 0.07f, (Color){200, 200, 210, 200});
+    add_wall(s, W/2-0.14f, 1.1f, -18, 0.09f, 0.06f, 0.09f, godard_red);
 
     s->spawn = (Vector3){0, 1.6f, -1};
-    s->exit_pos = (Vector3){0, 1.6f, -L + 1};
+    s->exit_pos = (Vector3){0, 1.6f, -L+1};
     s->has_exit = true;
 }
 
 void build_hotel_room(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_WOOD;
 
-    Color warm_wall = {155, 128, 82, 255};
-    Color wall_base = {100, 78, 48, 255};
-    Color gold = {210, 175, 95, 255};
-    Color cream = {240, 232, 212, 255};
-    Color burgundy = {145, 38, 48, 255};
-    Color wood = {95, 65, 38, 255};
-    Color dark_wood = {65, 45, 28, 255};
-    Color pillow_white = {235, 228, 215, 255};
-    Color leather = {110, 55, 35, 255};
-    Color blake_warm = {230, 160, 100, 200};
-    Color blake_rose = {200, 100, 110, 180};
-    Color curtain = {130, 90, 65, 255};
-    Color mirror = {180, 190, 200, 180};
+    Color wall_gold = {235, 232, 226, 255};    // white plaster
+    Color gold = {178, 155, 107, 255};        // brass
+    Color cream = {238, 236, 232, 255};
+    Color godard_red = {200, 50, 45, 255};    // THE accent — stays
+    Color wood = {165, 130, 85, 255};         // warm wood
+    Color dark_wood = {120, 85, 50, 255};
+    Color white = {240, 238, 230, 255};
+    Color warm_gray = {165, 160, 152, 255};   // replaces godard_blue sofa
+    Color warm_light = {235, 220, 190, 150};  // softer, less saturated
 
-    s->fog_color = (Color){10, 8, 4, 255};
-    s->fog_density = 0.02f;
-
+    s->fog_color = (Color){218, 215, 210, 255};
+    s->fog_density = 0.008f;
     float rw = 12, rd = 10, rh = 3.8f;
 
-    add_floor_tiles(s, 0, 0, rw, rd, 1.0f,
-                    (Color){75, 55, 32, 255}, (Color){85, 65, 38, 255});
+    int cols = (int)(rw/0.8f), rows = (int)(rd/0.8f);
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            float tx = -rw/2+c*0.8f+0.4f, tz = -rd/2+r*0.8f+0.4f;
+            add_wall(s, tx, -0.05f, tz, 0.78f, 0.1f, 0.78f, ((r+c)%2==0) ? wood : (Color){145,108,65,255});
+        }
 
-    add_wall(s, 0, rh, 0, rw, 0.2f, rd, (Color){50, 40, 24, 255});
-    add_wall(s, 0, rh - 0.1f, -rd/2 + 0.1f, rw, 0.15f, 0.08f, gold);
-    add_wall(s, 0, rh - 0.1f, rd/2 - 0.1f, rw, 0.15f, 0.08f, gold);
-    add_wall(s, -rw/2 + 0.1f, rh - 0.1f, 0, 0.08f, 0.15f, rd, gold);
-    add_wall(s, rw/2 - 0.1f, rh - 0.1f, 0, 0.08f, 0.15f, rd, gold);
+    add_wall(s, 0, rh, 0, rw, 0.2f, rd, cream);
+    add_wall(s, 0, rh-0.08f, -rd/2+0.08f, rw, 0.12f, 0.06f, gold);
+    add_wall(s, 0, rh-0.08f, rd/2-0.08f, rw, 0.12f, 0.06f, gold);
+    add_wall(s, -rw/2+0.08f, rh-0.08f, 0, 0.06f, 0.12f, rd, gold);
+    add_wall(s, rw/2-0.08f, rh-0.08f, 0, 0.06f, 0.12f, rd, gold);
 
-    add_gradient_wall(s, 0, -rd/2, rw, 0.3f, rh, 4, wall_base, warm_wall);
-    add_gradient_wall(s, 0, rd/2, rw, 0.3f, rh, 4, wall_base, warm_wall);
-    add_gradient_wall(s, -rw/2, 0, 0.3f, rd, rh, 4, wall_base, warm_wall);
-    add_gradient_wall(s, rw/2, 0, 0.3f, rd, rh, 4, wall_base, warm_wall);
+    add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, wall_gold);
+    add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, wall_gold);
+    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
+    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
 
-    add_wall(s, 0, 0.5f, -rd/2 + 0.1f, rw, 1.0f, 0.08f, dark_wood);
-    add_wall(s, 0, 0.5f, rd/2 - 0.1f, rw, 1.0f, 0.08f, dark_wood);
-    add_wall(s, -rw/2 + 0.1f, 0.5f, 0, 0.08f, 1.0f, rd, dark_wood);
-    add_wall(s, rw/2 - 0.1f, 0.5f, 0, 0.08f, 1.0f, rd, dark_wood);
+    add_wall(s, 0, 0.45f, -rd/2+0.08f, rw, 0.9f, 0.06f, dark_wood);
+    add_wall(s, 0, 0.45f, rd/2-0.08f, rw, 0.9f, 0.06f, dark_wood);
+    add_wall(s, -rw/2+0.08f, 0.45f, 0, 0.06f, 0.9f, rd, dark_wood);
+    add_wall(s, rw/2-0.08f, 0.45f, 0, 0.06f, 0.9f, rd, dark_wood);
 
     // Bed
-    add_wall(s, 0, 0.2f, -3.5f, 3.6f, 0.4f, 2.2f, dark_wood);
-    add_wall(s, 0, 0.5f, -3.5f, 3.4f, 0.3f, 2.0f, cream);
-    add_wall(s, -0.7f, 0.7f, -4.3f, 0.8f, 0.25f, 0.5f, pillow_white);
-    add_wall(s, 0.7f, 0.7f, -4.3f, 0.8f, 0.25f, 0.5f, pillow_white);
-    add_wall(s, 0, 1.2f, -4.6f, 3.8f, 1.8f, 0.15f, burgundy);
-    add_wall(s, 0, 2.15f, -4.58f, 3.9f, 0.06f, 0.08f, gold);
+    add_wall(s, 0, 0.2f, -3.5f, 3.4f, 0.4f, 2.0f, dark_wood);
+    add_wall(s, 0, 0.5f, -3.5f, 3.2f, 0.25f, 1.8f, white);
+    add_wall(s, -0.6f, 0.68f, -4.2f, 0.7f, 0.2f, 0.4f, white);
+    add_wall(s, 0.6f, 0.68f, -4.2f, 0.7f, 0.2f, 0.4f, white);
+    add_wall(s, 0, 1.2f, -4.5f, 3.6f, 1.6f, 0.12f, godard_red);
+    add_wall(s, 0, 2.05f, -4.48f, 3.7f, 0.05f, 0.06f, gold);
 
-    // Bedside tables + lamps
-    add_wall(s, -2.8f, 0.3f, -3.8f, 0.7f, 0.6f, 0.7f, wood);
-    add_wall(s, 2.8f, 0.3f, -3.8f, 0.7f, 0.6f, 0.7f, wood);
-    add_light_panel(s, -2.8f, 0.9f, -3.8f, 0.25f, 0.4f, 0.25f, blake_warm);
-    add_light_panel(s, 2.8f, 0.9f, -3.8f, 0.25f, 0.4f, 0.25f, blake_warm);
+    add_wall(s, -2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
+    add_wall(s, 2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
+    add_light_panel(s, -2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
+    add_light_panel(s, 2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
 
     // Desk
-    add_wall(s, 5.0f, 0.4f, 0, 2.8f, 0.8f, 1.0f, wood);
-    add_wall(s, 5.0f, 0.82f, 0, 2.9f, 0.04f, 1.05f, gold);
-    add_wall(s, 3.8f, 0.35f, 0, 0.55f, 0.7f, 0.55f, leather);
-    add_wall(s, 3.8f, 0.8f, -0.2f, 0.55f, 0.6f, 0.1f, leather);
-    add_wall(s, 5.8f, 1.8f, 0, 0.05f, 1.2f, 1.5f, mirror);
-    add_wall(s, 5.82f, 1.8f, 0, 0.04f, 1.3f, 0.06f, gold);
+    add_wall(s, 5.0f, 0.4f, 0, 2.5f, 0.8f, 0.9f, wood);
+    add_wall(s, 5.0f, 0.82f, 0, 2.6f, 0.03f, 0.95f, gold);
+    add_wall(s, 3.8f, 0.35f, 0, 0.5f, 0.7f, 0.5f, (Color){160,90,50,255});
+    add_wall(s, 3.8f, 0.75f, -0.18f, 0.5f, 0.55f, 0.08f, (Color){160,90,50,255});
+    add_wall(s, 5.75f, 1.8f, 0, 0.04f, 1.1f, 1.3f, (Color){200,205,210,180});
+    add_wall(s, 5.78f, 1.8f, 0, 0.03f, 1.2f, 0.05f, gold);
 
-    // Sofa
-    add_wall(s, -4.5f, 0.25f, 1.5f, 2.8f, 0.5f, 1.0f, burgundy);
-    add_wall(s, -4.5f, 0.6f, 2.0f, 2.8f, 0.7f, 0.2f, burgundy);
-    add_wall(s, -5.85f, 0.4f, 1.5f, 0.1f, 0.5f, 1.0f, burgundy);
-    add_wall(s, -3.15f, 0.4f, 1.5f, 0.1f, 0.5f, 1.0f, burgundy);
+    // Sofa — warm gray
+    add_wall(s, -4.2f, 0.25f, 1.5f, 2.4f, 0.5f, 0.9f, warm_gray);
+    add_wall(s, -4.2f, 0.6f, 1.95f, 2.4f, 0.6f, 0.15f, warm_gray);
+    add_wall(s, -5.4f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
+    add_wall(s, -3.0f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
 
-    // Coffee table
-    add_wall(s, -4.5f, 0.2f, 3.2f, 1.6f, 0.4f, 0.9f, wood);
-    add_wall(s, -4.5f, 0.42f, 3.2f, 1.65f, 0.03f, 0.95f, gold);
+    add_wall(s, -4.2f, 0.2f, 3.0f, 1.4f, 0.4f, 0.8f, wood);
+    add_wall(s, -4.2f, 0.42f, 3.0f, 1.45f, 0.03f, 0.85f, gold);
 
     // Suitcase
-    add_wall(s, 2.2f, 0.2f, 3.8f, 0.9f, 0.4f, 0.55f, (Color){130, 90, 55, 255});
-    add_wall(s, 2.0f, 0.35f, 4.06f, 0.2f, 0.15f, 0.02f, (Color){40, 100, 180, 255});
-    add_wall(s, 2.3f, 0.3f, 4.06f, 0.15f, 0.12f, 0.02f, (Color){200, 50, 40, 255});
-    add_wall(s, 2.45f, 0.38f, 4.06f, 0.12f, 0.1f, 0.02f, (Color){40, 140, 60, 255});
+    add_wall(s, 2.2f, 0.2f, 3.8f, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
+    add_wall(s, 2.05f, 0.32f, 4.02f, 0.18f, 0.13f, 0.02f, (Color){50,80,180,255});
+    add_wall(s, 2.3f, 0.28f, 4.02f, 0.13f, 0.1f, 0.02f, godard_red);
 
     // Balcony door
-    add_wall(s, -5.8f, 1.5f, -1, 0.1f, 2.8f, 1.8f, (Color){170, 190, 215, 100});
-    add_wall(s, -5.85f, 3.0f, -1, 0.08f, 0.15f, 2.0f, gold);
-    add_wall(s, -5.85f, 0.05f, -1, 0.08f, 0.1f, 2.0f, gold);
-    add_wall(s, -5.85f, 1.5f, -1.95f, 0.08f, 2.9f, 0.08f, gold);
-    add_wall(s, -5.85f, 1.5f, -0.05f, 0.08f, 2.9f, 0.08f, gold);
-    add_wall(s, -5.7f, 1.8f, -2.3f, 0.06f, 3.2f, 0.6f, curtain);
-    add_wall(s, -5.7f, 1.8f, 0.3f, 0.06f, 3.2f, 0.6f, curtain);
+    add_wall(s, -5.7f, 1.5f, -1, 0.08f, 2.8f, 1.7f, (Color){190,205,225,100});
+    add_wall(s, -5.75f, 2.95f, -1, 0.06f, 0.12f, 1.85f, gold);
+    add_wall(s, -5.75f, 0.05f, -1, 0.06f, 0.08f, 1.85f, gold);
+    add_wall(s, -5.75f, 1.5f, -1.88f, 0.06f, 2.85f, 0.06f, gold);
+    add_wall(s, -5.75f, 1.5f, -0.12f, 0.06f, 2.85f, 0.06f, gold);
+    add_wall(s, -5.6f, 1.8f, -2.2f, 0.04f, 3.0f, 0.5f, cream);
+    add_wall(s, -5.6f, 1.8f, 0.2f, 0.04f, 3.0f, 0.5f, cream);
 
-    // Blake light accents
-    add_light_panel(s, 0, 2.5f, -4.9f, 4, 2, 0.05f, blake_rose);
-    add_light_panel(s, 0, rh - 0.15f, 0, 1, 0.05f, 1, blake_warm);
+    add_light_panel(s, 0, rh-0.12f, 0, 0.8f, 0.04f, 0.8f, warm_light);
 
-    // En suite door
-    add_wall(s, 5.8f, 1.3f, -3.5f, 0.1f, 2.5f, 1.2f, (Color){110, 85, 55, 255});
-    add_wall(s, 5.82f, 2.65f, -3.5f, 0.08f, 0.12f, 1.3f, gold);
+    // Life details — scaled up 2x, high contrast (Rodkin)
+    // Water ring on coffee table — now visible
+    add_wall(s, -3.8f, 0.52f, 1.4f, 0.5f, 0.04f, 0.36f, (Color){200,210,220,200});
+    // Coffee cup — bigger, white
+    add_wall(s, 4.5f, 0.86f, 0.3f, 0.16f, 0.2f, 0.16f, white);
+    // Book — bright Godard red, 2x size
+    add_wall(s, 3.8f, 0.95f, -0.22f, 1.0f, 0.5f, 0.2f, godard_red);
 
-    // Interactive objects
-    add_object(s, -2.8f, 1.2f, -3.8f, "lamp", "Change the lightbulb", "Better.",
-               (Color){220, 190, 100, 255});
-    add_object(s, 5.0f, 1.0f, 0, "drawers", "Unpack your clothes", "Home for now.",
-               (Color){180, 130, 80, 255});
-    add_object(s, -4.5f, 0.6f, 3.2f, "candles", "Light the candles", "Warm.",
-               cream);
-    add_object(s, 5.5f, 0.6f, -2, "ashtray", "Clear the cigarettes", "Clean air.",
-               (Color){130, 120, 110, 255});
-    add_object(s, 0, 0.8f, -3.5f, "bed", "Make the bed", "Smooth.",
-               cream);
+    // Bathrobe — vivid yellow, hung on wall, scaled up (Rodkin)
+    add_wall(s, 5.75f, 1.6f, -3.5f, 0.1f, 1.8f, 0.8f, (Color){240,220,50,255});
+    add_wall(s, 5.78f, 2.6f, -3.5f, 0.06f, 0.1f, 1.2f, gold);
+
+    // Recessed panels — back wall behind bed (paneled wall effect)
+    add_recessed_panel(s, -2.5f, 2.5f, -rd/2+0.16f, 2.0f, 1.4f, 0.1f, wall_gold);
+    add_recessed_panel(s, 2.5f, 2.5f, -rd/2+0.16f, 2.0f, 1.4f, 0.1f, wall_gold);
+    add_recessed_panel(s, 0.0f, 2.8f, -rd/2+0.16f, 1.5f, 0.8f, 0.1f, wall_gold);
+    // Recessed panel — wall opposite balcony, above desk
+    add_recessed_panel(s, 5.0f, 2.2f, rd/2-0.16f, 3.0f, 1.8f, 0.1f, wall_gold);
+
+    // Multi-step interactions: lamp=2, drawers=3, candles=3, ashtray=1, bed=2
+    add_object(s, -2.5f, 1.2f, -3.8f, "lamp", (Color){240,210,120,255}, 2);
+    add_object(s, 5.0f, 1.0f, 0, "drawers", (Color){200,155,90,255}, 3);
+    add_object(s, -4.2f, 0.6f, 3.0f, "candles", (Color){240,220,160,255}, 3);
+    add_object(s, 5.5f, 0.6f, -2, "ashtray", (Color){180,170,155,255}, 1);
+    add_object(s, 0, 0.8f, -3.5f, "bed", white, 2);
 
     s->spawn = (Vector3){0, 1.6f, 4};
+    s->has_exit = false;
+}
+
+void build_balcony(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
+
+    s->fog_color = (Color){30, 40, 70, 255};
+    s->fog_density = 0.003f;
+
+    Color stone = {195, 190, 182, 255};       // cleaner stone
+    Color railing = {120, 115, 105, 255};
+    Color gold = {178, 155, 107, 255};        // brass
+    Color bldg_near = {60, 65, 85, 255};
+    Color bldg_mid = {45, 50, 72, 255};
+    Color bldg_far = {35, 40, 62, 255};
+    Color window = {240, 200, 110, 140};
+    Color tower = {70, 75, 95, 255};
+
+    add_wall(s, 0, -0.1f, 0, 5, 0.2f, 3, stone);
+    add_wall(s, 0, 2, 1.5f, 5, 4, 0.3f, (Color){200,175,120,255});
+    add_wall(s, 0, 2.8f, 1.35f, 1.8f, 0.12f, 0.06f, gold);
+    add_wall(s, -0.95f, 1.5f, 1.35f, 0.06f, 2.8f, 0.06f, gold);
+    add_wall(s, 0.95f, 1.5f, 1.35f, 0.06f, 2.8f, 0.06f, gold);
+
+    // Railing — top rail and mid rail only, clean at 480x300 (Rodkin)
+    add_wall(s, 0, 0.95f, -1.5f, 5, 0.06f, 0.08f, railing);
+    add_wall(s, 0, 0.5f, -1.5f, 5, 0.04f, 0.06f, railing);
+    add_wall(s, -2.5f, 0.95f, 0, 0.08f, 0.06f, 3, railing);
+    add_wall(s, 2.5f, 0.95f, 0, 0.08f, 0.06f, 3, railing);
+
+    // Wine + chair
+    add_wall(s, -1.5f, 0.45f, -0.5f, 0.45f, 0.04f, 0.45f, (Color){120,100,70,255});
+    add_wall(s, -1.5f, 0.22f, -0.5f, 0.05f, 0.45f, 0.05f, (Color){100,85,60,255});
+    add_wall(s, -1.5f, 0.49f, -0.5f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160});
+    add_wall(s, -1.5f, 0.52f, -0.5f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200});
+    add_wall(s, -1.5f, 0.22f, 0.2f, 0.45f, 0.44f, 0.45f, (Color){120,100,70,255});
+    add_wall(s, -1.5f, 0.58f, 0.42f, 0.45f, 0.4f, 0.06f, (Color){120,100,70,255});
+
+    add_wall(s, -12, 4, -30, 4, 8, 2, bldg_near);
+    add_wall(s, -8, 5.5f, -28, 3, 11, 2, bldg_near);
+    add_wall(s, -16, 3, -32, 5, 6, 2, bldg_near);
+    add_wall(s, 16, 4.5f, -25, 3.5f, 9, 2, bldg_near);
+    add_wall(s, 5, 6, -50, 6, 12, 3, bldg_mid);
+    add_wall(s, -5, 5, -55, 8, 10, 3, bldg_mid);
+    add_wall(s, 15, 4, -45, 5, 8, 3, bldg_mid);
+    add_wall(s, -20, 5.5f, -48, 4, 11, 3, bldg_mid);
+    add_wall(s, 0, 3, -80, 25, 6, 4, bldg_far);
+    add_wall(s, -25, 4, -85, 15, 8, 4, bldg_far);
+    add_wall(s, 22, 3.5f, -82, 12, 7, 4, bldg_far);
+
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 2; c++)
+            if ((r+c)%2==0)
+                add_wall(s, -12.5f+c*1.5f, 1.5f+r*2.0f, -28.9f, 0.5f, 0.8f, 0.04f, window);
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 2; c++)
+            if ((r+c)%3!=2)
+                add_wall(s, -8.5f+c*1.2f, 1.5f+r*2.0f, -26.9f, 0.4f, 0.7f, 0.04f, window);
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 3; c++)
+            if ((r*3+c)%2==0)
+                add_wall(s, 3.5f+c*1.5f, 1.5f+r*2.5f, -48.5f, 0.45f, 0.7f, 0.04f, window);
+
+    float tx = 8, tz = -90;
+    add_wall(s, tx, 10, tz, 0.7f, 20, 0.7f, tower);
+    add_wall(s, tx-2, 2, tz, 0.9f, 4, 0.9f, tower);
+    add_wall(s, tx+2, 2, tz, 0.9f, 4, 0.9f, tower);
+    add_wall(s, tx, 4.5f, tz, 4.5f, 0.35f, 0.5f, tower);
+    add_wall(s, tx, 9, tz, 2.8f, 0.25f, 0.4f, tower);
+    add_wall(s, tx, 14, tz, 1.3f, 0.25f, 0.35f, tower);
+    add_light_panel(s, tx, 4.5f, tz-0.3f, 4.6f, 0.15f, 0.04f, (Color){240,210,130,100});
+    add_light_panel(s, tx, 20.2f, tz, 0.25f, 0.4f, 0.25f, (Color){255,245,200,180});
+
+    for (int i = 0; i < 20; i++) {
+        float sx = -45+(i*41)%90, sy = 22+(i*17)%18, sz = -95-(i*13)%25;
+        add_wall(s, sx, sy, sz, 0.12f, 0.12f, 0.12f,
+                 (Color){240,235,225,(unsigned char)(120+(i*19)%80)});
+    }
+
+    s->spawn = (Vector3){0, 1.6f, 0.5f};
     s->has_exit = false;
 }

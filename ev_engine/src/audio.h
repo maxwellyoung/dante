@@ -2,15 +2,40 @@
 #ifndef EV_AUDIO_H
 #define EV_AUDIO_H
 
-#include "raylib.h"
+#include "ev_types.h"
 #include <stdbool.h>
 
+typedef enum {
+    DRONE_LOBBY,
+    DRONE_HALLWAY,
+    DRONE_ROOM,
+} DroneType;
+
+typedef enum {
+    INTERACT_CLICK,
+    INTERACT_FABRIC,
+    INTERACT_FLAME,
+} InteractSoundType;
+
 typedef struct {
-    Sound footstep[4];
-    Sound interact;
+    Sound step_marble[4];
+    Sound step_carpet[4];
+    Sound step_wood[4];
+
+    Sound snd_click;
+    Sound snd_fabric;
+    Sound snd_flame;
+    Sound snd_reward;    // warm chime — task complete, the room opens up
+    Sound snd_sparkle;   // Eiffel Tower sparkle
+
     Sound door;
-    Sound ambient_drone;
+
+    Sound drone_lobby;
+    Sound drone_hallway;
+    Sound drone_room;
+    DroneType current_drone;
     bool ambient_playing;
+
     float step_timer;
     float step_interval;
     int step_index;
@@ -19,10 +44,12 @@ typedef struct {
 
 void InitEVAudio(EVAudio *audio);
 void UnloadEVAudio(EVAudio *audio);
-void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, float dt);
-void PlayInteractSound(EVAudio *audio);
+void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surface, float dt);
+void PlayInteract(EVAudio *audio, InteractSoundType type);
+void PlayRewardSound(EVAudio *audio);
+void PlaySparkleSound(EVAudio *audio);
 void PlayDoorSound(EVAudio *audio);
-void StartAmbient(EVAudio *audio);
+void StartAmbient(EVAudio *audio, DroneType type);
 void StopAmbient(EVAudio *audio);
 
 #endif

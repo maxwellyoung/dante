@@ -6,5 +6,6 @@
 
 void init_player(Player *p, Vector3 pos);
 void update_player(Player *p, Scene *scene, float dt);
+void kick_camera(Player *p, float pitch, float yaw);
 
 #endif

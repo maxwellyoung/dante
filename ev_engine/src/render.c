@@ -1,4 +1,6 @@
 // render.c — Rendering pipeline with post-processing
+// No hand-holding. No task counter. No exit beacon.
+// The space speaks for itself.
 #include "render.h"
 #include "raymath.h"
 #include <math.h>
@@ -6,7 +8,8 @@
 
 // ============================================================
 // POST-PROCESSING SHADER
-// Vignette + color grading + film grain + Bayer dither
+// Clean architectural photograph aesthetic
+// warmth uniform shifts color temperature as room tasks complete
 // ============================================================
 
 static const char *postfx_vs =
@@ -26,56 +29,45 @@ static const char *postfx_fs =
     "uniform sampler2D texture0;\n"
     "uniform float time;\n"
     "uniform vec2 resolution;\n"
+    "uniform float warmth;\n"
     "out vec4 finalColor;\n"
     "\n"
-    "// Bayer 4x4 matrix for ordered dithering\n"
-    "float bayer4(vec2 p) {\n"
-    "    int x = int(mod(p.x, 4.0));\n"
-    "    int y = int(mod(p.y, 4.0));\n"
-    "    int index = x + y * 4;\n"
-    "    float m[16] = float[16](\n"
-    "         0.0/16.0,  8.0/16.0,  2.0/16.0, 10.0/16.0,\n"
-    "        12.0/16.0,  4.0/16.0, 14.0/16.0,  6.0/16.0,\n"
-    "         3.0/16.0, 11.0/16.0,  1.0/16.0,  9.0/16.0,\n"
-    "        15.0/16.0,  7.0/16.0, 13.0/16.0,  5.0/16.0\n"
-    "    );\n"
-    "    return m[index];\n"
-    "}\n"
-    "\n"
-    "// Film grain\n"
-    "float hash(vec2 p) {\n"
-    "    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);\n"
-    "}\n"
-    "\n"
     "void main() {\n"
-    "    vec4 tex = texture(texture0, fragTexCoord);\n"
-    "    vec3 col = tex.rgb;\n"
-    "\n"
-    "    // --- Color grading: warm tint + lifted blacks ---\n"
-    "    col = pow(col, vec3(0.95, 1.0, 1.05));  // slight warm shift\n"
-    "    col = col * 0.92 + vec3(0.025, 0.02, 0.015);  // lift blacks warm\n"
-    "\n"
-    "    // --- Vignette ---\n"
     "    vec2 uv = fragTexCoord;\n"
-    "    float vig = 1.0 - dot((uv - 0.5) * 1.2, (uv - 0.5) * 1.2);\n"
+    "    vec2 px = 1.0 / resolution;\n"
+    "\n"
+    "    // --- Fake depth-of-field — blur toward edges for low-luminance pixels ---\n"
+    "    vec3 col = texture(texture0, uv).rgb;\n"
+    "    float edgeDist = length(uv - 0.5);\n"
+    "    float lumaCenter = dot(col, vec3(0.299, 0.587, 0.114));\n"
+    "    float dofRadius = edgeDist * (1.0 - lumaCenter) * 2.0;\n"
+    "    dofRadius = clamp(dofRadius, 0.0, 2.0);\n"
+    "    if (dofRadius > 0.1) {\n"
+    "        vec3 sum = col;\n"
+    "        sum += texture(texture0, uv + vec2( dofRadius,  0.0) * px).rgb;\n"
+    "        sum += texture(texture0, uv + vec2(-dofRadius,  0.0) * px).rgb;\n"
+    "        sum += texture(texture0, uv + vec2( 0.0,  dofRadius) * px).rgb;\n"
+    "        sum += texture(texture0, uv + vec2( 0.0, -dofRadius) * px).rgb;\n"
+    "        col = sum / 5.0;\n"
+    "    }\n"
+    "\n"
+    "    // --- Saturation — slightly desaturated, architectural ---\n"
+    "    float luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
+    "    col = mix(vec3(luma), col, 0.92 + warmth * 0.08);\n"
+    "\n"
+    "    // --- Color grading — warmth shift ---\n"
+    "    col = pow(col, vec3(0.97 + warmth*0.03, 1.0, 1.02 - warmth*0.05));\n"
+    "    col = col * 0.97 + vec3(0.02, 0.018, 0.015);\n"
+    "\n"
+    "    // --- Gentle contrast curve — photograph S-curve ---\n"
+    "    col = smoothstep(0.0, 1.0, col * 1.05 - 0.02);\n"
+    "\n"
+    "    // --- Vignette — barely perceptible framing ---\n"
+    "    float vig = 1.0 - dot((uv - 0.5) * 0.9, (uv - 0.5) * 0.9);\n"
     "    vig = clamp(pow(vig, 0.8), 0.0, 1.0);\n"
-    "    col *= mix(0.55, 1.0, vig);  // darken edges\n"
+    "    col *= mix(0.88, 1.0, vig);\n"
     "\n"
-    "    // --- Film grain ---\n"
-    "    float grain = hash(fragTexCoord * resolution + vec2(time * 100.0, time * 73.0));\n"
-    "    grain = (grain - 0.5) * 0.06;  // subtle\n"
-    "    col += grain;\n"
-    "\n"
-    "    // --- Bayer dither (quantize to ~5 bit) ---\n"
-    "    vec2 pixelCoord = fragTexCoord * resolution;\n"
-    "    float dith = bayer4(pixelCoord) - 0.5;\n"
-    "    col += dith * (1.0 / 32.0);  // ~5-bit color banding\n"
-    "\n"
-    "    // --- Scanline hint (very subtle) ---\n"
-    "    float scan = 1.0 - 0.04 * mod(pixelCoord.y, 2.0);\n"
-    "    col *= scan;\n"
-    "\n"
-    "    finalColor = vec4(clamp(col, 0.0, 1.0), tex.a);\n"
+    "    finalColor = vec4(clamp(col, 0.0, 1.0), 1.0);\n"
     "}\n";
 
 EVPostFX LoadEVPostFX(void) {
@@ -84,8 +76,11 @@ EVPostFX LoadEVPostFX(void) {
     if (pfx.postfx.id > 0) {
         pfx.timeLoc = GetShaderLocation(pfx.postfx, "time");
         pfx.resolutionLoc = GetShaderLocation(pfx.postfx, "resolution");
+        pfx.warmthLoc = GetShaderLocation(pfx.postfx, "warmth");
         float res[2] = {(float)RENDER_W, (float)RENDER_H};
         SetShaderValue(pfx.postfx, pfx.resolutionLoc, res, SHADER_UNIFORM_VEC2);
+        float w = 0.0f;
+        SetShaderValue(pfx.postfx, pfx.warmthLoc, &w, SHADER_UNIFORM_FLOAT);
         pfx.ready = true;
         printf("[EV] Post-processing shader loaded\n");
     } else {
@@ -99,6 +94,12 @@ void UnloadEVPostFX(EVPostFX *pfx) {
     if (pfx->ready) {
         UnloadShader(pfx->postfx);
         pfx->ready = false;
+    }
+}
+
+void SetPostFXWarmth(EVPostFX *pfx, float warmth) {
+    if (pfx->ready) {
+        SetShaderValue(pfx->postfx, pfx->warmthLoc, &warmth, SHADER_UNIFORM_FLOAT);
     }
 }
 
@@ -135,34 +136,34 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         }
     }
 
-    // Interactive objects — pulsing glow
+    // Interactive objects — warm inviting glow, golden bloom on reward
     for (int i = 0; i < scene->object_count; i++) {
         InteractObject *obj = &scene->objects[i];
-        if (!obj->active || obj->done) continue;
-        float pulse = 0.6f + 0.4f * sinf(GetTime() * 2.5f + i * 1.7f);
-        Color c = obj->color;
-        c.a = (unsigned char)(180 * pulse);
-        DrawSphere(obj->pos, 0.2f, c);
-        DrawSphere(obj->pos, 0.4f, (Color){c.r, c.g, c.b, (unsigned char)(25 * pulse)});
-    }
+        if (!obj->active) continue;
 
-    // Exit beacon
-    if (scene->has_exit) {
-        float pulse = 0.4f + 0.3f * sinf(GetTime() * 2);
-        DrawSphere(scene->exit_pos, 0.3f, (Color){230, 200, 100, (unsigned char)(80 * pulse)});
-        DrawSphere(scene->exit_pos, 0.6f, (Color){230, 200, 100, (unsigned char)(20 * pulse)});
+        if (obj->done) {
+            // Reward bloom — expanding golden ring that fades
+            if (obj->reward_timer > 0) {
+                float t = 1.0f - obj->reward_timer;
+                float radius = 0.3f + t * 1.5f;
+                unsigned char a = (unsigned char)(150 * obj->reward_timer);
+                DrawSphere(obj->pos, radius, (Color){255, 220, 120, a});
+            }
+            continue;
+        }
+
+        float pulse = 0.6f + 0.3f * sinf(GetTime() * 1.8f + i * 1.7f);
+        Color c = obj->color;
+        c.a = (unsigned char)(100 * pulse);
+        DrawSphere(obj->pos, 0.25f, c);
+        DrawSphere(obj->pos, 0.6f, (Color){c.r, c.g, c.b, (unsigned char)(12 * pulse)});
     }
 
     EndMode3D();
 }
 
-void draw_dither_overlay(void) {
-    // Kept for fallback — post-processing shader handles dithering now
-}
-
-void draw_hud(Player *player, Scene *scene, GameState state, int tasks_done, int total_tasks,
-              const char *screen_text, float screen_text_timer) {
-    // Interaction prompt
+void draw_hud(Player *player, Scene *scene) {
+    // Interaction hint — shows object name when looking at it
     for (int i = 0; i < scene->object_count; i++) {
         InteractObject *obj = &scene->objects[i];
         if (!obj->active || obj->done) continue;
@@ -171,25 +172,17 @@ void draw_hud(Player *player, Scene *scene, GameState state, int tasks_done, int
             Vector3 to_obj = Vector3Normalize(Vector3Subtract(obj->pos, player->camera.position));
             Vector3 look = Vector3Normalize(Vector3Subtract(player->camera.target, player->camera.position));
             float dot = Vector3DotProduct(to_obj, look);
-            if (dot > 0.7f) {
-                DrawRectangle(RENDER_W/2 - 90, RENDER_H/2 + 20, 180, 24, (Color){0, 0, 0, 140});
-                DrawText(TextFormat("[E] %s", obj->prompt),
-                         RENDER_W/2 - 80, RENDER_H/2 + 25, 10, (Color){240, 230, 210, 230});
+            if (dot > 0.75f) {
+                float alpha = (dot - 0.75f) / 0.25f;
+                // Brighter, larger crosshair dot when aimed at something
+                DrawCircle(RENDER_W/2, RENDER_H/2 + 1, 3,
+                    (Color){255, 248, 235, (unsigned char)(180 * alpha)});
+                // Object name below crosshair
+                int tw = MeasureText(obj->name, 8);
+                DrawText(obj->name, RENDER_W/2 - tw/2, RENDER_H/2 + 8, 8,
+                    (Color){245, 238, 225, (unsigned char)(200 * alpha)});
             }
         }
-    }
-
-    // Task counter
-    if (state == STATE_ROOM) {
-        DrawText(TextFormat("%d/%d", tasks_done, total_tasks),
-                 RENDER_W - 45, 10, 10, (Color){190, 155, 90, 150});
-    }
-
-    // Screen text
-    if (screen_text && screen_text_timer > 0) {
-        float alpha = screen_text_timer < 0.5f ? screen_text_timer / 0.5f : 1.0f;
-        DrawRectangle(0, RENDER_H - 36, RENDER_W, 28, (Color){0, 0, 0, (unsigned char)(100 * alpha)});
-        DrawText(screen_text, 14, RENDER_H - 30, 10, (Color){230, 225, 215, (unsigned char)(230 * alpha)});
     }
 }
 

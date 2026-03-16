@@ -3,11 +3,12 @@
 #define EV_TYPES_H
 
 #include "raylib.h"
+#include <stdbool.h>
 
 #define RENDER_W 480
 #define RENDER_H 300
-#define MOVE_SPEED 4.0f
-#define SPRINT_SPEED 7.0f
+#define WALK_SPEED 4.5f
+#define SPRINT_SPEED 8.5f
 #define MOUSE_SENS 0.003f
 #define MAX_OBJECTS 64
 #define MAX_WALLS 512
@@ -20,9 +21,16 @@ typedef enum {
     STATE_LOBBY,
     STATE_HALLWAY,
     STATE_ROOM,
+    STATE_BALCONY,
     STATE_BED,
     STATE_STARS,
 } GameState;
+
+typedef enum {
+    SURFACE_MARBLE,
+    SURFACE_CARPET,
+    SURFACE_WOOD,
+} SurfaceType;
 
 typedef struct {
     Vector3 pos;
@@ -35,20 +43,34 @@ typedef struct {
     Vector3 pos;
     Color color;
     const char *name;
-    const char *prompt;
-    const char *done_text;
     bool done;
     bool active;
     float radius;
+    float reward_timer;
+    // Multi-step
+    int step;
+    int max_steps;
 } InteractObject;
 
 typedef struct {
     Camera3D camera;
     Vector3 velocity;
-    bool sprinting;
-    float sprint_stamina;
     float bob_timer;
     bool moving;
+    bool sprinting;
+    float sprint_stamina;
+    float speed_current;
+    float fov_current;
+    float tilt_current;
+    float kick_pitch;
+    float kick_yaw;
+    float kick_decay;
+    // Jump
+    float vy;           // vertical velocity
+    bool grounded;
+    float land_timer;   // camera dip on landing
+    // Debug
+    bool noclip;
 } Player;
 
 typedef struct {
@@ -63,6 +85,7 @@ typedef struct {
     Color ceiling_color;
     Color fog_color;
     float fog_density;
+    SurfaceType surface;
 } Scene;
 
 #endif
