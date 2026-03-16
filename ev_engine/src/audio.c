@@ -424,6 +424,46 @@ static Sound gen_wind(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Elevator hum — 4 second low-frequency mechanical tone (40Hz with wobble)
+static Sound gen_elevator_hum(void) {
+    int len = SAMPLE_RATE * 4;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Envelope: fade in 0.3s, sustain, fade out 0.5s
+        float env = 1.0f;
+        if (lt < 0.075f) env = lt / 0.075f;
+        if (lt > 0.875f) env = (1.0f - lt) / 0.125f;
+        // 40Hz fundamental with slight pitch wobble
+        float wobble = sinf(2 * PI * 0.5f * t) * 2.0f;
+        float tone = sinf(2 * PI * (40.0f + wobble) * t) * 0.6f;
+        // Second harmonic for body
+        tone += sinf(2 * PI * (80.0f + wobble * 1.5f) * t) * 0.25f;
+        // Very faint high whine (motor)
+        tone += sinf(2 * PI * 320.0f * t) * 0.05f;
+        d[i] = (short)(tone * env * 3000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Elevator ding — classic bell: 1200Hz + 1800Hz, sharp attack, 0.3s decay
+static Sound gen_elevator_ding(void) {
+    int len = SAMPLE_RATE / 2;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float env = expf(-10.0f * t);
+        float bell = sinf(2 * PI * 1200 * t) * 0.5f + sinf(2 * PI * 1800 * t) * 0.35f;
+        // Subtle overtone
+        bell += sinf(2 * PI * 2400 * t) * 0.1f * expf(-15.0f * t);
+        d[i] = (short)(bell * env * 10000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // --- ENGINE ---
 
 void InitEVAudio(EVAudio *audio) {
@@ -440,6 +480,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_reward = gen_reward();
     audio->snd_sparkle = gen_sparkle();
     audio->door = gen_door_sound();
+    audio->elevator_hum = gen_elevator_hum();
+    audio->elevator_ding = gen_elevator_ding();
     audio->drone_lobby = gen_ambient_lobby();
     audio->drone_hallway = gen_ambient_hallway();
     audio->drone_room = gen_ambient_room();
@@ -468,6 +510,8 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_reward, 0.4f);
     SetSoundVolume(audio->snd_sparkle, 0.2f);
     SetSoundVolume(audio->door, 0.25f);
+    SetSoundVolume(audio->elevator_hum, 0.08f);
+    SetSoundVolume(audio->elevator_ding, 0.35f);
     SetSoundVolume(audio->drone_lobby, 0.06f);    // barely there — through walls
     SetSoundVolume(audio->drone_hallway, 0.05f);  // anticipation, not presence
     SetSoundVolume(audio->drone_room, 0.10f);     // the room's own music
@@ -487,6 +531,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_click); UnloadSound(audio->snd_fabric);
     UnloadSound(audio->snd_flame); UnloadSound(audio->snd_reward);
     UnloadSound(audio->snd_sparkle); UnloadSound(audio->door);
+    UnloadSound(audio->elevator_hum); UnloadSound(audio->elevator_ding);
     UnloadSound(audio->drone_lobby); UnloadSound(audio->drone_hallway);
     UnloadSound(audio->drone_room);
     UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
@@ -603,4 +648,10 @@ void StopWindAmbient(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_wind);
     audio->wind_playing = false;
+}
+void PlayElevatorHum(EVAudio *audio) {
+    if (audio->initialized) PlaySound(audio->elevator_hum);
+}
+void PlayElevatorDing(EVAudio *audio) {
+    if (audio->initialized) PlaySound(audio->elevator_ding);
 }

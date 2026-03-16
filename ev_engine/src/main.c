@@ -49,6 +49,8 @@ static bool bathroom_text_active = false;
 static bool eiffel_sparkle = false;
 static float sparkle_timer = 0;
 
+static bool elevator_ding_played = false;
+
 static bool show_debug = false;
 static bool wireframe = false;
 
@@ -144,6 +146,18 @@ static void load_state(GameState s) {
             StopCityAmbient(&audio);
             StopStairwellAmbient(&audio);
             StopWindAmbient(&audio);
+            break;
+
+        case STATE_ELEVATOR:
+            build_elevator(&scene);
+            init_player(&player, scene.spawn);
+            elevator_ding_played = false;
+            StopAmbient(&audio);
+            StopClockAmbient(&audio);
+            StopCityAmbient(&audio);
+            StopWindAmbient(&audio);
+            StopStairwellAmbient(&audio);
+            PlayElevatorHum(&audio);
             break;
 
         case STATE_STAIRWELL:
@@ -510,6 +524,10 @@ int main(void) {
                             Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
                             Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                             if (Vector3DotProduct(to, look) > 0.5f) {
+                                if (strcmp(obj->name, "elevator") == 0) {
+                                    transition_to(STATE_ELEVATOR);
+                                    break;
+                                }
                                 if (strcmp(obj->name, "newspaper") == 0) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
@@ -530,6 +548,22 @@ int main(void) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
                     if (dist < 1.5f) transition_to(STATE_STAIRWELL);
                 }
+                break;
+
+            case STATE_ELEVATOR:
+                // Tiny elevator ride — auto-transition after 4 seconds
+                // Subtle upward drift to simulate going up
+                player.camera.position.y += 0.3f * dt;
+                player.camera.target.y += 0.3f * dt;
+                // Ding at 2 seconds
+                if (state_time > 2.0f && !elevator_ding_played) {
+                    elevator_ding_played = true;
+                    PlayElevatorDing(&audio);
+                    show_text("2");
+                }
+                if (state_time > 3.0f) hide_text();
+                // Auto-transition to hallway at 4 seconds
+                if (state_time > 4.0f) transition_to(STATE_HALLWAY);
                 break;
 
             case STATE_STAIRWELL:
@@ -796,6 +830,7 @@ int main(void) {
 
             case STATE_HOTEL_EXT:
             case STATE_LOBBY:
+            case STATE_ELEVATOR:
             case STATE_STAIRWELL:
             case STATE_HALLWAY:
             case STATE_ROOM:
@@ -808,8 +843,11 @@ int main(void) {
                 } else {
                     ClearBackground(scene.fog_color);
                 }
-                draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
-                              &cyl_model, cyl_model_loaded);
+                {
+                    bool indoor = !(state == STATE_HOTEL_EXT || state == STATE_BALCONY || state == STATE_ROOF);
+                    draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
+                                  &cyl_model, cyl_model_loaded, indoor, state_time);
+                }
                 if (state == STATE_BALCONY && eiffel_sparkle && sparkle_timer < 8.0f) {
                     SetRandomSeed((unsigned int)(sparkle_timer * 10));
                     int sc = 6 + (int)(sparkle_timer * 3); if (sc > 30) sc = 30;
@@ -901,7 +939,7 @@ int main(void) {
 
         // HUD
         if (state == STATE_ROOM || state == STATE_BATHROOM ||
-            state == STATE_LOBBY || state == STATE_BALCONY) {
+            state == STATE_LOBBY || state == STATE_ELEVATOR || state == STATE_BALCONY) {
             draw_hud(&player, &scene);
             for (int i = 0; i < scene.object_count; i++) {
                 InteractObject *obj = &scene.objects[i];
@@ -919,6 +957,13 @@ int main(void) {
                     }
                 }
             }
+        }
+
+        // Crosshair — subtle dot, always visible in 3D scenes
+        if (state == STATE_HOTEL_EXT || state == STATE_LOBBY || state == STATE_ELEVATOR ||
+            state == STATE_STAIRWELL || state == STATE_HALLWAY || state == STATE_ROOM ||
+            state == STATE_BATHROOM || state == STATE_BALCONY || state == STATE_ROOF) {
+            DrawPixel(RENDER_W/2, RENDER_H/2, (Color){220, 215, 205, 60});
         }
 
         // Vignette text overlay

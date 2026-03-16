@@ -228,6 +228,22 @@ void build_lobby(Scene *s) {
     add_wall(s, 0, 0.5f, -7, 6, 1.0f, 1.5f, gold);
     add_wall(s, 0, 1.02f, -7, 6.1f, 0.04f, 1.55f, (Color){230, 200, 110, 255});
 
+    // Desk lamp — cylinder base + shade + glow
+    add_cylinder(s, 2.2f, 1.08f, -7.0f, 0.06f, 0.04f, gold);          // base
+    add_cylinder(s, 2.2f, 1.18f, -7.0f, 0.03f, 0.15f, gold);          // shaft
+    add_cylinder(s, 2.25f, 1.28f, -7.0f, 0.12f, 0.08f, (Color){235,228,215,255}); // shade
+    add_light_panel(s, 2.25f, 1.22f, -7.0f, 0.18f, 0.2f, 0.18f, (Color){240,220,160,160}); // glow
+
+    // Computer screen on desk — dark with faint glow
+    add_wall(s, -1.5f, 1.22f, -7.2f, 0.5f, 0.35f, 0.04f, (Color){30,32,35,255});   // screen
+    add_wall(s, -1.5f, 1.22f, -7.18f, 0.46f, 0.31f, 0.02f, (Color){80,120,160,60}); // glow
+
+    // Hotel bell on desk
+    add_cylinder(s, 0.8f, 1.07f, -6.5f, 0.06f, 0.03f, (Color){200,195,180,255});
+
+    // Guest book — flat rectangle
+    add_wall(s, -0.3f, 1.05f, -6.5f, 0.5f, 0.03f, 0.35f, (Color){180,170,150,255});
+
     add_wall(s, -7, 0.3f, 5, 2.5f, 0.6f, 0.7f, (Color){165, 130, 85, 255});
     add_wall(s, -7, 0.3f, -1, 2.5f, 0.6f, 0.7f, (Color){165, 130, 85, 255});
 
@@ -247,6 +263,18 @@ void build_lobby(Scene *s) {
     add_wall(s, 0, 0.02f, 8, 3.0f, 0.02f, 4.0f, (Color){235,230,218,100});
     // Subtle light band on back wall from ceiling panels
     add_wall(s, 0, 4.5f, -9.78f, 8.0f, 0.8f, 0.02f, (Color){245,240,230,80});
+
+    // Elevator doors on back wall — two tall brass rectangles with dark gap
+    add_wall(s, -3.0f, 1.5f, -9.78f, 1.0f, 3.0f, 0.1f, gold);   // left door
+    add_wall(s, -1.0f, 1.5f, -9.78f, 1.0f, 3.0f, 0.1f, gold);   // right door
+    add_wall(s, -2.0f, 1.5f, -9.82f, 0.08f, 3.0f, 0.04f, (Color){30,28,25,255}); // gap
+    // Frame
+    add_wall(s, -2.0f, 3.05f, -9.76f, 2.2f, 0.1f, 0.08f, gold);  // top frame
+    add_wall(s, -3.55f, 1.5f, -9.76f, 0.1f, 3.0f, 0.08f, gold);  // left frame
+    add_wall(s, -0.45f, 1.5f, -9.76f, 0.1f, 3.0f, 0.08f, gold);  // right frame
+
+    // Elevator interact object
+    add_object(s, -2.0f, 1.6f, -9.0f, "elevator", gold, 1);
 
     s->spawn = (Vector3){0, 1.6f, 8};
     s->exit_pos = (Vector3){14.5f, 1.6f, 1};
@@ -827,4 +855,57 @@ void build_roof(Scene *s) {
     s->spawn = (Vector3){0, 8.0f, 6};
     s->exit_pos = (Vector3){0, 8.0f, -8};
     s->has_exit = true;
+}
+
+void build_elevator(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
+
+    Color brass = {178, 155, 107, 255};
+    Color floor_marble = {155, 152, 148, 255};
+    Color mirror = {210, 215, 220, 180};
+    Color warm_panel = {235, 230, 220, 200};
+    Color btn_dark = {140, 125, 90, 255};
+    Color btn_lit = {240, 220, 140, 255};
+
+    float ew = 2, ed = 2, eh = 2.5f;
+
+    s->fog_color = (Color){210, 208, 205, 255};
+    s->fog_density = 0.002f;
+
+    // Floor — dark marble
+    add_wall(s, 0, -0.05f, 0, ew, 0.1f, ed, floor_marble);
+
+    // Ceiling
+    add_wall(s, 0, eh, 0, ew, 0.1f, ed, brass);
+
+    // Ceiling light panel — single warm panel
+    add_light_panel(s, 0, eh - 0.08f, 0, 1.0f, 0.04f, 1.0f, warm_panel);
+
+    // Walls — brass colored
+    add_wall(s, 0, eh/2, -ed/2, ew, eh, 0.08f, brass);           // back wall
+    add_wall(s, 0, eh/2, ed/2, ew, eh, 0.08f, brass);            // front (doors, closed)
+    add_wall(s, -ew/2, eh/2, 0, 0.08f, eh, ed, brass);           // left wall
+    add_wall(s, ew/2, eh/2, 0, 0.08f, eh, ed, brass);            // right wall
+
+    // Mirror on back wall
+    add_wall(s, 0, 1.4f, -ed/2 + 0.06f, 1.2f, 1.4f, 0.03f, mirror);
+
+    // Button panel on right wall — 4 small brass rectangles stacked
+    float panel_x = ew/2 - 0.06f;
+    float panel_z = 0.3f;
+    // Panel backing
+    add_wall(s, panel_x, 1.2f, panel_z, 0.04f, 0.7f, 0.2f, (Color){150, 135, 100, 255});
+    // Buttons: 4 floors, floor 2 is lit
+    for (int i = 0; i < 4; i++) {
+        float by = 0.95f + i * 0.15f;
+        Color bc = (i == 1) ? btn_lit : btn_dark;  // floor 2 lit
+        add_wall(s, panel_x - 0.01f, by, panel_z, 0.03f, 0.08f, 0.08f, bc);
+    }
+
+    // Brass door seam on front wall
+    add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
+
+    s->spawn = (Vector3){0, 1.6f, 0};
+    s->has_exit = false;
 }

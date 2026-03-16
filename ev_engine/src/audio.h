@@ -29,6 +29,8 @@ typedef struct {
     Sound snd_sparkle;   // Eiffel Tower sparkle
 
     Sound door;
+    Sound elevator_hum;
+    Sound elevator_ding;
 
     Sound drone_lobby;
     Sound drone_hallway;
@@ -68,5 +70,7 @@ void PlayStairwellAmbient(EVAudio *audio);
 void StopStairwellAmbient(EVAudio *audio);
 void PlayWindAmbient(EVAudio *audio);
 void StopWindAmbient(EVAudio *audio);
+void PlayElevatorHum(EVAudio *audio);
+void PlayElevatorDing(EVAudio *audio);
 
 #endif

@@ -105,7 +105,8 @@ void SetPostFXWarmth(EVPostFX *pfx, float warmth) {
 
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *cube_model, bool cube_model_loaded,
-                   Model *cyl_model, bool cyl_model_loaded) {
+                   Model *cyl_model, bool cyl_model_loaded,
+                   bool indoor, float time) {
     if (lighting->ready) {
         UpdateEVLighting(lighting, player->camera, scene->fog_color, scene->fog_density);
     }
@@ -137,6 +138,11 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
             c.b = (unsigned char)(c.b * (1 - fog) + scene->fog_color.b * fog);
             DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
         }
+    }
+
+    // Dust motes in indoor scenes
+    if (indoor) {
+        draw_dust_motes(player->camera, time);
     }
 
     // Interactive objects — warm inviting glow, golden bloom on reward
@@ -250,6 +256,46 @@ void draw_night_sky(float time) {
     // City light pollution — faint warm glow along bottom quarter
     DrawRectangle(0, RENDER_H * 3 / 4, RENDER_W, RENDER_H / 4,
                   (Color){60, 45, 30, 15});
+}
+
+void draw_dust_motes(Camera3D camera, float time) {
+    // ~20 small bright dots drifting near the camera in lit areas
+    // Deterministic positions seeded from index, slow upward drift
+    for (int i = 0; i < 20; i++) {
+        // Deterministic base position relative to camera, spread out in a volume
+        float seed_x = sinf((float)i * 3.7f + 0.5f) * 5.0f;
+        float seed_y = fmodf((float)i * 0.37f + 0.2f, 2.5f) + 0.2f;
+        float seed_z = cosf((float)i * 2.3f + 1.1f) * 5.0f;
+
+        // Slow drift
+        float drift_y = sinf(time * 0.4f + (float)i * 1.1f) * 0.3f;
+        float drift_x = sinf(time * 0.25f + (float)i * 0.7f) * 0.15f;
+        float drift_z = cosf(time * 0.3f + (float)i * 0.9f) * 0.15f;
+
+        // Anchor near camera but with some spatial stability
+        float anchor_x = floorf(camera.position.x / 4.0f) * 4.0f;
+        float anchor_z = floorf(camera.position.z / 4.0f) * 4.0f;
+
+        float px = anchor_x + seed_x + drift_x;
+        float py = seed_y + drift_y;
+        float pz = anchor_z + seed_z + drift_z;
+
+        // Only visible in lit areas: y < 3 and within 8m of camera
+        if (py > 3.0f) continue;
+        float dx = px - camera.position.x;
+        float dz = pz - camera.position.z;
+        float dist = sqrtf(dx * dx + dz * dz);
+        if (dist > 8.0f) continue;
+
+        // Slight size variation
+        float radius = 0.015f + fmodf((float)i * 0.13f, 0.015f);
+
+        // Fade with distance
+        float alpha_f = 1.0f - (dist / 8.0f);
+        unsigned char a = (unsigned char)(60.0f * alpha_f);
+
+        DrawSphere((Vector3){px, py, pz}, radius, (Color){240, 235, 225, a});
+    }
 }
 
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target) {

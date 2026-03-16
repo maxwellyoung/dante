@@ -16,5 +16,6 @@ void build_balcony(Scene *s);
 void build_bathroom(Scene *s);
 void build_stairwell(Scene *s);
 void build_roof(Scene *s);
+void build_elevator(Scene *s);
 
 #endif
