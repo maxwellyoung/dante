@@ -1,5 +1,5 @@
 // ENDEARING VOID — Custom engine on Raylib
-// Glitched Games — Maxwell Young & Adam Van der Voorn
+// Maxwell Young
 // A story about arriving somewhere. Paris. A hotel. 2 AM.
 
 #include "raylib.h"
@@ -117,7 +117,6 @@ static void transition_to_slow(GameState s, float spd) {
 
 // Hard cut — bypasses fade, instantly loads state (Blendo-style ellipsis)
 static void hard_cut_to(GameState s) {
-    printf("[HARDCUT] cutting to state %d\n", s);
     load_state(s);
     fade_alpha = 0.0f;  fade_target = 0.0f;
     transitioning = false;  hold_timer = 0;
@@ -268,8 +267,6 @@ static void load_state(GameState s) {
     }
     fade_alpha = 1.0f;
     fade_target = 0.0f;
-    printf("[LOAD] state=%d fade_alpha=%.2f fade_target=%.2f fade_speed=%.2f walls=%d\n",
-           s, fade_alpha, fade_target, fade_speed, scene.wall_count);
 }
 
 // ============================================================
@@ -332,7 +329,6 @@ int main(void) {
             if (hold_timer <= 0) {
                 hold_timer = 0;
                 transitioning = false;
-                printf("[FADE] hold done, loading state %d\n", next_state);
                 load_state(next_state);
             }
         } else if (fade_alpha != fade_target) {
@@ -343,17 +339,6 @@ int main(void) {
                 if (transitioning) {
                     hold_timer = transition_hold;
                 }
-            }
-        }
-
-        // DIAGNOSTIC: log fade state every second in early game
-        {
-            static float diag_timer = 0;
-            diag_timer += dt;
-            if (diag_timer > 1.0f) {
-                diag_timer = 0;
-                printf("[DIAG] state=%d fade_alpha=%.2f fade_target=%.2f fade_speed=%.2f transitioning=%d hold=%.2f walls=%d st=%.1f\n",
-                       state, fade_alpha, fade_target, fade_speed, transitioning, hold_timer, scene.wall_count, state_time);
             }
         }
 
@@ -414,8 +399,8 @@ int main(void) {
                 if (state_time > 5.0f && state_time < 5.5f) hide_text();
                 if (state_time > 7.0f && state_time < 7.5f) show_text("You arrived three hours early.");
                 if (state_time > 10.5f) hide_text();
-                if (state_time > 13.5f) transition_to(STATE_DRIVING);
-                if (IsKeyPressed(KEY_ENTER) && state_time > 3) transition_to(STATE_DRIVING);
+                if (state_time > 13.5f) hard_cut_to(STATE_DRIVING);
+                if (IsKeyPressed(KEY_ENTER) && state_time > 3) hard_cut_to(STATE_DRIVING);
                 break;
             }
 
@@ -871,14 +856,14 @@ int main(void) {
                 // Credits — fade in like end of a film
                 if (state_time > 5) {
                     float ca = fminf(1, (state_time - 5) / 2.0f);
-                    const char *by = "A game by Glitched Games";
+                    const char *by = "A game by Maxwell Young";
                     int bw = MeasureText(by, 8);
                     DrawText(by, RENDER_W/2-bw/2, RENDER_H - 40, 8,
                              (Color){180,175,165,(unsigned char)(180*ca)});
                 }
                 if (state_time > 7) {
                     float na = fminf(1, (state_time - 7) / 2.0f);
-                    const char *names = "Maxwell Young & Adam Van der Voorn";
+                    const char *names = "Maxwell Young";
                     int nw = MeasureText(names, 8);
                     DrawText(names, RENDER_W/2-nw/2, RENDER_H - 28, 8,
                              (Color){160,155,148,(unsigned char)(160*na)});

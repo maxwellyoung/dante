@@ -2,7 +2,7 @@
 
 A first-person exploration of a Paris hotel at 2 AM.
 
-By **Glitched Games** — Maxwell Young & Adam Van der Voorn
+By **Maxwell Young**
 
 [screenshot coming]
 

@@ -117,7 +117,7 @@ void update_player(Player *p, Scene *scene, float dt) {
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
             if (!w->active) continue;
-            float pr = 0.35f;
+            float pr = 0.45f;
             if (new_pos.x > w->pos.x - w->size.x/2 - pr &&
                 new_pos.x < w->pos.x + w->size.x/2 + pr &&
                 new_pos.z > w->pos.z - w->size.z/2 - pr &&

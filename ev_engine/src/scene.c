@@ -100,6 +100,7 @@ static void add_dropped_ceiling(Scene *s, float x, float y, float z,
 
 void build_hotel_exterior(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: open exterior — no enclosure needed (player walks to entrance)
     s->surface = SURFACE_MARBLE;
 
     Color gold_facade = {205, 198, 185, 255};  // sandstone
@@ -172,6 +173,7 @@ void build_hotel_exterior(Scene *s) {
 
 void build_lobby(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 30m x 20m, partially enclosed (front wall has gaps for entrance)
     s->surface = SURFACE_MARBLE;
 
     Color cream = {238, 236, 232, 255};       // white plaster
@@ -276,6 +278,10 @@ void build_lobby(Scene *s) {
     // Elevator interact object
     add_object(s, -2.0f, 1.6f, -9.0f, "elevator", gold, 1);
 
+    // BLOCKING WALL — seal the front entrance gap to prevent escape into void
+    // The entrance area (z=10) has gaps between wall segments; block at z=10
+    add_wall(s, -1, 2, 10, 12, 4, 0.3f, cream);  // lower fill across entrance
+
     s->spawn = (Vector3){0, 1.6f, 8};
     s->exit_pos = (Vector3){14.5f, 1.6f, 1};
     s->has_exit = true;
@@ -283,6 +289,7 @@ void build_lobby(Scene *s) {
 
 void build_hallway(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 4.5m x 40m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_CARPET;
 
     Color cream = {238, 236, 232, 255};       // white plaster
@@ -356,6 +363,7 @@ void build_hallway(Scene *s) {
 
 void build_hotel_room(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 12m x 10m, fully enclosed (4 walls + floor + ceiling + corner blocks)
     s->surface = SURFACE_WOOD;
 
     Color wall_gold = {235, 232, 226, 255};    // white plaster
@@ -511,12 +519,25 @@ void build_hotel_room(Scene *s) {
     add_wall(s, rw/2-0.12f, 2.75f, -3.0f, 0.12f, 0.12f, 1.1f, gold);                    // frame top
     add_object(s, rw/2-0.3f, 1.2f, -3.0f, "bathroom", (Color){200,195,188,255}, 1);
 
+    // BLOCKING WALLS — extra collision barriers to prevent room escape
+    // Corner reinforcement: thin invisible walls at all four corners
+    // These ensure diagonal movement can't clip through wall intersections
+    // NW corner
+    add_wall(s, -rw/2+0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, wall_gold);
+    // NE corner
+    add_wall(s, rw/2-0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, wall_gold);
+    // SW corner
+    add_wall(s, -rw/2+0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, wall_gold);
+    // SE corner
+    add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, wall_gold);
+
     s->spawn = (Vector3){0, 1.6f, 4};
     s->has_exit = false;
 }
 
 void build_balcony(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 5m x 3m, open-air (railing + back wall, no ceiling)
     s->surface = SURFACE_MARBLE;
 
     s->fog_color = (Color){35, 45, 80, 255};  // pre-dawn navy — time has passed
@@ -606,6 +627,7 @@ void build_balcony(Scene *s) {
 
 void build_bathroom(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 5m x 4m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
     Color concrete = {185,182,178,255};        // concrete walls
@@ -693,6 +715,7 @@ void build_bathroom(Scene *s) {
 
 void build_stairwell(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 6m x 6m x 12m tall, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
     Color concrete = {175,172,168,255};      // rougher concrete
@@ -786,6 +809,7 @@ void build_stairwell(Scene *s) {
 
 void build_roof(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 20m x 20m, open-air (parapet walls 0.8m high, no ceiling)
     s->surface = SURFACE_MARBLE;
 
     Color concrete = {175,172,168,255};
@@ -875,6 +899,7 @@ void build_roof(Scene *s) {
 
 void build_elevator(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: 2m x 2m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
     Color brass = {178, 155, 107, 255};
@@ -928,6 +953,7 @@ void build_elevator(Scene *s) {
 
 void build_taxi_ride(Scene *s) {
     memset(s, 0, sizeof(Scene));
+    // BOUNDS: taxi interior — no player movement, mouse-look only
     s->surface = SURFACE_MARBLE;
 
     // Michael Mann night palette

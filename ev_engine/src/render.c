@@ -214,7 +214,7 @@ void draw_title(void) {
              (Color){200, 178, 130, (unsigned char)(230 * line_alpha)});
 
     // Studio name — below the line
-    const char *sub = "Glitched Games";
+    const char *sub = "Maxwell Young";
     int sw = MeasureText(sub, 8);
     DrawText(sub, RENDER_W/2 - sw/2, line_y + 8, 8,
              (Color){140, 135, 128, (unsigned char)(120 * line_alpha)});
