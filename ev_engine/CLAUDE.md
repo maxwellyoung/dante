@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Emotion:** Wonder and melancholy, not horror. Arrival, not escape.
 **References:** Godard (Contempt, Pierrot le Fou), Hotel Chevalier, Bioshock Infinite opening, Mirror's Edge, Gravity Bone / Thirty Flights of Loving.
-**Rendering:** 480×300 lo-fi, PS1 point filtering, nearest-neighbor upscale to 960×600.
+**Rendering:** 960×600 native resolution. Procedural materials, film grain, post-FX.
 
 ## Commands
 
@@ -43,14 +43,14 @@ Orphaned (dev keys 3/4/6): HALLWAY, ROOM, BATHROOM (Paris hotel)
 
 ### Rendering Pipeline
 ```
-480×300 RenderTexture (render_target)
+960×600 RenderTexture (render_target)
   ├─ Shadow pass: depth-only FBO (512×512) from key light perspective
   ├─ Earth pass: procedural sphere behind scene geometry (space scenes)
   ├─ Scene pass: lighting shader (key+fill+4 point lights+shadows+materials)
   ├─ Dust motes / zero-g sparkles
   └─ HUD (spring-scaled crosshair + pixel icons)
         ↓
-480×300 RenderTexture (postfx_target)
+960×600 RenderTexture (postfx_target)
   └─ Post-FX shader (CA, grain, bloom, SSAO, dither, scanlines, vignette...)
         ↓
 Window (nearest-neighbor upscale, aspect-ratio letterboxed)
@@ -80,7 +80,7 @@ Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, 
 
 ## Key Conventions
 
-- **480×300 visibility rule**: If it's not 3+ pixels at render resolution, scale it up or remove it. See `scale.h` for canonical dimensions.
+- **960×600 visibility rule**: If it's not 3+ pixels at render resolution, scale it up or remove it. See `scale.h` for canonical dimensions.
 - **Color palette**: `palette.h` defines `PAL_*` constants. Neutral warm whites + specific accents (French red, French blue, brass gold).
 - **Warmth progression**: `SetPostFXWarmth()` ranges 0→1 as the player completes tasks. The room literally warms.
 - **Interaction = visible consequence**: Every E-press must change geometry or lighting, not just set a flag.
@@ -116,7 +116,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 
 - Horror vibes — wonder, not dread
 - Creepy ambient drones — if it sounds scary, it IS scary
-- Tiny detail objects at 480×300 — invisible, scale up or remove
+- Tiny detail objects at 960×600 — invisible, scale up or remove
 - Yellow-tinting everything — neutral base, SPECIFIC accent colors
 - Shader-only interaction feedback — must be visible in a screenshot
 - Grey-on-grey in space — hull must pop against void
@@ -126,7 +126,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 ## Design Principles
 
 - **Ethical reduction** (Rams): Remove until it breaks, add back one thing
-- **Bold shapes** (Rodkin): Details must be BIG at 480×300
+- **Bold shapes** (Rodkin): Details must be BIG at 960×600
 - **Diegetic interaction** (Remo): Sounds from objects, not UI
 - **Visible consequence** (Chung): Every interaction changes the world
 - **The void is the point** (Wreden): The game is about waiting, not completing

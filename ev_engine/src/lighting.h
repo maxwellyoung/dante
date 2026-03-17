@@ -9,7 +9,7 @@
 #include "raymath.h"
 
 #define MAX_POINT_LIGHTS 4
-#define SHADOW_MAP_SIZE 512
+#define SHADOW_MAP_SIZE 1024
 
 // Per-scene lighting configuration — set once per scene transition
 typedef struct {

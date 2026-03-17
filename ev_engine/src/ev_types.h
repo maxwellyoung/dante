@@ -5,8 +5,8 @@
 #include "raylib.h"
 #include <stdbool.h>
 
-#define RENDER_W 480
-#define RENDER_H 300
+#define RENDER_W 960
+#define RENDER_H 600
 #define MOUSE_SENS_DEFAULT 0.003f
 extern float ev_mouse_sens;
 #define MAX_OBJECTS 64

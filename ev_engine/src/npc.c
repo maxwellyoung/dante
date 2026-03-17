@@ -345,23 +345,24 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
         head_wander = sinf(idle * 0.4f) * 3.0f;  // slow horizontal look
     }
 
-    // ── Proportions — total ~1.72m ──
-    float shoe_h = 0.06f, shoe_w = 0.18f, shoe_d = 0.22f;
-    float shin_h = 0.28f, shin_w = 0.15f;
-    float thigh_h = 0.28f, thigh_w = 0.17f;
-    float body_w = 0.46f, body_h = 0.50f, body_d = 0.28f;
-    float shoulder_w = 0.58f, shoulder_h = 0.10f;
-    float upper_arm_h = 0.24f, upper_arm_w = 0.13f;
-    float forearm_h = 0.22f, forearm_w = 0.11f;
-    float hand_s = 0.08f;
-    float head_w = 0.26f, head_h = 0.30f, head_d = 0.24f;
-    float cap_w = 0.32f, cap_h = 0.08f;
-    float neck_w = 0.12f, neck_h = 0.06f;
-    float tie_w = 0.09f, tie_h = 0.26f;
-    float lapel_w = 0.06f, lapel_h = 0.30f;
-    float pocket_w = 0.10f, pocket_h = 0.06f;
-    float belt_h = 0.05f;
-    float case_w = 0.28f, case_h = 0.20f, case_d = 0.10f;
+    // ── Proportions — Gravity Bone style: big head, chunky limbs ──
+    // Total ~1.72m but stylized: head is ~30% of height, limbs are thick
+    float shoe_h = 0.08f, shoe_w = 0.22f, shoe_d = 0.28f;
+    float shin_h = 0.24f, shin_w = 0.18f;
+    float thigh_h = 0.24f, thigh_w = 0.20f;
+    float body_w = 0.52f, body_h = 0.48f, body_d = 0.32f;
+    float shoulder_w = 0.62f, shoulder_h = 0.10f;
+    float upper_arm_h = 0.22f, upper_arm_w = 0.16f;
+    float forearm_h = 0.20f, forearm_w = 0.14f;
+    float hand_s = 0.10f;
+    float head_w = 0.36f, head_h = 0.38f, head_d = 0.32f;  // BIG head — reads at distance
+    float cap_w = 0.42f, cap_h = 0.10f;                      // bigger cap — the signature
+    float neck_w = 0.16f, neck_h = 0.05f;
+    float tie_w = 0.12f, tie_h = 0.28f;
+    float lapel_w = 0.08f, lapel_h = 0.32f;
+    float pocket_w = 0.12f, pocket_h = 0.07f;
+    float belt_h = 0.06f;
+    float case_w = 0.34f, case_h = 0.24f, case_d = 0.12f;   // bigger briefcase
 
     // ── Derived Y positions ──
     float foot_y = base_y;
@@ -513,25 +514,25 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
 
     // ── EYES — two dark cubes on face ──
     D(m, DC(25, 22, 18, 255),0);
-    float eye_y = head_y + head_h * 0.1f;
-    float eye_x = head_w * 0.22f;
-    float eye_z = -head_d/2 - 0.005f;
-    DRAW_TILT(-eye_x, eye_y, eye_z, 0.05f, 0.04f, 0.02f);
-    DRAW_TILT( eye_x, eye_y, eye_z, 0.05f, 0.04f, 0.02f);
+    float eye_y = head_y + head_h * 0.08f;
+    float eye_x = head_w * 0.24f;
+    float eye_z = -head_d/2 - 0.008f;
+    DRAW_TILT(-eye_x, eye_y, eye_z, 0.07f, 0.05f, 0.02f);
+    DRAW_TILT( eye_x, eye_y, eye_z, 0.07f, 0.05f, 0.02f);
 
     // ── MOUTH — thin dark line ──
     D(m, DC(140, 100, 75, 255),0);
-    DRAW_TILT(0, head_y - head_h * 0.18f, eye_z, 0.08f, 0.02f, 0.02f);
+    DRAW_TILT(0, head_y - head_h * 0.20f, eye_z, 0.10f, 0.025f, 0.02f);
 
-    // ── BELLBOY CAP ──
+    // ── BELLBOY CAP — the signature piece ──
     D(m, npc->cap_color, 9);
     DRAW_TILT(0, cap_y, 0, cap_w, cap_h, cap_w);
-    // Brim — extends forward
-    DRAW_TILT(0, cap_y - cap_h * 0.4f, -head_d * 0.25f,
-              cap_w + 0.06f, 0.025f, cap_w * 0.55f);
-    // Cap band — gold trim
+    // Brim — bold forward extension, catches light
+    DRAW_TILT(0, cap_y - cap_h * 0.35f, -head_d * 0.3f,
+              cap_w + 0.10f, 0.03f, cap_w * 0.6f);
+    // Cap band — gold trim (visible at distance)
     D(m, DC(210, 180, 100, 255),6);
-    DRAW_TILT(0, cap_y - cap_h * 0.35f, 0, cap_w + 0.01f, 0.025f, cap_w + 0.01f);
+    DRAW_TILT(0, cap_y - cap_h * 0.30f, 0, cap_w + 0.02f, 0.035f, cap_w + 0.02f);
 
     // ── BLOB SHADOW — grounds the character in the scene ──
     // Dark ellipse on floor beneath feet. Uses flattened cylinder.
