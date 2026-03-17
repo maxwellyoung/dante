@@ -2269,8 +2269,7 @@ int main(void) {
                 break;
 
             case STATE_BED:
-                // Sprint 1A: Clock deceleration — the emotional peak
-                // Don't stop clock on load. Ramp from 1.0→0.0 over 8 seconds.
+                // Clock deceleration — the emotional peak
                 // Clock stopping = commandment #4 ("remove the constant")
                 if (state_time < 8.0f) {
                     bed_clock_rate = 1.0f - (state_time / 8.0f);
@@ -2278,9 +2277,9 @@ int main(void) {
                     SetClockRate(&audio, bed_clock_rate);
                 } else if (bed_clock_rate > 0) {
                     bed_clock_rate = 0;
-                    SetClockRate(&audio, 0);  // silence — the peak
+                    SetClockRate(&audio, 0);
                 }
-                // Bed drone fades in with ceiling (3s+)
+                // Bed drone fades in (3s+)
                 if (state_time > 3.0f && !audio.bed_drone_playing) {
                     PlayBedDrone(&audio);
                 }
@@ -2289,7 +2288,16 @@ int main(void) {
                     float breath = sinf(state_time * 0.5f) * 0.002f;
                     player.camera.target.y += breath;
                 }
-                // Transition — no early skip until 30s (let the player sit in it)
+                // Progressive desaturation — color drains as consciousness fades
+                {
+                    float desat = fminf(1.0f, state_time / 16.0f);
+                    SetPostFXSaturation(&postfx, 0.92f - desat * 0.6f);  // 0.92 → 0.32
+                    // Contrast drops — edges soften
+                    SetPostFXContrast(&postfx, 1.0f - desat * 0.4f);
+                    // Grain increases — the image dissolves
+                    SetPostFXGrain(&postfx, 0.3f + desat * 0.5f);
+                }
+                // Transition
                 if (state_time > 20)
                     hard_cut_to(STATE_STARS);
                 
@@ -2304,9 +2312,26 @@ int main(void) {
 
             case STATE_STARS:
                 // The held chord plays. The void holds you.
-                // Volume: held chord fades in over 3s, then sustains
                 if (state_time < 3.0f) {
                     SetMasterVolume(state_time / 3.0f);
+                }
+                // Camera drift — the void rotates imperceptibly
+                // You're floating. The stars turn. Very, very slowly.
+                {
+                    float drift_yaw = state_time * 0.003f;  // ~0.17°/sec
+                    float drift_pitch = sinf(state_time * 0.08f) * 0.002f;
+                    Vector3 fwd = Vector3Normalize(Vector3Subtract(
+                        player.camera.target, player.camera.position));
+                    Vector3 rt = Vector3Normalize(Vector3CrossProduct(fwd, player.camera.up));
+                    fwd = Vector3Transform(fwd, MatrixRotateY(drift_yaw * dt));
+                    fwd = Vector3Transform(fwd, MatrixRotate(rt, drift_pitch * dt));
+                    player.camera.target = Vector3Add(player.camera.position, fwd);
+                }
+                // Reset post-FX from BED desaturation
+                if (state_time < 1.0f) {
+                    SetPostFXSaturation(&postfx, 0.32f + state_time * 0.6f);
+                    SetPostFXContrast(&postfx, 0.6f + state_time * 0.4f);
+                    SetPostFXGrain(&postfx, 0.8f - state_time * 0.5f);
                 }
                 if (IsKeyPressed(KEY_ESCAPE)) { CloseWindow(); return 0; }
                 // Waking up — warmth spikes, exposure blooms, then hard cut to dawn
