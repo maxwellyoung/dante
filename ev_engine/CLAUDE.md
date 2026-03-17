@@ -22,6 +22,9 @@ make test         # Headless unit tests (tests/test_main.c)
 make count        # Line counts per file
 make release      # Stripped -O3 binary
 make fmt          # clang-format all source
+make dev-watch    # Auto-rebuild + restart on source changes (preserves scene)
+make dev-diff     # Quick QA rebuild + diff against baseline
+make playtest     # Clean build for external testers (no debug keys, README)
 ```
 
 Dev mode defaults to `STATE_SPACE_LOBBY` if no SCENE given. QA outputs to `qa/screenshots/` and `qa/report.json`.
@@ -106,6 +109,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 | F1 | Wireframe toggle |
 | F3 | Debug overlay (FPS, walls, position, state, speed bar, movement mode) |
 | F4 | Noclip fly mode (Space=up, Ctrl=down) |
+| F5 | Nudge mode — select and reposition walls with arrow keys |
 | 0-9 | Jump to scene (0=Taxi, 1=Exterior, 2=Lobby, ..., 9=Space Suite) |
 
 ## Anti-Patterns (Never)

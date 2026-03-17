@@ -49,6 +49,8 @@ typedef struct {
     int shadowMvpLoc;            // mvp in shadow shader
     Matrix lightSpaceMatrix;
     bool shadowReady;
+    bool shadowPassRan;      // true if depth was written this frame
+    SceneLighting activePreset;  // last SetSceneLighting — shadow pass reads keyDir
     bool ready;
 } EVLighting;
 

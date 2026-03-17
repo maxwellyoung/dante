@@ -70,7 +70,8 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
                       Model *sphere_model, Model *cone_model);
 void draw_earth(Camera3D camera, float time,
-                Model *sphere_model, EVLighting *lighting);
+                Model *sphere_model, EVLighting *lighting,
+                Vector3 earth_center);
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *cube_model, bool cube_model_loaded,
                    Model *cyl_model, bool cyl_model_loaded,

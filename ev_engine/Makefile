@@ -32,6 +32,16 @@ dev: $(DEV_OBJ)
 src/%.dev.o: src/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -DDEV_START=$(SCENE) -c $< -o $@
 
+# Dev watch — auto-rebuild + restart on source changes, preserves scene
+dev-watch:
+	@./dev-watch.sh $(SCENE)
+
+# Dev diff — quick QA rebuild + diff against baseline (shows regressions instantly)
+dev-diff:
+	@echo "[dev-diff] Building QA + diffing against baseline..."
+	@make -j4 -s qa 2>&1 | grep -E '^\[QA\]' | tail -5
+	@./qa/run.sh --diff
+
 clean:
 	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o
 
@@ -122,4 +132,25 @@ tests/test_main: tests/test_main.c src/ev_types.h src/scene.h src/player.h src/a
 devclean:
 	rm -f src/*.dev.o
 
-.PHONY: all run clean devclean check count todo release fmt test dev qa qa-full qa-baseline qa-watch qa-diff qa-history
+# Playtest build — clean binary for external testers, no debug keys
+playtest: clean
+	@echo "=== Playtest build ==="
+	$(CC) -std=c99 -O2 -DNDEBUG -DPLAYTEST $(INCLUDES) src/*.c -o endearing_void_playtest $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p playtest
+	@cp endearing_void_playtest playtest/endearing_void
+	@cp -r assets playtest/assets 2>/dev/null || true
+	@echo "Three hours to kill." > playtest/README.txt
+	@echo "" >> playtest/README.txt
+	@echo "Arrow keys / WASD to move. Mouse to look." >> playtest/README.txt
+	@echo "E to interact. ESC to quit." >> playtest/README.txt
+	@echo "" >> playtest/README.txt
+	@echo "After playing, please tell me:" >> playtest/README.txt
+	@echo "  1. How long did it take? (check terminal for runtime)" >> playtest/README.txt
+	@echo "  2. Where did you pause and look around?" >> playtest/README.txt
+	@echo "  3. Where did you rush?" >> playtest/README.txt
+	@echo "  4. What confused you?" >> playtest/README.txt
+	@echo "  5. How did you feel at the end?" >> playtest/README.txt
+	@ls -lh playtest/endearing_void
+	@echo "=== Playtest ready: ./playtest/ ==="
+
+.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history

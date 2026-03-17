@@ -16,8 +16,11 @@
 #include <stdio.h>
 #include <string.h>
 
+float ev_mouse_sens = MOUSE_SENS_DEFAULT;
+
 static GameState state = STATE_TITLE;
 static float state_time = 0;
+static float total_time = 0;  // cumulative playthrough timer (never resets)
 static float fade_alpha = 1.0f;
 static float fade_target = 0.0f;
 static GameState next_state = STATE_TITLE;
@@ -56,6 +59,7 @@ static bool eiffel_sparkle = false;
 static float sparkle_timer = 0;
 
 static bool elevator_ding_played = false;
+static bool elevator_to_corridor = false;  // true = space lobby elevator, false = terrestrial
 
 static bool returning_to_room = false;
 // Track completed object names for room restore (player can complete in any order)
@@ -91,6 +95,10 @@ static bool show_debug = false;
 static bool wireframe = false;
 static int current_style = 0;   // visual style preset index
 static float scene_exposure = 0; // base exposure from load_state, before style bias
+
+// ── Nudge mode (F5) — in-game wall position editor ──────────────
+static bool nudge_mode = false;
+static int nudge_selected = -1;  // wall index under crosshair
 
 // Vignette text system — spring-based (Kowalski, Castilho)
 static const char *vig_text = NULL;
@@ -138,6 +146,28 @@ static int interaction_phases[4] = {0};    // current animation phase
 // ── Ambient fade (P4) ──
 static float ambient_fade = 1.0f;
 
+// ============================================================
+// PAUSE MENU & SETTINGS
+// ============================================================
+typedef enum { MENU_NONE, MENU_PAUSE, MENU_SETTINGS } MenuMode;
+static MenuMode menu_mode = MENU_NONE;
+static int menu_cursor = 0;
+#define MENU_MAX_ITEMS 5
+static float menu_item_x[MENU_MAX_ITEMS];
+static float menu_item_vx[MENU_MAX_ITEMS];
+static float menu_overlay_a = 0.0f;
+static float menu_overlay_va = 0.0f;
+static float setting_master_vol = 1.0f;
+static bool  setting_fullscreen = false;
+#define PAUSE_ITEM_COUNT 3
+#define SETTINGS_ITEM_COUNT 5
+static const char *pause_labels[] = {"RESUME", "SETTINGS", "QUIT"};
+static const char *settings_labels[] = {"SENSITIVITY", "VOLUME", "STYLE", "FULLSCREEN", "BACK"};
+static int menu_item_count(void) { return (menu_mode == MENU_SETTINGS) ? SETTINGS_ITEM_COUNT : PAUSE_ITEM_COUNT; }
+static void menu_init_springs(void) { for (int i = 0; i < MENU_MAX_ITEMS; i++) { menu_item_x[i] = (float)(RENDER_W + i * 24); menu_item_vx[i] = 0; } }
+static void menu_open(MenuMode mode) { menu_mode = mode; menu_cursor = 0; menu_init_springs(); menu_overlay_a = 0; menu_overlay_va = 0; EnableCursor(); }
+static void menu_close(void) { menu_mode = MENU_NONE; menu_cursor = 0; menu_overlay_a = 0; menu_overlay_va = 0; if (state != STATE_TITLE) DisableCursor(); }
+
 // Forward declaration
 static void load_state(GameState s);
 
@@ -145,6 +175,135 @@ static void load_state(GameState s);
 static void set_exposure(float exp) {
     scene_exposure = exp;
     SetPostFXExposure(&postfx, exp + visual_styles[current_style].exposure_bias);
+}
+
+static void update_menu_springs(float dt) {
+    float sk = 280.0f, sd = 26.0f, sm = 0.9f;
+    float ta = (menu_mode != MENU_NONE) ? 1.0f : 0.0f;
+    float fa = -sk * (menu_overlay_a - ta) - sd * menu_overlay_va;
+    menu_overlay_va += (fa / sm) * dt;
+    menu_overlay_a += menu_overlay_va * dt;
+    if (menu_overlay_a < 0) menu_overlay_a = 0;
+    if (menu_overlay_a > 1) menu_overlay_a = 1;
+    float tx = (menu_mode != MENU_NONE) ? 0.0f : (float)RENDER_W;
+    for (int i = 0; i < MENU_MAX_ITEMS; i++) {
+        float fx = -sk * (menu_item_x[i] - tx) - sd * menu_item_vx[i];
+        menu_item_vx[i] += (fx / sm) * dt;
+        menu_item_x[i] += menu_item_vx[i] * dt;
+    }
+}
+
+static bool update_pause_menu(void) {
+    if (transitioning) return menu_mode != MENU_NONE;
+    if (menu_mode == MENU_NONE) {
+        if (IsKeyPressed(KEY_ESCAPE) && state != STATE_TITLE && state != STATE_STARS) {
+            menu_open(MENU_PAUSE); return true;
+        }
+        return false;
+    }
+    int count = menu_item_count();
+    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W))
+        menu_cursor = (menu_cursor - 1 + count) % count;
+    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S))
+        menu_cursor = (menu_cursor + 1) % count;
+    // Mouse hover — window coords → render coords
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        float sc = fminf((float)sw / RENDER_W, (float)sh / RENDER_H);
+        float ox = ((float)sw - RENDER_W * sc) * 0.5f;
+        float oy = ((float)sh - RENDER_H * sc) * 0.5f;
+        float mx = (GetMouseX() - ox) / sc;
+        float my = (GetMouseY() - oy) / sc;
+        int by = RENDER_H / 2 - (count * 18) / 2;
+        for (int i = 0; i < count; i++) {
+            int iy = by + i * 18;
+            if (mx > 40 && mx < RENDER_W - 40 && my >= iy - 2 && my < iy + 14)
+                { menu_cursor = i; break; }
+        }
+    }
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        if (menu_mode == MENU_SETTINGS) menu_open(MENU_PAUSE);
+        else menu_close();
+        return true;
+    }
+    bool confirm  = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    bool go_left  = IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A);
+    bool go_right = IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D);
+    if (menu_mode == MENU_PAUSE && confirm) {
+        switch (menu_cursor) {
+            case 0: menu_close(); break;
+            case 1: menu_open(MENU_SETTINGS); break;
+            case 2: CloseWindow(); break;
+        }
+    } else if (menu_mode == MENU_SETTINGS) {
+        switch (menu_cursor) {
+            case 0:
+                if (go_left)  ev_mouse_sens = fmaxf(0.001f, ev_mouse_sens - 0.0005f);
+                if (go_right) ev_mouse_sens = fminf(0.008f, ev_mouse_sens + 0.0005f);
+                break;
+            case 1:
+                if (go_left)  setting_master_vol = fmaxf(0.0f, setting_master_vol - 0.05f);
+                if (go_right) setting_master_vol = fminf(1.0f, setting_master_vol + 0.05f);
+                SetMasterVolume(setting_master_vol);
+                break;
+            case 2:
+                if (go_left || go_right || confirm) {
+                    if (go_left) current_style = (current_style - 1 + STYLE_COUNT) % STYLE_COUNT;
+                    else         current_style = (current_style + 1) % STYLE_COUNT;
+                    ApplyVisualStyle(&postfx, current_style);
+                    SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
+                }
+                break;
+            case 3:
+                if (confirm) { ToggleFullscreen(); setting_fullscreen = !setting_fullscreen; }
+                break;
+            case 4:
+                if (confirm) menu_open(MENU_PAUSE);
+                break;
+        }
+    }
+    return true;
+}
+
+static void draw_pause_menu(void) {
+    if (menu_overlay_a < 0.01f) return;
+    unsigned char oa = (unsigned char)(160.0f * menu_overlay_a);
+    DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){8, 8, 10, oa});
+    const char **labels = (menu_mode == MENU_SETTINGS) ? settings_labels : pause_labels;
+    int count = (menu_mode == MENU_SETTINGS) ? SETTINGS_ITEM_COUNT : PAUSE_ITEM_COUNT;
+    int fs = 10, lh = 18;
+    int by = RENDER_H / 2 - (count * lh) / 2;
+    for (int i = 0; i < count; i++) {
+        int xo = (int)menu_item_x[i];
+        int iy = by + i * lh;
+        Color tc = (i == menu_cursor)
+            ? (Color){245, 242, 238, 240} : (Color){165, 160, 152, 180};
+        if (i == menu_cursor)
+            DrawRectangle(RENDER_W / 2 - 80 + xo, iy + 3, 3, 7, (Color){200, 178, 130, 240});
+        int lx = RENDER_W / 2 - 72 + xo;
+        DrawText(labels[i], lx + 1, iy + 1, fs, (Color){0, 0, 0, 180});
+        DrawText(labels[i], lx, iy, fs, tc);
+        if (menu_mode == MENU_SETTINGS) {
+            char val[48] = "";
+            int vx = RENDER_W / 2 + 30 + xo;
+            switch (i) {
+                case 0: snprintf(val, sizeof(val), "< %.1f >", ev_mouse_sens * 1000.0f); break;
+                case 1: snprintf(val, sizeof(val), "< %d%% >", (int)(setting_master_vol * 100.0f + 0.5f)); break;
+                case 2: snprintf(val, sizeof(val), "< %s >", visual_styles[current_style].name); break;
+                case 3: snprintf(val, sizeof(val), "[ %s ]", setting_fullscreen ? "ON" : "OFF"); break;
+                default: break;
+            }
+            if (val[0]) {
+                Color vc = (i == menu_cursor) ? (Color){200, 178, 130, 240} : (Color){165, 160, 152, 140};
+                DrawText(val, vx + 1, iy + 1, fs, (Color){0, 0, 0, 180});
+                DrawText(val, vx, iy, fs, vc);
+            }
+        }
+    }
+    const char *hint = (menu_mode == MENU_SETTINGS) ? "ARROWS TO ADJUST  /  ESC BACK" : "ESC TO RESUME";
+    int hw = MeasureText(hint, 8);
+    DrawText(hint, RENDER_W/2 - hw/2 + 1, RENDER_H - 23, 8, (Color){0,0,0,120});
+    DrawText(hint, RENDER_W/2 - hw/2, RENDER_H - 24, 8, (Color){130,126,120,120});
 }
 
 static void transition_to(GameState s) {
@@ -175,6 +334,7 @@ static float cut_flash_timer = 0;
 
 static void hard_cut_to(GameState s) {
     StopClockAmbient(&audio);
+    PlayHardCutPunch(&audio);  // micro-transient — makes the cut physical
     load_state(s);
     fade_alpha = 0.0f;  fade_target = 0.0f;
     transitioning = false;  hold_timer = 0;
@@ -182,6 +342,64 @@ static void hard_cut_to(GameState s) {
     cut_flash_timer = 0.12f;
     SetPostFXFlash(&postfx, 1.0f, 1.0f, 0.95f, 0.85f);
     SetMasterVolume(1.0f);  // restore audio (hyperspace sets it to 0)
+}
+
+// ── Nudge mode: raycast to find wall under crosshair ────────────
+// Simple AABB ray intersection — walls are axis-aligned boxes
+static int raycast_wall(Camera3D cam, Scene *sc) {
+    Vector3 origin = cam.position;
+    Vector3 dir = Vector3Normalize(Vector3Subtract(cam.target, cam.position));
+    float best_t = 1e9f;
+    int best_i = -1;
+    for (int i = 0; i < sc->wall_count; i++) {
+        Wall *w = &sc->walls[i];
+        if (!w->active) continue;
+        Vector3 half = {w->size.x * 0.5f, w->size.y * 0.5f, w->size.z * 0.5f};
+        Vector3 bmin = Vector3Subtract(w->pos, half);
+        Vector3 bmax = Vector3Add(w->pos, half);
+        float tmin = -1e9f, tmax = 1e9f;
+        float *o = (float*)&origin, *d = (float*)&dir;
+        float *mn = (float*)&bmin, *mx = (float*)&bmax;
+        bool hit = true;
+        for (int a = 0; a < 3; a++) {
+            if (fabsf(d[a]) < 1e-8f) {
+                if (o[a] < mn[a] || o[a] > mx[a]) { hit = false; break; }
+            } else {
+                float t1 = (mn[a] - o[a]) / d[a];
+                float t2 = (mx[a] - o[a]) / d[a];
+                if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tmin) tmin = t1;
+                if (t2 < tmax) tmax = t2;
+                if (tmin > tmax) { hit = false; break; }
+            }
+        }
+        if (hit && tmin > 0 && tmin < best_t) {
+            best_t = tmin;
+            best_i = i;
+        }
+    }
+    return best_i;
+}
+
+// Write current state to temp file for dev-watch to read on restart
+static void write_state_file(GameState s) {
+    const char *names[] = {
+        "STATE_TITLE", "STATE_CAR", "STATE_DRIVING", "STATE_HOTEL_EXT",
+        "STATE_LOBBY", "STATE_ELEVATOR", "STATE_HALLWAY", "STATE_ROOM",
+        "STATE_BATHROOM", "STATE_BALCONY", "STATE_BED", "STATE_STARS",
+        "STATE_HYPERSPACE", "STATE_SPACE_LOBBY", "STATE_SPACE_CORRIDOR",
+        "STATE_SPACE_SUITE", "STATE_PARIS_DREAM", "STATE_RETURN_TAXI"
+    };
+    FILE *f = fopen("/tmp/ev_state", "w");
+    if (f) {
+        int idx = (int)s;
+        if (idx >= 0 && idx < 18) fprintf(f, "%s\n", names[idx]);
+        else fprintf(f, "STATE_TITLE\n");
+        fprintf(f, "%.2f %.2f %.2f\n",
+                player.camera.position.x, player.camera.position.y,
+                player.camera.position.z);
+        fclose(f);
+    }
 }
 
 static void load_state(GameState s) {
@@ -224,7 +442,9 @@ static void load_state(GameState s) {
         case STATE_TITLE:
             DisableCursor();
             StopAmbient(&audio);
+            StopSuiteMusic(&audio); StopBalconyMusic(&audio); StopCorridorMusic(&audio);
             reset_title_state();
+            PlayTitleMusic(&audio);  // ambient atmosphere
             // Clean PostFX — no CA, no grain, no warmth on title
             SetPostFXCA(&postfx, 0.0f);
             SetPostFXGrain(&postfx, 0.0f);
@@ -248,6 +468,7 @@ static void load_state(GameState s) {
                 rain[i].len = 3.0f + (float)GetRandomValue(0, 8);
             }
             StopAmbient(&audio);
+            StopTitleMusic(&audio);  // fade out title atmosphere
             PlayCityAmbient(&audio);
             SetCityAmbientVolume(&audio, 0.04f);
             SetSceneLighting(&lighting, LightingPreset_Taxi());
@@ -302,6 +523,7 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopDistantVoices(&audio); StopFootstepsAbove(&audio);
             PlayElevatorHum(&audio);
+            PlayElevatorWhoosh(&audio);  // ascending wind — building toward hyperspace
             SetSceneLighting(&lighting, LightingPreset_Elevator());
             set_exposure(0.0f);
             SetPostFXGrain(&postfx, 0.3f);  // fluorescent — less grain
@@ -383,8 +605,10 @@ static void load_state(GameState s) {
             StopAmbient(&audio);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
-
+            StopSuiteMusic(&audio);  // lighthouse ends
+            PlayBalconyMusic(&audio);  // ambient4 — the void outside
             PlayWindAmbient(&audio);  // void wind — no city sounds in orbit
+            PlayBalconyGust(&audio);  // one-shot rush — the void entering
             SetPostFXWarmth(&postfx, 1.0f);
             SetSceneLighting(&lighting, LightingPreset_Balcony());
             set_exposure(0.05f);  // slight lift — Earth glow
@@ -393,15 +617,20 @@ static void load_state(GameState s) {
 
         case STATE_BED:
             StopAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio);
+            StopSuiteMusic(&audio); StopBalconyMusic(&audio);
+            PlayBedImpact(&audio);  // soft muffled thud — surrender
             // Clock keeps playing — will decelerate
             bed_clock_rate = 1.0f;
             PlayClockAmbient(&audio);
             break;
-        case STATE_STARS:
+        case STATE_STARS: {
             StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio);
             StopBedDrone(&audio);
             PlayHeldChord(&audio);  // stacked fifths — credits as elegy
+            int rt_m = (int)total_time / 60, rt_s = (int)total_time % 60;
+            printf("\n[PLAYTHROUGH] Total runtime: %d:%02d\n\n", rt_m, rt_s);
             break;
+        }
 
         case STATE_PARIS_DREAM:
             build_hotel_room(&scene);
@@ -409,20 +638,26 @@ static void load_state(GameState s) {
             player.control_mult = 0.5f;  // dream movement — slow, deliberate
             // The photograph is now interactable
             add_object(&scene, -2.5f, 0.62f, -3.5f, "photograph", (Color){240,238,230,255}, 1);
+            // The balcony door — look through it to see Paris
+            add_object(&scene, -5.5f, 1.5f, -1.0f, "window", (Color){120,150,220,100}, 1);
+            // Eiffel Tower silhouette visible through balcony glass
+            add_wall(&scene, -6.5f, 2.5f, -1.0f, 0.06f, 2.0f, 0.06f, (Color){40,35,30,60});
+            add_wall(&scene, -6.5f, 3.5f, -1.0f, 0.6f, 0.04f, 0.04f, (Color){40,35,30,40});
+            add_wall(&scene, -6.5f, 3.0f, -1.0f, 0.35f, 0.04f, 0.04f, (Color){40,35,30,45});
             StopAmbient(&audio);
             StopClockAmbient(&audio);  // NO clock in the dream
             StopWindAmbient(&audio);
             StartAmbient(&audio, DRONE_ROOM);
             SetSceneLighting(&lighting, LightingPreset_ParisDream());
             set_exposure(0.1f);                     // bright golden
-            SetPostFXWarmth(&postfx, 0.8f);         // HOT warm
+            SetPostFXWarmth(&postfx, 0.7f);         // warm but not total wash
             SetPostFXGrain(&postfx, 0.7f);          // dreamy grain
-            SetPostFXSaturation(&postfx, 1.15f);    // oversaturated
+            SetPostFXSaturation(&postfx, 1.2f);     // oversaturated
             SetPostFXCA(&postfx, 3.5f);             // dream shimmer
-            SetPostFXVignette(&postfx, 1.8f);       // heavy vignette
-            SetPostFXContrast(&postfx, 1.2f);       // punchy
-            scene.fog_color = (Color){35, 28, 15, 255};  // golden fog
-            scene.fog_density = 0.008f;              // thick, intimate
+            SetPostFXVignette(&postfx, 2.0f);       // heavy vignette — darkens edges for contrast
+            SetPostFXContrast(&postfx, 1.5f);       // actually punchy — drives shadows darker
+            scene.fog_color = (Color){30, 22, 10, 255};  // darker golden fog
+            scene.fog_density = 0.005f;              // thinner — let shadows breathe
             break;
 
         case STATE_RETURN_TAXI:
@@ -454,7 +689,9 @@ static void load_state(GameState s) {
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
+            StopElevatorWhoosh(&audio);
             PlayHyperspaceTone(&audio);  // rising 80Hz→400Hz glissando
+            PlayHyperspaceRiser(&audio); // fat layered riser — noise+harmonics+sub
             SetSceneLighting(&lighting, LightingPreset_Hyperspace());
             set_exposure(0.1f);
             SetPostFXGrain(&postfx, 0.7f);
@@ -464,12 +701,18 @@ static void load_state(GameState s) {
         case STATE_SPACE_LOBBY:
             build_space_lobby(&scene);
             init_player(&player, scene.spawn);
+            elevator_ding_played = false;  // reset for arrival ding
             StopAmbient(&audio);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopDistantVoices(&audio); StopFootstepsAbove(&audio);
             StopHyperspaceTone(&audio);
+            StopHyperspaceRiser(&audio);
+            PlayArrivalThump(&audio);    // deep bass impact — you have landed
+            PlayGravitySettle(&audio);   // hull creak — the ship acknowledges your weight
+            PlayAirlockHiss(&audio);     // pressurization — you're aboard
+            PlayEarthPresence(&audio);   // 30Hz sub-bass — the planet's weight
             StartAmbient(&audio, DRONE_SPACE_LOBBY);
             SetSceneLighting(&lighting, LightingPreset_SpaceLobby());
             set_exposure(-0.05f);
@@ -492,10 +735,10 @@ static void load_state(GameState s) {
                 };
                 init_npc(&gibbons, (Vector3){2, 1.6f, 4}, lobby_wps, 4, 2.5f, 3.5f);
                 static const char *lobby_lines[] = {
-                    "Welcome. You're expected.",
-                    "The observation window. Worth a look.",
-                    "This way. The elevator.",
-                    "After you.",
+                    "There you are. I was beginning to worry.",
+                    "The window. You should see it before...",
+                    "This way. I'll take you up.",
+                    "After you. I insist.",
                 };
                 npc_set_dialogue(&gibbons, lobby_lines, 4, 3.0f);
             }
@@ -505,10 +748,14 @@ static void load_state(GameState s) {
             build_space_corridor(&scene);
             init_player(&player, scene.spawn);
             StopAmbient(&audio);
+            StopEarthPresence(&audio);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
+            PlayAirlockHiss(&audio);  // pressurization — entering sealed corridor
+            PlayDoorThud(&audio);     // bulkhead sealing behind you
             StartAmbient(&audio, DRONE_SPACE_CORRIDOR);
+            PlayCorridorMusic(&audio);  // ambient1 — underneath the walk
             // Through bulkheads: distant voices, other passengers
             PlayDistantVoices(&audio);
             // Per-door spatial sounds — door 0: piano, door 1: TV, door 2: silence
@@ -531,9 +778,9 @@ static void load_state(GameState s) {
                 };
                 init_npc(&gibbons, scene.spawn, corr_wps, 3, 3.5f, 4.0f);
                 static const char *corr_lines[] = {
-                    "The other guests are... resting.",
-                    "It gets quiet up here.",
-                    "Last door on the left.",
+                    "The walls are thin. You hear things.",
+                    "I could tell you stories about this floor.",
+                    "Last door on the left. Your neighbor's quiet.",
                 };
                 npc_set_dialogue(&gibbons, corr_lines, 3, 3.5f);
             }
@@ -548,7 +795,10 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopFootstepsAbove(&audio);
             StopDistantVoices(&audio);
+            StopCorridorMusic(&audio);
             StopSound(audio.snd_running_water); StopSound(audio.snd_tv_murmur);
+            PlayDoorThud(&audio);     // suite door closing — sealed in
+            PlayAirlockHiss(&audio);  // pressurization equalize
             StartAmbient(&audio, DRONE_SPACE_SUITE);
             PlayClockAmbient(&audio);  // the room's heartbeat
             audio.clock_rate = 1.0f;   // reset clock rate
@@ -557,16 +807,17 @@ static void load_state(GameState s) {
             SetSceneLighting(&lighting, LightingPreset_SpaceSuite());
             set_exposure(-0.1f);
             SetPostFXGrain(&postfx, 0.35f);
-            // Gibbons — walks to center, bows, deactivates
+            // Gibbons — walks to sofa, sits, waits for player to finish tasks
+            // After all tasks: stands, delivers final line, walks out
             {
                 Vector3 suite_wps[] = {
                     {0, 1.6f, 2},       // into room
-                    {0, 1.6f, 0},       // center
+                    {-2.0f, 1.6f, 1},   // toward sofa
                 };
                 init_npc(&gibbons, (Vector3){0, 1.6f, 5}, suite_wps, 2, 2.5f, 3.0f);
                 static const char *suite_lines[] = {
-                    "Your room.",
-                    "Three hours to kill.",
+                    "Make yourself comfortable. It's yours.",
+                    "Three hours. You'd be surprised what fits.",
                 };
                 npc_set_dialogue(&gibbons, suite_lines, 2, 3.5f);
             }
@@ -576,13 +827,21 @@ static void load_state(GameState s) {
     fade_target = 0.0f;
 
     // Re-apply scene exposure with style bias
-    SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
+    float final_exp = scene_exposure + visual_styles[current_style].exposure_bias;
+    SetPostFXExposure(&postfx, final_exp);
 
-    // Update shadow light direction — use a default overhead angle
-    // (The actual key direction varies per scene but this gives good general shadows)
+    // DIAGNOSTIC — remove after fixing visibility issue
+    printf("[DBG] load_state(%d): walls=%d objs=%d exposure=%.2f style=%d shadow=%s fog=%.4f\n",
+           s, scene.wall_count, scene.object_count, final_exp, current_style,
+           lighting.shadowReady ? "ON" : "OFF", scene.fog_density);
+    printf("[DBG]   fog_color=(%d,%d,%d) cam=(%.1f,%.1f,%.1f)\n",
+           scene.fog_color.r, scene.fog_color.g, scene.fog_color.b,
+           player.camera.position.x, player.camera.position.y, player.camera.position.z);
+
+    // Update shadow matrix from the ACTUAL per-scene key light direction
     if (lighting.shadowReady) {
         UpdateShadowMatrix(&lighting,
-            Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),
+            lighting.activePreset.keyDir,
             (Vector3){0, 2, 0}, 25.0f);
     }
 
@@ -636,6 +895,7 @@ int main(void) {
     CreateShadowMap(&lighting);
     postfx = LoadEVPostFX();
     InitEVAudio(&audio);
+    LoadFileMusic(&audio);
 
     Mesh cube_mesh = GenMeshCube(1.0f, 1.0f, 1.0f);
     cube_model = LoadModelFromMesh(cube_mesh);
@@ -676,6 +936,7 @@ int main(void) {
     }
 
     DisableCursor();
+    SetExitKey(0);  // ESC handled by pause menu, not raylib
 
 #ifdef QA_MODE
     // ============================================================
@@ -1112,6 +1373,7 @@ int main(void) {
     if (skytower_loaded) UnloadModel(skytower_model);
     UnloadEVLighting(&lighting);
     UnloadEVPostFX(&postfx);
+    UnloadFileMusic(&audio);
     UnloadEVAudio(&audio);
     UnloadRenderTexture(render_target);
     UnloadRenderTexture(postfx_target);
@@ -1128,7 +1390,13 @@ int main(void) {
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
-        state_time += dt;
+        UpdateFileMusic(&audio);  // stream music buffers (even when paused)
+        update_menu_springs(dt);
+        bool menu_active = update_pause_menu();
+        if (!menu_active) {
+            state_time += dt;
+            total_time += dt;
+        }
 
         // Decay scene-cut flash
         if (cut_flash_timer > 0) {
@@ -1143,9 +1411,75 @@ int main(void) {
             }
         }
 
+        if (!menu_active) {  // ── begin game logic gate (paused = frozen) ──
+
+#ifndef PLAYTEST
         if (IsKeyPressed(KEY_F1)) wireframe = !wireframe;
         if (IsKeyPressed(KEY_F3)) show_debug = !show_debug;
         if (IsKeyPressed(KEY_F4)) player.noclip = !player.noclip;
+
+        // F5: Nudge mode — select and reposition walls in-game
+        if (IsKeyPressed(KEY_F5)) {
+            nudge_mode = !nudge_mode;
+            if (nudge_mode) {
+                nudge_selected = raycast_wall(player.camera, &scene);
+                show_text("NUDGE MODE");
+            } else {
+                nudge_selected = -1;
+                hide_text();
+            }
+        }
+
+        // Nudge controls — arrow keys move selected wall, prints new pos to stdout
+        if (nudge_mode) {
+            // Re-select on click
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                nudge_selected = raycast_wall(player.camera, &scene);
+            }
+            if (nudge_selected >= 0 && nudge_selected < scene.wall_count) {
+                Wall *w = &scene.walls[nudge_selected];
+                bool fine = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+                bool vert = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+                float step = fine ? 0.01f : 0.1f;
+                bool moved = false;
+
+                // Arrow keys: X/Z movement (or Y with Ctrl)
+                // Hold key = continuous nudge via IsKeyDown at 10Hz
+                static float nudge_repeat = 0;
+                nudge_repeat -= dt;
+                bool repeat_ok = nudge_repeat <= 0;
+
+                #define NUDGE_KEY(key) (IsKeyPressed(key) || (IsKeyDown(key) && repeat_ok))
+                bool any_held = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_LEFT) ||
+                                IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) ||
+                                IsKeyDown(KEY_RIGHT_BRACKET) || IsKeyDown(KEY_LEFT_BRACKET);
+
+                if (NUDGE_KEY(KEY_RIGHT)) { w->pos.x += step; moved = true; }
+                if (NUDGE_KEY(KEY_LEFT))  { w->pos.x -= step; moved = true; }
+                if (!vert) {
+                    if (NUDGE_KEY(KEY_UP))   { w->pos.z -= step; moved = true; }
+                    if (NUDGE_KEY(KEY_DOWN)) { w->pos.z += step; moved = true; }
+                } else {
+                    if (NUDGE_KEY(KEY_UP))   { w->pos.y += step; moved = true; }
+                    if (NUDGE_KEY(KEY_DOWN)) { w->pos.y -= step; moved = true; }
+                }
+                // Resize with [ and ]
+                if (NUDGE_KEY(KEY_RIGHT_BRACKET)) { w->size.x += step; w->size.z += step; moved = true; }
+                if (NUDGE_KEY(KEY_LEFT_BRACKET))  { w->size.x -= step; w->size.z -= step; moved = true; }
+                #undef NUDGE_KEY
+
+                if (moved && any_held) nudge_repeat = 0.1f;  // 10Hz repeat
+
+                if (moved) {
+                    printf("[NUDGE] wall[%d] pos=(%.2ff, %.2ff, %.2ff) size=(%.2ff, %.2ff, %.2ff)\n",
+                           nudge_selected, w->pos.x, w->pos.y, w->pos.z,
+                           w->size.x, w->size.y, w->size.z);
+                }
+            }
+        }
+
+        // Write current state for dev-watch
+        write_state_file(state);
 
         // Visual style presets — Shift+number (1-9)
         if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
@@ -1179,6 +1513,7 @@ int main(void) {
         if (IsKeyPressed(KEY_NINE))  load_state(STATE_SPACE_SUITE);
         if (IsKeyPressed(KEY_ZERO))  load_state(STATE_CAR);
         }
+#endif // PLAYTEST
 
         // Fade with hold-in-black for doorway transitions
         if (hold_timer > 0) {
@@ -1230,16 +1565,25 @@ int main(void) {
 
         // ---- UPDATE ----
         switch (state) {
-            case STATE_TITLE:
-                if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) transition_to(STATE_CAR);
+            case STATE_TITLE: {
+                static bool title_breath_played = false;
+                if (state_time > 1.0f && !title_breath_played) {
+                    PlayTitleBreath(&audio);  // subliminal inhale before text
+                    title_breath_played = true;
+                }
+                if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+                    title_breath_played = false;
+                    transition_to(STATE_CAR);
+                }
                 break;
+            }
 
             case STATE_CAR: {
                 // 3D taxi ride — mouse look, no movement, city scrolls past
                 // Mouse look (yaw/pitch only, no position change)
                 Vector2 md = GetMouseDelta();
-                float car_yaw = -md.x * MOUSE_SENS;
-                float car_pitch = -md.y * MOUSE_SENS;
+                float car_yaw = -md.x * ev_mouse_sens;
+                float car_pitch = -md.y * ev_mouse_sens;
                 Vector3 car_fwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                 Vector3 car_right = Vector3Normalize(Vector3CrossProduct(car_fwd, player.camera.up));
                 Matrix car_ym = MatrixRotateY(car_yaw);
@@ -1301,8 +1645,8 @@ int main(void) {
             case STATE_DRIVING: {
                 // Arrival — taxi stopped, same scene, mouse look only
                 Vector2 md2 = GetMouseDelta();
-                float drv_yaw = -md2.x * MOUSE_SENS;
-                float drv_pitch = -md2.y * MOUSE_SENS;
+                float drv_yaw = -md2.x * ev_mouse_sens;
+                float drv_pitch = -md2.y * ev_mouse_sens;
                 Vector3 drv_fwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                 Vector3 drv_right = Vector3Normalize(Vector3CrossProduct(drv_fwd, player.camera.up));
                 Matrix drv_ym = MatrixRotateY(drv_yaw);
@@ -1383,8 +1727,17 @@ int main(void) {
                     elevator_ding_played = true;
                     PlayElevatorDing(&audio);
                 }
-                // Doors open — but not onto space. Into the wormhole.
-                if (state_time > 5.0f) hard_cut_to(STATE_HYPERSPACE);
+                // Doors open
+                if (elevator_to_corridor) {
+                    // Space lobby → corridor: short ride, ding, arrive
+                    if (state_time > 3.0f) {
+                        elevator_to_corridor = false;
+                        hard_cut_to(STATE_SPACE_CORRIDOR);
+                    }
+                } else {
+                    // Terrestrial → hyperspace: longer ride into the wormhole
+                    if (state_time > 5.0f) hard_cut_to(STATE_HYPERSPACE);
+                }
                 break;
 
             case STATE_HYPERSPACE:
@@ -1439,6 +1792,7 @@ int main(void) {
                 // P6: Hyperspace → Space Lobby — 1.5s BLACK + silence before arrival
                 if (state_time > 6.0f) {
                     StopHyperspaceTone(&audio);
+                    StopHyperspaceRiser(&audio);
                     SetPostFXCA(&postfx, 2.5f);
                     SetPostFXSaturation(&postfx, 0.92f);
                     player.camera.fovy = 70.0f;
@@ -1721,21 +2075,42 @@ int main(void) {
                 break;
 
             case STATE_PARIS_DREAM:
-                // The dream — Paris hotel room, golden light, 60-90 seconds
+                // The dream — Paris hotel room, golden light
+                // Hotel Chevalier: warm, intimate, already fading
                 update_player(&player, &scene, dt);
-                // Photograph interaction
+                // Dream shimmer — warmth oscillates like a memory fading
+                {
+                    float dream_t = fminf(1.0f, state_time / 5.0f);
+                    float shimmer = 0.7f + 0.1f * sinf(state_time * 0.8f);
+                    SetPostFXWarmth(&postfx, shimmer * dream_t);
+                    // Agency slowly draining — you're losing the dream
+                    if (state_time > 30.0f) {
+                        float dream_fade = fminf(1.0f, (state_time - 30.0f) / 60.0f);
+                        player.control_mult = 1.0f - dream_fade * 0.5f;
+                    }
+                    // Grain increases over time — the dream is degrading
+                    SetPostFXGrain(&postfx, 0.7f + state_time * 0.003f);
+                }
+                // Interactions: photograph + window
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
                         if (!obj->active || obj->done) continue;
                         float dist = Vector3Distance(player.camera.position, obj->pos);
                         if (dist < obj->radius) {
-                            if (strcmp(obj->name, "photograph") == 0) {
-                                obj->step++; obj->done = true;
-                                kick_camera(&player, -0.04f, 0.02f);
-                                show_text("It's blank.");
-                                // Exit dream after brief pause
-                                done_pause = -2.0f;  // will count up to 0 then trigger
+                            Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            if (Vector3DotProduct(to, look) > 0.4f) {
+                                if (strcmp(obj->name, "photograph") == 0) {
+                                    obj->step++; obj->done = true;
+                                    kick_camera(&player, -0.04f, 0.02f);
+                                    show_text("It's blank.");
+                                    done_pause = -2.0f;
+                                } else if (strcmp(obj->name, "window") == 0) {
+                                    obj->step++; obj->done = true;
+                                    kick_camera(&player, -0.02f, 0.01f);
+                                    show_text("Paris. Before all this.");
+                                }
                             }
                             break;
                         }
@@ -1812,8 +2187,8 @@ int main(void) {
                 // Dawn Auckland — the same ride, inverted.
                 // Mouse look only (same as STATE_CAR)
                 Vector2 md_r = GetMouseDelta();
-                float ry = -md_r.x * MOUSE_SENS;
-                float rp = -md_r.y * MOUSE_SENS;
+                float ry = -md_r.x * ev_mouse_sens;
+                float rp = -md_r.y * ev_mouse_sens;
                 Vector3 rfwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                 Vector3 rright = Vector3Normalize(Vector3CrossProduct(rfwd, player.camera.up));
                 rfwd = Vector3Transform(rfwd, MatrixRotateY(ry));
@@ -1858,19 +2233,45 @@ int main(void) {
 
             case STATE_SPACE_LOBBY:
                 update_player(&player, &scene, dt);
+                // Arrival ding — you've reached your floor
+                if (state_time > 1.5f && !elevator_ding_played) {
+                    elevator_ding_played = true;
+                    PlayElevatorDing(&audio);
+                }
                 // SPEED MANIPULATION — awe near the observation window
                 // Beginner's Guide technique: agency as a dial, not a switch
                 {
                     float pz = player.camera.position.z;
-                    // Approaching the window (z < -4): movement slows to 50%
-                    // The closer you get, the more the void holds you
-                    if (pz < -4.0f) {
-                        float t = fminf(1.0f, (-4.0f - pz) / 3.5f);
-                        float slow = 1.0f - t * 0.5f;
+                    // Approaching the window: graduated slowdown starting at z < -2
+                    if (pz < -2.0f) {
+                        float t = fminf(1.0f, (-2.0f - pz) / 5.5f);
+                        float slow = 1.0f - t * 0.55f;
                         player.vel.x *= slow;
                         player.vel.z *= slow;
-                        // FOV narrows — tunnel vision on the window
-                        player.fov_current += (62.0f - player.fov_current) * t * 0.05f;
+                        // FOV narrows gradually — tunnel vision on the window
+                        player.fov_current += (60.0f - player.fov_current) * t * 0.04f;
+                    }
+                    // Earth glow pulse — the planet breathes light into the room
+                    {
+                        float pulse = 0.8f + 0.2f * sinf(state_time * 0.5f);
+                        SetPointLightIdx(&lighting, 0,
+                            0.0f, 0.5f, -7.0f,
+                            0.24f * pulse, 0.51f * pulse, 0.78f * pulse,
+                            12.0f * pulse);
+                        // Earth sub-bass: louder near window (z < -4), silent far away
+                        float window_dist = fabsf(pz + 7.0f);  // window at z=-7
+                        float sub_vol = (window_dist < 5.0f)
+                            ? 0.08f * (1.0f - window_dist / 5.0f) : 0.0f;
+                        SetEarthPresenceVolume(&audio, sub_vol * pulse);
+                    }
+                    // Gibbons head turn — one-time: he looks at window when you approach
+                    {
+                        static bool gibbons_looked = false;
+                        if (pz < -3.0f && !gibbons_looked && gibbons.active) {
+                            gibbons.yaw = atan2f(-8.0f - gibbons.pos.z,
+                                                  0.0f - gibbons.pos.x);
+                            gibbons_looked = true;
+                        }
                     }
                 }
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
@@ -1901,7 +2302,8 @@ int main(void) {
                     if (elev_dist < 1.5f && !gibbons.active) {
                         // Gibbons finished and player is at elevator — ride up
                         show_text("Going up.");
-                        transition_to(STATE_SPACE_CORRIDOR);
+                        elevator_to_corridor = true;
+                        transition_to(STATE_ELEVATOR);
                     }
                 }
                 break;
@@ -1910,6 +2312,18 @@ int main(void) {
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
+                // Per-position speed modulation — slow near windows (Earth views)
+                // Windows are on alternating segments; player slows when near the wall
+                {
+                    float px = fabsf(player.camera.position.x);
+                    if (px > 1.5f) {
+                        // Near a window wall — slow to 65%
+                        float wt = fminf(1.0f, (px - 1.5f) / 1.0f);
+                        float slow = 1.0f - wt * 0.35f;
+                        player.vel.x *= slow;
+                        player.vel.z *= slow;
+                    }
+                }
                 // ============================================================
                 // SILENCE ZONES — the Beginner's Guide's most powerful technique
                 // Specific spots where ambient sound drops to near-zero, then returns.
@@ -1946,11 +2360,45 @@ int main(void) {
                         float dvol = 1.0f / (1.0f + ddist * ddist);
                         // Scale by base volume and master silence
                         dvol *= silence * 0.03f;
-                        if (di == 0) SetSoundVolume(audio.snd_muffled_piano, dvol);
-                        else {
+                        if (di == 0) {
+                            SetSoundVolume(audio.snd_muffled_piano, dvol);
+                            // Door 0 light dims as you approach — someone turned it off
+                            // The light under the door fades when you're within 4m
+                            // Commandment 6: inaccessible spaces communicate through absence
+                            float light_fade = 1.0f;
+                            if (ddist < 4.0f) {
+                                light_fade = ddist / 4.0f;
+                                light_fade *= light_fade;  // quadratic — snaps off close up
+                            }
+                            // Reading lamp breathes — someone's in there
+                            float breath = 0.85f + 0.15f * sinf(state_time * 1.5f);
+                            SetPointLightIdx(&lighting, 2,
+                                door_positions[0].x, 0.05f, door_positions[0].z,
+                                0.94f * light_fade * breath, 0.82f * light_fade * breath,
+                                0.47f * light_fade * breath, 4.0f * light_fade);
+                        } else {
                             SetSoundVolume(audio.snd_running_water, dvol * 0.8f);
                             SetSoundVolume(audio.snd_tv_murmur, dvol);
+                            // TV flicker — blue light stutters behind door 1
+                            float flk = 0.6f + 0.4f * sinf(state_time * 8.3f)
+                                       * sinf(state_time * 13.7f);
+                            SetPointLightIdx(&lighting, 3,
+                                door_positions[1].x, 0.05f, door_positions[1].z,
+                                0.31f * flk, 0.47f * flk, 0.78f * flk, 3.0f * flk);
                         }
+                    }
+
+                    // Door 2 (dark): the void seeps through
+                    // Near the dark door: grain spikes, exposure dips, cold tint
+                    // The absence communicates more than presence ever could
+                    float d2x = player.camera.position.x - door_positions[2].x;
+                    float d2z = player.camera.position.z - door_positions[2].z;
+                    float dark_dist = sqrtf(d2x*d2x + d2z*d2z);
+                    if (dark_dist < 4.0f) {
+                        float dark_t = 1.0f - (dark_dist / 4.0f);
+                        dark_t *= dark_t;  // quadratic — snaps near the door
+                        SetPostFXGrain(&postfx, 0.4f + dark_t * 0.4f);
+                        set_exposure(0.0f - dark_t * 0.15f);
                     }
                 }
                 if (scene.has_exit) {
@@ -2011,6 +2459,16 @@ int main(void) {
                     // Grain: more near void (raw exposure), less in bed (cocoon)
                     float spatial_grain = 0.35f + cold_t * 0.3f - warm_t * 0.1f;
                     SetPostFXGrain(&postfx, spatial_grain);
+
+                    // Sprint 2B: Clock positional volume — louder near center, softer at edges
+                    // The clock is the room's heartbeat. You hear it most when you're still.
+                    if (audio.clock_playing) {
+                        float center_dist = sqrtf(px * px + pz * pz);
+                        float clock_vol = 0.035f / (1.0f + center_dist * 0.15f);
+                        // Boost when looking up (near ceiling where clock would be)
+                        if (player.camera.position.y > 1.8f) clock_vol *= 1.3f;
+                        SetSoundVolume(audio.snd_clock, clock_vol);
+                    }
                 }
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
@@ -2020,6 +2478,36 @@ int main(void) {
                     float gt = fminf(1.0f, 1.0f - interaction_timers[0] / 1.5f);
                     SetPointLightIdx(&lighting, 0, -2.5f, 1.2f, -4.8f, gt, gt*0.82f, gt*0.45f, gt*8.0f);
                     if (interaction_timers[0] <= 0) interaction_phases[0] = 2;
+                }
+                // P3: Champagne pour ritual — liquid appears over 2s
+                if (interaction_phases[1] == 1) {
+                    interaction_timers[1] -= dt;
+                    float pt = fminf(1.0f, 1.0f - interaction_timers[1] / 2.0f);
+                    // Grow a gold cylinder in the glass (liquid level rising)
+                    // We use a point light to simulate the warm golden glow of champagne
+                    SetPointLightIdx(&lighting, 2, -3.1f, 0.42f, 3.5f,
+                                     pt * 0.6f, pt * 0.5f, pt * 0.15f, pt * 3.0f);
+                    if (interaction_timers[1] <= 0) {
+                        interaction_phases[1] = 2;
+                        // Pour complete — add liquid and zero-g bubbles
+                        add_wall(&scene, -3.1f, 0.41f, 3.5f, 0.05f, 0.06f, 0.05f,
+                                 (Color){240,210,100,200});
+                        add_sphere(&scene, -2.8f, 0.7f, 3.3f, 0.1f,
+                                   (Color){240,210,100,180});
+                        add_sphere(&scene, -3.2f, 0.9f, 3.6f, 0.08f,
+                                   (Color){240,210,100,160});
+                        add_sphere(&scene, -3.0f, 1.2f, 3.4f, 0.06f,
+                                   (Color){240,210,100,140});
+                    }
+                }
+                // P3: Desk ritual — drawer slides open over 1.2s, reading light warms
+                if (interaction_phases[2] == 1) {
+                    interaction_timers[2] -= dt;
+                    float dt2 = fminf(1.0f, 1.0f - interaction_timers[2] / 1.2f);
+                    // Reading light slowly brightens — someone is about to study the sky
+                    SetPointLightIdx(&lighting, 3, 5.5f, 1.4f, -2.0f,
+                                     dt2 * 0.7f, dt2 * 0.6f, dt2 * 0.3f, dt2 * 5.0f);
+                    if (interaction_timers[2] <= 0) interaction_phases[2] = 2;
                 }
                 // P3: Bed ritual — camera descends over 2s
                 if (interaction_phases[3] == 1) {
@@ -2052,6 +2540,9 @@ int main(void) {
                                     // Open a drawer — blue folder visible
                                     add_wall(&scene, 5.3f, 0.45f, -1.6f, 0.4f, 0.04f, 0.3f,
                                              (Color){55,85,175,255});
+                                    // Start desk ritual — reading light warms over 1.2s
+                                    interaction_phases[2] = 1;
+                                    interaction_timers[2] = 1.2f;
                                 } else if (strcmp(obj->name, "bed") == 0 && obj->step == 1) {
                                     // Smooth sheets — bright rectangle
                                     add_wall(&scene, 0, 0.54f, -4.3f, 2.8f, 0.02f, 1.4f,
@@ -2079,6 +2570,10 @@ int main(void) {
                                     SetPostFXWarmth(&postfx, (float)tasks_done / SPACE_TASK_COUNT);
                                     scene.fog_density = 0.001f - ((float)tasks_done / SPACE_TASK_COUNT * 0.0005f);
 
+                                    // Lighthouse — the one composed piece
+                                    // Triggers on second task. Plays once. Never repeats.
+                                    if (tasks_done == 2) PlaySuiteMusic(&audio);
+
                                     // Sprint 2B: Clock heartbeat deceleration
                                     // Each task: clock rate drops by ~0.2
                                     float new_rate = 1.0f - (float)tasks_done * 0.2f;
@@ -2090,15 +2585,28 @@ int main(void) {
                                         // Lamp is on — warm golden glow
                                         add_light_panel(&scene, -2.5f, 1.2f, -4.8f,
                                                         0.5f, 0.6f, 0.5f, (Color){255,220,120,200});
+                                        // Lamp casts warm shadow on wall behind
+                                        add_wall(&scene, -2.5f, 1.8f, -5.35f,
+                                                 1.2f, 1.5f, 0.01f, (Color){60,45,20,40});
                                     } else if (strcmp(obj->name, "desk") == 0) {
                                         // Star chart spread on desk
                                         add_wall(&scene, 5.5f, 0.85f, -2, 1.8f, 0.01f, 0.8f,
                                                  (Color){20,25,45,255});
-                                        // Tiny star dots on the chart
+                                        // Star dots — constellations
                                         add_wall(&scene, 5.2f, 0.86f, -2.1f, 0.06f, 0.005f, 0.06f,
                                                  (Color){240,235,220,200});
                                         add_wall(&scene, 5.7f, 0.86f, -1.8f, 0.04f, 0.005f, 0.04f,
                                                  (Color){240,235,220,180});
+                                        add_wall(&scene, 5.4f, 0.86f, -1.6f, 0.05f, 0.005f, 0.05f,
+                                                 (Color){240,235,220,160});
+                                        add_wall(&scene, 6.0f, 0.86f, -2.3f, 0.03f, 0.005f, 0.03f,
+                                                 (Color){240,235,220,170});
+                                        // Route line — pencil mark between stars
+                                        add_wall(&scene, 5.45f, 0.862f, -1.95f, 0.8f, 0.003f, 0.02f,
+                                                 (Color){180,60,50,100});
+                                        // Annotation circle — red pencil around destination
+                                        add_cylinder(&scene, 5.7f, 0.863f, -1.8f, 0.12f, 0.003f,
+                                                     (Color){180,60,50,80});
                                     } else if (strcmp(obj->name, "bed") == 0) {
                                         // P3: Start bed descent ritual
                                         add_wall(&scene, 0, 0.68f, -5.0f, 0.18f, 0.04f, 0.12f,
@@ -2116,6 +2624,12 @@ int main(void) {
                                                    (Color){240,210,100,160});
                                         add_sphere(&scene, -3.0f, 1.2f, 3.4f, 0.06f,
                                                    (Color){240,210,100,140});
+                                        // Escapee — one bubble drifts toward ceiling, catching Earth glow
+                                        add_sphere(&scene, -2.9f, 2.0f, 3.5f, 0.04f,
+                                                   (Color){180,200,240,100});
+                                        // Second escapee — smaller, higher, almost gone
+                                        add_sphere(&scene, -3.1f, 2.8f, 3.35f, 0.025f,
+                                                   (Color){160,190,230,60});
                                     }
 
                                     if (tasks_done >= SPACE_TASK_COUNT) {
@@ -2130,9 +2644,32 @@ int main(void) {
                         }
                     }
                 }
-                // All tasks done — agency removal then balcony
+                // Sprint 4A: Gibbons sits after dialogue, stands on task completion
+                if (!gibbons.active && tasks_done < SPACE_TASK_COUNT) {
+                    // Gibbons finished dialogue — sits on sofa, waiting
+                    gibbons.behavior = NPC_SITTING;
+                    // Keep him visible but stationary
+                    gibbons.active = true;
+                    gibbons.waiting = true;
+                }
+                // All tasks done — Gibbons stands, delivers final line, then balcony
                 if (tasks_done >= SPACE_TASK_COUNT) {
                     done_pause += dt;
+
+                    // Gibbons stands and walks out with final line
+                    if (done_pause < 0.1f && gibbons.behavior == NPC_SITTING) {
+                        gibbons.behavior = NPC_WALKING;
+                        gibbons.waiting = false;
+                        // Add exit waypoint — walks to door
+                        gibbons.waypoints[0] = (Vector3){0, 1.6f, 5};
+                        gibbons.waypoint_count = 1;
+                        gibbons.current_waypoint = 0;
+                        gibbons.target_pos = gibbons.waypoints[0];
+                        // Final line
+                        static const char *exit_line[] = {"Time's up."};
+                        npc_set_dialogue(&gibbons, exit_line, 1, 2.0f);
+                    }
+
                     // Sprint 2B: After final task, stop the clock — silence = completion
                     if (done_pause > 0.5f) {
                         StopClockAmbient(&audio);
@@ -2166,7 +2703,10 @@ int main(void) {
             }
         }
 
-        // ---- SHADOW PASS (self-contained, no rlgl leaks) ----
+        }  // ── end game logic gate ──
+
+        // ---- SHADOW PASS ----
+        lighting.shadowPassRan = false;
         if (lighting.shadowReady && state != STATE_TITLE && state != STATE_BED && state != STATE_STARS) {
             draw_shadow_pass(&scene, &lighting,
                             &cube_model, &cyl_model, &sphere_model, &cone_model);
@@ -2177,8 +2717,8 @@ int main(void) {
         ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8, 10, 22, 255});
         if (wireframe) rlEnableWireMode();
 
-        // Bind shadow map for lighting shader
-        if (lighting.shadowReady) BindShadowMap(&lighting);
+        // Bind shadow map ONLY if shadow pass actually wrote depth this frame
+        if (lighting.shadowPassRan) BindShadowMap(&lighting);
 
         switch (state) {
             case STATE_TITLE:
@@ -2245,9 +2785,30 @@ int main(void) {
                 } else if (state == STATE_BALCONY || state == STATE_SPACE_LOBBY
                            || state == STATE_SPACE_CORRIDOR || state == STATE_SPACE_SUITE) {
                     ClearBackground((Color){4, 5, 12, 255});  // deep void
-                    // Procedural Earth — rendered BEFORE scene geometry (sits behind windows)
+                    // Deep space star field — 2D pixel stars before 3D scene
+                    {
+                        SetRandomSeed(42);
+                        int star_count = (state == STATE_BALCONY) ? 120 : 60;
+                        for (int si = 0; si < star_count; si++) {
+                            int sx = GetRandomValue(0, RENDER_W);
+                            int sy = GetRandomValue(0, RENDER_H);
+                            float bri = 0.15f + (GetRandomValue(0, 85) / 100.0f);
+                            float twk = 0.6f + 0.4f * sinf(state_time * (0.3f + GetRandomValue(0, 10) / 10.0f) + si * 2.7f);
+                            // Color temperature variation — some warm, some cool
+                            unsigned char sr = (si % 5 == 0) ? 255 : (si % 7 == 0) ? 200 : 230;
+                            unsigned char sg = 225;
+                            unsigned char sb = (si % 5 == 0) ? 200 : (si % 7 == 0) ? 255 : 230;
+                            DrawPixel(sx, sy, (Color){sr, sg, sb, (unsigned char)(255 * bri * twk)});
+                        }
+                    }
+                    // Procedural Earth — positioned per scene so it's visible through windows
                     if (sphere_model_loaded) {
-                        draw_earth(player.camera, state_time, &sphere_model, &lighting);
+                        Vector3 earth_pos = {0, -40, -60};  // default
+                        if (state == STATE_SPACE_LOBBY) earth_pos = (Vector3){3, -20, -40};
+                        else if (state == STATE_SPACE_CORRIDOR) earth_pos = (Vector3){-20, -30, -30};
+                        else if (state == STATE_SPACE_SUITE) earth_pos = (Vector3){-35, -20, -10};
+                        else if (state == STATE_BALCONY) earth_pos = (Vector3){0, -30, -50};
+                        draw_earth(player.camera, state_time, &sphere_model, &lighting, earth_pos);
                     }
                 } else {
                     ClearBackground(scene.fog_color);
@@ -2430,12 +2991,36 @@ int main(void) {
         // Vignette text overlay
         draw_vignette_text();
 
+        // Pause menu overlay — drawn into 480x300, gets film grain treatment
+        if (menu_mode != MENU_NONE) draw_pause_menu();
+
         // Fade
         if (fade_alpha > 0.01f)
             DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){0,0,0,(unsigned char)(255*fade_alpha)});
 
-        if (lighting.shadowReady) UnbindShadowMap();
+        if (lighting.shadowPassRan) UnbindShadowMap();
         EndTextureMode();
+
+        // DIAGNOSTIC — log per-state on frame 5 of each new state
+        {
+            static GameState dbg_prev = -1;
+            static int dbg_sf = 0;
+            if ((int)state != (int)dbg_prev) { dbg_prev = state; dbg_sf = 0; }
+            dbg_sf++;
+            if (dbg_sf == 5) {
+                Image di = LoadImageFromTexture(render_target.texture);
+                Color *px = LoadImageColors(di);
+                long rs = 0, gs = 0, bs = 0;
+                for (int i = 0; i < RENDER_W*RENDER_H; i++) {
+                    rs += px[i].r; gs += px[i].g; bs += px[i].b;
+                }
+                int n = RENDER_W*RENDER_H;
+                printf("[DBG] state=%d f5 pre-pfx R=%ld G=%ld B=%ld fade=%.2f\n",
+                       state, rs/n, gs/n, bs/n, fade_alpha);
+                UnloadImageColors(px);
+                UnloadImage(di);
+            }
+        }
 
         // Post-FX — feed player speed to shader for speed lines
         SetPostFXSpeed(&postfx, player_speed_normalized(&player));
@@ -2456,6 +3041,7 @@ int main(void) {
             (Rectangle){ox, oy, RENDER_W*scale, RENDER_H*scale},
             (Vector2){0, 0}, 0, WHITE);
 
+#ifndef PLAYTEST
         if (show_debug) {
             const char *state_names[] = {
                 "TITLE", "CAR", "DRIVING", "EXTERIOR", "LOBBY",
@@ -2504,12 +3090,35 @@ int main(void) {
             if (player.dash_cooldown_timer > 0)
                 DrawText(TextFormat("dash:%.1f", player.dash_cooldown_timer), 210, fy, 20, (Color){200,150,255,180});
 
+            int tm = (int)total_time / 60, ts = (int)total_time % 60;
+            DrawText(TextFormat("Runtime: %d:%02d  Scene: %.1fs", tm, ts, state_time),
+                10, fy + 20, 20, (Color){255,200,60,220});
             DrawText(TextFormat("Style: %s (Shift+1-9)", visual_styles[current_style].name),
-                10, fy + 20, 20, (Color){100,200,100,180});
-            DrawText("1-9: rooms  F4: noclip  Q: dash", 10, fy + 40, 20, (Color){100,200,100,140});
+                10, fy + 40, 20, (Color){100,200,100,180});
+            DrawText("1-9: rooms  F4: noclip  F5: nudge  Q: dash", 10, fy + 60, 20, (Color){100,200,100,140});
             if (player.noclip) DrawText("NOCLIP", 10, fy + 60, 20, YELLOW);
             if (wireframe) DrawText("WIREFRAME", 10, fy + 80, 20, YELLOW);
         }
+
+        // Nudge mode overlay — drawn on top of everything
+        if (nudge_mode) {
+            int ny = GetScreenHeight() - 100;
+            DrawText("NUDGE MODE", 10, ny, 20, (Color){255,200,60,255});
+            if (nudge_selected >= 0 && nudge_selected < scene.wall_count) {
+                Wall *w = &scene.walls[nudge_selected];
+                DrawText(TextFormat("wall[%d] pos=(%.2f, %.2f, %.2f) size=(%.2f, %.2f, %.2f)",
+                    nudge_selected, w->pos.x, w->pos.y, w->pos.z,
+                    w->size.x, w->size.y, w->size.z),
+                    10, ny + 22, 16, (Color){255,255,200,220});
+                DrawText("Arrows: move X/Z  Ctrl+Arrows: move Y  [/]: resize  Shift: fine (0.01)",
+                    10, ny + 42, 16, (Color){200,200,180,180});
+                DrawText("Click: re-select  F5: exit nudge",
+                    10, ny + 60, 16, (Color){200,200,180,180});
+            } else {
+                DrawText("No wall selected — look at a wall and click", 10, ny + 22, 16, (Color){255,100,100,200});
+            }
+        }
+#endif // PLAYTEST
         EndDrawing();
     }
 
@@ -2521,6 +3130,7 @@ int main(void) {
     DestroyShadowMap(&lighting);
     UnloadEVLighting(&lighting);
     UnloadEVPostFX(&postfx);
+    UnloadFileMusic(&audio);
     UnloadEVAudio(&audio);
     UnloadRenderTexture(render_target);
     UnloadRenderTexture(postfx_target);

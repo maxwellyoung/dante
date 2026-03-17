@@ -360,6 +360,7 @@ void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, flo
 
 void SetSceneLighting(EVLighting *lighting, SceneLighting preset) {
     if (!lighting->ready) return;
+    lighting->activePreset = preset;
 
     float keyDir[3] = {preset.keyDir.x, preset.keyDir.y, preset.keyDir.z};
     SetShaderValue(lighting->shader, lighting->lightDirLoc, keyDir, SHADER_UNIFORM_VEC3);
@@ -445,8 +446,13 @@ void CreateShadowMap(EVLighting *lighting) {
     rlFramebufferAttach(lighting->shadowFBO, lighting->shadowDepthTex,
                         RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
 
+    // NOTE: glDrawBuffer(GL_NONE) omitted — Apple's Metal-translated GL
+    // doesn't isolate per-FBO draw buffer state, kills color writes globally.
+    // Depth-only FBO works fine without it (no color attachment = no color writes).
+
     if (rlFramebufferComplete(lighting->shadowFBO)) {
         lighting->shadowReady = true;
+        lighting->shadowPassRan = false;
         printf("[EV] Shadow map created — %dx%d depth texture\n", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     } else {
         printf("[EV] WARNING: Shadow FBO incomplete\n");
@@ -632,51 +638,50 @@ SceneLighting LightingPreset_Balcony(void) {
 }
 
 SceneLighting LightingPreset_SpaceLobby(void) {
-    // Grand station lobby — chandelier + elevator shaft glow
-    // Cold starlight from observation window, warm brass interior
+    // Glass cathedral — Earth glow floods FROM the observation window
+    // Light enters horizontally, not from overhead. You're in a greenhouse in space.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),
-        .keyColor = {0.50f, 0.55f, 0.70f},       // starlight through window
-        .fillDir = Vector3Normalize((Vector3){0.2f, 0.5f, 0.3f}),
-        .fillColor = {0.15f, 0.22f, 0.35f},      // Earth glow — blue bounce
-        .ambient = {0.16f, 0.17f, 0.22f},         // grand lobby — visible
-        // Chandelier above observation area
-        .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}},
-        .pointColor = {{0.85f, 0.65f, 0.40f}, {0.4f, 0.5f, 0.7f}, {0.4f, 0.5f, 0.7f}},
-        .pointRadius = {14.0f, 10.0f, 10.0f},
+        .keyDir = Vector3Normalize((Vector3){0.0f, 0.4f, -0.8f}),   // FROM Earth through window — uplighting
+        .keyColor = {0.55f, 0.65f, 0.85f},        // Earth blue — dominant
+        .fillDir = Vector3Normalize((Vector3){-0.5f, 0.3f, 0.3f}),  // side windows
+        .fillColor = {0.20f, 0.28f, 0.40f},       // blue side bounce
+        .ambient = {0.20f, 0.21f, 0.26f},          // glass house — brighter
+        // Earth glow on floor + blue side windows + chandelier warm
+        .pointPos = {{0, 0.1f, -6.0f}, {-10, 3, 0}, {10, 3, 0}, {0, 8.0f, -3.0f}},
+        .pointColor = {{0.4f, 0.6f, 0.9f}, {0.3f, 0.45f, 0.65f}, {0.3f, 0.45f, 0.65f}, {0.7f, 0.55f, 0.35f}},
+        .pointRadius = {16.0f, 12.0f, 12.0f, 10.0f},
     };
 }
 
 SceneLighting LightingPreset_SpaceCorridor(void) {
-    // Narrow corridor — overhead amber strips, porthole starlight
-    // Kubrick hallway energy but cold and blue-shifted
-    // 4 point lights spread along the curved corridor
+    // Glass walkway between stars — light FROM the windows, not overhead
+    // Horizontal starlight through tall glass panels, warm door-leak fill
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),
-        .keyColor = {1.2f, 1.0f, 0.70f},          // warm overhead amber — BRIGHTER
-        .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.25f, 0.32f, 0.45f},       // porthole starlight — cool blue
-        .ambient = {0.30f, 0.30f, 0.35f},          // higher ambient — corridor must read
-        // Ceiling light panels spread along corridor length
-        .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {0, 3.2f, 16}},
-        .pointColor = {{1.0f, 0.80f, 0.55f}, {0.9f, 0.75f, 0.50f}, {0.8f, 0.70f, 0.45f}, {0.5f, 0.6f, 0.8f}},
-        .pointRadius = {12.0f, 12.0f, 12.0f, 10.0f},
+        .keyDir = Vector3Normalize((Vector3){0.5f, 0.2f, -0.3f}),   // FROM side windows
+        .keyColor = {0.60f, 0.72f, 0.90f},          // starlight through glass
+        .fillDir = Vector3Normalize((Vector3){-0.3f, -0.4f, 0.2f}),
+        .fillColor = {0.30f, 0.25f, 0.18f},         // warm door-leak bounce
+        .ambient = {0.28f, 0.28f, 0.34f},
+        // Blue window glow at floor level + subtle warm cove strip
+        .pointPos = {{-2, 1.5f, -4}, {2, 1.5f, 4}, {-2, 1.5f, 12}, {0, 4.5f, 0}},
+        .pointColor = {{0.4f, 0.55f, 0.8f}, {0.4f, 0.55f, 0.8f}, {0.4f, 0.55f, 0.8f}, {0.5f, 0.42f, 0.28f}},
+        .pointRadius = {10.0f, 10.0f, 10.0f, 8.0f},
     };
 }
 
 SceneLighting LightingPreset_SpaceSuite(void) {
-    // Space suite — Earth glow from left window, warm lamp from bed area
-    // The Glass Elevator room: luxury + void
+    // Space suite — horizontal Earth glow from left window, warm lamps
+    // Glass house: light enters from infinity, not from ceiling
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.6f, -0.5f, -0.2f}),
-        .keyColor = {0.65f, 0.78f, 0.95f},       // Earth glow — strong blue from window
+        .keyDir = Vector3Normalize((Vector3){-0.7f, 0.2f, -0.1f}),  // horizontal from window
+        .keyColor = {0.70f, 0.82f, 1.0f},         // stronger Earth blue — dominant
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.4f, 0.2f}),
-        .fillColor = {0.30f, 0.26f, 0.20f},      // warm floor bounce
-        .ambient = {0.26f, 0.26f, 0.30f},         // liveable — every object reads
-        // Dropped ceiling light above bed + bedside lamps + Earth glow
-        .pointPos = {{0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0}},
-        .pointColor = {{1.0f, 0.80f, 0.50f}, {0.9f, 0.7f, 0.4f}, {0.9f, 0.7f, 0.4f}, {0.3f, 0.5f, 0.8f}},
-        .pointRadius = {14.0f, 5.0f, 5.0f, 8.0f},
+        .fillColor = {0.28f, 0.24f, 0.18f},       // warm floor bounce
+        .ambient = {0.24f, 0.24f, 0.28f},
+        // Earth glow flood from window + bedside warm lamps + ceiling warm
+        .pointPos = {{-7, 2.5f, -1.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {0, 4.8f, -4.0f}},
+        .pointColor = {{0.45f, 0.65f, 0.95f}, {0.9f, 0.7f, 0.4f}, {0.9f, 0.7f, 0.4f}, {0.8f, 0.65f, 0.40f}},
+        .pointRadius = {18.0f, 5.0f, 5.0f, 10.0f},
     };
 }
 
@@ -696,15 +701,17 @@ SceneLighting LightingPreset_Hyperspace(void) {
 
 SceneLighting LightingPreset_ParisDream(void) {
     // Hotel Chevalier golden hour — the OPPOSITE of space blue
+    // Steeper key angle creates longer shadows, drives contrast ratio up
+    // Reduced ambient so shadows actually go dark (was 0.22 — too bright, QA fail)
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.5f, -0.4f, -0.3f}),
-        .keyColor = {1.8f, 1.3f, 0.70f},
+        .keyDir = Vector3Normalize((Vector3){-0.7f, -0.6f, -0.3f}),
+        .keyColor = {2.0f, 1.4f, 0.65f},
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.35f, 0.28f, 0.18f},
-        .ambient = {0.22f, 0.18f, 0.12f},
+        .fillColor = {0.20f, 0.15f, 0.08f},
+        .ambient = {0.12f, 0.09f, 0.05f},
         .pointPos = {{0, 3.6f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
-        .pointColor = {{1.4f, 1.0f, 0.55f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
-        .pointRadius = {10.0f, 5.0f, 5.0f},
+        .pointColor = {{1.6f, 1.1f, 0.50f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
+        .pointRadius = {8.0f, 4.0f, 4.0f},
     };
 }
 

@@ -717,52 +717,92 @@ void reset_title_state(void) {
 }
 
 void draw_title(void) {
-    ClearBackground((Color){5, 5, 8, 255});
-
     float t = (float)GetTime();
     float dt = GetFrameTime();
 
-    // Fade-in alpha (ramps over first 2 seconds)
-    float line_alpha = fminf(1.0f, t / 2.0f);
+    // ================================================================
+    // Hotel Chevalier opening — quiet, warm, contemplative
+    // Black fades to deep navy. A horizon line breathes.
+    // The title materializes like phosphorescent stars.
+    // Wonder and melancholy, not aggression.
+    // ================================================================
 
-    // Golden ratio layout: title at 38.2%, line at 50%, credit at 61.8%
-    int title_y = (int)(RENDER_H * 0.382f);
-    int line_y = RENDER_H / 2;
-    int credit_y = (int)(RENDER_H * 0.618f);
+    // Background: true black → deep navy over 3 seconds
+    float bg_t = fminf(1.0f, t / 3.0f);
+    unsigned char bg_r = (unsigned char)(5 * bg_t);
+    unsigned char bg_g = (unsigned char)(5 * bg_t);
+    unsigned char bg_b = (unsigned char)(8 * bg_t);
+    ClearBackground((Color){bg_r, bg_g, bg_b, 255});
 
-    // --- Horizon line — breathing pulse like a heartbeat ---
-    float breath = 0.7f + 0.3f * sinf(t * 1.2f);
-    DrawRectangle(0, line_y, RENDER_W, 1,
-                  (Color){178, 155, 107, (unsigned char)(180 * line_alpha * breath)});
+    // Sparse stars fade in — same seed as the ending (continuity)
+    if (t > 1.0f) {
+        float star_a = fminf(1.0f, (t - 1.0f) / 3.0f);
+        SetRandomSeed(99);
+        for (int i = 0; i < 30; i++) {
+            int sx = GetRandomValue(20, RENDER_W - 20);
+            int sy = GetRandomValue(10, RENDER_H * 2 / 3);
+            float twk = 0.5f + 0.5f * sinf(t * (0.3f + i * 0.05f) + i * 1.7f);
+            unsigned char sa = (unsigned char)(40 * star_a * twk);
+            DrawPixel(sx, sy, (Color){200, 195, 180, sa});
+        }
+    }
 
-    // --- Title — spatial typography (Cooper): each char with breathing spacing ---
-    if (line_alpha > 0.1f) {
+    // Horizon line — golden ratio, breathes like a heartbeat
+    if (t > 1.5f) {
+        float line_a = fminf(1.0f, (t - 1.5f) / 2.0f);
+        float breath = 0.7f + 0.3f * sinf(t * 1.2f);
+        int line_y = (int)(RENDER_H * 0.5f);
+        DrawRectangle(0, line_y, RENDER_W, 1,
+                      (Color){178, 155, 107, (unsigned char)(120 * line_a * breath)});
+    }
+
+    // Title — "ENDEARING VOID" — materializes letter by letter
+    if (t > 2.0f) {
+        float title_t = t - 2.0f;
         const char *title = "ENDEARING VOID";
         int font_size = 16;
-        float base_spacing = 14.0f;
+        float spacing = 14.0f;
         int len = 0;
         for (const char *p = title; *p; p++) len++;
-        float total_w = (float)(len - 1) * base_spacing + 10.0f;
+        float total_w = (float)(len - 1) * spacing + 10.0f;
         float start_x = (float)RENDER_W / 2.0f - total_w / 2.0f;
-        unsigned char ta = (unsigned char)(240 * line_alpha);
+        int title_y = (int)(RENDER_H * 0.382f);  // golden ratio
 
         for (int i = 0; i < len; i++) {
-            float char_offset = 0.5f * sinf(t * 0.8f + (float)i * 0.6f);
-            int cx = (int)(start_x + (float)i * base_spacing + char_offset);
+            // Each letter appears 0.15s after the previous
+            float char_delay = (float)i * 0.15f;
+            float char_t = title_t - char_delay;
+            if (char_t < 0) continue;
+
+            // Fade in over 0.8s — like phosphorescent stars charging
+            float char_a = fminf(1.0f, char_t / 0.8f);
+            // Subtle breathing once fully visible
+            float char_breath = 1.0f;
+            if (char_t > 1.0f) {
+                char_breath = 0.85f + 0.15f * sinf(t * 0.8f + (float)i * 0.6f);
+            }
+
+            int cx = (int)(start_x + (float)i * spacing);
             char ch[2] = { title[i], '\0' };
-            DrawText(ch, cx + 1, title_y + 1, font_size, (Color){0, 0, 0, 255});
+
+            unsigned char ta = (unsigned char)(240 * char_a * char_breath);
+            // Shadow
+            DrawText(ch, cx + 1, title_y + 1, font_size, (Color){0, 0, 0, (unsigned char)(ta / 2)});
+            // Warm gold — matches the star color progression
             DrawText(ch, cx, title_y, font_size, (Color){200, 178, 130, ta});
         }
     }
 
-    // --- Studio name — at golden ratio below ---
-    if (line_alpha > 0.1f) {
-        draw_text_box("Maxwell Young", credit_y, 12,
-                      (Color){140, 135, 128, (unsigned char)(130 * line_alpha)});
+    // Credit — fades in at golden ratio below
+    if (t > 5.0f) {
+        float ca = fminf(1.0f, (t - 5.0f) / 2.0f);
+        int credit_y = (int)(RENDER_H * 0.618f);
+        draw_text_box("Maxwell Young", credit_y, 10,
+                      (Color){140, 135, 128, (unsigned char)(130 * ca)});
     }
 
-    // --- "PRESS ENTER" — springs in from below after 2 seconds ---
-    if (t > 2.0f && !title_enter_triggered) {
+    // "PRESS ENTER" — springs in from below after 6 seconds
+    if (t > 6.0f && !title_enter_triggered) {
         title_enter_triggered = true;
         title_enter_y_offset = 20.0f;
         title_enter_y_vel = 0.0f;
@@ -771,24 +811,24 @@ void draw_title(void) {
     }
 
     if (title_enter_triggered) {
+        // Spring physics (Kowalski: k=280, d=26, m=0.9)
         float sk = 280.0f, sd = 26.0f, sm = 0.9f;
-
         float fy = -sk * title_enter_y_offset - sd * title_enter_y_vel;
         title_enter_y_vel += (fy / sm) * dt;
         title_enter_y_offset += title_enter_y_vel * dt;
-
         float fs = -sk * (title_enter_scale - 1.0f) - sd * title_enter_scale_vel;
         title_enter_scale_vel += (fs / sm) * dt;
         title_enter_scale += title_enter_scale_vel * dt;
 
         if (title_enter_scale > 0.01f) {
             int enter_y = RENDER_H - 28 + (int)title_enter_y_offset;
-            unsigned char ea = (unsigned char)(220 * title_enter_scale);
-            if (ea > 220) ea = 220;
-            float pulse = 0.85f + 0.15f * sinf(t * 2.0f);
+            unsigned char ea = (unsigned char)(200 * title_enter_scale);
+            if (ea > 200) ea = 200;
+            // Gentle pulse — not strobe
+            float pulse = 0.75f + 0.25f * sinf(t * 2.0f);
             ea = (unsigned char)((float)ea * pulse);
-            draw_text_box("PRESS ENTER", enter_y, 12,
-                          (Color){248, 245, 238, ea});
+            draw_text_box("PRESS ENTER", enter_y, 10,
+                          (Color){200, 195, 185, ea});
         }
     }
 }
@@ -936,14 +976,21 @@ void draw_zero_g_sparkles(Camera3D camera, float time) {
 
 // ============================================================
 // SHADOW PASS — render scene from light's perspective into depth buffer
-// Self-contained: sets up its own FBO, matrices, draws, flushes, restores.
+//
+// Uses the lightSpaceMatrix computed by UpdateShadowMatrix() — the SAME
+// matrix the lighting shader uses in ShadowCalc(). This guarantees the
+// depth we write here matches the coordinates the fragment shader samples.
+//
+// The shadow shader's mvp = lightSpaceMatrix * modelMatrix.
+// No rlgl matrix stack manipulation — we set mvp directly per-draw.
+// This avoids the state corruption that caused the original disable.
 // ============================================================
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
                       Model *sphere_model, Model *cone_model) {
     if (!lighting->shadowReady) return;
 
-    // Flush any pending rlgl work before we touch state
+    // Flush any pending rlgl work before we touch FBO state
     rlDrawRenderBatchActive();
 
     // Save original shaders
@@ -952,42 +999,20 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
     Shader origSph  = sphere_model->materials[0].shader;
     Shader origCone = cone_model->materials[0].shader;
 
-    // Assign shadow shader to all models
+    // Assign depth-only shadow shader to all models
     cube_model->materials[0].shader   = lighting->shadowShader;
     cyl_model->materials[0].shader    = lighting->shadowShader;
     sphere_model->materials[0].shader = lighting->shadowShader;
     cone_model->materials[0].shader   = lighting->shadowShader;
 
-    // Bind shadow FBO
+    // Bind shadow FBO, set viewport, clear depth only
     rlEnableFramebuffer(lighting->shadowFBO);
     rlViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
-    rlClearScreenBuffers();
+    glClear(GL_DEPTH_BUFFER_BIT);
 
-    // Set up orthographic projection from light's perspective
-    // All matrix work happens HERE, not in main.c
-    rlMatrixMode(RL_PROJECTION);
-    rlPushMatrix();
-    rlLoadIdentity();
-    float ls = 25.0f;
-    rlOrtho(-ls, ls, -ls, ls, 0.1f, ls * 4.0f);
+    // Draw all scene geometry — mvp is lightSpaceMatrix * modelMatrix
+    Matrix lsm = lighting->lightSpaceMatrix;
 
-    rlMatrixMode(RL_MODELVIEW);
-    rlPushMatrix();
-    rlLoadIdentity();
-
-    // Light camera: position along negative key light direction, looking at scene center
-    // Use the stored lightSpaceMatrix direction
-    Vector3 lightPos = {
-        -lighting->lightSpaceMatrix.m12 * 0.5f,
-        30.0f,
-        -lighting->lightSpaceMatrix.m14 * 0.5f
-    };
-    // Fallback: use a generic overhead angle if matrix isn't set
-    if (lightPos.x == 0 && lightPos.z == 0) lightPos = (Vector3){-15, 30, -20};
-    Matrix lightView = MatrixLookAt(lightPos, (Vector3){0, 0, 0}, (Vector3){0, 1, 0});
-    rlMultMatrixf(MatrixToFloat(lightView));
-
-    // Draw all scene geometry
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
         if (!w->active) continue;
@@ -997,6 +1022,10 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
         Matrix matTrans = MatrixTranslate(w->pos.x, w->pos.y, w->pos.z);
         Matrix matModel = MatrixMultiply(MatrixMultiply(matScale, matRot), matTrans);
 
+        // shadow mvp = lightSpaceMatrix * modelMatrix
+        Matrix shadowMvp = MatrixMultiply(matModel, lsm);
+        SetShaderValueMatrix(lighting->shadowShader, lighting->shadowMvpLoc, shadowMvp);
+
         Model *m;
         switch (w->shape) {
             case SHAPE_CYLINDER: m = cyl_model; break;
@@ -1005,17 +1034,12 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
             default:             m = cube_model; break;
         }
 
-        DrawMesh(m->meshes[0], m->materials[0], matModel);
+        // Identity model matrix — full transform is baked into the shader's mvp
+        DrawMesh(m->meshes[0], m->materials[0], MatrixIdentity());
     }
 
-    // CRITICAL: flush ALL draw calls BEFORE restoring any state
+    // Flush ALL draw calls before restoring state
     rlDrawRenderBatchActive();
-
-    // Restore matrices (projection first, then modelview)
-    rlMatrixMode(RL_PROJECTION);
-    rlPopMatrix();
-    rlMatrixMode(RL_MODELVIEW);
-    rlPopMatrix();
 
     // Unbind shadow FBO and restore viewport
     rlDisableFramebuffer();
@@ -1026,6 +1050,8 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
     cyl_model->materials[0].shader    = origCyl;
     sphere_model->materials[0].shader = origSph;
     cone_model->materials[0].shader   = origCone;
+
+    lighting->shadowPassRan = true;
 }
 
 // ============================================================
@@ -1035,10 +1061,11 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
 // At 480x300, the sphere is ~100px across — every layer counts.
 // ============================================================
 void draw_earth(Camera3D camera, float time,
-                Model *sphere_model, EVLighting *lighting) {
+                Model *sphere_model, EVLighting *lighting,
+                Vector3 earth_center) {
     if (!sphere_model) return;
 
-    Vector3 earth_pos = {0, -40.0f, -60.0f};
+    Vector3 earth_pos = earth_center;
     float earth_scale = 50.0f;
     float rot = time * 0.5f;  // slow rotation — ~12 min per revolution
     Vector3 axis = {0.23f, 1, 0};  // tilted axis (Earth's 23.5°)

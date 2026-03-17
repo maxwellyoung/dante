@@ -7,7 +7,8 @@
 
 #define RENDER_W 480
 #define RENDER_H 300
-#define MOUSE_SENS 0.003f
+#define MOUSE_SENS_DEFAULT 0.003f
+extern float ev_mouse_sens;
 #define MAX_OBJECTS 64
 #define MAX_WALLS 2048
 

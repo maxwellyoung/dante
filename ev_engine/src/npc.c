@@ -276,6 +276,15 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float idle_sway = sinf(idle * 0.8f) * 0.015f + breathe;
     float idle_tilt = sinf(idle * 1.3f) * 2.5f;
 
+    // Sprint 4A: Sitting — lower body by ~0.4m (sofa seat height)
+    if (npc->behavior == NPC_SITTING) {
+        base_y -= 0.4f;
+        walk_bob = 0;
+        walk_twist = 0;
+        walk_hip_sway = 0;
+        idle_tilt *= 0.5f;  // less sway when seated
+    }
+
     // Sprint 4A: Reading behavior — head tilts down (looking at newspaper)
     float reading_pitch = 0;
     if (npc->behavior == NPC_READING) {

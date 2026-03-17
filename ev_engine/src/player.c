@@ -252,7 +252,7 @@ void update_player(Player *p, Scene *scene, float dt) {
 
     // ── Mouse look ──────────────────────────────────────────────────
     Vector2 mouse_delta = GetMouseDelta();
-    float sens = MOUSE_SENS * p->control_mult;
+    float sens = ev_mouse_sens * p->control_mult;
     float yaw_delta = -mouse_delta.x * sens;
     float pitch_delta = -mouse_delta.y * sens;
 

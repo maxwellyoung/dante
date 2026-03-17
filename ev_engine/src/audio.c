@@ -385,7 +385,8 @@ static Sound gen_ambient_room(void) {
 static Sound gen_ambient_space_lobby(void) {
     float loop_len = 20.0f;
     int len = (int)(SAMPLE_RATE * loop_len);
-    int reverb_delay = (int)(SAMPLE_RATE * 0.15f);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.28f);  // LONGER reverb — cathedral, not box
+    int early_delay = (int)(SAMPLE_RATE * 0.06f);   // early reflections
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
@@ -407,32 +408,37 @@ static Sound gen_ambient_space_lobby(void) {
         if (lt > 0.98f) sample *= (1.0f - lt) / 0.02f;
         d[i] = (short)(sample * 2000);
     }
+    // Early reflections — glass surfaces
+    for (int i = early_delay; i < len; i++) {
+        d[i] += (short)(d[i - early_delay] * 0.08f);
+    }
+    // Late reverb — expansive cathedral tail
     for (int i = reverb_delay; i < len; i++) {
-        d[i] += (short)(d[i - reverb_delay] * 0.12f);
+        d[i] += (short)(d[i - reverb_delay] * 0.22f);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
-// Space Corridor: tighter, more enclosed. Air circulation pulse.
-// Higher frequency hum with subtle rhythmic element.
+// Space Corridor: glass walkway — light, airy, not mechanical.
+// Longer reverb (glass reflections), reduced mechanical whine.
 static Sound gen_ambient_space_corridor(void) {
     float loop_len = 16.0f;
     int len = (int)(SAMPLE_RATE * loop_len);
-    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.18f);  // longer — glass reflects sound
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float lt = (float)i / len;
-        // Medium hum — air ducting
-        float duct = sinf(2 * PI * 65.0f * t) * 0.35f;
-        duct += sinf(2 * PI * 130.0f * t) * 0.15f;  // second harmonic
-        // Rhythmic pulse — air circulation, ~0.8Hz
-        float pulse = 0.6f + 0.4f * sinf(2 * PI * 0.8f * t);
-        // Subtle high whine — corridor lighting
-        float whine = sinf(2 * PI * 440.0f * t) * 0.02f;
-        whine += sinf(2 * PI * 442.0f * t) * 0.02f;  // beating frequency
+        // Medium hum — air ducting (reduced)
+        float duct = sinf(2 * PI * 65.0f * t) * 0.30f;
+        duct += sinf(2 * PI * 130.0f * t) * 0.08f;  // less mechanical harmonic
+        // Rhythmic pulse — air circulation, slower
+        float pulse = 0.7f + 0.3f * sinf(2 * PI * 0.6f * t);
+        // Reduced whine — glass walkway, not fluorescent tube
+        float whine = sinf(2 * PI * 440.0f * t) * 0.008f;
+        whine += sinf(2 * PI * 442.0f * t) * 0.008f;
         float sample = (duct * pulse + whine);
         // Loop crossfade
         if (lt < 0.02f) sample *= lt / 0.02f;
@@ -440,7 +446,7 @@ static Sound gen_ambient_space_corridor(void) {
         d[i] = (short)(sample * 2200);
     }
     for (int i = reverb_delay; i < len; i++) {
-        d[i] += (short)(d[i - reverb_delay] * 0.1f);
+        d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
@@ -947,6 +953,17 @@ static Sound gen_held_chord(void);
 static Sound gen_running_water(void);
 static Sound gen_tv_murmur(void);
 static Sound gen_hyperspace_tone(void);
+static Sound gen_hyperspace_riser(void);
+static Sound gen_arrival_thump(void);
+static Sound gen_elevator_whoosh(void);
+static Sound gen_door_thud(void);
+static Sound gen_airlock_hiss(void);
+static Sound gen_gravity_settle(void);
+static Sound gen_bed_impact(void);
+static Sound gen_balcony_gust(void);
+static Sound gen_title_breath(void);
+static Sound gen_hard_cut_punch(void);
+static Sound gen_earth_presence(void);
 
 // --- ENGINE ---
 
@@ -986,6 +1003,17 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_running_water = gen_running_water();
     audio->snd_tv_murmur = gen_tv_murmur();
     audio->snd_hyperspace_tone = gen_hyperspace_tone();
+    audio->snd_hyperspace_riser = gen_hyperspace_riser();
+    audio->snd_arrival_thump = gen_arrival_thump();
+    audio->snd_elevator_whoosh = gen_elevator_whoosh();
+    audio->snd_door_thud = gen_door_thud();
+    audio->snd_airlock_hiss = gen_airlock_hiss();
+    audio->snd_gravity_settle = gen_gravity_settle();
+    audio->snd_bed_impact = gen_bed_impact();
+    audio->snd_balcony_gust = gen_balcony_gust();
+    audio->snd_title_breath = gen_title_breath();
+    audio->snd_hard_cut_punch = gen_hard_cut_punch();
+    audio->snd_earth_presence = gen_earth_presence();
     audio->city_playing = false;
     audio->clock_playing = false;
     audio->stairwell_playing = false;
@@ -996,6 +1024,9 @@ void InitEVAudio(EVAudio *audio) {
     audio->bed_drone_playing = false;
     audio->held_chord_playing = false;
     audio->hyperspace_tone_playing = false;
+    audio->hyperspace_riser_playing = false;
+    audio->elevator_whoosh_playing = false;
+    audio->earth_presence_playing = false;
     audio->clock_rate = 1.0f;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
@@ -1036,6 +1067,17 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_running_water, 0.015f);    // behind door — muffled
     SetSoundVolume(audio->snd_tv_murmur, 0.015f);        // behind door — muffled
     SetSoundVolume(audio->snd_hyperspace_tone, 0.06f);   // rising tone — builds tension
+    SetSoundVolume(audio->snd_hyperspace_riser, 0.08f);  // fat riser — overwhelming crescendo
+    SetSoundVolume(audio->snd_arrival_thump, 0.12f);     // landing impact — felt in chest
+    SetSoundVolume(audio->snd_elevator_whoosh, 0.05f);   // ascending noise — building dread
+    SetSoundVolume(audio->snd_door_thud, 0.10f);         // heavy door — authoritative
+    SetSoundVolume(audio->snd_airlock_hiss, 0.06f);      // pressurization — ambient but present
+    SetSoundVolume(audio->snd_gravity_settle, 0.05f);    // hull groan — subtle, structural
+    SetSoundVolume(audio->snd_bed_impact, 0.08f);        // cushioned surrender
+    SetSoundVolume(audio->snd_balcony_gust, 0.07f);      // void rushing in
+    SetSoundVolume(audio->snd_title_breath, 0.04f);      // barely there — subliminal
+    SetSoundVolume(audio->snd_hard_cut_punch, 0.10f);    // physical cut — snappy
+    SetSoundVolume(audio->snd_earth_presence, 0.0f);     // starts silent — distance-controlled
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -1061,6 +1103,17 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
     UnloadSound(audio->snd_running_water); UnloadSound(audio->snd_tv_murmur);
     UnloadSound(audio->snd_hyperspace_tone);
+    UnloadSound(audio->snd_hyperspace_riser);
+    UnloadSound(audio->snd_arrival_thump);
+    UnloadSound(audio->snd_elevator_whoosh);
+    UnloadSound(audio->snd_door_thud);
+    UnloadSound(audio->snd_airlock_hiss);
+    UnloadSound(audio->snd_gravity_settle);
+    UnloadSound(audio->snd_bed_impact);
+    UnloadSound(audio->snd_balcony_gust);
+    UnloadSound(audio->snd_title_breath);
+    UnloadSound(audio->snd_hard_cut_punch);
+    UnloadSound(audio->snd_earth_presence);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -1081,12 +1134,59 @@ static Sound *get_drone(EVAudio *audio, DroneType t) {
     return &audio->drone_room;
 }
 
+// Base volume per drone type — used for ducking/crossfade restoration
+static float get_drone_base_vol(EVAudio *audio, DroneType t) {
+    (void)audio;
+    switch(t) { case DRONE_LOBBY: return 0.04f;
+                case DRONE_HALLWAY: return 0.03f;
+                case DRONE_ROOM: return 0.06f;
+                case DRONE_SPACE_LOBBY: return 0.05f;
+                case DRONE_SPACE_CORRIDOR: return 0.04f;
+                case DRONE_SPACE_SUITE: return 0.03f; }
+    return 0.04f;
+}
+
 void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surface, float dt) {
     if (!audio->initialized) return;
-    if (audio->ambient_playing) {
+
+    // ── Ducking: briefly lower ambient when interactions fire ──
+    float duck_mult = 1.0f;
+    if (audio->duck_timer > 0) {
+        audio->duck_timer -= dt;
+        if (audio->duck_timer < 0) audio->duck_timer = 0;
+        // Smooth duck envelope: quick attack, slow release
+        float duck_env = audio->duck_timer > 0.05f ? 1.0f : audio->duck_timer / 0.05f;
+        duck_mult = 1.0f - audio->duck_amount * duck_env;
+    }
+
+    // ── Drone crossfade ──
+    if (audio->crossfade_timer > 0) {
+        audio->crossfade_timer -= dt;
+        float t = audio->crossfade_timer / audio->crossfade_duration;  // 1→0
+        // Fade out current drone
+        Sound *old_drone = get_drone(audio, audio->current_drone);
+        SetSoundVolume(*old_drone, get_drone_base_vol(audio, audio->current_drone) * t * duck_mult);
+        // Fade in new drone
+        Sound *new_drone = get_drone(audio, audio->next_drone);
+        if (!IsSoundPlaying(*new_drone)) PlaySound(*new_drone);
+        SetSoundVolume(*new_drone, get_drone_base_vol(audio, audio->next_drone) * (1.0f - t) * duck_mult);
+
+        if (audio->crossfade_timer <= 0) {
+            // Crossfade complete — switch
+            StopSound(*old_drone);
+            audio->current_drone = audio->next_drone;
+            audio->crossfade_timer = 0;
+        }
+    } else if (audio->ambient_playing) {
         Sound *drone = get_drone(audio, audio->current_drone);
         if (!IsSoundPlaying(*drone)) PlaySound(*drone);
+        // Apply ducking to drone volume
+        if (duck_mult < 1.0f) {
+            SetSoundVolume(*drone, get_drone_base_vol(audio, audio->current_drone) * duck_mult);
+        }
     }
+
+    // Scene ambients — loop when playing, apply ducking
     if (audio->city_playing && !IsSoundPlaying(audio->snd_city)) PlaySound(audio->snd_city);
     if (audio->clock_playing && !IsSoundPlaying(audio->snd_clock)) PlaySound(audio->snd_clock);
     if (audio->stairwell_playing && !IsSoundPlaying(audio->snd_stairwell)) PlaySound(audio->snd_stairwell);
@@ -1095,12 +1195,15 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
     if (audio->muffled_piano_playing && !IsSoundPlaying(audio->snd_muffled_piano)) PlaySound(audio->snd_muffled_piano);
     if (audio->distant_voices_playing && !IsSoundPlaying(audio->snd_distant_voices)) PlaySound(audio->snd_distant_voices);
     if (audio->footsteps_above_playing && !IsSoundPlaying(audio->snd_footsteps_above)) PlaySound(audio->snd_footsteps_above);
+
+    // Footsteps — pitch variation per step
     Sound *steps = get_steps(audio, surface);
     audio->step_interval = sprinting ? 0.32f : 0.50f;
     if (moving) {
         audio->step_timer += dt;
         if (audio->step_timer >= audio->step_interval) {
             audio->step_timer = 0;
+            SetSoundPitch(steps[audio->step_index], 0.95f + (float)(GetRandomValue(0, 100)) / 1000.0f);
             PlaySound(steps[audio->step_index]);
             audio->step_index = (audio->step_index + 1) % 4;
         }
@@ -1109,22 +1212,49 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
     }
 }
 
+// Pitch micro-variation — makes interactions feel alive
+static float interact_pitch_var(void) {
+    // ±5% pitch randomization
+    return 0.95f + (float)(GetRandomValue(0, 100)) / 1000.0f;
+}
+
 void PlayInteract(EVAudio *audio, InteractSoundType type) {
     if (!audio->initialized) return;
-    switch(type) { case INTERACT_CLICK: PlaySound(audio->snd_click); break;
-                   case INTERACT_FABRIC: PlaySound(audio->snd_fabric); break;
-                   case INTERACT_FLAME: PlaySound(audio->snd_flame); break;
-                   case INTERACT_CORK_POP: PlaySound(audio->snd_cork_pop); break;
-                   case INTERACT_GLASS_CLINK: PlaySound(audio->snd_glass_clink); break; }
+    Sound *snd = NULL;
+    switch(type) {
+        case INTERACT_CLICK:      snd = &audio->snd_click; break;
+        case INTERACT_FABRIC:     snd = &audio->snd_fabric; break;
+        case INTERACT_FLAME:      snd = &audio->snd_flame; break;
+        case INTERACT_CORK_POP:   snd = &audio->snd_cork_pop; break;
+        case INTERACT_GLASS_CLINK: snd = &audio->snd_glass_clink; break;
+    }
+    if (snd) {
+        SetSoundPitch(*snd, interact_pitch_var());
+        PlaySound(*snd);
+        // Trigger ducking — briefly lower ambient so interaction reads
+        audio->duck_timer = 0.3f;
+        audio->duck_amount = 0.3f;
+    }
 }
-void PlayRewardSound(EVAudio *audio) { if(audio->initialized) PlaySound(audio->snd_reward); }
+void PlayRewardSound(EVAudio *audio) {
+    if (!audio->initialized) return;
+    SetSoundPitch(audio->snd_reward, interact_pitch_var());
+    PlaySound(audio->snd_reward);
+    audio->duck_timer = 0.5f;  // longer duck for reward
+    audio->duck_amount = 0.4f;
+}
 void PlaySparkleSound(EVAudio *audio) { if(audio->initialized) PlaySound(audio->snd_sparkle); }
 void PlayDoorSound(EVAudio *audio) { if(audio->initialized) PlaySound(audio->door); }
 
 void StartAmbient(EVAudio *audio, DroneType type) {
     if (!audio->initialized) return;
-    if (audio->ambient_playing && audio->current_drone != type)
-        StopSound(*get_drone(audio, audio->current_drone));
+    if (audio->ambient_playing && audio->current_drone != type) {
+        // Crossfade: start fading out current drone, queue new one
+        audio->next_drone = type;
+        audio->crossfade_timer = 1.0f;  // 1 second crossfade
+        audio->crossfade_duration = 1.0f;
+        return;  // don't start new drone yet — UpdateEVAudio handles the fade
+    }
     audio->current_drone = type;
     if (!IsSoundPlaying(*get_drone(audio, type))) PlaySound(*get_drone(audio, type));
     audio->ambient_playing = true;
@@ -1256,26 +1386,34 @@ static Sound gen_bed_drone(void) {
 }
 
 // ── Sprint 1: Held chord — stacked fifths (C3-G3-D4) ──────────────
-// Three notes, 3s attack, sustains indefinitely. Credits as elegy.
+// String ensemble timbre. Credits as elegy.
 static Sound gen_held_chord(void) {
     int len = SAMPLE_RATE * 20;  // 20s loop
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
-    // C3 = 130.81Hz, G3 = 196.00Hz, D4 = 293.66Hz
+    // Stacked fifths: C3-G3-D4
     float freqs[] = {130.81f, 196.00f, 293.66f};
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float lt = (float)i / len;
-        // 3-second attack, infinite sustain, loop crossfade at end
+        // 3-second attack, infinite sustain, loop crossfade
         float env = fminf(1.0f, t / 3.0f);
         if (lt > 0.95f) env *= (1.0f - lt) / 0.05f;
         float chord = 0;
         for (int n = 0; n < 3; n++) {
-            chord += sinf(2 * PI * freqs[n] * t) * 0.3f;
-            // Slight detuning for warmth
-            chord += sinf(2 * PI * freqs[n] * 1.003f * t) * 0.1f;
+            float f = freqs[n];
+            // Fundamental + chorus detuning (string ensemble warmth)
+            chord += sinf(2 * PI * f * t) * 0.25f;
+            chord += sinf(2 * PI * f * 1.003f * t) * 0.08f;
+            chord += sinf(2 * PI * f * 0.997f * t) * 0.08f;
+            // 2nd harmonic — body
+            chord += sinf(2 * PI * f * 2.0f * t) * 0.06f;
+            // 3rd harmonic — presence
+            chord += sinf(2 * PI * f * 3.0f * t) * 0.02f;
         }
-        d[i] = (short)(chord * env * 4000);
+        // Gentle breathing modulation
+        float breath = 0.9f + 0.1f * sinf(t * 0.3f);
+        d[i] = (short)(chord * env * breath * 3500);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
@@ -1379,23 +1517,22 @@ static Sound gen_hyperspace_tone(void) {
     int len = SAMPLE_RATE * 6;
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
+    // Proper phase accumulation for exponential frequency sweep 80Hz → 400Hz
+    float phase = 0, phase_sub = 0;
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float lt = (float)i / len;
-        // Exponential frequency sweep: 80Hz → 400Hz
+        // Instantaneous frequency: exponential sweep
         float freq = 80.0f * powf(5.0f, lt);
-        // Phase accumulation for smooth sweep
-        (void)freq; // used indirectly below
-        float phase = 2 * PI * 80.0f * (powf(5.0f, lt) - 1.0f) / logf(5.0f) / SAMPLE_RATE * i;
-        (void)phase;
-        // Re-derive: integrate freq over time
-        // Actually simpler: accumulate phase manually
-        float tone = sinf(2 * PI * freq * t) * 0.5f;
-        // Add sub-octave for body
-        tone += sinf(2 * PI * freq * 0.5f * t) * 0.3f;
-        // Envelope: fade in, crescendo, cut
-        float env = fminf(1.0f, t / 1.0f);  // 1s fade-in
-        env *= 0.5f + 0.5f * lt;  // crescendo
+        // Phase accumulation — correct way to sweep without artifacts
+        float dp = 2.0f * PI * freq / SAMPLE_RATE;
+        phase += dp;
+        phase_sub += dp * 0.5f;
+        float tone = sinf(phase) * 0.5f;
+        tone += sinf(phase_sub) * 0.3f;  // sub-octave for body
+        // Envelope: 1s fade-in, crescendo
+        float env = fminf(1.0f, t / 1.0f);
+        env *= 0.5f + 0.5f * lt;
         d[i] = (short)(tone * env * 5000);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
@@ -1412,4 +1549,515 @@ void StopHyperspaceTone(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_hyperspace_tone);
     audio->hyperspace_tone_playing = false;
+}
+
+// ── Hyperspace riser — layered noise+harmonics+sub, 6s, overwhelming crescendo ──
+static Sound gen_hyperspace_riser(void) {
+    int len = SAMPLE_RATE * 6;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xDEAD;
+    // Pre-compute phase accumulators for smooth frequency sweeps
+    float phase_sub = 0.0f;
+    float phase_h1 = 0.0f;
+    float phase_h2 = 0.0f;
+    float phase_h3 = 0.0f;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;  // 0→1 over 6 seconds
+        // --- Layer 1: Sub rumble 40Hz→120Hz ---
+        float sub_freq = 40.0f + lt * lt * 80.0f;  // quadratic sweep
+        phase_sub += 2 * PI * sub_freq / SAMPLE_RATE;
+        float sub = sinf(phase_sub) * (0.3f + lt * 0.7f);
+        // --- Layer 2: Harmonic stack, octave-spaced, sweeping 80→600Hz ---
+        float base_freq = 80.0f * powf(7.5f, lt);
+        phase_h1 += 2 * PI * base_freq / SAMPLE_RATE;
+        phase_h2 += 2 * PI * base_freq * 2.0f / SAMPLE_RATE;
+        phase_h3 += 2 * PI * base_freq * 3.0f / SAMPLE_RATE;
+        float harmonics = sinf(phase_h1) * 0.5f
+                        + sinf(phase_h2) * 0.3f * lt  // upper harmonics fade in
+                        + sinf(phase_h3) * 0.15f * lt * lt;
+        // --- Layer 3: Filtered noise sweep (bandpass rising) ---
+        float noise_raw = ev_randf(&rng) * 2.0f - 1.0f;
+        // Simple resonant bandpass: multiply noise by swept sine
+        float bp_freq = 200.0f + lt * lt * 2000.0f;
+        float filtered = noise_raw * sinf(2 * PI * bp_freq * t) * lt;
+        // --- Envelope: slow fade in, exponential crescendo ---
+        float env = lt * lt;  // quadratic crescendo
+        if (lt < 0.1f) env *= lt / 0.1f;  // anti-click fade-in
+        // Cut at end — the silence after is the point
+        if (lt > 0.92f) env *= (1.0f - lt) / 0.08f;
+        float mix = sub * 0.4f + harmonics * 0.35f + filtered * 0.25f;
+        d[i] = (short)(mix * env * 12000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayHyperspaceRiser(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->hyperspace_riser_playing) {
+        PlaySound(audio->snd_hyperspace_riser);
+        audio->hyperspace_riser_playing = true;
+    }
+}
+void StopHyperspaceRiser(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_hyperspace_riser);
+    audio->hyperspace_riser_playing = false;
+}
+
+// ── Arrival thump — deep bass impact + reverb tail, the floor meeting you ──
+static Sound gen_arrival_thump(void) {
+    int len = SAMPLE_RATE * 2;  // 2 seconds for reverb tail
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xBEEF;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        // Pitch-dropping sine: 120Hz→30Hz in 0.3s, then holds 30Hz
+        float freq = (t < 0.3f) ? 120.0f - t * 300.0f : 30.0f;
+        if (freq < 30.0f) freq = 30.0f;
+        float body = sinf(2 * PI * freq * t);
+        // Transient click — the actual impact
+        float click = sinf(2 * PI * 800.0f * t) * expf(-60.0f * t);
+        // Noise burst — rubble/air displacement
+        float noise = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-15.0f * t);
+        // Envelope: instant attack, fast initial decay, slow tail
+        float env;
+        if (t < 0.005f) env = t / 0.005f;  // 5ms attack
+        else if (t < 0.15f) env = 1.0f - (t - 0.005f) * 2.0f;  // fast decay
+        else env = 0.7f * expf(-3.0f * (t - 0.15f));  // long tail
+        if (env < 0) env = 0;
+        float mix = body * 0.5f + click * 0.25f + noise * 0.25f;
+        d[i] = (short)(mix * env * 16000);
+    }
+    // Simple room reverb — two tap delays
+    int tap1 = (int)(SAMPLE_RATE * 0.07f);
+    int tap2 = (int)(SAMPLE_RATE * 0.13f);
+    for (int i = tap2; i < len; i++) {
+        d[i] += (short)(d[i - tap1] * 0.15f);
+        d[i] += (short)(d[i - tap2] * 0.08f);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayArrivalThump(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_arrival_thump);
+}
+
+// ── Elevator whoosh — ascending filtered noise, building anticipation ──
+static Sound gen_elevator_whoosh(void) {
+    int len = SAMPLE_RATE * 5;  // 5 seconds — matches elevator duration
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xCAFE;
+    float phase = 0.0f;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Wind noise — filtered through rising bandpass
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Sweep center frequency 100Hz→800Hz
+        float center = 100.0f + lt * lt * 700.0f;
+        float filtered = noise * sinf(2 * PI * center * t);
+        // Subtle tonal component — ascending hum
+        float hum_freq = 60.0f + lt * 200.0f;
+        phase += 2 * PI * hum_freq / SAMPLE_RATE;
+        float hum = sinf(phase) * 0.3f;
+        // Envelope: gentle fade in, crescendo, abrupt cut
+        float env = lt;  // linear crescendo
+        if (lt < 0.05f) env *= lt / 0.05f;  // anti-click
+        if (lt > 0.95f) env *= (1.0f - lt) / 0.05f;  // soft cut
+        float mix = filtered * 0.6f + hum * 0.4f;
+        // Add turbulence — random amplitude wobble
+        float turb = 0.8f + 0.2f * sinf(t * 7.0f) * sinf(t * 3.0f);
+        d[i] = (short)(mix * env * turb * 6000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayElevatorWhoosh(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->elevator_whoosh_playing) {
+        PlaySound(audio->snd_elevator_whoosh);
+        audio->elevator_whoosh_playing = true;
+    }
+}
+void StopElevatorWhoosh(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_elevator_whoosh);
+    audio->elevator_whoosh_playing = false;
+}
+
+// ── Door thud — heavy hotel door close, latch + resonance ──────────
+static Sound gen_door_thud(void) {
+    int len = SAMPLE_RATE * 1;  // 1 second
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xD00D;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        // Heavy body — pitch drops 80Hz→40Hz
+        float body_f = 80.0f - t * 200.0f;
+        if (body_f < 40.0f) body_f = 40.0f;
+        float body = sinf(2 * PI * body_f * t) * expf(-6.0f * t);
+        // Latch click — high transient
+        float click = sinf(2 * PI * 3000.0f * t) * expf(-120.0f * t);
+        // Wood panel resonance — midrange ring
+        float panel = sinf(2 * PI * 350.0f * t) * expf(-8.0f * t);
+        // Air noise — the seal
+        float air = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-25.0f * t);
+        float mix = body * 0.4f + click * 0.15f + panel * 0.25f + air * 0.2f;
+        // Attack envelope
+        float env = (t < 0.003f) ? t / 0.003f : 1.0f;
+        d[i] = (short)(mix * env * 14000);
+    }
+    // Room reverb
+    int tap1 = (int)(SAMPLE_RATE * 0.05f);
+    int tap2 = (int)(SAMPLE_RATE * 0.11f);
+    for (int i = tap2; i < len; i++) {
+        d[i] += (short)(d[i - tap1] * 0.12f);
+        d[i] += (short)(d[i - tap2] * 0.06f);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayDoorThud(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_door_thud);
+}
+
+// ── Airlock hiss — pressurization burst, sharp filtered noise ──────
+static Sound gen_airlock_hiss(void) {
+    int len = SAMPLE_RATE * 1;  // 1 second
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xA1AC;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // High-frequency noise burst — bandpassed around 4kHz falling to 1kHz
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        float center = 4000.0f - lt * 3000.0f;
+        float filtered = noise * sinf(2 * PI * center * t);
+        // Sub-thud at the start — the seal breaking
+        float thud = sinf(2 * PI * 60.0f * t) * expf(-20.0f * t);
+        // Envelope: sharp attack, fast initial decay, slow hiss tail
+        float env;
+        if (t < 0.01f) env = t / 0.01f;
+        else if (t < 0.1f) env = 1.0f;
+        else env = expf(-4.0f * (t - 0.1f));
+        float mix = filtered * 0.6f + thud * 0.4f;
+        d[i] = (short)(mix * env * 8000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayAirlockHiss(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_airlock_hiss);
+}
+
+// ── Gravity settle — hull creak/groan, ship acknowledging weight ───
+static Sound gen_gravity_settle(void) {
+    int len = SAMPLE_RATE * 2;  // 2 seconds — slow structural sound
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0x6AAF;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Low metallic groan — two detuned sines beating against each other
+        float f1 = 55.0f + sinf(t * 0.5f) * 5.0f;  // wandering pitch
+        float f2 = 58.0f + sinf(t * 0.7f) * 3.0f;
+        float groan = sinf(2 * PI * f1 * t) * 0.5f + sinf(2 * PI * f2 * t) * 0.5f;
+        // Creak — short mid-frequency chirps
+        float creak_env = expf(-8.0f * fabsf(t - 0.4f));  // peaks at 0.4s
+        creak_env += expf(-10.0f * fabsf(t - 1.0f)) * 0.6f;  // second creak
+        float creak = sinf(2 * PI * (300.0f + sinf(t * 50.0f) * 100.0f) * t) * creak_env;
+        // Noise texture — stress
+        float stress = (ev_randf(&rng) * 2.0f - 1.0f) * 0.1f;
+        // Envelope: fade in, sustain, fade out
+        float env = 1.0f;
+        if (lt < 0.15f) env = lt / 0.15f;
+        if (lt > 0.7f) env = (1.0f - lt) / 0.3f;
+        float mix = groan * 0.5f + creak * 0.35f + stress * 0.15f;
+        d[i] = (short)(mix * env * 8000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayGravitySettle(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_gravity_settle);
+}
+
+// ── Bed impact — soft muffled thud + fabric rustle, surrender ──────
+static Sound gen_bed_impact(void) {
+    int len = SAMPLE_RATE * 1;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xBED0;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        // Very low thud — muffled by cushion, 40Hz only
+        float thud = sinf(2 * PI * 40.0f * t) * expf(-8.0f * t);
+        // Fabric rustle — filtered noise, gentle
+        float rustle = (ev_randf(&rng) * 2.0f - 1.0f);
+        // Bandpass around 800Hz — fabric character
+        rustle *= sinf(2 * PI * 800.0f * t) * expf(-6.0f * t);
+        // Springs — subtle high ring at 1200Hz
+        float springs = sinf(2 * PI * 1200.0f * t) * expf(-15.0f * t) * 0.2f;
+        // Soft envelope — no sharp transient, everything cushioned
+        float env = (t < 0.02f) ? t / 0.02f : 1.0f;
+        env *= expf(-3.0f * t);
+        float mix = thud * 0.5f + rustle * 0.3f + springs * 0.2f;
+        d[i] = (short)(mix * env * 10000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayBedImpact(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_bed_impact);
+}
+
+// ── Balcony gust — one-shot wind rush, the void entering ──────────
+static Sound gen_balcony_gust(void) {
+    int len = SAMPLE_RATE * 2;  // 2 second gust
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xC05A;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Broadband noise — the wind itself
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Swept bandpass — low growl rises to high whistle then falls
+        float center = 200.0f + sinf(lt * PI) * 1500.0f;  // arcs up and back
+        float filtered = noise * sinf(2 * PI * center * t);
+        // Low pressure wave — felt not heard
+        float pressure = sinf(2 * PI * 25.0f * t) * sinf(lt * PI);
+        // Envelope: fast attack, peak at 30%, long tail
+        float env;
+        if (lt < 0.05f) env = lt / 0.05f;
+        else if (lt < 0.3f) env = 1.0f;
+        else env = expf(-2.5f * (lt - 0.3f));
+        float mix = filtered * 0.6f + pressure * 0.3f + noise * 0.1f * expf(-5.0f * t);
+        d[i] = (short)(mix * env * 10000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayBalconyGust(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_balcony_gust);
+}
+
+// ── Title breath — inhale/exhale noise texture, subliminal ─────────
+static Sound gen_title_breath(void) {
+    int len = SAMPLE_RATE * 3;  // 3 seconds — one full breath cycle
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xB4EA;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Noise source
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Breathing shape: inhale (0-40%), pause (40-50%), exhale (50-90%), silence (90-100%)
+        float breath_env;
+        if (lt < 0.4f) {
+            // Inhale — crescendo
+            float p = lt / 0.4f;
+            breath_env = p * p;  // quadratic rise
+        } else if (lt < 0.5f) {
+            // Held — brief plateau
+            breath_env = 1.0f;
+        } else if (lt < 0.9f) {
+            // Exhale — decrescendo
+            float p = (lt - 0.5f) / 0.4f;
+            breath_env = (1.0f - p) * (1.0f - p);
+        } else {
+            breath_env = 0.0f;
+        }
+        // Formant-like filtering — nasal/throat character
+        // Inhale: higher center (500Hz), exhale: lower (250Hz)
+        float formant = (lt < 0.5f) ? 500.0f : 250.0f;
+        float filtered = noise * sinf(2 * PI * formant * t);
+        // Add very subtle tonal component — body resonance
+        float body = sinf(2 * PI * 100.0f * t) * 0.15f;
+        float mix = filtered * 0.7f + body * 0.3f;
+        d[i] = (short)(mix * breath_env * 5000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayTitleBreath(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_title_breath);
+}
+
+// ── Hard cut punch — micro-transient, 10ms click + sub thump ───────
+static Sound gen_hard_cut_punch(void) {
+    int len = SAMPLE_RATE / 4;  // 250ms — short and physical
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        // Sub thump — 50Hz, instant attack, fast decay
+        float sub = sinf(2 * PI * 50.0f * t) * expf(-25.0f * t);
+        // Click transient — 1kHz spike, 5ms
+        float click = sinf(2 * PI * 1000.0f * t) * expf(-200.0f * t);
+        // Upper crack — 3kHz, even shorter
+        float crack = sinf(2 * PI * 3000.0f * t) * expf(-400.0f * t);
+        float mix = sub * 0.5f + click * 0.3f + crack * 0.2f;
+        // Hard envelope — instant on, fast out
+        float env = (t < 0.001f) ? t / 0.001f : 1.0f;
+        d[i] = (short)(mix * env * 16000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayHardCutPunch(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_hard_cut_punch);
+}
+
+// ── Earth presence — 30Hz sub-bass, gravitational hum near observation window ──
+static Sound gen_earth_presence(void) {
+    int len = SAMPLE_RATE * 10;  // 10-second loop
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Deep sub-bass — 30Hz fundamental
+        float sub = sinf(2 * PI * 30.0f * t);
+        // Second harmonic at 60Hz for body
+        float body = sinf(2 * PI * 60.0f * t) * 0.3f;
+        // Very slow amplitude modulation — breathing
+        float breath = 0.7f + 0.3f * sinf(2 * PI * t / 4.0f);
+        // Loop crossfade
+        float env = 1.0f;
+        if (lt < 0.03f) env = lt / 0.03f;
+        if (lt > 0.97f) env = (1.0f - lt) / 0.03f;
+        float mix = (sub * 0.7f + body * 0.3f) * breath;
+        d[i] = (short)(mix * env * 8000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayEarthPresence(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->earth_presence_playing) {
+        PlaySound(audio->snd_earth_presence);
+        audio->earth_presence_playing = true;
+    }
+}
+void StopEarthPresence(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_earth_presence);
+    audio->earth_presence_playing = false;
+}
+void SetEarthPresenceVolume(EVAudio *audio, float vol) {
+    if (!audio->initialized) return;
+    SetSoundVolume(audio->snd_earth_presence, vol);
+}
+
+// ============================================================
+// FILE-BASED MUSIC — Maxwell's compositions
+// Loaded from assets/audio/. Streamed, not buffered.
+// Each piece plays once, never loops, never repeats.
+// ============================================================
+
+void LoadFileMusic(EVAudio *audio) {
+    audio->music_suite = LoadMusicStream("assets/audio/lighthouse.wav");
+    audio->music_balcony = LoadMusicStream("assets/audio/ambient4.wav");
+    audio->music_corridor = LoadMusicStream("assets/audio/ambient1_icloud.wav");
+    audio->music_title = LoadMusicStream("assets/audio/ambient3.wav");
+    // No looping — each piece plays exactly once
+    audio->music_suite.looping = false;
+    audio->music_balcony.looping = false;
+    audio->music_corridor.looping = false;
+    audio->music_title.looping = true;  // title loops until player presses enter
+    audio->suite_music_playing = false;
+    audio->balcony_music_playing = false;
+    audio->corridor_music_playing = false;
+    audio->title_music_playing = false;
+    audio->music_loaded = true;
+}
+
+void UnloadFileMusic(EVAudio *audio) {
+    if (!audio->music_loaded) return;
+    UnloadMusicStream(audio->music_suite);
+    UnloadMusicStream(audio->music_balcony);
+    UnloadMusicStream(audio->music_corridor);
+    UnloadMusicStream(audio->music_title);
+    audio->music_loaded = false;
+}
+
+void UpdateFileMusic(EVAudio *audio) {
+    if (!audio->music_loaded) return;
+    if (audio->suite_music_playing) UpdateMusicStream(audio->music_suite);
+    if (audio->balcony_music_playing) UpdateMusicStream(audio->music_balcony);
+    if (audio->corridor_music_playing) UpdateMusicStream(audio->music_corridor);
+    if (audio->title_music_playing) UpdateMusicStream(audio->music_title);
+}
+
+void PlaySuiteMusic(EVAudio *audio) {
+    if (!audio->music_loaded || audio->suite_music_playing) return;
+    SetMusicVolume(audio->music_suite, 0.35f);  // sits under procedural audio
+    PlayMusicStream(audio->music_suite);
+    audio->suite_music_playing = true;
+}
+void StopSuiteMusic(EVAudio *audio) {
+    if (!audio->music_loaded) return;
+    StopMusicStream(audio->music_suite);
+    audio->suite_music_playing = false;
+}
+
+void PlayBalconyMusic(EVAudio *audio) {
+    if (!audio->music_loaded || audio->balcony_music_playing) return;
+    SetMusicVolume(audio->music_balcony, 0.3f);
+    PlayMusicStream(audio->music_balcony);
+    audio->balcony_music_playing = true;
+}
+void StopBalconyMusic(EVAudio *audio) {
+    if (!audio->music_loaded) return;
+    StopMusicStream(audio->music_balcony);
+    audio->balcony_music_playing = false;
+}
+
+void PlayCorridorMusic(EVAudio *audio) {
+    if (!audio->music_loaded || audio->corridor_music_playing) return;
+    SetMusicVolume(audio->music_corridor, 0.15f);  // underneath, not dominant
+    PlayMusicStream(audio->music_corridor);
+    audio->corridor_music_playing = true;
+}
+void StopCorridorMusic(EVAudio *audio) {
+    if (!audio->music_loaded) return;
+    StopMusicStream(audio->music_corridor);
+    audio->corridor_music_playing = false;
+}
+
+void PlayTitleMusic(EVAudio *audio) {
+    if (!audio->music_loaded || audio->title_music_playing) return;
+    SetMusicVolume(audio->music_title, 0.2f);  // atmospheric, not foreground
+    PlayMusicStream(audio->music_title);
+    audio->title_music_playing = true;
+}
+void StopTitleMusic(EVAudio *audio) {
+    if (!audio->music_loaded) return;
+    StopMusicStream(audio->music_title);
+    audio->title_music_playing = false;
+}
+
+void SetFileMusicVolume(EVAudio *audio, float vol) {
+    if (!audio->music_loaded) return;
+    if (audio->suite_music_playing) SetMusicVolume(audio->music_suite, vol * 0.35f);
+    if (audio->balcony_music_playing) SetMusicVolume(audio->music_balcony, vol * 0.3f);
+    if (audio->corridor_music_playing) SetMusicVolume(audio->music_corridor, vol * 0.15f);
+    if (audio->title_music_playing) SetMusicVolume(audio->music_title, vol * 0.2f);
 }
