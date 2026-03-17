@@ -1682,6 +1682,201 @@ void build_elevator(Scene *s) {
 
 }
 
+void build_elevator_space(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    // SPACE ELEVATOR — same brass box, but you're riding between floors
+    // of an orbital hotel. Through the glass: the lobby shrinks below,
+    // station skeleton passes, Earth glows through hull gaps.
+    s->surface = SURFACE_MARBLE;
+
+    Color brass = PAL_BRASS;
+    Color floor_marble = PAL_DARK;
+    Color mirror = {210, 215, 220, 180};
+    Color warm_panel = PAL_LIGHT_WARM;
+    Color btn_dark = {140, 125, 90, 255};
+    Color btn_lit = {240, 220, 140, 255};
+    Color hull = PAL_HULL;
+    Color hull_dark = {22, 24, 32, 255};
+    Color cream = PAL_CREAM;
+
+    float ew = 2, ed = 2, eh = 2.5f;
+
+    s->fog_color = PAL_FOG_STATION;
+    s->fog_density = 0.001f;
+
+    // ============================================================
+    // INTERIOR — same brass box as terrestrial, you recognize it
+    // ============================================================
+
+    // Floor — dark marble
+    add_wall(s, 0, -0.05f, 0, ew, 0.1f, ed, floor_marble);
+    set_last_material(s, MAT_MARBLE);
+
+    // Ceiling
+    add_wall(s, 0, eh, 0, ew, 0.1f, ed, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // Ceiling light panel
+    add_light_panel(s, 0, eh - 0.08f, 0, 1.0f, 0.04f, 1.0f, warm_panel);
+
+    // Back wall — brass
+    add_wall(s, 0, eh/2, -ed/2, ew, eh, 0.08f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Front wall — doors (closed)
+    add_wall(s, 0, eh/2, ed/2, ew, eh, 0.08f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Right wall — brass
+    add_wall(s, ew/2, eh/2, 0, 0.08f, eh, ed, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // LEFT WALL — glass viewport. Now you see the station, not Auckland.
+    add_wall(s, -ew/2, eh/2, 0, 0.02f, eh, ed, (Color){100, 130, 160, 20});
+    set_last_material(s, MAT_GLASS);
+    add_wall(s, -ew/2, eh-0.02f, 0, 0.04f, 0.06f, ed, brass);   // top frame
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -ew/2, 0.02f, 0, 0.04f, 0.06f, ed, brass);      // bottom frame
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -ew/2, eh/2, -ed/2, 0.04f, eh, 0.06f, brass);   // left frame
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -ew/2, eh/2, ed/2, 0.04f, eh, 0.06f, brass);    // right frame
+    set_last_material(s, MAT_BRASS);
+
+    // FLOOR — glass panel so you see the lobby dropping away
+    add_wall(s, 0, -0.02f, 0, ew-0.2f, 0.01f, ed-0.2f, (Color){80, 110, 140, 15});
+    set_last_material(s, MAT_GLASS);
+    // Brass grid lines on glass floor
+    add_wall(s, 0, -0.01f, 0, 0.03f, 0.02f, ed-0.2f, brass);
+    add_wall(s, 0, -0.01f, 0, ew-0.2f, 0.02f, 0.03f, brass);
+
+    // Mirror on back wall
+    add_wall(s, 0, 1.4f, -ed/2 + 0.06f, 1.2f, 1.4f, 0.03f, mirror);
+    set_last_material(s, MAT_GLASS);
+
+    // Button panel — second button lit (floor 2: corridor level)
+    float panel_x = ew/2 - 0.06f;
+    float panel_z = 0.3f;
+    add_wall(s, panel_x, 1.2f, panel_z, 0.04f, 0.7f, 0.2f, (Color){150, 135, 100, 255});
+    set_last_material(s, MAT_BRASS);
+    for (int i = 0; i < 4; i++) {
+        float by = 0.95f + i * 0.15f;
+        Color bc = (i == 1) ? btn_lit : btn_dark;
+        add_wall(s, panel_x - 0.01f, by, panel_z, 0.03f, 0.08f, 0.08f, bc);
+    }
+
+    // Door seam
+    add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
+
+    // Floor indicator
+    add_wall(s, 0, eh - 0.3f, ed/2 - 0.06f, 0.5f, 0.25f, 0.02f, (Color){60, 55, 45, 255});
+    set_last_material(s, MAT_BRASS);
+    add_light_panel(s, 0, eh - 0.3f, ed/2 - 0.04f, 0.35f, 0.15f, 0.01f, (Color){240, 200, 120, 180});
+
+    // Handrail
+    add_wall(s, 0, 0.9f, -ed/2 + 0.08f, 1.4f, 0.03f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // ============================================================
+    // EXTERIOR — the space station dropping away below
+    // Through the glass wall and glass floor: lobby receding,
+    // station skeleton, Earth through hull gaps.
+    // ============================================================
+
+    // LOBBY BELOW — checkerboard floor, chandelier, columns receding
+    Color marble_a = {185, 180, 172, 200};
+    Color marble_b = {45, 42, 38, 200};
+    for (int tx = -3; tx <= 3; tx++) {
+        for (int tz = -2; tz <= 2; tz++) {
+            Color mc = ((tx + tz) % 2 == 0) ? marble_a : marble_b;
+            add_wall(s, tx * 2.0f - 3, -2.0f, tz * 2.0f - 4, 1.9f, 0.05f, 1.9f, mc);
+        }
+    }
+    // Chandelier below — warm glow shrinking as you rise
+    add_light_panel(s, 0, -1.0f, -3, 0.8f, 0.6f, 0.8f, warm_panel);
+    add_cylinder(s, 0, -0.5f, -3, 0.6f, 0.06f, brass);
+    // Reception desk — brass rectangle
+    add_wall(s, -6, -1.5f, -5, 3.5f, 0.8f, 1.0f, brass);
+    set_last_material(s, MAT_WOOD);
+    // Columns — cream pillars dropping away
+    add_cylinder(s, -4, -2.0f, -4, 0.35f, 4.0f, cream);
+    add_cylinder(s,  4, -2.0f, -4, 0.35f, 4.0f, cream);
+    add_cylinder(s, -4, -2.0f,  4, 0.35f, 4.0f, cream);
+    add_cylinder(s,  4, -2.0f,  4, 0.35f, 4.0f, cream);
+    // Observation window glow — blue light from below
+    add_wall(s, 0, -2.2f, -6, 10, 0.02f, 3, (Color){50, 120, 200, 60});
+    set_last_decal(s);
+
+    // ELEVATOR SHAFT — brass rings you rise past
+    for (int i = 0; i < 12; i++) {
+        float ry = -4.0f + i * 3.0f;
+        float ring_r = 1.3f + sinf(i * 1.1f) * 0.15f;
+        add_cylinder(s, 0, ry, 0, ring_r * 2 + 0.2f, 0.08f, brass);
+        set_last_material(s, MAT_BRASS);
+    }
+    // Vertical guide rails — 4 brass posts
+    for (int p = 0; p < 4; p++) {
+        float angle = p * 1.5708f;  // 90 degrees
+        float px = cosf(angle) * 1.4f;
+        float pz = sinf(angle) * 1.4f;
+        add_wall(s, px, 14, pz, 0.06f, 32, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+    }
+
+    // STATION SKELETON — hull ribs, cables, infrastructure
+    for (int i = 0; i < 8; i++) {
+        float ry = 2.0f + i * 4.0f;
+        // Hull ribs visible through glass wall
+        add_wall(s, -3.5f, ry, 0, 2.0f, 0.2f, 4.0f, hull);
+        set_last_material(s, MAT_CONCRETE);
+        add_wall(s, 3.5f, ry, 0, 2.0f, 0.2f, 4.0f, hull);
+        set_last_material(s, MAT_CONCRETE);
+    }
+    // Vertical cable bundles
+    add_wall(s, -2.8f, 14, -1.5f, 0.08f, 30, 0.08f, hull_dark);
+    add_wall(s, -3.2f, 14, 0.8f, 0.06f, 30, 0.06f, hull_dark);
+    add_wall(s, -2.5f, 14, 1.2f, 0.05f, 30, 0.05f, (Color){35, 38, 48, 255});
+
+    // Brass pipe with condensation
+    add_cylinder(s, -3.0f, 14, -0.5f, 0.1f, 28, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // HULL GAPS — Earth visible through the station's skin
+    for (int i = 0; i < 5; i++) {
+        float gy = 4.0f + i * 5.0f;
+        add_wall(s, -5, gy, 0, 1.5f, 2.5f, 5, hull_dark);
+        set_last_material(s, MAT_CONCRETE);
+        // Earth glow bleeding through
+        add_wall(s, -4.5f, gy, 0, 0.5f, 1.5f, 3.0f, (Color){40, 90, 180, 25});
+    }
+
+    // Earth — the anchor, always present
+    add_sphere(s, -8, 8, -6, 4.0f, (Color){35, 75, 140, 255});
+    add_sphere(s, -8, 8, -6, 4.4f, (Color){120, 170, 220, 80});
+
+    // DESTINATION ABOVE — hint of corridor appearing
+    add_wall(s, 0, 28, 0, 4, 0.05f, 4, (Color){60, 50, 38, 255});
+    add_light_panel(s, 0, 27, 0, 3, 0.5f, 3, (Color){240, 210, 140, 40});
+    // Corridor carpet color bleeding through — deep violet
+    add_wall(s, 0, 26, 0, 3, 0.02f, 3, (Color){55, 45, 75, 30});
+
+    // Stars through hull gaps
+    for (int i = 0; i < 10; i++) {
+        float sx = -12.0f + (float)((i*31)%20);
+        float sy = 5.0f + (float)((i*17)%25);
+        float sz = -8.0f + (float)((i*13)%16);
+        add_wall(s, sx, sy, sz, 0.12f, 0.12f, 0.12f,
+                 (Color){240,235,225,(unsigned char)(100+(i*23)%120)});
+    }
+
+    tag_materials_by_color(s);
+
+    s->spawn = (Vector3){0, 1.6f, 0};
+    s->has_exit = false;
+
+    // ── THE MOTIF: cigarette ──
+    // Same gap in the panel. This elevator remembers your last ride.
+    add_cylinder(s, 0.48f, 1.0f, -0.45f, 0.008f, 0.03f, (Color){230,225,215,180});
+}
+
 void build_taxi_ride(Scene *s) {
     memset(s, 0, sizeof(Scene));
     // BOUNDS: taxi interior — no player movement, mouse-look only
@@ -2054,6 +2249,7 @@ void build_hyperspace(Scene *s) {
         float lz = -8.0f - i * 10.0f;
         unsigned char la = (unsigned char)(140 + (i * 15) % 80);
         add_wall(s, lx, ly, lz, 0.04f, 0.04f, 4.0f, (Color){240, 220, 160, la});
+        set_last_material(s, MAT_GLASS);
     }
 
     // Stars streaking past — elongated along Z (motion blur effect)
@@ -2063,6 +2259,7 @@ void build_hyperspace(Scene *s) {
         float sz = -3.0f - (float)((i*31)%90);
         add_wall(s, sx, sy, sz, 0.06f, 0.06f, 1.5f,
                  (Color){240,238,232,(unsigned char)(120+(i*23)%100)});
+        set_last_material(s, MAT_GLASS);
     }
 
     // Second star field — tighter, closer, brighter (depth layering)
@@ -2072,6 +2269,7 @@ void build_hyperspace(Scene *s) {
         float sz = -10.0f - (float)((i*37)%50);
         add_wall(s, sx, sy, sz, 0.03f, 0.03f, 3.0f,
                  (Color){255,250,240,(unsigned char)(180+(i*17)%75)});
+        set_last_material(s, MAT_GLASS);
     }
 
     // Convergence point — bright orb at the far end (the destination)
@@ -2080,13 +2278,19 @@ void build_hyperspace(Scene *s) {
 
     // Void floor/ceiling — barely visible, gives orientation
     add_wall(s, 0, -3.0f, -45, 6, 0.02f, 90, void_black);
+    set_last_material(s, MAT_MARBLE);
     add_wall(s, 0, 3.0f, -45, 6, 0.02f, 90, void_black);
+    set_last_material(s, MAT_MARBLE);
 
     // Additional Godard color flashes — denser in the middle section
     add_wall(s, 0.7f, 0.8f, -35, 0.08f, 0.4f, 0.3f, godard_red);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -0.5f, -0.6f, -52, 0.3f, 0.08f, 0.4f, godard_blue);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 1.3f, 0.2f, -68, 0.06f, 0.6f, 0.2f, godard_red);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -1.1f, 0.4f, -82, 0.2f, 0.06f, 0.5f, godard_blue);
+    set_last_material(s, MAT_FABRIC);
 
     // ── THE MOTIF: cigarette ──
     // Not a cigarette here. Just its ember — a red point drifting in the tunnel.

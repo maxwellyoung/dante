@@ -695,11 +695,11 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
         .keyColor = {1.2f, 1.0f, 0.70f},           // warm overhead amber — BRIGHT
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
         .fillColor = {0.20f, 0.28f, 0.40f},        // porthole starlight — cool blue
-        .ambient = {0.22f, 0.22f, 0.28f},           // Brighter — drama via shadows, not crushing blacks
+        .ambient = {0.30f, 0.30f, 0.36f},           // Readable at 480x300 — drama via shadows not crushing
         // Ceiling panels spread along corridor + one blue porthole
         .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {0, 3.2f, 16}},
-        .pointColor = {{1.0f, 0.80f, 0.55f}, {0.9f, 0.75f, 0.50f}, {0.8f, 0.70f, 0.45f}, {0.5f, 0.6f, 0.8f}},
-        .pointRadius = {14.0f, 14.0f, 14.0f, 12.0f},
+        .pointColor = {{1.2f, 0.95f, 0.65f}, {1.1f, 0.90f, 0.60f}, {1.0f, 0.85f, 0.55f}, {0.6f, 0.7f, 0.9f}},
+        .pointRadius = {18.0f, 18.0f, 18.0f, 14.0f},
     };
 }
 

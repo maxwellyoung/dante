@@ -1035,8 +1035,8 @@ int main(void) {
             .spawn = {{0, 1.6f, 6}, {0, 2, -3}},           // entering, chandelier visible
             .outdoor = true},
         {STATE_SPACE_CORRIDOR, "space_corridor",
-            .hero  = {{0, 0, 0}, {0, 1.6f, -12}},          // from spawn looking down corridor
-            .spawn = {{0, 0, 0}, {-1, 1.6f, 0}},            // toward first porthole
+            .hero  = {{-14, 1.6f, 3}, {5, 1.4f, 1}},        // near spawn, looking down curved corridor (doors + windows visible)
+            .spawn = {{-14, 1.6f, 3}, {-8, 1.6f, 2}},       // toward first porthole
             .outdoor = false},
         {STATE_SPACE_SUITE, "space_suite",
             .hero  = {{3, 1.6f, 0}, {-6, 2, -2}},         // from right looking at Earth window
@@ -2419,17 +2419,33 @@ int main(void) {
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
+                // Gibbons behavior — context at specific waypoints
+                if (gibbons.waiting) {
+                    if (gibbons.current_waypoint == 1) {
+                        // Mid-corridor: gazes out the window at Earth
+                        gibbons.behavior = NPC_GAZING;
+                        gibbons.yaw_target = 1.5708f;  // face the window (90°)
+                    } else if (gibbons.current_waypoint == 2) {
+                        // Last waypoint: gesture toward suite door
+                        gibbons.behavior = NPC_GESTURING;
+                    }
+                }
                 // Per-position speed modulation — slow near windows (Earth views)
-                // Windows are on alternating segments; player slows when near the wall
                 {
                     float px = fabsf(player.camera.position.x);
                     if (px > 1.5f) {
-                        // Near a window wall — slow to 65%
                         float wt = fminf(1.0f, (px - 1.5f) / 1.0f);
                         float slow = 1.0f - wt * 0.35f;
                         player.vel.x *= slow;
                         player.vel.z *= slow;
                     }
+                }
+                // ── Spatial compression — Commandment 7 ──
+                // The corridor is imperceptibly shorter when walking TOWARD the suite.
+                // 3% speed boost in the +Z direction (toward exit). Not enough to notice.
+                // The player feels the corridor "pulling" them toward their room.
+                if (scene.has_exit && player.vel.z > 0.1f) {
+                    player.vel.z *= 1.03f;  // 3% — subliminal
                 }
                 // ============================================================
                 // SILENCE ZONES — the Beginner's Guide's most powerful technique
@@ -2596,6 +2612,12 @@ int main(void) {
                 }
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
+                // Gibbons vanishes after delivering his last line
+                // "He's already gone when you turn around"
+                if (!gibbons.active && gibbons.current_line >= gibbons.line_count) {
+                    // Silently deactivated — he was never really there
+                    gibbons.pos.y = -100;  // move off-screen so shadow doesn't linger
+                }
                 // P3: Lamp ritual — filament warms over 1.5s
                 if (interaction_phases[0] == 1) {
                     interaction_timers[0] -= dt;
