@@ -531,7 +531,11 @@ static void load_state(GameState s) {
             break;
 
         case STATE_ELEVATOR:
-            build_elevator(&scene);
+            if (elevator_to_corridor) {
+                build_elevator_space(&scene);
+            } else {
+                build_elevator(&scene);
+            }
             init_player(&player, scene.spawn);
             elevator_ding_played = false;
             StopAmbient(&audio);
@@ -539,12 +543,22 @@ static void load_state(GameState s) {
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopDistantVoices(&audio); StopFootstepsAbove(&audio);
+            StopEarthPresence(&audio);
             PlayElevatorHum(&audio);
-            PlayElevatorWhoosh(&audio);  // ascending wind — building toward hyperspace
-            player.gravity_mult = 1.0f;  // Earth gravity — last time you'll feel this
-            SetSceneLighting(&lighting, LightingPreset_Elevator());
-            set_exposure(0.0f);
-            SetPostFXGrain(&postfx, 0.3f);  // fluorescent — less grain
+            if (elevator_to_corridor) {
+                // Space ride — gentler, mechanical, no wind
+                PlayDoorThud(&audio);  // doors closing behind you
+                player.gravity_mult = 0.4f;  // orbital gravity — you're already in space
+                SetSceneLighting(&lighting, LightingPreset_ElevatorSpace());
+                set_exposure(-0.05f);  // slightly dimmer — between floors
+                SetPostFXGrain(&postfx, 0.35f);
+            } else {
+                PlayElevatorWhoosh(&audio);  // ascending wind — building toward hyperspace
+                player.gravity_mult = 1.0f;  // Earth gravity — last time you'll feel this
+                SetSceneLighting(&lighting, LightingPreset_Elevator());
+                set_exposure(0.0f);
+                SetPostFXGrain(&postfx, 0.3f);  // fluorescent — less grain
+            }
             break;
 
         case STATE_HALLWAY:
@@ -1783,27 +1797,60 @@ int main(void) {
                 break;
 
             case STATE_ELEVATOR:
-                // The Glass Elevator — brass box ascending to orbit
-                // Accelerating upward drift, faster than before
-                {
-                    float accel = 0.3f + state_time * 0.4f;  // accelerates over time
-                    player.camera.position.y += accel * dt;
-                    player.camera.target.y += accel * dt;
-                }
-                // Ding at 2 seconds — the sound is enough
-                if (state_time > 2.0f && !elevator_ding_played) {
-                    elevator_ding_played = true;
-                    PlayElevatorDing(&audio);
-                }
-                // Doors open
                 if (elevator_to_corridor) {
-                    // Space lobby → corridor: short ride, ding, arrive
-                    if (state_time > 3.0f) {
+                    // SPACE ELEVATOR — lobby to corridor
+                    // 4 phases: jolt (0-0.3s), cruise (0.3-3s), decel (3-3.8s), arrive (3.8-4.2s)
+                    {
+                        float t = state_time;
+                        float speed = 0;
+
+                        if (t < 0.3f) {
+                            // Jolt — mechanical start, slight camera drop then rise
+                            float jolt = t / 0.3f;
+                            speed = jolt * jolt * 2.0f;  // quadratic ramp
+                            // Subtle camera shake — you feel the mechanism engage
+                            float shake = (1.0f - jolt) * 0.008f;
+                            player.camera.position.x += sinf(t * 60) * shake;
+                            player.camera.target.x += sinf(t * 60) * shake;
+                        } else if (t < 3.0f) {
+                            // Cruise — steady rise, gentle sway
+                            speed = 2.0f;
+                            // Very subtle sway — the shaft isn't perfectly straight
+                            float sway = sinf(t * 2.5f) * 0.003f;
+                            player.camera.position.x += sway;
+                            player.camera.target.x += sway;
+                        } else if (t < 3.8f) {
+                            // Deceleration — slowing, arriving
+                            float decel = 1.0f - (t - 3.0f) / 0.8f;
+                            speed = 2.0f * decel * decel;
+                        }
+                        // else: stopped, waiting for cut
+
+                        player.camera.position.y += speed * dt;
+                        player.camera.target.y += speed * dt;
+                    }
+                    // Ding at 3.5s — arrival ding, timed to the stop
+                    if (state_time > 3.5f && !elevator_ding_played) {
+                        elevator_ding_played = true;
+                        PlayElevatorDing(&audio);
+                    }
+                    // Cut after ding has rung and doors "open"
+                    if (state_time > 4.2f) {
                         elevator_to_corridor = false;
                         hard_cut_to(STATE_SPACE_CORRIDOR);
                     }
                 } else {
-                    // Terrestrial → hyperspace: longer ride into the wormhole
+                    // TERRESTRIAL ELEVATOR — ascending to orbit
+                    {
+                        float accel = 0.3f + state_time * 0.4f;
+                        player.camera.position.y += accel * dt;
+                        player.camera.target.y += accel * dt;
+                    }
+                    // Ding at 2 seconds
+                    if (state_time > 2.0f && !elevator_ding_played) {
+                        elevator_ding_played = true;
+                        PlayElevatorDing(&audio);
+                    }
                     if (state_time > 5.0f) hard_cut_to(STATE_HYPERSPACE);
                 }
                 break;
@@ -2985,9 +3032,18 @@ int main(void) {
                         Vector3 earth_pos = {0, -40, -60};  // default
                         if (state == STATE_SPACE_LOBBY) earth_pos = (Vector3){3, -20, -40};
                         else if (state == STATE_SPACE_CORRIDOR) earth_pos = (Vector3){-20, -30, -30};
-                        else if (state == STATE_SPACE_SUITE) earth_pos = (Vector3){-35, -20, -10};
+                        else if (state == STATE_SPACE_SUITE) { float prog = (float)tasks_done / SPACE_TASK_COUNT; earth_pos = (Vector3){-35+prog*5, -20+prog*3, -10+prog*3}; }
                         else if (state == STATE_BALCONY) earth_pos = (Vector3){0, -30, -50};
-                        draw_earth(player.camera, state_time, &sphere_model, &lighting, earth_pos);
+                        // Commandment 7: Earth rotates faster when you're not looking
+                        // The planet changes while your back is turned. Imperceptible.
+                        {
+                            Vector3 to_earth = Vector3Normalize(Vector3Subtract(earth_pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            float facing = Vector3DotProduct(to_earth, look);
+                            // When facing Earth: normal time. When looking away: 2x rotation
+                            float earth_time = state_time * (1.0f + (1.0f - fmaxf(0, facing)) * 1.0f);
+                            draw_earth(player.camera, earth_time, &sphere_model, &lighting, earth_pos);
+                        }
                     }
                 } else {
                     ClearBackground(scene.fog_color);

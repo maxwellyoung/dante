@@ -297,6 +297,22 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
         idle_tilt *= 0.3f;      // less idle sway when focused
     }
 
+    // Gazing — looking at something far away (window, Earth)
+    // Head tilts up slightly, body still, contemplative
+    if (npc->behavior == NPC_GAZING) {
+        reading_pitch = 8.0f;   // head tilts UP — looking at the view
+        idle_tilt *= 0.2f;      // very still — absorbed
+        idle_sway *= 0.3f;
+    }
+
+    // Gesturing — right arm extended forward, inviting player through
+    float gesture_arm = 0;
+    if (npc->behavior == NPC_GESTURING) {
+        float gt = fminf(1.0f, idle * 1.5f);
+        gesture_arm = gt * 0.5f;  // arm lifts forward
+        idle_tilt *= 0.4f;
+    }
+
     // P6: Bow animation — torso tilts forward at waypoint arrival
     float bow_pitch = 0;
     if (!walking && idle > 0.5f && idle < 1.8f) {
@@ -458,19 +474,21 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float l_hand_y = l_elbow_y - forearm_h;
     DRAW(-arm_x, l_hand_y - hand_s/2, 0, hand_s, hand_s, hand_s);
 
-    // Right upper arm (watch_glance lifts forearm briefly)
+    // Right upper arm (watch_glance lifts forearm, gesture extends forward)
     D(m, npc->body_color, 9);
-    float r_off = tie_adjust > 0 ? tie_adjust : watch_glance;
-    DRAW(arm_x, shoulder_y - upper_arm_h/2 + r_sw + r_off, 0,
+    float r_off = tie_adjust > 0 ? tie_adjust : (gesture_arm > 0 ? gesture_arm : watch_glance);
+    DRAW(arm_x, shoulder_y - upper_arm_h/2 + r_sw + r_off, -gesture_arm * 0.4f,
          upper_arm_w, upper_arm_h, upper_arm_w);
     // Right forearm
     D(m, DC(45, 50, 72, 255),9);
     float r_elbow_y = shoulder_y - upper_arm_h + r_sw + r_off;
-    DRAW(arm_x, r_elbow_y - forearm_h/2, -watch_glance * 0.3f, forearm_w, forearm_h, forearm_w);
-    // Right hand
+    DRAW(arm_x, r_elbow_y - forearm_h/2, -watch_glance * 0.3f - gesture_arm * 0.3f,
+         forearm_w, forearm_h, forearm_w);
+    // Right hand — palm open when gesturing
     D(m, npc->head_color, 0);
     float r_hand_y = r_elbow_y - forearm_h;
-    DRAW(arm_x, r_hand_y - hand_s/2, 0, hand_s, hand_s, hand_s);
+    DRAW(arm_x, r_hand_y - hand_s/2, -gesture_arm * 0.2f,
+         hand_s + gesture_arm * 0.04f, hand_s, hand_s + gesture_arm * 0.04f);
 
     // ── BRIEFCASE — left hand ──
     D(m, npc->briefcase_color, 8);

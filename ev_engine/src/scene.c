@@ -2638,8 +2638,8 @@ void build_space_corridor(Scene *s) {
     Color brass = PAL_BRASS;
     Color cream = PAL_CREAM;
     Color void_black = PAL_PORTHOLE;
-    Color carpet_a = {55, 45, 75, 255};      // deep violet carpet — not red, this is space
-    Color carpet_b = {62, 52, 82, 255};
+    Color carpet_a = {85, 70, 105, 255};     // warm violet — readable at 480x300
+    Color carpet_b = {95, 78, 112, 255};
     Color warm_amber = PAL_GLOW_AMBER;
     Color door_colors[2] = {PAL_RED, PAL_BLUE};
 
@@ -2688,14 +2688,14 @@ void build_space_corridor(Scene *s) {
         add_wall(s, cx+W/2, H/2, cz, 0.15f, H, seg_len, hull);
         set_last_material(s, MAT_CONCRETE);
 
-        // Cream paneling — only on non-window walls (windows alternate sides)
+        // Cream paneling — tall panels on non-window walls (75% height)
         // Window side gets no cream so void reads uninterrupted
         if (i % 2 == 0 || (i % 4 != 1)) {
-            add_wall(s, cx-W/2+0.14f, H*0.25f, cz, 0.04f, H*0.5f, seg_len-0.2f, cream);
+            add_wall(s, cx-W/2+0.14f, H*0.375f, cz, 0.04f, H*0.75f, seg_len-0.2f, cream);
             set_last_material(s, MAT_WALLPAPER);
         }
         if (i % 2 == 0 || (i % 4 == 1)) {
-            add_wall(s, cx+W/2-0.14f, H*0.25f, cz, 0.04f, H*0.5f, seg_len-0.2f, cream);
+            add_wall(s, cx+W/2-0.14f, H*0.375f, cz, 0.04f, H*0.75f, seg_len-0.2f, cream);
             set_last_material(s, MAT_WALLPAPER);
         }
 

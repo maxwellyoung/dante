@@ -53,9 +53,9 @@
 #define PAL_FOG_VOID    (Color){4, 5, 12, 255}
 #define PAL_FOG_STATION (Color){8, 10, 20, 255}
 
-// Space hotel materials
-#define PAL_HULL        (Color){75, 82, 95, 255}
-#define PAL_HULL_LIGHT  (Color){100, 108, 122, 255}
+// Space hotel materials — must read at 480x300, not submarine-dark
+#define PAL_HULL        (Color){105, 112, 125, 255}
+#define PAL_HULL_LIGHT  (Color){135, 142, 155, 255}
 #define PAL_PORTHOLE    (Color){4, 6, 14, 255}
 #define PAL_EARTH_GLOW  (Color){60, 130, 200, 140}
 #define PAL_STAR_WHITE  (Color){240, 238, 232, 200}

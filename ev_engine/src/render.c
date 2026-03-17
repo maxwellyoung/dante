@@ -398,7 +398,7 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed) {
 //                                  sat    ca   con  vig  grn  exp   tint_r/g/b        dith scan blm  post pix  shrp
 const VisualStyle visual_styles[STYLE_COUNT] = {
     // 1: Default — 16mm Godard. Warm, grainy, slight bloom.
-    {"16mm Film",     0.92f, 2.5f, 1.0f, 1.2f, 0.6f,  0.0f, {1.0f,1.0f,1.0f},       0.0f,0.0f,0.3f, 0,  1,  0.0f},
+    {"16mm Film",     0.88f, 2.5f, 1.2f, 1.4f, 0.5f,  0.05f, {1.02f,1.0f,0.98f},    0.0f,0.0f,0.5f, 0,  1,  0.2f},
 
     // 2: PS1 — ordered dithering, color quantization, chunky pixels
     {"PS1",           0.85f, 1.0f, 0.8f, 0.5f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},

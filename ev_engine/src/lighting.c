@@ -602,6 +602,21 @@ SceneLighting LightingPreset_Elevator(void) {
     };
 }
 
+SceneLighting LightingPreset_ElevatorSpace(void) {
+    // Brass box in space — warm overhead panel, Earth blue from below
+    // Through the glass floor: lobby glow fading, Earth glow rising
+    return (SceneLighting){
+        .keyDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
+        .keyColor = {0.75f, 0.70f, 0.55f},      // warmer brass, less fluorescent
+        .fillDir = Vector3Normalize((Vector3){-0.3f, 1.0f, 0.0f}),
+        .fillColor = {0.12f, 0.18f, 0.28f},     // Earth blue from below/left
+        .ambient = {0.10f, 0.11f, 0.14f},        // cooler ambient than terrestrial
+        .pointPos = {{0, 2.4f, 0}, {-1.0f, -0.5f, 0}},
+        .pointColor = {{0.6f, 0.55f, 0.40f}, {0.08f, 0.15f, 0.25f}},
+        .pointRadius = {3.0f, 5.0f},
+    };
+}
+
 SceneLighting LightingPreset_Hallway(void) {
     // Long corridor — overhead practicals at intervals, warm but dim
     // Think: Kubrick's Shining hallway, but warmer

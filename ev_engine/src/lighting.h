@@ -83,6 +83,7 @@ SceneLighting LightingPreset_Taxi(void);
 SceneLighting LightingPreset_Exterior(void);
 SceneLighting LightingPreset_Lobby(void);
 SceneLighting LightingPreset_Elevator(void);
+SceneLighting LightingPreset_ElevatorSpace(void);
 SceneLighting LightingPreset_Hallway(void);
 SceneLighting LightingPreset_Room(void);
 SceneLighting LightingPreset_Bathroom(void);
