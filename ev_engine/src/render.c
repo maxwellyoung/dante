@@ -565,6 +565,29 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         }
     }
 
+    // ── Ambient micro-animations — the world breathes ──
+    // Objects that are small + above floor + not floor/ceiling/wall
+    // get subtle sine-driven movement. The space is alive.
+    if (!indoor) {
+        // Zero-G drift — floating objects oscillate slowly
+        // Modifies wall positions each frame (reverts next frame since scene rebuilds)
+        for (int i = 0; i < scene->wall_count; i++) {
+            Wall *w = &scene->walls[i];
+            if (!w->active) continue;
+            // Floating objects: small, above 1m, not a structural wall
+            bool is_small = w->size.x < 0.8f && w->size.y < 0.8f && w->size.z < 0.8f;
+            bool is_floating = w->pos.y > 1.0f && w->pos.y < 6.0f;
+            bool is_structure = w->size.x > 3.0f || w->size.y > 3.0f || w->size.z > 3.0f;
+            if (is_small && is_floating && !is_structure) {
+                // Each object drifts on its own phase (seeded by index)
+                float phase = (float)i * 2.3f;
+                w->pos.y += sinf(time * 0.4f + phase) * 0.003f;
+                w->pos.x += sinf(time * 0.25f + phase * 1.3f) * 0.002f;
+                w->pos.z += cosf(time * 0.3f + phase * 0.7f) * 0.002f;
+            }
+        }
+    }
+
     // Dust motes in indoor scenes
     if (indoor) {
         draw_dust_motes(player->camera, time);

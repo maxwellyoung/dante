@@ -513,6 +513,21 @@ static void load_state(GameState s) {
             SetSceneLighting(&lighting, LightingPreset_Lobby());
             set_exposure(0.0f);   // grand lobby — let chandelier work
             SetPostFXGrain(&postfx, 0.4f);
+            // Gibbons — first appearance. Behind the desk, waiting for you.
+            {
+                Vector3 lobby_wps[] = {
+                    {-3, 1.6f, -6},    // behind desk (starting)
+                    {-1, 1.6f, -4},    // steps out from desk
+                    {0, 1.6f, 2},      // leads toward elevator
+                };
+                init_npc(&gibbons, (Vector3){-3, 1.6f, -7}, lobby_wps, 3, 2.0f, 4.0f);
+                static const char *lobby_lines[] = {
+                    "Good evening. You're expected.",
+                    "The elevator is this way.",
+                    "Going up.",
+                };
+                npc_set_dialogue(&gibbons, lobby_lines, 3, 3.0f);
+            }
             break;
 
         case STATE_ELEVATOR:
@@ -1601,6 +1616,18 @@ int main(void) {
 
             case STATE_CAR: {
                 // 3D taxi ride — mouse look, no movement, city scrolls past
+                // Driver speaks — two lines, the frame story
+                {
+                    static bool driver_line1 = false, driver_line2 = false;
+                    if (state_time > 1.5f && !driver_line1) {
+                        show_text("Where to?");
+                        driver_line1 = true;
+                    }
+                    if (state_time > 4.0f && !driver_line2) {
+                        show_text("Sky Tower. Three hours.");
+                        driver_line2 = true;
+                    }
+                }
                 // Mouse look (yaw/pitch only, no position change)
                 Vector2 md = GetMouseDelta();
                 float car_yaw = -md.x * ev_mouse_sens;
@@ -1708,6 +1735,14 @@ int main(void) {
             case STATE_LOBBY:
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                update_npc(&gibbons, player.camera.position, &scene, dt);
+                // Chandelier sway — grand lobby breathes
+                {
+                    float sway = sinf(state_time * 0.7f) * 0.3f;
+                    SetPointLightIdx(&lighting, 0,
+                        sway, 6.5f, -3.0f,
+                        0.9f, 0.75f, 0.45f, 10.0f);
+                }
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -1725,12 +1760,24 @@ int main(void) {
                                 }
                                 if (strcmp(obj->name, "newspaper") == 0) {
                                     obj->step++; obj->done = true;
-                                    PlayInteract(&audio, INTERACT_CLICK);
+                                    PlayInteract(&audio, INTERACT_FABRIC);
+                                    show_text("SKY TOWER HOTEL OPENS ORBITAL SUITE");
+                                    break;
+                                }
+                                if (strcmp(obj->name, "bell") == 0) {
+                                    obj->step++; obj->done = true;
+                                    PlayElevatorDing(&audio);  // same ding — foreshadowing
+                                    kick_camera(&player, -0.01f, 0.005f);
                                     break;
                                 }
                             }
                         }
                     }
+                }
+                // Gibbons dialogue → vignette text (same system as space scenes)
+                {
+                    const char *line = npc_current_dialogue(&gibbons);
+                    if (line) show_text(line);
                 }
                 // Elevator is the only way up — no hallway exit
                 break;
@@ -2198,6 +2245,14 @@ int main(void) {
                 // Transition — no early skip until 30s (let the player sit in it)
                 if (state_time > 20)
                     hard_cut_to(STATE_STARS);
+                
+                // Breathing — camera rises and falls like lungs
+                {
+                    float breath_rate = 0.4f;  // slow, surrendered breathing
+                    float breath_amp = 0.015f;
+                    float breath = sinf(state_time * breath_rate * 2 * 3.14159f) * breath_amp;
+                    player.camera.position.y += breath * dt * 2.0f;
+                }
                 break;
 
             case STATE_STARS:
@@ -2305,6 +2360,11 @@ int main(void) {
                             0.0f, 0.5f, -7.0f,
                             0.24f * pulse, 0.51f * pulse, 0.78f * pulse,
                             12.0f * pulse);
+                        // Chandelier micro-flicker — warm light breathes independently
+                        float ch_flk = 0.92f + 0.08f * sinf(state_time * 3.1f) * sinf(state_time * 5.7f);
+                        SetPointLightIdx(&lighting, 3,
+                            0, 8.0f, -3.0f,
+                            0.7f * ch_flk, 0.55f * ch_flk, 0.35f * ch_flk, 10.0f);
                         // Earth sub-bass: louder near window (z < -4), silent far away
                         float window_dist = fabsf(pz + 7.0f);  // window at z=-7
                         float sub_vol = (window_dist < 5.0f)
@@ -2579,6 +2639,19 @@ int main(void) {
                     float bt = fminf(1.0f, 1.0f - interaction_timers[3] / 2.0f);
                     player.camera.position.y += ((1.6f - bt*0.8f) - player.camera.position.y) * dt * 2.0f;
                     if (interaction_timers[3] <= 0) interaction_phases[3] = 2;
+                }
+                // ── Micro-animations: completed objects stay alive ──
+                // Lamp flicker — barely perceptible, the bulb breathes
+                if (interaction_phases[0] == 2) {
+                    float flk = 0.95f + 0.05f * sinf(state_time * 7.3f) * sinf(state_time * 11.1f);
+                    SetPointLightIdx(&lighting, 0, -2.5f, 1.2f, -4.8f,
+                                     flk, flk*0.82f, flk*0.45f, 8.0f);
+                }
+                // Champagne glow — liquid catches shifting light
+                if (interaction_phases[1] == 2) {
+                    float glow = 0.5f + 0.1f * sinf(state_time * 1.2f);
+                    SetPointLightIdx(&lighting, 2, -3.1f, 0.42f, 3.5f,
+                                     glow*0.6f, glow*0.5f, glow*0.15f, 3.0f);
                 }
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
