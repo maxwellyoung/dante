@@ -309,6 +309,8 @@ typedef struct {
     float peak_speed;       // highest speed reached (for feedback scaling)
     // Agency dial — scales wish_speed and mouse sens (1.0 = full, 0.0 = frozen)
     float control_mult;
+    // Gravity multiplier — 1.0 = Earth, 0.4 = orbital hotel, 0.0 = zero-g
+    float gravity_mult;
     // Idle breathing — accumulates when nearly still
     float idle_time;
     // Debug

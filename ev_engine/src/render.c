@@ -583,8 +583,29 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
             unsigned char a = (unsigned char)(150 * obj->reward_timer);
             DrawSphere(obj->pos, radius, (Color){255, 220, 120, a});
         }
-        // Undone objects: no pulsing glow. No sphere marker. The lamp IS the lamp.
-        // The crosshair grows when you look at something — that's enough.
+        // Proximity warmth — the world acknowledges your attention
+        // Not a game-y highlight — a faint warm breath, like an object
+        // warming under your gaze. Diegetic: the lamp anticipates being lit.
+        if (!obj->done) {
+            float dist = Vector3Distance(player->camera.position, obj->pos);
+            if (dist < obj->radius * 0.8f) {
+                Vector3 to_obj = Vector3Normalize(Vector3Subtract(obj->pos, player->camera.position));
+                Vector3 look = Vector3Normalize(Vector3Subtract(player->camera.target, player->camera.position));
+                float facing = Vector3DotProduct(to_obj, look);
+                if (facing > 0.6f) {
+                    // Subtle warm glow — scales with proximity and facing
+                    float intensity = (facing - 0.6f) / 0.4f;  // 0-1
+                    float prox = 1.0f - (dist / (obj->radius * 0.8f));
+                    float glow = intensity * prox * 0.3f;
+                    unsigned char ga = (unsigned char)(glow * 80);
+                    if (ga > 5) {
+                        float pulse = 0.8f + 0.2f * sinf(time * 2.0f);
+                        DrawSphere(obj->pos, 0.15f + pulse * 0.05f,
+                                   (Color){255, 230, 180, (unsigned char)(ga * pulse)});
+                    }
+                }
+            }
+        }
     }
 
     EndMode3D();

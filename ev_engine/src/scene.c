@@ -2297,13 +2297,22 @@ void build_space_lobby(Scene *s) {
     add_picture_frame(s, 7.0f, lh*0.55f, -ld/2+0.26f, 1.0f, 0.8f, brass, (Color){35,75,140,255});
 
     // Light shaft from observation window — Earth glow projected onto floor
-    // Trapezoidal shape widening from window to center (light diffuses)
     add_wall(s, 0, 0.02f, -5, 6, 0.02f, 3, (Color){35, 75, 140, 30});
     set_last_decal(s);
     add_wall(s, 0, 0.02f, -3, 8, 0.02f, 2, (Color){30, 65, 120, 20});
     set_last_decal(s);
     add_wall(s, 0, 0.02f, -1, 10, 0.02f, 2, (Color){25, 55, 100, 12});
     set_last_decal(s);
+
+    // Volumetric light shafts — visible cones of light in the air
+    // Dust catches Earth glow streaming through the observation window.
+    // Tall transparent boxes, fading with distance from window.
+    add_wall(s, -3, lh*0.35f, -6, 2.0f, lh*0.5f, 1.5f, (Color){40, 90, 180, 8});
+    add_wall(s, 3, lh*0.4f, -5.5f, 1.5f, lh*0.45f, 2.0f, (Color){35, 80, 160, 6});
+    add_wall(s, 0, lh*0.3f, -4, 3.0f, lh*0.4f, 2.5f, (Color){30, 70, 140, 4});
+    // Side window light shafts — smaller, angled
+    add_wall(s, -lw/2+4, lh*0.35f, -4, 1.5f, lh*0.4f, 1.0f, (Color){35, 85, 170, 6});
+    add_wall(s, lw/2-4, lh*0.35f, 0, 1.5f, lh*0.4f, 1.0f, (Color){35, 85, 170, 6});
 
     // Floating debris — zero-g life (more items, varied heights)
     // Pen floating end-over-end

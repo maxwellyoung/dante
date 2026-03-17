@@ -303,6 +303,27 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     // P6: Briefcase swing during walk
     float case_swing = walking ? sinf(t * 2.0f) * 0.15f : 0;
 
+    // ── Idle quirks — Gibbons is a person, not a mannequin ──
+    // Weight shift: shifts weight to one foot, hip tilts
+    float weight_shift = 0;
+    if (!walking && idle > 3.0f) {
+        float ws_cycle = fmodf(idle - 3.0f, 6.0f);
+        if (ws_cycle < 1.5f) weight_shift = sinf(ws_cycle / 1.5f * 3.14159f) * 0.04f;
+        else if (ws_cycle > 3.0f && ws_cycle < 4.5f)
+            weight_shift = -sinf((ws_cycle - 3.0f) / 1.5f * 3.14159f) * 0.04f;
+    }
+    // Watch glance: right arm lifts briefly to check watch
+    float watch_glance = 0;
+    if (!walking && idle > 5.0f) {
+        float wg = fmodf(idle - 5.0f, 10.0f);
+        if (wg < 0.6f) watch_glance = sinf(wg / 0.6f * 3.14159f) * 0.2f;
+    }
+    // Subtle head look-around when idle for a while
+    float head_wander = 0;
+    if (!walking && idle > 4.0f) {
+        head_wander = sinf(idle * 0.4f) * 3.0f;  // slow horizontal look
+    }
+
     // ── Proportions — total ~1.72m ──
     float shoe_h = 0.06f, shoe_w = 0.18f, shoe_d = 0.22f;
     float shin_h = 0.28f, shin_w = 0.15f;
@@ -384,7 +405,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     // ── TORSO ── (bow_pitch tilts forward, walk_twist counter-rotates)
     D(m, npc->body_color, 9);
     DrawModelEx(*cube_model,
-        P(walk_hip_sway, torso_mid - bow_pitch * 0.1f, -bow_pitch * 0.2f),
+        P(walk_hip_sway + weight_shift, torso_mid - bow_pitch * 0.1f, -bow_pitch * 0.2f),
         (Vector3){0,1,0}, yaw * RAD2DEG + walk_twist,
         (Vector3){body_w, body_h + breathe * 2, body_d}, WHITE);
 
@@ -432,15 +453,15 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float l_hand_y = l_elbow_y - forearm_h;
     DRAW(-arm_x, l_hand_y - hand_s/2, 0, hand_s, hand_s, hand_s);
 
-    // Right upper arm
+    // Right upper arm (watch_glance lifts forearm briefly)
     D(m, npc->body_color, 9);
-    float r_off = tie_adjust > 0 ? tie_adjust : 0;
+    float r_off = tie_adjust > 0 ? tie_adjust : watch_glance;
     DRAW(arm_x, shoulder_y - upper_arm_h/2 + r_sw + r_off, 0,
          upper_arm_w, upper_arm_h, upper_arm_w);
     // Right forearm
     D(m, DC(45, 50, 72, 255),9);
     float r_elbow_y = shoulder_y - upper_arm_h + r_sw + r_off;
-    DRAW(arm_x, r_elbow_y - forearm_h/2, 0, forearm_w, forearm_h, forearm_w);
+    DRAW(arm_x, r_elbow_y - forearm_h/2, -watch_glance * 0.3f, forearm_w, forearm_h, forearm_w);
     // Right hand
     D(m, npc->head_color, 0);
     float r_hand_y = r_elbow_y - forearm_h;
@@ -461,9 +482,11 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     D(m, npc->head_color, 0);
     DRAWCYL(0, neck_y2 + neck_h/2, 0, neck_w, neck_h);
 
-    // ── HEAD ──
+    // ── HEAD ── (head_wander adds slow horizontal look when idle)
     D(m, npc->head_color, 0);
-    DRAW_TILT(0, head_y, 0, head_w, head_h, head_d);
+    DrawModelEx(*cube_model, P(0, head_y, 0),
+        (Vector3){0,1,0}, yaw*RAD2DEG + idle_tilt + head_wander,
+        (Vector3){head_w, head_h, head_d}, WHITE);
 
     // ── EYES — two dark cubes on face ──
     D(m, DC(25, 22, 18, 255),0);
