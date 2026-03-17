@@ -190,7 +190,7 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
 
         // Face toward the player — smoothly
         Vector3 to_player = Vector3Subtract(player_pos, npc->pos);
-        npc->yaw_target = atan2f(to_player.x, to_player.z);
+        npc->yaw_target = atan2f(-to_player.x, -to_player.z);
         float yaw_diff = npc->yaw_target - npc->yaw;
         while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
         while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
@@ -220,7 +220,8 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
         npc->pos.z += dir_z * move;
 
         // Face movement direction — smooth
-        npc->yaw_target = atan2f(dir_x, dir_z);
+        // Model faces -Z at yaw=0, so negate direction
+        npc->yaw_target = atan2f(-dir_x, -dir_z);
         float yaw_diff = npc->yaw_target - npc->yaw;
         while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
         while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;

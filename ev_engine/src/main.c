@@ -119,6 +119,13 @@ static InteractSoundType get_interact_sound(const char *name) {
 static float transition_hold = 0.3f;
 static float hold_timer = 0;
 
+// ── Interaction ritual timers (P3 — multi-second rituals) ──
+static float interaction_timers[4] = {0};  // lamp, champagne, desk, bed
+static int interaction_phases[4] = {0};    // current animation phase
+
+// ── Ambient fade (P4) ──
+static float ambient_fade = 1.0f;
+
 // Forward declaration
 static void load_state(GameState s);
 
@@ -382,20 +389,20 @@ static void load_state(GameState s) {
             set_exposure(-0.05f);
             SetPostFXGrain(&postfx, 0.4f);
             SetPostFXCA(&postfx, 2.5f);  // reset CA from hyperspace
-            // Gibbons — appears near elevator shaft, leads to exit
+            // Gibbons — leads past observation window to glass elevator
             {
                 Vector3 lobby_wps[] = {
-                    {-3, 1.6f, 3},     // near elevator shaft
-                    {-6, 1.6f, -3},    // past reception desk
-                    {0, 1.6f, -6},     // center of lobby
-                    {0, 1.6f, 7},      // toward exit
+                    {3, 0, 2},          // meets you near spawn
+                    {6, 0, -3},         // past observation window
+                    {0, 0, -4},         // toward elevator shaft
+                    {0, 0, 0},          // AT the glass elevator — get in
                 };
-                init_npc_grounded(&gibbons, (Vector3){1, 0, 4}, lobby_wps, 4, 3.0f, 4.0f);
+                init_npc(&gibbons, (Vector3){2, 0, 4}, lobby_wps, 4, 2.5f, 3.5f);
                 static const char *lobby_lines[] = {
                     "Welcome. You're expected.",
-                    "The observation window is worth seeing.",
-                    "Your room is through here.",
-                    "I'll show you the way.",
+                    "The observation window. Worth a look.",
+                    "This way. The elevator.",
+                    "After you.",
                 };
                 npc_set_dialogue(&gibbons, lobby_lines, 4, 3.0f);
             }
@@ -512,6 +519,7 @@ int main(void) {
     SetTextureFilter(postfx_target.texture, TEXTURE_FILTER_POINT);
 
     lighting = LoadEVLighting();
+    CreateShadowMap(&lighting);
     postfx = LoadEVPostFX();
     InitEVAudio(&audio);
 
@@ -1602,9 +1610,17 @@ int main(void) {
                         }
                     }
                 }
-                if (scene.has_exit) {
-                    float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 1.5f) transition_to(STATE_SPACE_CORRIDOR);
+                // Glass elevator — Gibbons leads you here, step in to ascend
+                // Elevator shaft is at (0, y, 0) — center of lobby
+                {
+                    float elev_dist = sqrtf(
+                        player.camera.position.x * player.camera.position.x +
+                        player.camera.position.z * player.camera.position.z);
+                    if (elev_dist < 1.5f && !gibbons.active) {
+                        // Gibbons finished and player is at elevator — ride up
+                        show_text("Going up.");
+                        transition_to(STATE_SPACE_CORRIDOR);
+                    }
                 }
                 break;
 
@@ -1639,8 +1655,16 @@ int main(void) {
                 }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 1.5f) {
+                    if (dist < 3.0f) {
                         SetMasterVolume(1.0f);  // restore before transition
+                        transition_to(STATE_SPACE_SUITE);
+                    }
+                }
+                // Gibbons finished his path — auto-transition after pause
+                if (!gibbons.active && gibbons.current_waypoint >= gibbons.waypoint_count) {
+                    done_pause += dt;
+                    if (done_pause > 1.5f) {
+                        SetMasterVolume(1.0f);
                         transition_to(STATE_SPACE_SUITE);
                     }
                 }
@@ -1802,10 +1826,41 @@ int main(void) {
             }
         }
 
+        // ---- SHADOW PASS ----
+        if (lighting.shadowReady && state != STATE_TITLE && state != STATE_BED && state != STATE_STARS) {
+            // Set up light camera matrices on rlgl stack
+            rlMatrixMode(RL_PROJECTION);
+            rlPushMatrix();
+            rlLoadIdentity();
+            // Extract light direction from current scene preset
+            float ls = 25.0f; // scene radius
+            rlOrtho(-ls, ls, -ls, ls, 0.1f, ls * 4.0f);
+            rlMatrixMode(RL_MODELVIEW);
+            rlPushMatrix();
+            rlLoadIdentity();
+            // Light view from lightSpaceMatrix is already set
+            // We use a simplified approach: just render with the light camera
+            SceneLighting curPreset = LightingPreset_Room(); // default
+            Vector3 lightPos = Vector3Scale(Vector3Negate(curPreset.keyDir), 50.0f);
+            Matrix lightView = MatrixLookAt(lightPos, (Vector3){0,0,0}, (Vector3){0,1,0});
+            rlMultMatrixf(MatrixToFloat(lightView));
+
+            draw_shadow_pass(&scene, &lighting,
+                            &cube_model, &cyl_model, &sphere_model, &cone_model);
+
+            rlMatrixMode(RL_PROJECTION);
+            rlPopMatrix();
+            rlMatrixMode(RL_MODELVIEW);
+            rlPopMatrix();
+        }
+
         // ---- RENDER ----
         BeginTextureMode(render_target);
         ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8, 10, 22, 255});
         if (wireframe) rlEnableWireMode();
+
+        // Bind shadow map for main pass
+        if (lighting.shadowReady) BindShadowMap(&lighting);
 
         switch (state) {
             case STATE_TITLE:
@@ -1863,6 +1918,10 @@ int main(void) {
                 } else if (state == STATE_BALCONY || state == STATE_SPACE_LOBBY
                            || state == STATE_SPACE_CORRIDOR || state == STATE_SPACE_SUITE) {
                     ClearBackground((Color){4, 5, 12, 255});  // deep void
+                    // Procedural Earth — rendered BEFORE scene geometry (sits behind windows)
+                    if (sphere_model_loaded) {
+                        draw_earth(player.camera, state_time, &sphere_model, &lighting);
+                    }
                 } else {
                     ClearBackground(scene.fog_color);
                 }
