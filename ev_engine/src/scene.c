@@ -1570,44 +1570,80 @@ void build_taxi_ride(Scene *s) {
     // Steering column
     add_cylinder(s, -0.35f, 0.65f, -1.35f, 0.04f, 0.2f, (Color){40, 38, 35, 255});
 
-    // Driver — Bolaño character, silhouette in sodium light
-    // "The driver didn't turn around. He didn't need to."
-    // BOLD READABILITY — viewed from backseat at ~1m distance
-    // Every piece must be ≥5px on screen. High contrast against dark interior.
-    Color driver_collar = {220, 215, 205, 255};    // WHITE collar — pops against dark
-    Color driver_cap = {45, 42, 38, 255};           // dark but not invisible
-    Color driver_skin = {200, 175, 140, 255};       // WARM, bright — catches streetlight
-    // Body — dark coat, BROAD, the dominant shape
-    add_wall(s, -0.4f, 0.72f, -0.88f, 0.44f, 0.52f, 0.32f, driver_coat);
+    // ============================================================
+    // DRIVER — high fidelity cube-person, viewed from backseat
+    // Segmented limbs, face detail, clothing: collar flaps, cuffs, watch
+    // ============================================================
+    Color driver_collar = {225, 220, 210, 255};
+    Color driver_cap = {42, 40, 36, 255};
+    Color driver_skin = {205, 180, 145, 255};
+    Color driver_cuff = {180, 175, 168, 255};
+    Color driver_hair = {50, 42, 35, 255};
+    float dx = -0.4f, dz = -0.88f;
+
+    // Torso
+    add_wall(s, dx, 0.72f, dz, 0.44f, 0.50f, 0.30f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Shoulders — much wider, reads as "person" not "box"
-    add_wall(s, -0.4f, 0.96f, -0.88f, 0.58f, 0.12f, 0.30f, driver_coat);
+    // Shoulders
+    add_wall(s, dx, 0.96f, dz, 0.58f, 0.12f, 0.30f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Collar — BRIGHT WHITE, the key readability element from behind
-    add_wall(s, -0.4f, 1.03f, -0.86f, 0.24f, 0.08f, 0.16f, driver_collar);
+    // Collar — bright white V
+    add_wall(s, dx, 1.03f, dz + 0.02f, 0.26f, 0.08f, 0.18f, driver_collar);
     set_last_material(s, MAT_FABRIC);
-    // Neck — visible between collar and head
-    add_wall(s, -0.4f, 1.08f, -0.86f, 0.14f, 0.10f, 0.14f, driver_skin);
-    // Head — BIGGER, the shape you recognize
-    add_wall(s, -0.4f, 1.20f, -0.84f, 0.22f, 0.24f, 0.22f, driver_head);
-    // Flat cap — sits on head, darker, wider brim
-    add_wall(s, -0.4f, 1.34f, -0.84f, 0.28f, 0.07f, 0.28f, driver_cap);
+    // Collar flaps — V shape visible from front/side
+    add_wall(s, dx - 0.08f, 1.00f, dz - 0.14f, 0.10f, 0.06f, 0.06f, driver_collar);
+    add_wall(s, dx + 0.08f, 1.00f, dz - 0.14f, 0.10f, 0.06f, 0.06f, driver_collar);
+
+    // Neck
+    add_cylinder(s, dx, 1.08f, dz + 0.01f, 0.14f, 0.10f, driver_skin);
+
+    // Head
+    add_wall(s, dx, 1.20f, dz + 0.02f, 0.24f, 0.26f, 0.24f, driver_head);
+    // Jaw — wider at bottom
+    add_wall(s, dx, 1.10f, dz + 0.02f, 0.22f, 0.06f, 0.20f, driver_skin);
+    // Ears
+    add_wall(s, dx + 0.13f, 1.18f, dz + 0.02f, 0.04f, 0.08f, 0.06f, driver_skin);
+    add_wall(s, dx - 0.13f, 1.18f, dz + 0.02f, 0.04f, 0.08f, 0.06f, driver_skin);
+    // Hair — dark patch on back of head (player sees this)
+    add_wall(s, dx, 1.22f, dz + 0.11f, 0.22f, 0.18f, 0.08f, driver_hair);
+    // Eyes — visible in rearview mirror angle, dark
+    add_wall(s, dx - 0.06f, 1.22f, dz - 0.11f, 0.05f, 0.04f, 0.02f, (Color){30,25,20,255});
+    add_wall(s, dx + 0.06f, 1.22f, dz - 0.11f, 0.05f, 0.04f, 0.02f, (Color){30,25,20,255});
+
+    // Flat cap
+    add_wall(s, dx, 1.35f, dz + 0.02f, 0.30f, 0.07f, 0.30f, driver_cap);
     set_last_material(s, MAT_FABRIC);
-    // Cap brim — extends forward, casts shadow feel
-    add_wall(s, -0.4f, 1.32f, -0.98f, 0.26f, 0.03f, 0.14f, driver_cap);
+    // Cap brim
+    add_wall(s, dx, 1.33f, dz - 0.12f, 0.28f, 0.025f, 0.14f, driver_cap);
     set_last_material(s, MAT_FABRIC);
-    // Left arm — on steering wheel, CHUNKY
-    add_wall(s, -0.60f, 0.80f, -1.08f, 0.12f, 0.38f, 0.12f, driver_coat);
+
+    // Left upper arm
+    add_wall(s, dx - 0.22f, 0.84f, dz - 0.05f, 0.13f, 0.28f, 0.13f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Left hand on wheel — skin, VISIBLE
-    add_wall(s, -0.55f, 0.74f, -1.26f, 0.10f, 0.08f, 0.10f, driver_skin);
-    // Right arm — resting on center console
-    add_wall(s, -0.22f, 0.80f, -0.78f, 0.12f, 0.38f, 0.12f, driver_coat);
+    // Left forearm — reaching to wheel
+    add_wall(s, dx - 0.20f, 0.76f, dz - 0.28f, 0.11f, 0.14f, 0.22f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Right hand — visible on armrest area
-    add_wall(s, -0.16f, 0.66f, -0.68f, 0.10f, 0.08f, 0.10f, driver_skin);
-    // Ear — on side of head, gives silhouette character
-    add_wall(s, -0.52f, 1.18f, -0.84f, 0.04f, 0.08f, 0.06f, driver_skin);
+    // Left cuff — white shirt
+    add_wall(s, dx - 0.18f, 0.74f, dz - 0.36f, 0.10f, 0.05f, 0.06f, driver_cuff);
+    // Left hand on wheel
+    add_wall(s, dx - 0.16f, 0.74f, dz - 0.42f, 0.10f, 0.07f, 0.08f, driver_skin);
+    // Watch — brass glint
+    add_wall(s, dx - 0.19f, 0.74f, dz - 0.34f, 0.04f, 0.03f, 0.06f, (Color){210,180,100,255});
+    set_last_material(s, MAT_BRASS);
+
+    // Right upper arm
+    add_wall(s, dx + 0.22f, 0.84f, dz + 0.02f, 0.13f, 0.28f, 0.13f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Right forearm — resting
+    add_wall(s, dx + 0.24f, 0.70f, dz + 0.08f, 0.11f, 0.22f, 0.11f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Right cuff
+    add_wall(s, dx + 0.24f, 0.60f, dz + 0.08f, 0.10f, 0.05f, 0.06f, driver_cuff);
+    // Right hand
+    add_wall(s, dx + 0.24f, 0.56f, dz + 0.08f, 0.10f, 0.07f, 0.08f, driver_skin);
+
+    // Jacket center seam — visible from behind
+    add_wall(s, dx, 0.80f, dz + 0.15f, 0.02f, 0.40f, 0.02f, (Color){15,13,10,255});
 
     // Rear-view mirror — small rectangle above dashboard center
     add_wall(s, 0, 1.15f, -1.1f, 0.2f, 0.1f, 0.04f, mirror_c);

@@ -239,174 +239,208 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
 }
 
 // ── Drawing ─────────────────────────────────────────────────────────
-// 10x the original — shoulders, arms, tie, briefcase, proper proportions.
-// Think: the little geometric people in Gravity Bone, but dressed for a
-// hotel that exists between reality and orbit.
+// High fidelity cube-person: segmented limbs, facial features, clothing
+// detail. Every piece hand-placed for 480x300 readability.
 
-void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model __attribute__((unused)),
+void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
               EVLighting *lighting) {
     if (!npc->active) return;
 
     float t = npc->bob_timer;
     float idle = npc->idle_timer;
     bool walking = !npc->waiting;
-
-    // Base position — feet on ground_y (physics) or pos.y (ghost)
     float base_y = npc->use_physics ? npc->ground_y : (npc->pos.y - 1.6f);
     float yaw = npc->yaw;
     float cy = cosf(yaw), sy = sinf(yaw);
 
-    // Walk bob — body rises and falls with stride
     float walk_bob = walking ? sinf(t) * 0.05f : 0;
-    // Idle fidget — Bolaño: he shifts his weight, adjusts his tie
     float idle_sway = sinf(idle * 0.8f) * 0.015f;
-    float idle_tilt = sinf(idle * 1.3f) * 2.5f;  // degrees — head tilt
+    float idle_tilt = sinf(idle * 1.3f) * 2.5f;
 
-    // ── Proportions — CHUNKY, BOLD, reads at 480x300 ──
-    // Rodkin rule: every part must be ≥3px on screen at 3m distance
-    // Total height: ~1.7m (not small — he's YOUR HEIGHT)
-    float leg_h = 0.55f, leg_w = 0.16f;
-    float body_w = 0.46f, body_h = 0.55f, body_d = 0.28f;
-    float head_s = 0.28f;
-    float cap_w = 0.34f, cap_h = 0.09f;
-    float shoulder_w = 0.56f, shoulder_h = 0.10f;
-    float arm_w = 0.13f, arm_h = 0.45f;
-    float tie_w = 0.10f, tie_h = 0.28f;
+    // ── Proportions — total ~1.72m ──
+    float shoe_h = 0.06f, shoe_w = 0.18f, shoe_d = 0.22f;
+    float shin_h = 0.28f, shin_w = 0.15f;
+    float thigh_h = 0.28f, thigh_w = 0.17f;
+    float body_w = 0.46f, body_h = 0.50f, body_d = 0.28f;
+    float shoulder_w = 0.58f, shoulder_h = 0.10f;
+    float upper_arm_h = 0.24f, upper_arm_w = 0.13f;
+    float forearm_h = 0.22f, forearm_w = 0.11f;
+    float hand_s = 0.08f;
+    float head_w = 0.26f, head_h = 0.30f, head_d = 0.24f;
+    float cap_w = 0.32f, cap_h = 0.08f;
+    float neck_w = 0.12f, neck_h = 0.06f;
+    float tie_w = 0.09f, tie_h = 0.26f;
+    float lapel_w = 0.06f, lapel_h = 0.30f;
+    float pocket_w = 0.10f, pocket_h = 0.06f;
+    float belt_h = 0.05f;
     float case_w = 0.28f, case_h = 0.20f, case_d = 0.10f;
 
-    // ── Derived positions ──
+    // ── Derived Y positions ──
     float foot_y = base_y;
-    float hip_y = foot_y + leg_h;
-    float torso_y = hip_y + body_h / 2;
+    float ankle_y = foot_y + shoe_h;
+    float knee_y = ankle_y + shin_h;
+    float hip_y = knee_y + thigh_h;
+    float torso_mid = hip_y + body_h / 2;
     float shoulder_y = hip_y + body_h;
-    float neck_y = shoulder_y + 0.02f;
-    float head_y = neck_y + head_s / 2;
-    float cap_y = neck_y + head_s + cap_h / 2;
+    float neck_y2 = shoulder_y + shoulder_h;
+    float head_y = neck_y2 + neck_h + head_h / 2;
+    float cap_y = neck_y2 + neck_h + head_h + cap_h / 2;
 
-    // Walk cycle offsets
-    float leg_swing = walking ? sinf(t * 1.5f) * 0.15f : 0;
-    float arm_swing = walking ? sinf(t * 1.5f) * 0.10f : 0;
-    // Idle: left arm holds briefcase at side, right arm adjusts tie periodically
+    // Walk cycle
+    float phase = t * 1.5f;
+    float leg_swing = walking ? sinf(phase) * 0.18f : 0;
+    float arm_swing = walking ? sinf(phase) * 0.12f : 0;
     float tie_adjust = 0;
     if (!walking && idle > 2.0f) {
-        // Every ~4 seconds, reach up and adjust tie (Kaufman fidget)
         float cycle = fmodf(idle - 2.0f, 4.0f);
-        if (cycle < 0.8f) {
-            tie_adjust = sinf(cycle / 0.8f * 3.14159f) * 0.12f;
-        }
+        if (cycle < 0.8f) tie_adjust = sinf(cycle / 0.8f * 3.14159f) * 0.14f;
     }
 
-    // Helper: offset position by yaw-rotated local coords
-    #define NPC_POS(lx, ly, lz) (Vector3){ \
+    #define P(lx, ly, lz) (Vector3){ \
         npc->pos.x + (lx)*cy - (lz)*sy, \
-        ly + walk_bob + idle_sway, \
+        (ly) + walk_bob + idle_sway, \
         npc->pos.z + (lx)*sy + (lz)*cy }
+    // D macro: set color + material for next draw. Use DC() to wrap compound Color literals.
+    #define DC(...) ((Color){__VA_ARGS__})
+    #define D(m,c,mat) cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color=(c); SetMaterialId(lighting,(mat))
+    #define DRAW(px,py,pz, sx,sy2,sz) DrawModelEx(*cube_model, P(px,py,pz), \
+        (Vector3){0,1,0}, yaw*RAD2DEG, (Vector3){sx,sy2,sz}, WHITE)
+    #define DRAW_TILT(px,py,pz, sx,sy2,sz) DrawModelEx(*cube_model, P(px,py,pz), \
+        (Vector3){0,1,0}, yaw*RAD2DEG+idle_tilt, (Vector3){sx,sy2,sz}, WHITE)
+    // Cylinder helper
+    #define DRAWCYL(px,py,pz, diam,h) DrawModelEx(*cyl_model, P(px,py,pz), \
+        (Vector3){0,1,0}, yaw*RAD2DEG, (Vector3){diam,h,diam}, WHITE)
 
-    // ── LEGS ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->leg_color;
-    SetMaterialId(lighting, 9);  // MAT_FABRIC
-    float leg_spread = body_w * 0.3f;
-    // Left leg
-    DrawModelEx(*cube_model,
-        NPC_POS(-leg_spread, foot_y + leg_h/2 + leg_swing * 0.4f, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){leg_w, leg_h, leg_w}, WHITE);
-    // Right leg
-    DrawModelEx(*cube_model,
-        NPC_POS(leg_spread, foot_y + leg_h/2 - leg_swing * 0.4f, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){leg_w, leg_h, leg_w}, WHITE);
+    float ls = body_w * 0.28f;  // leg spread from center
 
-    // ── BODY (torso) ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->body_color;
-    SetMaterialId(lighting, 9);
-    DrawModelEx(*cube_model,
-        NPC_POS(0, torso_y, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){body_w, body_h, body_d}, WHITE);
+    // ── SHOES — dark, distinct from legs ──
+    D(m, DC(35, 30, 25, 255),8);  // MAT_LEATHER
+    DRAW(-ls, foot_y + shoe_h/2 + leg_swing*0.3f, -0.02f, shoe_w, shoe_h, shoe_d);
+    DRAW( ls, foot_y + shoe_h/2 - leg_swing*0.3f,  0.02f, shoe_w, shoe_h, shoe_d);
+
+    // ── SHINS (lower leg) ──
+    D(m, npc->leg_color, 9);
+    DRAW(-ls, ankle_y + shin_h/2 + leg_swing*0.4f, 0, shin_w, shin_h, shin_w);
+    DRAW( ls, ankle_y + shin_h/2 - leg_swing*0.4f, 0, shin_w, shin_h, shin_w);
+
+    // ── THIGHS (upper leg) ──
+    D(m, npc->leg_color, 9);
+    DRAW(-ls, knee_y + thigh_h/2 + leg_swing*0.2f, 0, thigh_w, thigh_h, thigh_w);
+    DRAW( ls, knee_y + thigh_h/2 - leg_swing*0.2f, 0, thigh_w, thigh_h, thigh_w);
+
+    // ── BELT ──
+    D(m, DC(45, 38, 28, 255),8);  // leather
+    DRAW(0, hip_y + belt_h/2, 0, body_w + 0.02f, belt_h, body_d + 0.01f);
+    // Belt buckle — brass
+    D(m, DC(210, 180, 100, 255),6);
+    DRAW(0, hip_y + belt_h/2, -body_d/2 - 0.01f, 0.06f, 0.05f, 0.02f);
+
+    // ── TORSO ──
+    D(m, npc->body_color, 9);
+    DRAW(0, torso_mid, 0, body_w, body_h, body_d);
+
+    // ── LAPELS — lighter navy V on chest ──
+    D(m, DC(50, 55, 80, 255),9);
+    DRAW(-body_w/2 + lapel_w/2 + 0.02f, torso_mid + 0.08f, -body_d/2 - 0.005f,
+         lapel_w, lapel_h, 0.02f);
+    DRAW( body_w/2 - lapel_w/2 - 0.02f, torso_mid + 0.08f, -body_d/2 - 0.005f,
+         lapel_w, lapel_h, 0.02f);
+
+    // ── TIE — red, between lapels ──
+    D(m, npc->tie_color, 9);
+    DRAW(0, torso_mid + 0.06f, -body_d/2 - 0.008f, tie_w, tie_h, 0.02f);
+
+    // ── POCKET SQUARE — white, left breast ──
+    D(m, DC(240, 238, 232, 255),9);
+    DRAW(-body_w/2 + 0.10f, shoulder_y - 0.10f, -body_d/2 - 0.005f,
+         pocket_w, pocket_h, 0.015f);
 
     // ── SHOULDERS ──
-    DrawModelEx(*cube_model,
-        NPC_POS(0, shoulder_y - shoulder_h/2, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){shoulder_w, shoulder_h, body_d}, WHITE);
+    D(m, npc->body_color, 9);
+    DRAW(0, shoulder_y + shoulder_h/2, 0, shoulder_w, shoulder_h, body_d);
 
-    // ── TIE — burgundy strip on chest ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->tie_color;
-    SetMaterialId(lighting, 9);
-    DrawModelEx(*cube_model,
-        NPC_POS(0, torso_y + 0.05f, -body_d/2 - 0.005f),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){tie_w, tie_h, 0.02f}, WHITE);
+    // ── BUTTONS — two rows of two, brass ──
+    D(m, DC(210, 180, 100, 255),6);
+    DRAW( 0.08f, torso_mid + 0.14f, -body_d/2 - 0.01f, 0.045f, 0.045f, 0.02f);
+    DRAW( 0.08f, torso_mid - 0.06f, -body_d/2 - 0.01f, 0.045f, 0.045f, 0.02f);
+    DRAW(-0.08f, torso_mid + 0.14f, -body_d/2 - 0.01f, 0.045f, 0.045f, 0.02f);
+    DRAW(-0.08f, torso_mid - 0.06f, -body_d/2 - 0.01f, 0.045f, 0.045f, 0.02f);
 
-    // ── ARMS ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->body_color;
-    SetMaterialId(lighting, 9);
-    float arm_x = shoulder_w/2 + arm_w/2;
-    // Left arm — holds briefcase, swings less
-    float l_arm_swing = walking ? arm_swing * 0.3f : 0;
-    DrawModelEx(*cube_model,
-        NPC_POS(-arm_x, shoulder_y - arm_h/2 + l_arm_swing, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){arm_w, arm_h, arm_w}, WHITE);
-    // Right arm — adjusts tie when idle, swings when walking
-    float r_arm_y = shoulder_y - arm_h/2;
-    if (tie_adjust > 0) r_arm_y += tie_adjust;  // reaches up
-    float r_arm_swing = walking ? -arm_swing : 0;
-    DrawModelEx(*cube_model,
-        NPC_POS(arm_x, r_arm_y + r_arm_swing, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){arm_w, arm_h, arm_w}, WHITE);
+    // ── ARMS — segmented: upper arm + forearm ──
+    float arm_x = shoulder_w/2 + upper_arm_w/2;
+    float l_sw = walking ? arm_swing * 0.3f : 0;
+    float r_sw = walking ? -arm_swing : 0;
 
-    // ── BRIEFCASE — left hand, swings with walk ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->briefcase_color;
-    SetMaterialId(lighting, 8);  // MAT_LEATHER
-    float case_y = shoulder_y - arm_h - case_h/2 + 0.02f + l_arm_swing;
-    DrawModelEx(*cube_model,
-        NPC_POS(-arm_x - 0.02f, case_y, 0),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){case_d, case_h, case_w}, WHITE);
-    // Brass latch on briefcase — BIG, visible
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){210, 180, 100, 255};
-    SetMaterialId(lighting, 6);  // MAT_BRASS
-    DrawModelEx(*cube_model,
-        NPC_POS(-arm_x - 0.02f, case_y + case_h * 0.3f, -case_w/2 - 0.01f),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){0.04f, 0.05f, 0.03f}, WHITE);
+    // Left upper arm
+    D(m, npc->body_color, 9);
+    DRAW(-arm_x, shoulder_y - upper_arm_h/2 + l_sw, 0, upper_arm_w, upper_arm_h, upper_arm_w);
+    // Left forearm — slightly lighter (shirt cuff showing)
+    D(m, DC(45, 50, 72, 255),9);
+    float l_elbow_y = shoulder_y - upper_arm_h + l_sw;
+    DRAW(-arm_x, l_elbow_y - forearm_h/2, 0, forearm_w, forearm_h, forearm_w);
+    // Left hand — skin
+    D(m, npc->head_color, 0);
+    float l_hand_y = l_elbow_y - forearm_h;
+    DRAW(-arm_x, l_hand_y - hand_s/2, 0, hand_s, hand_s, hand_s);
+
+    // Right upper arm
+    D(m, npc->body_color, 9);
+    float r_off = tie_adjust > 0 ? tie_adjust : 0;
+    DRAW(arm_x, shoulder_y - upper_arm_h/2 + r_sw + r_off, 0,
+         upper_arm_w, upper_arm_h, upper_arm_w);
+    // Right forearm
+    D(m, DC(45, 50, 72, 255),9);
+    float r_elbow_y = shoulder_y - upper_arm_h + r_sw + r_off;
+    DRAW(arm_x, r_elbow_y - forearm_h/2, 0, forearm_w, forearm_h, forearm_w);
+    // Right hand
+    D(m, npc->head_color, 0);
+    float r_hand_y = r_elbow_y - forearm_h;
+    DRAW(arm_x, r_hand_y - hand_s/2, 0, hand_s, hand_s, hand_s);
+
+    // ── BRIEFCASE — left hand ──
+    D(m, npc->briefcase_color, 8);
+    float case_y2 = l_hand_y - hand_s - case_h/2;
+    DRAW(-arm_x, case_y2, 0, case_d, case_h, case_w);
+    // Brass latch
+    D(m, DC(210, 180, 100, 255),6);
+    DRAW(-arm_x, case_y2 + case_h * 0.3f, -case_w/2 - 0.01f, 0.04f, 0.05f, 0.03f);
+    // Handle — dark strip on top
+    D(m, DC(60, 45, 25, 255),8);
+    DRAW(-arm_x, case_y2 + case_h/2 + 0.02f, 0, 0.03f, 0.03f, 0.12f);
+
+    // ── NECK — cylinder ──
+    D(m, npc->head_color, 0);
+    DRAWCYL(0, neck_y2 + neck_h/2, 0, neck_w, neck_h);
 
     // ── HEAD ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->head_color;
-    SetMaterialId(lighting, 0);  // MAT_CONCRETE (skin)
-    // Head tilts when idle (Bolaño: studying you, deciding something)
-    DrawModelEx(*cube_model,
-        NPC_POS(0, head_y, 0),
-        (Vector3){0,1,0}, (yaw * RAD2DEG) + idle_tilt,
-        (Vector3){head_s, head_s, head_s}, WHITE);
+    D(m, npc->head_color, 0);
+    DRAW_TILT(0, head_y, 0, head_w, head_h, head_d);
 
-    // ── BELLBOY CAP — Godard red ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->cap_color;
-    SetMaterialId(lighting, 9);
-    DrawModelEx(*cube_model,
-        NPC_POS(0, cap_y, 0),
-        (Vector3){0,1,0}, (yaw * RAD2DEG) + idle_tilt,
-        (Vector3){cap_w, cap_h, cap_w}, WHITE);
-    // Cap brim — slightly wider, thin
-    DrawModelEx(*cube_model,
-        NPC_POS(0, cap_y - cap_h/2, -head_s * 0.15f),
-        (Vector3){0,1,0}, (yaw * RAD2DEG) + idle_tilt,
-        (Vector3){cap_w + 0.04f, 0.02f, cap_w * 0.6f}, WHITE);
+    // ── EYES — two dark cubes on face ──
+    D(m, DC(25, 22, 18, 255),0);
+    float eye_y = head_y + head_h * 0.1f;
+    float eye_x = head_w * 0.22f;
+    float eye_z = -head_d/2 - 0.005f;
+    DRAW_TILT(-eye_x, eye_y, eye_z, 0.05f, 0.04f, 0.02f);
+    DRAW_TILT( eye_x, eye_y, eye_z, 0.05f, 0.04f, 0.02f);
 
-    // ── BUTTONS — two bright brass squares on chest — BIG ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){210, 180, 100, 255};
-    SetMaterialId(lighting, 6);  // MAT_BRASS
-    DrawModelEx(*cube_model,
-        NPC_POS(0.09f, torso_y + 0.12f, -body_d/2 - 0.01f),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){0.05f, 0.05f, 0.02f}, WHITE);
-    DrawModelEx(*cube_model,
-        NPC_POS(0.09f, torso_y - 0.08f, -body_d/2 - 0.01f),
-        (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){0.05f, 0.05f, 0.02f}, WHITE);
+    // ── MOUTH — thin dark line ──
+    D(m, DC(140, 100, 75, 255),0);
+    DRAW_TILT(0, head_y - head_h * 0.18f, eye_z, 0.08f, 0.02f, 0.02f);
 
-    #undef NPC_POS
+    // ── BELLBOY CAP ──
+    D(m, npc->cap_color, 9);
+    DRAW_TILT(0, cap_y, 0, cap_w, cap_h, cap_w);
+    // Brim — extends forward
+    DRAW_TILT(0, cap_y - cap_h * 0.4f, -head_d * 0.25f,
+              cap_w + 0.06f, 0.025f, cap_w * 0.55f);
+    // Cap band — gold trim
+    D(m, DC(210, 180, 100, 255),6);
+    DRAW_TILT(0, cap_y - cap_h * 0.35f, 0, cap_w + 0.01f, 0.025f, cap_w + 0.01f);
+
+    #undef P
+    #undef D
+    #undef DRAW
+    #undef DRAW_TILT
+    #undef DRAWCYL
 }
