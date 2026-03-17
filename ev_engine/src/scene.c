@@ -412,18 +412,24 @@ void build_hotel_exterior(Scene *s) {
         }
     }
 
-    // Lamppost left
+    // Lamppost left — brass pole
     add_wall(s, -7, 1.8f, -2, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
+    set_last_material(s, MAT_BRASS);
     add_light_panel(s, -7, 3.8f, -2, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
-    // Lamppost right
+    // Lamppost right — brass pole
     add_wall(s, 7, 1.8f, -2, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
+    set_last_material(s, MAT_BRASS);
     add_light_panel(s, 7, 3.8f, -2, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
 
-    // Auckland CBD silhouettes
+    // Auckland CBD silhouettes — varied materials for visual depth
     add_wall(s, -18, 8, 18, 6, 16, 3, (Color){20, 22, 38, 255});
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 16, 6, 20, 5, 12, 3, (Color){18, 20, 35, 255});
+    set_last_material(s, MAT_TILE);  // glass-fronted office tower
     add_wall(s, -10, 5, 22, 8, 10, 3, (Color){22, 24, 40, 255});
+    set_last_material(s, MAT_MARBLE);  // older stone building
     add_wall(s, 22, 7, 16, 4, 14, 3, (Color){16, 18, 32, 255});
+    set_last_material(s, MAT_GLASS);
 
     // Wet pavement reflection — rain-slicked streets catch lamplight
     add_wall(s, -5, 0.01f, -3, 4, 0.01f, 3, (Color){240, 210, 120, 20});
@@ -2335,6 +2341,43 @@ void build_space_lobby(Scene *s) {
     // Single coffee droplet floating nearby
     add_sphere(s, -7.8f, 3.3f, 3.8f, 0.04f, (Color){90, 60, 30, 180});
 
+    // ── Hospitality touches — someone runs this hotel ──
+    // Welcome drink on reception desk — champagne flute, golden
+    add_cylinder(s, -5.2f, 1.2f, -4.0f, 0.04f, 0.12f, (Color){210,210,215,160});
+    set_last_material(s, MAT_GLASS);
+    add_wall(s, -5.2f, 1.14f, -4.0f, 0.04f, 0.06f, 0.04f, (Color){240,210,100,180});
+    // Guest book — open, leather bound, pen resting
+    add_wall(s, -6.0f, 1.15f, -3.8f, 0.4f, 0.03f, 0.3f, (Color){60,40,25,255});
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, -6.0f, 1.17f, -3.8f, 0.35f, 0.005f, 0.28f, cream);  // pages
+    add_wall(s, -5.85f, 1.18f, -3.7f, 0.02f, 0.005f, 0.15f, gold);  // pen
+    // Fresh flowers — small arrangement on side table
+    add_cylinder(s, 7, 0.5f, -5, 0.06f, 0.12f, (Color){200,210,220,140});
+    set_last_material(s, MAT_GLASS);  // vase
+    // Flower stems — tiny colored blocks above vase
+    add_wall(s, 6.95f, 0.65f, -5, 0.02f, 0.1f, 0.02f, (Color){60,120,50,255});
+    add_wall(s, 7.05f, 0.68f, -5, 0.02f, 0.08f, 0.02f, (Color){60,120,50,255});
+    // Flower heads — small colored dots
+    add_sphere(s, 6.95f, 0.72f, -5, 0.04f, (Color){220,180,190,255});
+    add_sphere(s, 7.05f, 0.74f, -5, 0.035f, (Color){200,160,170,255});
+    // Room key — brass, on the desk, waiting for you
+    add_wall(s, -5.8f, 1.16f, -4.5f, 0.08f, 0.005f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // ── Leading lines — brass floor inlays guide toward observation window ──
+    add_wall(s, 0, 0.01f, 0, 0.1f, 0.02f, ld*0.7f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Diagonal accent lines converging at window
+    add_wall(s, -3, 0.01f, -2, 0.06f, 0.02f, 8, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    set_last_rotation(s, 10.0f);
+    add_wall(s, 3, 0.01f, -2, 0.06f, 0.02f, 8, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    set_last_rotation(s, -10.0f);
+
     // Interactive objects
     add_object(s, -5.5f, 1.2f, -4.5f, "bell", (Color){200,195,180,255}, 1);
     add_object(s, 6, 1.8f, -2, "wineglass", (Color){210,210,215,255}, 1);
@@ -2590,8 +2633,76 @@ void build_space_corridor(Scene *s) {
         add_cylinder(s, empty_cx+W/2-0.06f, H/2, empty_cz+0.8f,
                      0.04f, H-0.5f, (Color){120,110,95,255});
         set_last_material(s, MAT_BRASS);
-        add_wall(s, empty_cx+W/2+0.05f, H/2, empty_cz,
-                 0.1f, H-0.5f, 3.0f, (Color){15,15,20,255});
+        // Dark void behind ribs — passage-height gap (2.8m opening)
+        // Only the top strip blocks, the rest is open
+        add_wall(s, empty_cx+W/2+0.05f, H - 0.2f, empty_cz,
+                 0.1f, 0.5f, 3.0f, (Color){15,15,20,255});
+
+        // ── THE VOID BETWEEN — maintenance shaft ──────────────────
+        // A secret space through the hull gap. Tall (12m), vertical,
+        // industrial. Wall running, mantling, bunny hopping — let loose.
+        // The hotel's skeleton. What holds it all together.
+        float vx = empty_cx + W/2 + 4.0f;  // 4m behind the hull wall
+        float vz = empty_cz;
+        float VH = 12.0f;  // tall — 3.5x corridor height
+        float VW = 6.0f;
+
+        // Floor — metal grating
+        add_wall(s, vx, -0.05f, vz, VW, 0.1f, 8.0f, (Color){40,42,48,255});
+        set_last_material(s, MAT_CONCRETE);
+
+        // Walls — raw hull, no paneling
+        add_wall(s, vx - VW/2, VH/2, vz, 0.15f, VH, 8.0f, (Color){22,24,32,255});
+        set_last_material(s, MAT_CONCRETE);
+        add_wall(s, vx + VW/2, VH/2, vz, 0.15f, VH, 8.0f, (Color){22,24,32,255});
+        set_last_material(s, MAT_CONCRETE);
+        // Back wall
+        add_wall(s, vx, VH/2, vz - 4.0f, VW, VH, 0.15f, (Color){18,20,28,255});
+        set_last_material(s, MAT_CONCRETE);
+        // Front wall (with gap for entry from corridor)
+        add_wall(s, vx, VH/2, vz + 4.0f, VW, VH, 0.15f, (Color){18,20,28,255});
+        set_last_material(s, MAT_CONCRETE);
+
+        // Ceiling — high up, not a problem
+        add_wall(s, vx, VH, vz, VW, 0.15f, 8.0f, (Color){15,16,22,255});
+        set_last_material(s, MAT_CONCRETE);
+
+        // CATWALKS — wall-runnable platforms at various heights
+        // Level 1 (3m) — first jump target
+        add_wall(s, vx - 1.5f, 3.0f, vz, 1.2f, 0.08f, 4.0f, (Color){55,52,48,255});
+        set_last_material(s, MAT_BRASS);
+        // Level 2 (5.5m) — wall run from level 1
+        add_wall(s, vx + 1.5f, 5.5f, vz - 1.0f, 1.2f, 0.08f, 3.0f, (Color){55,52,48,255});
+        set_last_material(s, MAT_BRASS);
+        // Level 3 (8m) — mantle ledge
+        add_wall(s, vx - 0.5f, 8.0f, vz + 1.0f, 2.0f, 0.08f, 2.0f, (Color){55,52,48,255});
+        set_last_material(s, MAT_BRASS);
+
+        // Vertical pipes — wall-runnable surfaces
+        add_cylinder(s, vx - VW/2 + 0.3f, VH/2, vz - 1.5f, 0.12f, VH, (Color){70,65,58,255});
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, vx + VW/2 - 0.3f, VH/2, vz + 1.0f, 0.12f, VH, (Color){70,65,58,255});
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, vx - 1.0f, VH/2, vz - 3.5f, 0.10f, VH, (Color){65,60,55,255});
+        set_last_material(s, MAT_BRASS);
+
+        // Horizontal pipes — mantle targets
+        add_cylinder(s, vx, 4.2f, vz - 3.0f, 0.08f, VW - 1.0f, (Color){60,58,52,255});
+        set_last_rotation(s, 90.0f);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, vx, 7.0f, vz + 2.0f, 0.08f, VW - 2.0f, (Color){60,58,52,255});
+        set_last_rotation(s, 90.0f);
+        set_last_material(s, MAT_BRASS);
+
+        // Reward at the top — a small observation window showing Earth
+        add_wall(s, vx, 9.5f, vz - 3.9f, 1.5f, 1.0f, 0.06f, void_black);
+        set_last_material(s, MAT_GLASS);
+        // Earth glow through the window
+        add_wall(s, vx, 9.5f, vz - 5.0f, 0.5f, 0.5f, 0.5f, (Color){60,120,200,120});
+
+        // Dim ambient light — emergency lighting only
+        add_light_panel(s, vx, 0.3f, vz, 0.3f, 0.05f, 0.3f, (Color){180,100,60,80});
+        add_light_panel(s, vx, 6.0f, vz - 3.8f, 0.2f, 0.05f, 0.2f, (Color){100,80,60,60});
     }
 
     // ============================================================
@@ -3058,11 +3169,39 @@ void build_space_suite(Scene *s) {
     set_last_material(s, MAT_FABRIC);
 
     // Wardrobe slightly ajar — door box rotated 15°
-    add_wall(s, rw/2-0.5f, 1.2f, -3.0f, 0.6f, 2.2f, 0.5f, dark_wood);  // wardrobe body
+    add_wall(s, rw/2-0.5f, 1.2f, -3.0f, 0.6f, 2.2f, 0.5f, dark_wood);
     set_last_material(s, MAT_WOOD);
-    add_wall(s, rw/2-0.82f, 1.2f, -2.75f, 0.04f, 2.1f, 0.45f, dark_wood);  // door ajar
+    add_wall(s, rw/2-0.82f, 1.2f, -2.75f, 0.04f, 2.1f, 0.45f, dark_wood);
     set_last_material(s, MAT_WOOD);
     set_last_rotation(s, 15.0f);
+
+    // ── Turn-down service — someone prepared this room for you ──
+    // Towel swan on bed — the universal hotel welcome gesture
+    add_wall(s, 0, 0.66f, -4.0f, 0.2f, 0.15f, 0.12f, white);       // body
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 0, 0.78f, -3.9f, 0.06f, 0.12f, 0.04f, white);      // neck
+    set_last_material(s, MAT_FABRIC);
+    // Slippers by bed — aligned, waiting
+    add_wall(s, -0.6f, 0.03f, -3.5f, 0.1f, 0.04f, 0.2f, cream);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, -0.4f, 0.03f, -3.5f, 0.1f, 0.04f, 0.2f, cream);
+    set_last_material(s, MAT_FABRIC);
+    // Robe on bathroom door hook — draped fabric
+    add_wall(s, rw/2-0.2f, 1.8f, 2.0f, 0.04f, 0.8f, 0.3f, white);
+    set_last_material(s, MAT_FABRIC);
+    // Mint on nightstand — small bright green square
+    add_wall(s, -2.3f, 0.86f, -4.7f, 0.06f, 0.01f, 0.06f, (Color){120,180,100,255});
+    // Water carafe + glass — clear, formal
+    add_cylinder(s, -2.5f, 0.92f, -4.3f, 0.06f, 0.14f, (Color){200,210,220,140});
+    set_last_material(s, MAT_GLASS);
+    add_cylinder(s, -2.35f, 0.88f, -4.3f, 0.04f, 0.08f, (Color){200,210,220,120});
+    set_last_material(s, MAT_GLASS);
+
+    // ── Leading line — brass floor inlay guides eye to window ──
+    // Narrow brass strip from entrance toward the left-wall window
+    add_wall(s, -2, 0.01f, 0, 0.08f, 0.02f, rd*0.6f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
 
     // Interactive objects
     add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);
