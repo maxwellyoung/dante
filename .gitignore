@@ -6,3 +6,9 @@ ev_engine/endearing_void
 tmp/
 output/
 .claude/
+
+# QA artifacts
+ev_engine/qa/screenshots/
+ev_engine/qa/baseline/
+ev_engine/qa/history/
+ev_engine/qa/report.json

@@ -7,6 +7,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifndef DEG2RAD
+#define DEG2RAD 0.017453293f
+#endif
+
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — wall at (%.1f,%.1f,%.1f) dropped\n",
@@ -83,6 +87,10 @@ void add_skytower(Scene *s, float x, float y, float z, float scale, Color c) {
 // Set material on the most recently added wall — chainable, non-breaking
 void set_last_material(Scene *s, MaterialType mat) {
     if (s->wall_count > 0) s->walls[s->wall_count - 1].material = mat;
+}
+
+void set_last_rotation(Scene *s, float degrees) {
+    if (s->wall_count > 0) s->walls[s->wall_count - 1].rotation_y = degrees;
 }
 
 // Auto-assign materials by color matching after scene is built
@@ -298,7 +306,7 @@ void build_hotel_exterior(Scene *s) {
     Color tower_steel = {100, 105, 115, 255};   // tower shaft
 
     s->fog_color = PAL_FOG_NIGHT;
-    s->fog_density = 0.004f;
+    s->fog_density = 0.002f;  // open air — don't choke the view
 
     // Sidewalk + road
     add_wall(s, 0, -0.1f, 0, 24, 0.2f, 10, sidewalk);
@@ -369,20 +377,15 @@ void build_lobby(Scene *s) {
     Color concrete_a = PAL_MARBLE_A;
     Color concrete_b = PAL_MARBLE_B;
     Color marble_a = {60, 58, 55, 255};       // dark marble floor
-    Color marble_b = {70, 68, 65, 255};
     Color plant = {60, 130, 65, 255};
     Color terracotta = PAL_TERRACOTTA;
 
     s->fog_color = PAL_FOG_GREEN;
-    s->fog_density = 0.008f;
+    s->fog_density = 0.004f;  // lighter fog — let chandelier light reach
 
-    int cols = 15, rows = 10;
-    for (int r = 0; r < rows; r++)
-        for (int c = 0; c < cols; c++) {
-            float tx = -15 + c * 2 + 1, tz = -10 + r * 2 + 1;
-            add_wall(s, tx, -0.05f, tz, 1.98f, 0.1f, 1.98f, ((r+c)%2==0) ? marble_a : marble_b);
-            set_last_material(s, MAT_MARBLE);
-        }
+    // Floor — single plane, checkerboard material does the pattern
+    add_wall(s, 0, -0.05f, 0, 30, 0.1f, 20, marble_a);
+    set_last_material(s, MAT_CHECKERBOARD);
 
     add_wall(s, 0, 7, 0, 30, 0.2f, 20, cream);
     set_last_material(s, MAT_WALLPAPER);
@@ -568,7 +571,6 @@ void build_hallway(Scene *s) {
     Color godard_red = PAL_RED;
     Color godard_blue = PAL_BLUE;
     Color carpet_a = {160, 55, 45, 255};      // DOMINANT — warm terracotta/red carpet
-    Color carpet_b = {170, 62, 50, 255};
     Color warm_amber = PAL_GLOW_AMBER;
     Color ceiling_dark = PAL_CHARCOAL;
 
@@ -576,13 +578,9 @@ void build_hallway(Scene *s) {
     s->fog_density = 0.010f;
     float L = 20, W = 4.5f, H = 4;
 
-    int cols = 3, rows = (int)(L / 1.5f);
-    for (int r = 0; r < rows; r++)
-        for (int c = 0; c < cols; c++) {
-            float tx = -W/2 + c*1.5f + 0.75f, tz = -r*1.5f - 0.75f;
-            add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f, ((r+c)%2==0) ? carpet_a : carpet_b);
-            set_last_material(s, MAT_CARPET);
-        }
+    // Floor — single plane, checkerboard carpet
+    add_wall(s, 0, -0.05f, -L/2, W, 0.1f, L, carpet_a);
+    set_last_material(s, MAT_CHECKERBOARD);
 
     add_wall(s, 0, H, -L/2, W, 0.2f, L, ceiling_dark);
     for (int i = 0; i < 4; i++)
@@ -681,13 +679,9 @@ void build_hotel_room(Scene *s) {
     s->fog_density = 0.006f;
     float rw = 12, rd = 10, rh = 3.8f;
 
-    int cols = (int)(rw/0.8f), rows = (int)(rd/0.8f);
-    for (int r = 0; r < rows; r++)
-        for (int c = 0; c < cols; c++) {
-            float tx = -rw/2+c*0.8f+0.4f, tz = -rd/2+r*0.8f+0.4f;
-            add_wall(s, tx, -0.05f, tz, 0.78f, 0.1f, 0.78f, ((r+c)%2==0) ? wood : (Color){145,108,65,255});
-            set_last_material(s, MAT_WOOD);
-        }
+    // Floor — single plane, parquet wood
+    add_wall(s, 0, -0.05f, 0, rw, 0.1f, rd, wood);
+    set_last_material(s, MAT_PARQUET);
 
     add_wall(s, 0, rh, 0, rw, 0.2f, rd, cream);
     set_last_material(s, MAT_WALLPAPER);
@@ -994,9 +988,10 @@ void build_balcony(Scene *s) {
 
     // LAYER 2: Atmosphere — wide thin band at the horizon
     // Three overlapping panels at different depths for glow bleed
-    add_wall(s, 0, -0.8f, -18, 80, 0.6f, 0.1f, (Color){80, 150, 210, 180});
-    add_wall(s, 0, -0.7f, -17, 90, 0.35f, 0.1f, (Color){120, 180, 230, 140});
-    add_wall(s, 0, -0.6f, -16, 100, 0.15f, 0.1f, (Color){180, 210, 240, 100});
+    // BRIGHT — this is the hero visual, it must read at 480x300
+    add_wall(s, 0, -0.8f, -18, 80, 0.8f, 0.1f, (Color){100, 170, 230, 220});
+    add_wall(s, 0, -0.6f, -17, 90, 0.5f, 0.1f, (Color){140, 195, 240, 180});
+    add_wall(s, 0, -0.4f, -16, 100, 0.25f, 0.1f, (Color){200, 225, 248, 140});
 
     // LAYER 3: Planet surface — dark fields below the atmosphere line
     // Near field (looking down)
@@ -1010,22 +1005,22 @@ void build_balcony(Scene *s) {
     add_wall(s, 0, -5, -35, 100, 0.1f, 20, (Color){8, 14, 30, 255});
 
     // LAYER 3b: City lights — BIG at 480x300 (Rodkin rule: visible or dead)
-    add_wall(s, -8, -2.8f, -11, 3.0f, 0.1f, 2.0f, (Color){240, 200, 110, 60});
-    add_wall(s, -7, -2.7f, -10.5f, 1.5f, 0.1f, 1.0f, (Color){255, 220, 130, 80});
-    add_wall(s, 5, -3.0f, -13, 2.5f, 0.1f, 1.5f, (Color){240, 200, 110, 50});
-    add_wall(s, 15, -3.3f, -16, 2.0f, 0.1f, 1.2f, (Color){240, 200, 110, 45});
-    add_wall(s, -20, -3.5f, -17, 1.8f, 0.1f, 1.0f, (Color){255, 210, 120, 55});
+    add_wall(s, -8, -2.8f, -11, 3.0f, 0.1f, 2.0f, (Color){240, 200, 110, 120});
+    add_wall(s, -7, -2.7f, -10.5f, 1.5f, 0.1f, 1.0f, (Color){255, 220, 130, 140});
+    add_wall(s, 5, -3.0f, -13, 2.5f, 0.1f, 1.5f, (Color){240, 200, 110, 100});
+    add_wall(s, 15, -3.3f, -16, 2.0f, 0.1f, 1.2f, (Color){240, 200, 110, 90});
+    add_wall(s, -20, -3.5f, -17, 1.8f, 0.1f, 1.0f, (Color){255, 210, 120, 110});
     // Auckland — brighter cluster, recognizable
-    add_wall(s, -6, -2.6f, -9.5f, 2.0f, 0.1f, 1.5f, (Color){255, 230, 140, 100});
+    add_wall(s, -6, -2.6f, -9.5f, 2.0f, 0.1f, 1.5f, (Color){255, 230, 140, 180});
     // Sky Tower beacon — single bright dot
-    add_wall(s, -5.5f, -2.5f, -9, 0.4f, 0.15f, 0.4f, (Color){255, 245, 200, 160});
+    add_wall(s, -5.5f, -2.5f, -9, 0.6f, 0.2f, 0.6f, (Color){255, 245, 200, 220});
 
     // LAYER 4: Stars — sparse, bright, above the atmosphere
     for (int i = 0; i < 25; i++) {
         float sx = -30.0f + (float)((i*41)%60);
         float sy = 2.0f + (float)((i*17)%15);
         float sz = -25.0f - (float)((i*13)%30);
-        float size = 0.15f + (float)((i*7)%3) * 0.08f;
+        float size = 0.25f + (float)((i*7)%3) * 0.12f;  // bigger stars
         add_wall(s, sx, sy, sz, size, size, size,
                  (Color){240,235,225,(unsigned char)(140+(i*19)%80)});
     }
@@ -1674,6 +1669,76 @@ void build_taxi_ride(Scene *s) {
 // Parisian warmth inside, infinite void outside.
 // ============================================================
 
+void build_hyperspace(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    // HYPERSPACE TUNNEL — the Sky Tower on its side becomes a wormhole
+    // Player flies through it at accelerating speed. 2001 Stargate meets Auckland.
+    s->surface = SURFACE_MARBLE;
+
+    Color hull = PAL_HULL;
+    Color void_black = PAL_PORTHOLE;
+    Color godard_red = PAL_RED;
+    Color godard_blue = PAL_BLUE;
+
+    s->fog_color = (Color){2, 2, 6, 255};
+    s->fog_density = 0.0005f;  // almost no fog — speed clarity
+
+    // The Sky Tower itself — laid on its side, centered on Z axis
+    // Player flies THROUGH it along -Z
+    add_skytower(s, 0, 0, -40, 8.0f, hull);
+
+    // Structural rings — brass cylinders the player whips past
+    for (int i = 0; i < 16; i++) {
+        float rz = -5.0f - i * 6.0f;
+        float ring_r = 2.5f + sinf(i * 0.7f) * 0.8f;
+        // Ring color shifts along the tunnel — warm → cool → warm
+        float t = (float)i / 15.0f;
+        unsigned char cr = (unsigned char)(178 + (int)(60 * sinf(t * 6.28f)));
+        unsigned char cg = (unsigned char)(155 + (int)(40 * cosf(t * 4.0f)));
+        unsigned char cb = (unsigned char)(107 + (int)(80 * sinf(t * 3.14f + 1.0f)));
+        add_cylinder(s, 0, 0, rz, ring_r * 2, 0.15f, (Color){cr, cg, cb, 255});
+        set_last_material(s, MAT_BRASS);
+    }
+
+    // Color accent panels — Godard red and blue flash past
+    add_wall(s, -1.5f, 0.5f, -12, 0.1f, 1.5f, 0.8f, godard_red);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 1.2f, -0.3f, -28, 0.1f, 1.2f, 0.6f, godard_blue);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, -0.8f, 1.0f, -45, 0.8f, 0.1f, 0.5f, godard_red);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 0.5f, -0.8f, -60, 0.6f, 0.1f, 0.8f, godard_blue);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, -1.0f, -0.5f, -75, 0.1f, 0.8f, 1.0f, godard_red);
+    set_last_material(s, MAT_FABRIC);
+
+    // Light streaks — long thin bright panels rushing past
+    for (int i = 0; i < 8; i++) {
+        float angle = i * 0.785f;  // 45° spacing
+        float lx = cosf(angle) * 2.0f;
+        float ly = sinf(angle) * 2.0f;
+        float lz = -8.0f - i * 10.0f;
+        unsigned char la = (unsigned char)(140 + (i * 15) % 80);
+        add_wall(s, lx, ly, lz, 0.04f, 0.04f, 4.0f, (Color){240, 220, 160, la});
+    }
+
+    // Stars streaking past — elongated along Z (motion blur effect)
+    for (int i = 0; i < 20; i++) {
+        float sx = -4.0f + (float)((i*41)%80) * 0.1f;
+        float sy = -3.0f + (float)((i*17)%60) * 0.1f;
+        float sz = -3.0f - (float)((i*31)%90);
+        add_wall(s, sx, sy, sz, 0.06f, 0.06f, 1.5f,
+                 (Color){240,238,232,(unsigned char)(120+(i*23)%100)});
+    }
+
+    // Void floor/ceiling — barely visible, gives orientation
+    add_wall(s, 0, -3.0f, -45, 6, 0.02f, 90, void_black);
+    add_wall(s, 0, 3.0f, -45, 6, 0.02f, 90, void_black);
+
+    s->spawn = (Vector3){0, 0, 2};
+    s->has_exit = false;
+}
+
 void build_space_lobby(Scene *s) {
     memset(s, 0, sizeof(Scene));
     // BOUNDS: 24m x 16m, fully enclosed cylindrical station interior
@@ -1688,7 +1753,6 @@ void build_space_lobby(Scene *s) {
     Color godard_red = PAL_RED;
     Color godard_blue = PAL_BLUE;
     Color marble_a = PAL_MARBLE_A;
-    Color marble_b = PAL_MARBLE_B;
     Color warm_light = PAL_LIGHT_WARM;
     Color earth_glow = PAL_EARTH_GLOW;
 
@@ -1697,15 +1761,9 @@ void build_space_lobby(Scene *s) {
 
     float lw = 24, ld = 16, lh = 8;
 
-    // Floor — checkerboard marble, same luxury as Paris
-    int cols = (int)(lw/1.5f), rows = (int)(ld/1.5f);
-    for (int r = 0; r < rows; r++)
-        for (int c = 0; c < cols; c++) {
-            float tx = -lw/2 + c*1.5f + 0.75f, tz = -ld/2 + r*1.5f + 0.75f;
-            add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f,
-                     ((r+c)%2==0) ? marble_a : marble_b);
-            set_last_material(s, MAT_MARBLE);
-        }
+    // Floor — single plane, checkerboard marble
+    add_wall(s, 0, -0.05f, 0, lw, 0.1f, ld, marble_a);
+    set_last_material(s, MAT_CHECKERBOARD);
 
     // Ceiling — hull panels with exposed structural ribs
     add_wall(s, 0, lh, 0, lw, 0.3f, ld, hull);
@@ -2069,16 +2127,9 @@ void build_space_suite(Scene *s) {
 
     float rw = 14, rd = 12, rh = 5;  // taller than Paris room — double height
 
-    // Floor — dark wood herringbone (alternating planks)
-    int cols = (int)(rw/0.6f), rows = (int)(rd/0.6f);
-    for (int r = 0; r < rows; r++)
-        for (int c = 0; c < cols; c++) {
-            float tx = -rw/2 + c*0.6f + 0.3f;
-            float tz = -rd/2 + r*0.6f + 0.3f;
-            Color plank = ((r+c)%2==0) ? wood : dark_wood;
-            add_wall(s, tx, -0.05f, tz, 0.58f, 0.1f, 0.58f, plank);
-            set_last_material(s, MAT_WOOD);
-        }
+    // Floor — single plane, herringbone wood
+    add_wall(s, 0, -0.05f, 0, rw, 0.1f, rd, wood);
+    set_last_material(s, MAT_HERRINGBONE);
 
     // Ceiling — hull with structural ribs
     add_wall(s, 0, rh, 0, rw, 0.3f, rd, hull);
@@ -2293,4 +2344,178 @@ void build_space_suite(Scene *s) {
 
     s->spawn = (Vector3){0, 1.6f, 4};
     s->has_exit = false;
+}
+
+// ============================================================
+// COMPOSITION HELPERS — Rich furniture from simple primitives
+// ============================================================
+
+void add_dining_table(Scene *s, float x, float y, float z, float w, float d, float angle, Color wood) {
+    // Tabletop
+    add_wall(s, x, y + 0.75f, z, w, 0.06f, d, wood);
+    set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+    // Four legs
+    float lx = w/2 - 0.08f, lz = d/2 - 0.08f;
+    float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
+    for (int i = 0; i < 4; i++) {
+        float ox = (i & 1) ? lx : -lx;
+        float oz = (i & 2) ? lz : -lz;
+        float rx = ox * ca - oz * sa, rz = ox * sa + oz * ca;
+        add_cylinder(s, x + rx, y + 0.375f, z + rz, 0.06f, 0.75f, wood);
+        set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+    }
+}
+
+void add_chair(Scene *s, float x, float y, float z, float angle, Color wood, Color seat) {
+    // Seat
+    add_wall(s, x, y + 0.45f, z, 0.4f, 0.04f, 0.4f, seat);
+    set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
+    // Backrest
+    float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
+    float bx = x - 0.18f * sa, bz = z - 0.18f * ca;
+    add_wall(s, bx, y + 0.7f, bz, 0.38f, 0.5f, 0.04f, wood);
+    set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+    // Four legs
+    for (int i = 0; i < 4; i++) {
+        float ox = (i & 1) ? 0.16f : -0.16f;
+        float oz = (i & 2) ? 0.16f : -0.16f;
+        float rx = ox * ca - oz * sa, rz = ox * sa + oz * ca;
+        add_cylinder(s, x + rx, y + 0.225f, z + rz, 0.03f, 0.45f, wood);
+        set_last_material(s, MAT_WOOD);
+    }
+}
+
+void add_chandelier(Scene *s, float x, float y, float z, int arms, float radius, Color metal, Color light) {
+    // Central rod
+    add_cylinder(s, x, y + 0.3f, z, 0.04f, 0.6f, metal);
+    set_last_material(s, MAT_BRASS);
+    // Ring
+    for (int i = 0; i < arms; i++) {
+        float angle = (float)i / arms * 6.2832f;
+        float ax = x + cosf(angle) * radius;
+        float az = z + sinf(angle) * radius;
+        // Arm
+        add_wall(s, (x + ax)/2, y, (z + az)/2, 0.03f, 0.03f, radius, metal);
+        set_last_material(s, MAT_BRASS);
+        set_last_rotation(s, angle * 57.2958f);
+        // Light globe
+        add_sphere(s, ax, y - 0.1f, az, 0.12f, light);
+        add_light_panel(s, ax, y - 0.1f, az, 0.15f, 0.15f, 0.15f, light);
+    }
+}
+
+void add_column_row(Scene *s, float x_start, float z, float spacing, int count, float radius, float height, Color c) {
+    for (int i = 0; i < count; i++) {
+        float x = x_start + i * spacing;
+        add_cylinder(s, x, height/2, z, radius * 2, height, c);
+        set_last_material(s, MAT_MARBLE);
+        // Capital (wider top)
+        add_cylinder(s, x, height - 0.1f, z, radius * 2.5f, 0.2f, c);
+        set_last_material(s, MAT_MARBLE);
+        // Base
+        add_cylinder(s, x, 0.1f, z, radius * 2.2f, 0.2f, c);
+        set_last_material(s, MAT_MARBLE);
+    }
+}
+
+void add_wainscoting(Scene *s, float x, float y, float z, float length, float height, bool along_z, Color panel, Color trim) {
+    float depth = 0.04f;
+    if (along_z) {
+        add_wall(s, x, y + height/2, z, depth, height, length, panel);
+        set_last_material(s, MAT_WOOD);
+        // Top rail
+        add_wall(s, x, y + height, z, depth + 0.02f, 0.04f, length, trim);
+        set_last_material(s, MAT_WOOD);
+        // Chair rail (mid-point)
+        add_wall(s, x, y + height * 0.6f, z, depth + 0.01f, 0.03f, length, trim);
+        set_last_material(s, MAT_WOOD);
+    } else {
+        add_wall(s, x, y + height/2, z, length, height, depth, panel);
+        set_last_material(s, MAT_WOOD);
+        add_wall(s, x, y + height, z, length, 0.04f, depth + 0.02f, trim);
+        set_last_material(s, MAT_WOOD);
+        add_wall(s, x, y + height * 0.6f, z, length, 0.03f, depth + 0.01f, trim);
+        set_last_material(s, MAT_WOOD);
+    }
+}
+
+void add_fireplace(Scene *s, float x, float y, float z, Color stone, Color glow) {
+    // Mantel
+    add_wall(s, x, y + 1.2f, z, 1.6f, 0.1f, 0.5f, stone);
+    set_last_material(s, MAT_MARBLE);
+    // Left pillar
+    add_wall(s, x - 0.65f, y + 0.6f, z, 0.2f, 1.2f, 0.4f, stone);
+    set_last_material(s, MAT_MARBLE);
+    // Right pillar
+    add_wall(s, x + 0.65f, y + 0.6f, z, 0.2f, 1.2f, 0.4f, stone);
+    set_last_material(s, MAT_MARBLE);
+    // Firebox (dark interior)
+    add_wall(s, x, y + 0.45f, z + 0.05f, 1.0f, 0.9f, 0.3f, (Color){20,18,15,255});
+    // Fire glow
+    add_light_panel(s, x, y + 0.2f, z + 0.1f, 0.6f, 0.3f, 0.15f, glow);
+}
+
+void add_bar_counter(Scene *s, float x, float y, float z, float length, bool along_z, Color counter, Color front) {
+    float bar_h = 1.1f, bar_d = 0.6f;
+    if (along_z) {
+        add_wall(s, x, y + bar_h, z, bar_d + 0.1f, 0.06f, length, counter);
+        set_last_material(s, MAT_MARBLE);
+        add_wall(s, x, y + bar_h/2, z, bar_d, bar_h, length, front);
+        set_last_material(s, MAT_WOOD);
+    } else {
+        add_wall(s, x, y + bar_h, z, length, 0.06f, bar_d + 0.1f, counter);
+        set_last_material(s, MAT_MARBLE);
+        add_wall(s, x, y + bar_h/2, z, length, bar_h, bar_d, front);
+        set_last_material(s, MAT_WOOD);
+    }
+}
+
+void add_rug(Scene *s, float x, float y, float z, float w, float d, Color primary, Color border) {
+    // Main rug body
+    add_wall(s, x, y + 0.01f, z, w, 0.01f, d, primary);
+    set_last_material(s, MAT_CARPET);
+    // Border — 4 thin strips
+    float bw = 0.08f;
+    add_wall(s, x, y + 0.015f, z - d/2 + bw/2, w, 0.005f, bw, border);
+    add_wall(s, x, y + 0.015f, z + d/2 - bw/2, w, 0.005f, bw, border);
+    add_wall(s, x - w/2 + bw/2, y + 0.015f, z, bw, 0.005f, d, border);
+    add_wall(s, x + w/2 - bw/2, y + 0.015f, z, bw, 0.005f, d, border);
+}
+
+void add_desk(Scene *s, float x, float y, float z, float angle, Color wood) {
+    float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
+    // Desktop
+    add_wall(s, x, y + 0.78f, z, 1.2f, 0.04f, 0.6f, wood);
+    set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+    // Front panel
+    float fx = x + 0.25f * sa, fz = z + 0.25f * ca;
+    add_wall(s, fx, y + 0.39f, fz, 1.1f, 0.72f, 0.03f, wood);
+    set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+    // Two side supports
+    for (int side = -1; side <= 1; side += 2) {
+        float sx = x + side * 0.55f * ca, sz = z - side * 0.55f * sa;
+        add_wall(s, sx, y + 0.39f, sz, 0.03f, 0.72f, 0.55f, wood);
+        set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+    }
+}
+
+void add_sofa(Scene *s, float x, float y, float z, float angle, Color fabric) {
+    float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
+    Color dark = {(unsigned char)(fabric.r*0.8f), (unsigned char)(fabric.g*0.8f),
+                  (unsigned char)(fabric.b*0.8f), fabric.a};
+    // Seat cushion
+    add_wall(s, x, y + 0.38f, z, 1.8f, 0.15f, 0.7f, fabric);
+    set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
+    // Backrest
+    float bx = x - 0.3f * sa, bz = z - 0.3f * ca;
+    add_wall(s, bx, y + 0.6f, bz, 1.8f, 0.45f, 0.15f, dark);
+    set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
+    // Left arm
+    float lx = x - 0.85f * ca, lz = z + 0.85f * sa;
+    add_wall(s, lx, y + 0.45f, lz, 0.1f, 0.35f, 0.7f, dark);
+    set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
+    // Right arm
+    float rx = x + 0.85f * ca, rz = z - 0.85f * sa;
+    add_wall(s, rx, y + 0.45f, rz, 0.1f, 0.35f, 0.7f, dark);
+    set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
 }

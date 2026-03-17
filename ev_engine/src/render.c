@@ -40,6 +40,11 @@ static const char *postfx_fs =
     "uniform float grain;\n"
     "uniform float flash;\n"
     "uniform vec3 flashColor;\n"
+    "uniform float saturation;\n"   // 0=mono, 1=full (default 0.92)
+    "uniform float caAmount;\n"     // chromatic aberration multiplier (default 2.5)
+    "uniform float contrast;\n"     // S-curve intensity: 0=flat, 1=default, 2=heavy
+    "uniform float vignetteAmt;\n"  // vignette strength: 0=off, 1=default
+    "uniform vec3 tint;\n"          // RGB color grade (default 1,1,1)
     "out vec4 finalColor;\n"
     "\n"
     // Film grain — hash-based noise, no textures
@@ -55,7 +60,7 @@ static const char *postfx_fs =
     "    vec2 fromCenter = uv - 0.5;\n"
     "\n"
     "    // --- Chromatic aberration — subtle RGB split at edges ---\n"
-    "    float caStrength = dot(fromCenter, fromCenter) * 2.5;\n"
+    "    float caStrength = dot(fromCenter, fromCenter) * caAmount;\n"
     "    vec2 caOffset = fromCenter * caStrength * px * 3.0;\n"
     "    float r = texture(texture0, uv + caOffset).r;\n"
     "    float g = texture(texture0, uv).g;\n"
@@ -91,16 +96,18 @@ static const char *postfx_fs =
     "    // --- Exposure — global brightness ---\n"
     "    col *= exp2(exposure);\n"
     "\n"
-    "    // --- Saturation — slightly desaturated, architectural ---\n"
+    "    // --- Saturation — controlled by style preset ---\n"
     "    float luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
-    "    col = mix(vec3(luma), col, 0.92 + warmth * 0.08);\n"
+    "    col = mix(vec3(luma), col, saturation + warmth * 0.08);\n"
     "\n"
     "    // --- Color grading — warmth shift ---\n"
     "    col = pow(max(col, vec3(0.0)), vec3(0.97 + warmth*0.03, 1.0, 1.02 - warmth*0.05));\n"
     "    col = col * 0.97 + vec3(0.02, 0.018, 0.015);\n"
+    "    col *= tint;\n"
     "\n"
-    "    // --- Gentle contrast curve — photograph S-curve ---\n"
-    "    col = smoothstep(0.0, 1.0, col * 1.05 - 0.02);\n"
+    "    // --- Contrast curve — photograph S-curve, intensity controlled ---\n"
+    "    vec3 curved = smoothstep(0.0, 1.0, col * 1.05 - 0.02);\n"
+    "    col = mix(col, curved, contrast);\n"
     "\n"
     "    // --- Film grain — 16mm Godard stock ---\n"
     "    if (grain > 0.0) {\n"
@@ -110,10 +117,11 @@ static const char *postfx_fs =
     "        col += n * (0.5 + shadow * 0.5);\n"
     "    }\n"
     "\n"
-    "    // --- Vignette — barely perceptible framing ---\n"
+    "    // --- Vignette — edge darkening, intensity controlled ---\n"
     "    float vig = 1.0 - dot((uv - 0.5) * 0.9, (uv - 0.5) * 0.9);\n"
     "    vig = clamp(pow(vig, 0.8), 0.0, 1.0);\n"
-    "    col *= mix(0.88, 1.0, vig);\n"
+    "    float vigDark = mix(0.88, 1.0, vig);\n"
+    "    col *= mix(1.0, vigDark, vignetteAmt);\n"
     "\n"
     "    // --- Scene-cut flash — Blendo smash cut ---\n"
     "    if (flash > 0.0) {\n"
@@ -134,6 +142,11 @@ EVPostFX LoadEVPostFX(void) {
         pfx.grainLoc = GetShaderLocation(pfx.postfx, "grain");
         pfx.flashLoc = GetShaderLocation(pfx.postfx, "flash");
         pfx.flashColorLoc = GetShaderLocation(pfx.postfx, "flashColor");
+        pfx.saturationLoc = GetShaderLocation(pfx.postfx, "saturation");
+        pfx.caAmountLoc = GetShaderLocation(pfx.postfx, "caAmount");
+        pfx.contrastLoc = GetShaderLocation(pfx.postfx, "contrast");
+        pfx.vignetteLoc = GetShaderLocation(pfx.postfx, "vignetteAmt");
+        pfx.tintLoc = GetShaderLocation(pfx.postfx, "tint");
 
         float res[2] = {(float)RENDER_W, (float)RENDER_H};
         SetShaderValue(pfx.postfx, pfx.resolutionLoc, res, SHADER_UNIFORM_VEC2);
@@ -142,14 +155,22 @@ EVPostFX LoadEVPostFX(void) {
         float zero = 0.0f;
         SetShaderValue(pfx.postfx, pfx.warmthLoc, &zero, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.exposureLoc, &zero, SHADER_UNIFORM_FLOAT);
-        float defaultGrain = 0.5f;  // subtle 16mm grain always on
+        float defaultGrain = 0.5f;
         SetShaderValue(pfx.postfx, pfx.grainLoc, &defaultGrain, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.flashLoc, &zero, SHADER_UNIFORM_FLOAT);
         float white[3] = {1.0f, 1.0f, 1.0f};
         SetShaderValue(pfx.postfx, pfx.flashColorLoc, white, SHADER_UNIFORM_VEC3);
+        float defaultSat = 0.92f;
+        SetShaderValue(pfx.postfx, pfx.saturationLoc, &defaultSat, SHADER_UNIFORM_FLOAT);
+        float defaultCA = 2.5f;
+        SetShaderValue(pfx.postfx, pfx.caAmountLoc, &defaultCA, SHADER_UNIFORM_FLOAT);
+        float one = 1.0f;
+        SetShaderValue(pfx.postfx, pfx.contrastLoc, &one, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.vignetteLoc, &one, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.tintLoc, white, SHADER_UNIFORM_VEC3);
 
         pfx.ready = true;
-        printf("[EV] Post-FX loaded — grain, CA, exposure, flash\n");
+        printf("[EV] Post-FX loaded — grain, CA, exposure, styles\n");
     } else {
         printf("[EV] WARNING: Post-processing shader failed\n");
         pfx.ready = false;
@@ -188,6 +209,75 @@ void SetPostFXFlash(EVPostFX *pfx, float intensity, float r, float g, float b) {
         float col[3] = {r, g, b};
         SetShaderValue(pfx->postfx, pfx->flashColorLoc, col, SHADER_UNIFORM_VEC3);
     }
+}
+
+void SetPostFXSaturation(EVPostFX *pfx, float saturation) {
+    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->saturationLoc, &saturation, SHADER_UNIFORM_FLOAT);
+}
+
+void SetPostFXCA(EVPostFX *pfx, float caAmount) {
+    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->caAmountLoc, &caAmount, SHADER_UNIFORM_FLOAT);
+}
+
+void SetPostFXContrast(EVPostFX *pfx, float contrast) {
+    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->contrastLoc, &contrast, SHADER_UNIFORM_FLOAT);
+}
+
+void SetPostFXVignette(EVPostFX *pfx, float vignette) {
+    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->vignetteLoc, &vignette, SHADER_UNIFORM_FLOAT);
+}
+
+void SetPostFXTint(EVPostFX *pfx, float r, float g, float b) {
+    if (pfx->ready) {
+        float col[3] = {r, g, b};
+        SetShaderValue(pfx->postfx, pfx->tintLoc, col, SHADER_UNIFORM_VEC3);
+    }
+}
+
+// ============================================================
+// VISUAL STYLE PRESETS
+// Shift+1 through Shift+9 — different film stocks / grades
+// ============================================================
+
+const VisualStyle visual_styles[STYLE_COUNT] = {
+    // 0: Default — the EV look. 16mm Godard, warm neutral, architectural.
+    {"Default",       0.92f, 2.5f, 1.0f, 1.0f, 0.5f,  0.0f, {1.0f, 1.0f, 1.0f}},
+
+    // 1: Noir — desaturated, heavy contrast, deep shadows, strong vignette
+    {"Noir",          0.35f, 1.5f, 1.6f, 2.0f, 0.7f, -0.15f, {0.95f, 0.95f, 1.0f}},
+
+    // 2: Godard — Contempt/Pierrot: saturated, warm reds, cool blues, contrasty
+    {"Godard",        1.1f,  3.0f, 1.2f, 1.2f, 0.6f,  0.05f, {1.08f, 0.98f, 0.92f}},
+
+    // 3: Polaroid — faded, warm, low contrast, soft grain, lifted blacks
+    {"Polaroid",      0.78f, 1.0f, 0.5f, 0.6f, 0.3f,  0.1f,  {1.05f, 1.02f, 0.95f}},
+
+    // 4: Kubrick — cold, clinical, sharp, high saturation, low grain
+    {"Kubrick",       1.0f,  2.0f, 1.3f, 0.8f, 0.15f, 0.0f,  {0.95f, 0.98f, 1.05f}},
+
+    // 5: VHS — heavy grain, heavy CA, warm/muddy, soft contrast
+    {"VHS",           0.75f, 6.0f, 0.7f, 1.5f, 1.0f, -0.05f, {1.05f, 0.98f, 0.90f}},
+
+    // 6: Moonlight — blue-shifted, low saturation, gentle, dreamlike
+    {"Moonlight",     0.6f,  2.0f, 0.8f, 1.0f, 0.4f, -0.1f,  {0.88f, 0.95f, 1.12f}},
+
+    // 7: Bleach Bypass — desaturated but high contrast, gritty (Se7en, Saving Private Ryan)
+    {"Bleach Bypass", 0.5f,  2.5f, 1.5f, 1.3f, 0.55f, 0.0f,  {1.0f, 0.98f, 0.96f}},
+
+    // 8: Raw — no post-FX. See the geometry and lighting as-is.
+    {"Raw",           1.0f,  0.0f, 0.0f, 0.0f, 0.0f,  0.0f,  {1.0f, 1.0f, 1.0f}},
+};
+
+void ApplyVisualStyle(EVPostFX *pfx, int style_index) {
+    if (style_index < 0 || style_index >= STYLE_COUNT) return;
+    const VisualStyle *s = &visual_styles[style_index];
+    SetPostFXSaturation(pfx, s->saturation);
+    SetPostFXCA(pfx, s->caAmount);
+    SetPostFXContrast(pfx, s->contrast);
+    SetPostFXVignette(pfx, s->vignette);
+    SetPostFXGrain(pfx, s->grain);
+    SetPostFXTint(pfx, s->tint[0], s->tint[1], s->tint[2]);
+    // exposure_bias is applied in main.c on top of scene exposure
 }
 
 void draw_text_box(const char *text, int y, int font_size, Color text_color) {
@@ -229,7 +319,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                 case SHAPE_CYLINDER:
                     if (cyl_model_loaded) {
                         cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, 0,
+                        DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
                                    (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
                     }
                     break;
@@ -243,22 +333,30 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                 case SHAPE_CONE:
                     if (cone_model_loaded) {
                         cone_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*cone_model, w->pos, (Vector3){0,1,0}, 0,
+                        DrawModelEx(*cone_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
                                    (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
                     }
                     break;
                 case SHAPE_SKYTOWER:
                     if (skytower_model_loaded) {
                         skytower_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        // size.x = uniform scale, model is ~9.5 units tall at scale 1
-                        DrawModelEx(*skytower_model, w->pos, (Vector3){0,1,0}, 0,
+                        // Model is Z-up from Blender — rotate -90° on X to stand upright
+                        DrawModelEx(*skytower_model, w->pos, (Vector3){1,0,0}, -90,
                                    (Vector3){w->size.x, w->size.x, w->size.x}, WHITE);
+                    }
+                    break;
+                case SHAPE_TORUS:
+                    // Uses sphere model as placeholder — torus needs GenMeshTorus in main.c
+                    if (sphere_model_loaded) {
+                        sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                        DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                                   (Vector3){w->size.x, w->size.y * 0.3f, w->size.z}, WHITE);
                     }
                     break;
                 default: // SHAPE_CUBE
                     if (cube_model_loaded) {
                         cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, 0,
+                        DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
                                    w->size, WHITE);
                     }
                     break;

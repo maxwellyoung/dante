@@ -76,6 +76,22 @@ Orphaned (dev keys only): HALLWAY, BATHROOM, ROOM (Paris hotel)
 | 8 | Jump to: Space Corridor |
 | 9 | Jump to: Space Suite |
 
+## Visual Style Presets (Shift+Number)
+
+| Key | Style | Character |
+|-----|-------|-----------|
+| Shift+1 | Default | 16mm Godard, warm neutral, architectural |
+| Shift+2 | Noir | Desaturated, heavy contrast, deep shadows |
+| Shift+3 | Godard | Saturated reds, cool blues, contrasty (Contempt) |
+| Shift+4 | Polaroid | Faded, warm, low contrast, soft |
+| Shift+5 | Kubrick | Cold, clinical, sharp, low grain |
+| Shift+6 | VHS | Heavy grain, heavy CA, warm/muddy |
+| Shift+7 | Moonlight | Blue-shifted, desaturated, dreamlike |
+| Shift+8 | Bleach Bypass | Desaturated + high contrast (Se7en) |
+| Shift+9 | Raw | No post-FX, geometry and lighting only |
+
+Styles persist across scene changes. Shader parameters: saturation, CA strength, contrast, vignette, grain, exposure bias, RGB tint. Defined in `render.c` as `visual_styles[]`.
+
 ## Design Principles
 
 - **Ethical reduction** (Rams): Remove until it breaks, add back one thing

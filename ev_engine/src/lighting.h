@@ -8,6 +8,8 @@
 #include "raylib.h"
 #include "raymath.h"
 
+#define MAX_POINT_LIGHTS 4
+
 // Per-scene lighting configuration — set once per scene transition
 typedef struct {
     Vector3 keyDir;         // key light direction (normalized)
@@ -15,10 +17,10 @@ typedef struct {
     Vector3 fillDir;        // fill light direction (normalized)
     float fillColor[3];     // fill light color
     float ambient[3];       // ambient light color
-    // Point light (practical: lamp, candle, fixture)
-    Vector3 pointPos;       // world position
-    float pointColor[3];    // color
-    float pointRadius;      // falloff radius (0 = disabled)
+    // Point lights (practicals: lamps, candles, fixtures)
+    Vector3 pointPos[MAX_POINT_LIGHTS];
+    float pointColor[MAX_POINT_LIGHTS][3];
+    float pointRadius[MAX_POINT_LIGHTS];   // 0 = disabled
 } SceneLighting;
 
 typedef struct {
@@ -31,10 +33,10 @@ typedef struct {
     int lightColorLoc;
     int fillDirLoc;
     int fillColorLoc;
-    // Point light
-    int pointPosLoc;
-    int pointColorLoc;
-    int pointRadiusLoc;
+    // Point lights (4)
+    int pointPosLoc[MAX_POINT_LIGHTS];
+    int pointColorLoc[MAX_POINT_LIGHTS];
+    int pointRadiusLoc[MAX_POINT_LIGHTS];
     // Material
     int materialIdLoc;
     bool ready;
@@ -51,6 +53,9 @@ void SetSceneLighting(EVLighting *lighting, SceneLighting preset);
 void SetPointLight(EVLighting *lighting, float x, float y, float z,
                    float r, float g, float b, float radius);
 
+void SetPointLightIdx(EVLighting *lighting, int index, float x, float y, float z,
+                      float r, float g, float b, float radius);
+
 // Set per-wall material ID (called before each DrawModelEx)
 void SetMaterialId(EVLighting *lighting, int materialId);
 
@@ -66,5 +71,6 @@ SceneLighting LightingPreset_Balcony(void);
 SceneLighting LightingPreset_SpaceLobby(void);
 SceneLighting LightingPreset_SpaceCorridor(void);
 SceneLighting LightingPreset_SpaceSuite(void);
+SceneLighting LightingPreset_Hyperspace(void);
 
 #endif

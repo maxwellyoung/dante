@@ -47,6 +47,26 @@ qa: $(QA_OBJ)
 src/%.qa.o: src/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -c $< -o $@
 
+# Full QA pipeline: build + run + diff + archive
+qa-full:
+	@./qa/run.sh
+
+# Save current screenshots as the baseline to diff against
+qa-baseline:
+	@./qa/run.sh --baseline
+
+# Watch for source changes and re-run QA automatically
+qa-watch:
+	@./qa/run.sh --watch
+
+# Show diff against baseline without re-running
+qa-diff:
+	@./qa/run.sh --diff
+
+# Show QA run history
+qa-history:
+	@./qa/run.sh --history
+
 # ── Quality & Analysis ──────────────────────────────────────────────
 
 CHECK_FLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wdouble-promotion \
@@ -102,4 +122,4 @@ tests/test_main: tests/test_main.c src/ev_types.h src/scene.h src/player.h src/a
 devclean:
 	rm -f src/*.dev.o
 
-.PHONY: all run clean devclean check count todo release fmt test dev qa
+.PHONY: all run clean devclean check count todo release fmt test dev qa qa-full qa-baseline qa-watch qa-diff qa-history

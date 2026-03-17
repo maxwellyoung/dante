@@ -41,9 +41,9 @@ static const char *fs_source =
     "uniform vec3 lightColor;\n"
     "uniform vec3 fillDir;\n"
     "uniform vec3 fillColor;\n"
-    "uniform vec3 pointPos;\n"
-    "uniform vec3 pointColor;\n"
-    "uniform float pointRadius;\n"
+    "uniform vec3 pointPos[4];\n"
+    "uniform vec3 pointColor[4];\n"
+    "uniform float pointRadius[4];\n"
     "uniform int materialId;\n"
     "uniform sampler2D texture0;\n"
     "uniform vec4 colDiffuse;\n"
@@ -163,6 +163,47 @@ static const char *fs_source =
     "        baseColor *= 0.92 + pattern + n * 0.06;\n"
     "        specMult = 0.02;\n"
     "    }\n"
+    "    else if (materialId == 10) {\n"
+    "        // CHECKERBOARD — two-tone floor from a single plane\n"
+    "        vec2 checker = floor(surfUV * 2.0);\n"
+    "        float check = mod(checker.x + checker.y, 2.0);\n"
+    "        baseColor *= mix(0.78, 1.0, check);\n"
+    "        // Per-tile noise variation\n"
+    "        float tileNoise = noise(checker * 7.3) * 0.04;\n"
+    "        baseColor += tileNoise;\n"
+    "        specMult = 0.3;\n"
+    "    }\n"
+    "    else if (materialId == 11) {\n"
+    "        // HERRINGBONE — interlocking plank pattern\n"
+    "        vec2 uv = surfUV * 3.0;\n"
+    "        float row = floor(uv.y);\n"
+    "        float shifted = uv.x + mod(row, 2.0) * 0.5;\n"
+    "        float plank = mod(floor(shifted), 2.0);\n"
+    "        // Grain runs along plank length, alternating direction\n"
+    "        float grainDir = (plank > 0.5) ? uv.x : uv.y;\n"
+    "        float grain = sin(grainDir * 20.0 + noise(surfUV * 5.0) * 3.0) * 0.5 + 0.5;\n"
+    "        grain = smoothstep(0.3, 0.7, grain);\n"
+    "        baseColor *= mix(0.82, 1.0, plank) + grain * 0.06;\n"
+    "        // Grout between planks\n"
+    "        vec2 plankUV = fract(vec2(shifted, uv.y));\n"
+    "        float grout = step(0.04, plankUV.x) * step(0.04, plankUV.y);\n"
+    "        baseColor *= mix(0.7, 1.0, grout);\n"
+    "        specMult = 0.15;\n"
+    "    }\n"
+    "    else if (materialId == 12) {\n"
+    "        // PARQUET — alternating grain direction in tiles\n"
+    "        vec2 tile = floor(surfUV * 2.5);\n"
+    "        float dir = mod(tile.x + tile.y, 2.0);\n"
+    "        vec2 localUV = fract(surfUV * 2.5);\n"
+    "        float grainCoord = (dir > 0.5) ? localUV.x : localUV.y;\n"
+    "        float grain = sin(grainCoord * 25.0 + noise(surfUV * 6.0) * 2.0) * 0.5 + 0.5;\n"
+    "        baseColor *= 0.9 + grain * 0.1;\n"
+    "        // Tile border\n"
+    "        float border = step(0.03, localUV.x) * step(0.03, localUV.y)\n"
+    "                      * step(0.03, 1.0-localUV.x) * step(0.03, 1.0-localUV.y);\n"
+    "        baseColor *= mix(0.75, 1.0, border);\n"
+    "        specMult = 0.14;\n"
+    "    }\n"
     "\n"
     "    // Key light — warm, generous\n"
     "    float NdotL = dot(norm, -lightDir);\n"
@@ -175,16 +216,18 @@ static const char *fs_source =
     "    float fillLambert = max(NdotF * 0.5 + 0.5, 0.0);\n"
     "    vec3 fillDiffuse = fillColor * fillLambert * 0.5;\n"
     "\n"
-    "    // Point light — practical (lamp, candle, fixture)\n"
+    "    // Point lights — practicals (lamps, candles, fixtures)\n"
     "    vec3 pointLit = vec3(0.0);\n"
-    "    if (pointRadius > 0.0) {\n"
-    "        vec3 toLight = pointPos - fragPosition;\n"
-    "        float pDist = length(toLight);\n"
-    "        vec3 pDir = toLight / max(pDist, 0.001);\n"
-    "        float NdotP = max(dot(norm, pDir), 0.0);\n"
-    "        float atten = 1.0 / (1.0 + pDist * pDist / (pointRadius * pointRadius * 0.25));\n"
-    "        atten *= smoothstep(pointRadius, pointRadius * 0.5, pDist);\n"
-    "        pointLit = pointColor * NdotP * atten;\n"
+    "    for (int i = 0; i < 4; i++) {\n"
+    "        if (pointRadius[i] > 0.0) {\n"
+    "            vec3 toLight = pointPos[i] - fragPosition;\n"
+    "            float pDist = length(toLight);\n"
+    "            vec3 pDir = toLight / max(pDist, 0.001);\n"
+    "            float NdotP = max(dot(norm, pDir), 0.0);\n"
+    "            float atten = 1.0 / (1.0 + pDist * pDist / (pointRadius[i] * pointRadius[i] * 0.25));\n"
+    "            atten *= smoothstep(pointRadius[i], pointRadius[i] * 0.5, pDist);\n"
+    "            pointLit += pointColor[i] * NdotP * atten;\n"
+    "        }\n"
     "    }\n"
     "\n"
     "    // Rim — subtle warm edge\n"
@@ -238,9 +281,15 @@ EVLighting LoadEVLighting(void) {
         lighting.lightColorLoc = GetShaderLocation(lighting.shader, "lightColor");
         lighting.fillDirLoc = GetShaderLocation(lighting.shader, "fillDir");
         lighting.fillColorLoc = GetShaderLocation(lighting.shader, "fillColor");
-        lighting.pointPosLoc = GetShaderLocation(lighting.shader, "pointPos");
-        lighting.pointColorLoc = GetShaderLocation(lighting.shader, "pointColor");
-        lighting.pointRadiusLoc = GetShaderLocation(lighting.shader, "pointRadius");
+        for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+            char name[32];
+            snprintf(name, sizeof(name), "pointPos[%d]", i);
+            lighting.pointPosLoc[i] = GetShaderLocation(lighting.shader, name);
+            snprintf(name, sizeof(name), "pointColor[%d]", i);
+            lighting.pointColorLoc[i] = GetShaderLocation(lighting.shader, name);
+            snprintf(name, sizeof(name), "pointRadius[%d]", i);
+            lighting.pointRadiusLoc[i] = GetShaderLocation(lighting.shader, name);
+        }
         lighting.materialIdLoc = GetShaderLocation(lighting.shader, "materialId");
         int matNormalLoc = GetShaderLocation(lighting.shader, "matNormal");
         lighting.shader.locs[SHADER_LOC_MATRIX_NORMAL] = matNormalLoc;
@@ -283,21 +332,28 @@ void SetSceneLighting(EVLighting *lighting, SceneLighting preset) {
 
     SetShaderValue(lighting->shader, lighting->ambientLoc, preset.ambient, SHADER_UNIFORM_VEC3);
 
-    // Point light
-    float pointPos[3] = {preset.pointPos.x, preset.pointPos.y, preset.pointPos.z};
-    SetShaderValue(lighting->shader, lighting->pointPosLoc, pointPos, SHADER_UNIFORM_VEC3);
-    SetShaderValue(lighting->shader, lighting->pointColorLoc, preset.pointColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(lighting->shader, lighting->pointRadiusLoc, &preset.pointRadius, SHADER_UNIFORM_FLOAT);
+    // Point lights
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+        float pPos[3] = {preset.pointPos[i].x, preset.pointPos[i].y, preset.pointPos[i].z};
+        SetShaderValue(lighting->shader, lighting->pointPosLoc[i], pPos, SHADER_UNIFORM_VEC3);
+        SetShaderValue(lighting->shader, lighting->pointColorLoc[i], preset.pointColor[i], SHADER_UNIFORM_VEC3);
+        SetShaderValue(lighting->shader, lighting->pointRadiusLoc[i], &preset.pointRadius[i], SHADER_UNIFORM_FLOAT);
+    }
 }
 
 void SetPointLight(EVLighting *lighting, float x, float y, float z,
                    float r, float g, float b, float radius) {
-    if (!lighting->ready) return;
+    SetPointLightIdx(lighting, 0, x, y, z, r, g, b, radius);
+}
+
+void SetPointLightIdx(EVLighting *lighting, int index, float x, float y, float z,
+                      float r, float g, float b, float radius) {
+    if (!lighting->ready || index < 0 || index >= MAX_POINT_LIGHTS) return;
     float pos[3] = {x, y, z};
     float col[3] = {r, g, b};
-    SetShaderValue(lighting->shader, lighting->pointPosLoc, pos, SHADER_UNIFORM_VEC3);
-    SetShaderValue(lighting->shader, lighting->pointColorLoc, col, SHADER_UNIFORM_VEC3);
-    SetShaderValue(lighting->shader, lighting->pointRadiusLoc, &radius, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(lighting->shader, lighting->pointPosLoc[index], pos, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lighting->shader, lighting->pointColorLoc[index], col, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lighting->shader, lighting->pointRadiusLoc[index], &radius, SHADER_UNIFORM_FLOAT);
 }
 
 void SetMaterialId(EVLighting *lighting, int materialId) {
@@ -312,17 +368,17 @@ void SetMaterialId(EVLighting *lighting, int materialId) {
 
 SceneLighting LightingPreset_Taxi(void) {
     // City light fragments through rain-streaked windows
-    // Dim, fragmented, orange sodium vapor + blue dashboard
+    // Michael Mann night: dark but EVERY element reads
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.5f, -0.3f, -0.6f}),
-        .keyColor = {0.9f, 0.65f, 0.4f},       // sodium streetlight orange — lifted
+        .keyColor = {1.4f, 1.0f, 0.65f},        // sodium streetlight — HOT orange
         .fillDir = Vector3Normalize((Vector3){0.2f, -0.4f, 0.5f}),
-        .fillColor = {0.2f, 0.22f, 0.35f},      // dashboard blue reflection
-        .ambient = {0.14f, 0.12f, 0.15f},        // dark but readable
+        .fillColor = {0.35f, 0.38f, 0.55f},      // dashboard blue — visible
+        .ambient = {0.28f, 0.25f, 0.30f},         // see the leather, see the driver
         // Taxi meter glow — green-teal dashboard
-        .pointPos = {0.45f, 0.72f, -1.06f},
-        .pointColor = {0.4f, 0.7f, 0.6f},
-        .pointRadius = 3.0f
+        .pointPos = {{0.45f, 0.72f, -1.06f}},
+        .pointColor = {{0.6f, 1.0f, 0.8f}},
+        .pointRadius = {5.0f}
     };
 }
 
@@ -330,14 +386,14 @@ SceneLighting LightingPreset_Exterior(void) {
     // Auckland at 2AM — moonlight blue-white, warm hotel entrance spill
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, 0.2f}),
-        .keyColor = {0.55f, 0.60f, 0.75f},       // moonlight — brighter
+        .keyColor = {0.65f, 0.70f, 0.85f},       // moonlight — strong enough to see
         .fillDir = Vector3Normalize((Vector3){0.0f, 0.3f, -0.8f}),
-        .fillColor = {0.15f, 0.12f, 0.10f},      // ground bounce
-        .ambient = {0.12f, 0.13f, 0.18f},         // night but readable — see the tower
+        .fillColor = {0.20f, 0.18f, 0.15f},      // ground bounce
+        .ambient = {0.18f, 0.19f, 0.25f},         // night but you can SEE the Sky Tower
         // Left lamppost — warm spill near entrance
-        .pointPos = {-6.0f, 3.8f, -1.0f},
-        .pointColor = {1.0f, 0.8f, 0.5f},
-        .pointRadius = 14.0f,
+        .pointPos = {{-6.0f, 3.8f, -1.0f}},
+        .pointColor = {{1.2f, 0.95f, 0.6f}},
+        .pointRadius = {18.0f},
     };
 }
 
@@ -345,15 +401,15 @@ SceneLighting LightingPreset_Lobby(void) {
     // Grand lobby — overhead chandeliers, warm marble reflection
     // Think: Wes Anderson hotel interior, symmetrical, golden
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.1f, -0.9f, -0.2f}),
-        .keyColor = {1.3f, 1.1f, 0.85f},        // warm overhead chandelier — brighter
+        .keyDir = Vector3Normalize((Vector3){-0.2f, -0.8f, -0.3f}),
+        .keyColor = {1.4f, 1.2f, 0.85f},        // warm chandelier — strong directional
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.6f, 0.2f}),
-        .fillColor = {0.35f, 0.30f, 0.24f},     // marble floor bounce — lifted
-        .ambient = {0.25f, 0.24f, 0.22f},        // grand lobby should be welcoming
+        .fillColor = {0.20f, 0.25f, 0.18f},     // green wall bounce — adds color
+        .ambient = {0.22f, 0.21f, 0.19f},        // lower than before — more contrast
         // Hanging sphere light cluster — lobby ceiling
-        .pointPos = {-2.0f, 6.4f, -2.0f},
-        .pointColor = {1.0f, 0.85f, 0.55f},
-        .pointRadius = 18.0f,
+        .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}},
+        .pointColor = {{1.2f, 0.95f, 0.60f}, {0.8f, 0.65f, 0.4f}, {0.8f, 0.65f, 0.4f}},
+        .pointRadius = {20.0f, 12.0f, 12.0f},
     };
 }
 
@@ -365,9 +421,9 @@ SceneLighting LightingPreset_Elevator(void) {
         .fillDir = Vector3Normalize((Vector3){0.0f, 1.0f, 0.0f}),
         .fillColor = {0.15f, 0.14f, 0.12f},     // floor bounce
         .ambient = {0.15f, 0.15f, 0.14f},
-        .pointPos = {0, 2.4f, 0},
-        .pointColor = {0.7f, 0.75f, 0.65f},
-        .pointRadius = 3.0f,
+        .pointPos = {{0, 2.4f, 0}},
+        .pointColor = {{0.7f, 0.75f, 0.65f}},
+        .pointRadius = {3.0f},
     };
 }
 
@@ -381,9 +437,9 @@ SceneLighting LightingPreset_Hallway(void) {
         .fillColor = {0.18f, 0.16f, 0.13f},     // wall bounce
         .ambient = {0.12f, 0.11f, 0.10f},        // dim corridors
         // First ceiling light panel — player walks toward these
-        .pointPos = {0, 3.9f, -3.0f},
-        .pointColor = {0.8f, 0.65f, 0.4f},
-        .pointRadius = 8.0f,
+        .pointPos = {{0, 3.9f, -3.0f}},
+        .pointColor = {{0.8f, 0.65f, 0.4f}},
+        .pointRadius = {8.0f},
     };
 }
 
@@ -398,9 +454,9 @@ SceneLighting LightingPreset_Room(void) {
         .fillColor = {0.30f, 0.35f, 0.45f},     // cool blue contrast
         .ambient = {0.22f, 0.21f, 0.20f},        // Ando low ambient
         // Ceiling light panel — center of room
-        .pointPos = {0, 3.68f, 0},
-        .pointColor = {0.9f, 0.7f, 0.45f},
-        .pointRadius = 7.0f,
+        .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {0, 0.5f, 3.5f}},
+        .pointColor = {{0.9f, 0.7f, 0.45f}, {0.8f, 0.6f, 0.35f}, {0.5f, 0.4f, 0.2f}},
+        .pointRadius = {7.0f, 4.0f, 3.0f},
     };
 }
 
@@ -414,25 +470,25 @@ SceneLighting LightingPreset_Bathroom(void) {
         .fillColor = {0.20f, 0.22f, 0.25f},     // tile reflection — cool
         .ambient = {0.25f, 0.26f, 0.28f},        // brighter ambient — tiles reflect
         // Ando slot window — bright diffuse light
-        .pointPos = {0, 2.6f, -1.88f},
-        .pointColor = {0.9f, 0.92f, 0.95f},
-        .pointRadius = 4.5f,
+        .pointPos = {{0, 2.6f, -1.88f}},
+        .pointColor = {{0.9f, 0.92f, 0.95f}},
+        .pointRadius = {4.5f},
     };
 }
 
 SceneLighting LightingPreset_Balcony(void) {
     // Orbital observation deck — Earth glow from below, starfield above
-    // Contemplative, expansive, melancholy beauty
+    // You MUST see: railing, chair, wine glass, Earth atmosphere
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.4f, -0.6f, 0.3f}),
-        .keyColor = {0.45f, 0.55f, 0.70f},      // Earth reflected light — blue
-        .fillDir = Vector3Normalize((Vector3){0.0f, 0.8f, -0.5f}),
-        .fillColor = {0.25f, 0.20f, 0.12f},     // warm interior bounce from back wall
-        .ambient = {0.14f, 0.15f, 0.22f},        // see the balcony furniture + railing
-        // Earth atmosphere glow — below horizon
-        .pointPos = {0.0f, -1.0f, -15.0f},
-        .pointColor = {0.4f, 0.6f, 0.8f},
-        .pointRadius = 30.0f,
+        .keyDir = Vector3Normalize((Vector3){0.0f, 0.5f, -0.8f}),   // from Earth below
+        .keyColor = {0.60f, 0.80f, 1.0f},       // Earth glow — strong blue uplight
+        .fillDir = Vector3Normalize((Vector3){0.0f, -0.5f, 0.5f}),
+        .fillColor = {0.35f, 0.28f, 0.18f},     // warm back wall bounce
+        .ambient = {0.30f, 0.32f, 0.40f},        // HIGH ambient — furniture must read
+        // Earth atmosphere — bright band below
+        .pointPos = {{0.0f, 0.0f, -8.0f}},
+        .pointColor = {{0.6f, 0.85f, 1.1f}},
+        .pointRadius = {25.0f},
     };
 }
 
@@ -446,9 +502,9 @@ SceneLighting LightingPreset_SpaceLobby(void) {
         .fillColor = {0.15f, 0.22f, 0.35f},      // Earth glow — blue bounce
         .ambient = {0.16f, 0.17f, 0.22f},         // grand lobby — visible
         // Chandelier above observation area
-        .pointPos = {0, 6.4f, -3.0f},
-        .pointColor = {0.85f, 0.65f, 0.40f},
-        .pointRadius = 14.0f,
+        .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}},
+        .pointColor = {{0.85f, 0.65f, 0.40f}, {0.4f, 0.5f, 0.7f}, {0.4f, 0.5f, 0.7f}},
+        .pointRadius = {14.0f, 10.0f, 10.0f},
     };
 }
 
@@ -457,14 +513,14 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
     // Kubrick hallway energy but cold and blue-shifted
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),
-        .keyColor = {0.80f, 0.68f, 0.50f},       // warm overhead amber — brighter
+        .keyColor = {1.0f, 0.85f, 0.60f},        // warm overhead amber — BRIGHT
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.15f, 0.18f, 0.28f},      // porthole starlight — cool
-        .ambient = {0.18f, 0.18f, 0.22f},         // navigable corridor
-        // Ceiling light panel — player walks toward these
-        .pointPos = {0, 3.4f, 0},
-        .pointColor = {0.8f, 0.65f, 0.45f},
-        .pointRadius = 10.0f,
+        .fillColor = {0.22f, 0.28f, 0.40f},      // porthole starlight — cool blue
+        .ambient = {0.25f, 0.25f, 0.30f},         // corridor reads, doors visible
+        // Ceiling light panel
+        .pointPos = {{0, 3.4f, 0}},
+        .pointColor = {{1.0f, 0.80f, 0.55f}},
+        .pointRadius = {14.0f},
     };
 }
 
@@ -473,13 +529,27 @@ SceneLighting LightingPreset_SpaceSuite(void) {
     // The Glass Elevator room: luxury + void
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.6f, -0.5f, -0.2f}),
-        .keyColor = {0.55f, 0.65f, 0.80f},       // Earth glow — from window, lifted
+        .keyColor = {0.65f, 0.78f, 0.95f},       // Earth glow — strong blue from window
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.4f, 0.2f}),
-        .fillColor = {0.25f, 0.22f, 0.18f},      // warm floor bounce
-        .ambient = {0.22f, 0.22f, 0.26f},         // liveable — see the furniture
-        // Dropped ceiling light above bed
-        .pointPos = {0, 4.8f, -4.0f},
-        .pointColor = {0.90f, 0.70f, 0.45f},
-        .pointRadius = 12.0f,
+        .fillColor = {0.30f, 0.26f, 0.20f},      // warm floor bounce
+        .ambient = {0.26f, 0.26f, 0.30f},         // liveable — every object reads
+        // Dropped ceiling light above bed + bedside lamps + Earth glow
+        .pointPos = {{0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0}},
+        .pointColor = {{1.0f, 0.80f, 0.50f}, {0.9f, 0.7f, 0.4f}, {0.9f, 0.7f, 0.4f}, {0.3f, 0.5f, 0.8f}},
+        .pointRadius = {14.0f, 5.0f, 5.0f, 8.0f},
+    };
+}
+
+SceneLighting LightingPreset_Hyperspace(void) {
+    // Wormhole tunnel — everything glows, brass rings catch light
+    return (SceneLighting){
+        .keyDir = Vector3Normalize((Vector3){0.0f, 0.0f, -1.0f}),
+        .keyColor = {1.2f, 1.0f, 0.75f},
+        .fillDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
+        .fillColor = {0.40f, 0.45f, 0.60f},
+        .ambient = {0.35f, 0.32f, 0.40f},
+        .pointPos = {{0, 0, -20.0f}},
+        .pointColor = {{1.0f, 0.85f, 0.55f}},
+        .pointRadius = {30.0f},
     };
 }

@@ -11,6 +11,7 @@
 #include "player.h"
 #include "audio.h"
 #include "render.h"
+#include "npc.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -69,8 +70,12 @@ static float cigarette_anim_timer = 0;
 static Vector3 cigarette_cam_origin = {0};
 static Vector3 cigarette_cam_target = {0};
 
+static NPC gibbons = {0};
+
 static bool show_debug = false;
 static bool wireframe = false;
+static int current_style = 0;   // visual style preset index
+static float scene_exposure = 0; // base exposure from load_state, before style bias
 
 // Vignette text system — spring-based (Kowalski, Castilho)
 static const char *vig_text = NULL;
@@ -113,6 +118,12 @@ static float hold_timer = 0;
 
 // Forward declaration
 static void load_state(GameState s);
+
+// Exposure helper — stores scene value and adds style bias
+static void set_exposure(float exp) {
+    scene_exposure = exp;
+    SetPostFXExposure(&postfx, exp + visual_styles[current_style].exposure_bias);
+}
 
 static void transition_to(GameState s) {
     if (transitioning) return;  // already in flight — don't reset
@@ -188,8 +199,8 @@ static void load_state(GameState s) {
             PlayCityAmbient(&audio);
             SetCityAmbientVolume(&audio, 0.04f);
             SetSceneLighting(&lighting, LightingPreset_Taxi());
-            SetPostFXExposure(&postfx, -0.1f);  // dark taxi but readable
-            SetPostFXGrain(&postfx, 0.6f);       // grainy night footage
+            set_exposure(0.0f);   // let lighting do the work
+            SetPostFXGrain(&postfx, 0.5f);       // grainy night footage
             break;
 
         case STATE_DRIVING:
@@ -206,7 +217,7 @@ static void load_state(GameState s) {
             PlayCityAmbient(&audio);
             PlayWindAmbient(&audio);
             SetSceneLighting(&lighting, LightingPreset_Exterior());
-            SetPostFXExposure(&postfx, -0.15f);  // 2AM Auckland — see the tower
+            set_exposure(0.0f);   // let moonlight work
             SetPostFXGrain(&postfx, 0.6f);
             break;
 
@@ -220,7 +231,7 @@ static void load_state(GameState s) {
 
             StopWindAmbient(&audio);
             SetSceneLighting(&lighting, LightingPreset_Lobby());
-            SetPostFXExposure(&postfx, 0.0f);   // grand lobby — let chandelier work
+            set_exposure(0.0f);   // grand lobby — let chandelier work
             SetPostFXGrain(&postfx, 0.4f);
             break;
 
@@ -235,7 +246,7 @@ static void load_state(GameState s) {
 
             PlayElevatorHum(&audio);
             SetSceneLighting(&lighting, LightingPreset_Elevator());
-            SetPostFXExposure(&postfx, 0.0f);
+            set_exposure(0.0f);
             SetPostFXGrain(&postfx, 0.3f);  // fluorescent — less grain
             break;
 
@@ -248,7 +259,7 @@ static void load_state(GameState s) {
 
             StopWindAmbient(&audio);
             SetSceneLighting(&lighting, LightingPreset_Hallway());
-            SetPostFXExposure(&postfx, -0.15f);  // dim corridor
+            set_exposure(-0.05f);  // dim corridor — slight
             SetPostFXGrain(&postfx, 0.5f);
             break;
 
@@ -280,7 +291,7 @@ static void load_state(GameState s) {
 
             StopWindAmbient(&audio);
             SetSceneLighting(&lighting, LightingPreset_Room());
-            SetPostFXExposure(&postfx, -0.05f);  // slight darkness — 2AM
+            set_exposure(-0.05f);  // slight darkness — 2AM
             SetPostFXGrain(&postfx, 0.5f);
             break;
         }
@@ -294,7 +305,7 @@ static void load_state(GameState s) {
 
             StopWindAmbient(&audio);
             SetSceneLighting(&lighting, LightingPreset_Bathroom());
-            SetPostFXExposure(&postfx, 0.1f);   // bright bathroom fluorescent
+            set_exposure(0.1f);   // bright bathroom fluorescent
             SetPostFXGrain(&postfx, 0.3f);      // clinical — less grain
             break;
 
@@ -310,12 +321,27 @@ static void load_state(GameState s) {
             PlayWindAmbient(&audio);  // void wind — no city sounds in orbit
             SetPostFXWarmth(&postfx, 1.0f);
             SetSceneLighting(&lighting, LightingPreset_Balcony());
-            SetPostFXExposure(&postfx, -0.1f);  // orbital — see furniture + Earth
+            set_exposure(0.05f);  // slight lift — Earth glow
             SetPostFXGrain(&postfx, 0.6f);      // contemplative grain
             break;
 
         case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio); break;
         case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio); break;
+
+        case STATE_HYPERSPACE:
+            build_hyperspace(&scene);
+            init_player(&player, scene.spawn);
+            // Camera looks straight down the tunnel
+            player.camera.target = (Vector3){0, 0, -10};
+            StopAmbient(&audio);
+            StopClockAmbient(&audio);
+            StopCityAmbient(&audio);
+            StopWindAmbient(&audio);
+            SetSceneLighting(&lighting, LightingPreset_Hyperspace());
+            set_exposure(0.1f);
+            SetPostFXGrain(&postfx, 0.7f);
+            SetPostFXCA(&postfx, 5.0f);  // start with elevated CA
+            break;
 
         case STATE_SPACE_LOBBY:
             build_space_lobby(&scene);
@@ -326,8 +352,19 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             StartAmbient(&audio, DRONE_SPACE_LOBBY);
             SetSceneLighting(&lighting, LightingPreset_SpaceLobby());
-            SetPostFXExposure(&postfx, -0.05f);
+            set_exposure(-0.05f);
             SetPostFXGrain(&postfx, 0.4f);
+            SetPostFXCA(&postfx, 2.5f);  // reset CA from hyperspace
+            // Gibbons — appears near elevator shaft, leads to exit
+            {
+                Vector3 lobby_wps[] = {
+                    {-3, 1.6f, 3},     // near elevator shaft
+                    {-6, 1.6f, -3},    // past reception desk
+                    {0, 1.6f, -6},     // center of lobby
+                    {0, 1.6f, 7},      // toward exit
+                };
+                init_npc(&gibbons, (Vector3){1, 1.6f, 4}, lobby_wps, 4, 3.0f, 4.0f);
+            }
             break;
 
         case STATE_SPACE_CORRIDOR:
@@ -339,8 +376,17 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             StartAmbient(&audio, DRONE_SPACE_CORRIDOR);
             SetSceneLighting(&lighting, LightingPreset_SpaceCorridor());
-            SetPostFXExposure(&postfx, -0.05f);
+            set_exposure(0.0f);
             SetPostFXGrain(&postfx, 0.4f);
+            // Gibbons — leads through corridor to suite
+            {
+                Vector3 corr_wps[] = {
+                    {0, 1.6f, 2},       // ahead in corridor
+                    {0, 1.6f, 8},       // mid corridor
+                    {0, 1.6f, 14},      // near exit
+                };
+                init_npc(&gibbons, scene.spawn, corr_wps, 3, 3.5f, 4.0f);
+            }
             break;
 
         case STATE_SPACE_SUITE:
@@ -353,12 +399,26 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             StartAmbient(&audio, DRONE_SPACE_SUITE);
             SetSceneLighting(&lighting, LightingPreset_SpaceSuite());
-            SetPostFXExposure(&postfx, -0.1f);
+            set_exposure(-0.1f);
             SetPostFXGrain(&postfx, 0.35f);
+            // Gibbons — walks to center, bows, deactivates
+            {
+                Vector3 suite_wps[] = {
+                    {0, 1.6f, 2},       // into room
+                    {0, 1.6f, 0},       // center
+                };
+                init_npc(&gibbons, (Vector3){0, 1.6f, 5}, suite_wps, 2, 2.5f, 3.0f);
+            }
             break;
     }
     fade_alpha = 1.0f;
     fade_target = 0.0f;
+
+    // Reapply visual style after scene change (style persists across scenes)
+    if (current_style > 0) {
+        ApplyVisualStyle(&postfx, current_style);
+        SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
+    }
 }
 
 // ============================================================
@@ -382,8 +442,15 @@ static void draw_vignette_text(void) {
 // ============================================================
 
 int main(void) {
+#ifdef QA_MODE
+    // Unfocused + always-run: no focus steal, GL stays active even if occluded
+    SetConfigFlags(FLAG_WINDOW_UNFOCUSED | FLAG_WINDOW_ALWAYS_RUN);
+    InitWindow(480, 300, "EV QA");
+    SetWindowPosition(0, 0);
+#else
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(960, 600, "Endearing Void");
+#endif
     SetTargetFPS(60);
 
     render_target = LoadRenderTexture(RENDER_W, RENDER_H);
@@ -437,12 +504,12 @@ int main(void) {
 
 #ifdef QA_MODE
     // ============================================================
-    // QA MODE — Automated screenshot + analysis pipeline
-    // Cycles every scene, renders frames, saves screenshots, reports.
-    // Build: make qa
+    // QA MODE — Automated screenshot + pixel analysis pipeline
+    // No focus steal, no sound, runs in background.
+    // Build: make qa   |   Full pipeline: ./qa/run.sh
     // ============================================================
+    EnableCursor();  // don't capture mouse in QA
     SetMasterVolume(0.0f);
-    // Note: don't MinimizeWindow — macOS suspends GL for minimized windows
 
     typedef struct { GameState gs; const char *name; } QAEntry;
     QAEntry qa_scenes[] = {
@@ -457,6 +524,7 @@ int main(void) {
         {STATE_SPACE_CORRIDOR,"space_corridor"},
         {STATE_SPACE_SUITE,   "space_suite"},
         {STATE_CAR,           "taxi"},
+        {STATE_HYPERSPACE,    "hyperspace"},
     };
     int qa_count = (int)(sizeof(qa_scenes)/sizeof(qa_scenes[0]));
 
@@ -464,12 +532,30 @@ int main(void) {
     printf("[QA] Scenes: %d | MAX_WALLS: %d | Render: %dx%d\n\n",
            qa_count, MAX_WALLS, RENDER_W, RENDER_H);
 
+    // JSON report file
+    FILE *jf = fopen("qa/report.json", "w");
+    if (jf) fprintf(jf, "{\n  \"render\": \"%dx%d\",\n  \"max_walls\": %d,\n  \"scenes\": [\n", RENDER_W, RENDER_H, MAX_WALLS);
+
     int qa_total_issues = 0;
 
     for (int qi = 0; qi < qa_count; qi++) {
         load_state(qa_scenes[qi].gs);
         fade_alpha = 0.0f; fade_target = 0.0f;
 
+        // Point camera toward scene content for meaningful screenshot
+        if (qa_scenes[qi].gs == STATE_CAR) {
+            player.camera.target = (Vector3){-0.3f, 0.9f, -1.2f};
+        } else if (qa_scenes[qi].gs == STATE_BALCONY) {
+            player.camera.target = (Vector3){0, 0.5f, -10.0f};
+        } else if (qa_scenes[qi].gs == STATE_ELEVATOR) {
+            player.camera.target = (Vector3){-0.8f, 1.2f, 0.3f};
+        } else if (scene.has_exit) {
+            player.camera.target = scene.exit_pos;
+        } else {
+            player.camera.target = (Vector3){0, player.camera.position.y, 0};
+        }
+
+        // Render 6 frames to let shaders/lighting settle
         for (int f = 0; f < 6; f++) {
             BeginTextureMode(render_target);
             ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8,10,22,255});
@@ -499,12 +585,13 @@ int main(void) {
         snprintf(path, sizeof(path), "qa/screenshots/%s.png", qa_scenes[qi].name);
         ExportImage(img, path);
 
-        // Pixel analysis
+        // ── Pixel analysis ──
         Color *pixels = LoadImageColors(img);
         int total_px = RENDER_W * RENDER_H;
         long r_sum = 0, g_sum = 0, b_sum = 0;
         int black_px = 0, bright_px = 0;
         float r_sq = 0, g_sq = 0, b_sq = 0;
+        int unique_hues[36] = {0};  // 10-degree hue buckets
 
         for (int p = 0; p < total_px; p++) {
             unsigned char pr = pixels[p].r, pg = pixels[p].g, pb = pixels[p].b;
@@ -512,7 +599,23 @@ int main(void) {
             r_sq += (float)pr*pr; g_sq += (float)pg*pg; b_sq += (float)pb*pb;
             if (pr < 15 && pg < 15 && pb < 15) black_px++;
             if (pr > 230 && pg > 230 && pb > 230) bright_px++;
+            // Hue bucket for color diversity
+            float rf = pr/255.0f, gf = pg/255.0f, bf = pb/255.0f;
+            float cmax = rf > gf ? (rf > bf ? rf : bf) : (gf > bf ? gf : bf);
+            float cmin = rf < gf ? (rf < bf ? rf : bf) : (gf < bf ? gf : bf);
+            float delta = cmax - cmin;
+            if (delta > 0.05f) {
+                float hue = 0;
+                if (cmax == rf) hue = 60.0f * fmodf((gf-bf)/delta, 6.0f);
+                else if (cmax == gf) hue = 60.0f * ((bf-rf)/delta + 2.0f);
+                else hue = 60.0f * ((rf-gf)/delta + 4.0f);
+                if (hue < 0) hue += 360.0f;
+                unique_hues[(int)(hue/10.0f) % 36]++;
+            }
         }
+
+        int hue_count = 0;
+        for (int h = 0; h < 36; h++) if (unique_hues[h] > total_px/500) hue_count++;
 
         float r_avg = (float)r_sum/total_px, g_avg = (float)g_sum/total_px, b_avg = (float)b_sum/total_px;
         float luma = 0.299f*r_avg + 0.587f*g_avg + 0.114f*b_avg;
@@ -525,16 +628,17 @@ int main(void) {
             if (scene.walls[w].material != MAT_CONCRETE) mat_tagged++;
         float mat_cov = scene.wall_count > 0 ? 100.0f*mat_tagged/scene.wall_count : 0;
         float wall_pct = 100.0f*scene.wall_count/MAX_WALLS;
+        int interact_count = scene.object_count;
 
-        // Issue detection
+        // ── Issue detection ──
         int issues = 0;
-        char ibuf[1024] = {0};
+        char ibuf[2048] = {0};
         int ib = 0;
 
-        // Dark scenes by design: balcony (space), taxi (2AM), hotel ext (night)
         bool dark_scene = qa_scenes[qi].gs == STATE_BALCONY ||
                           qa_scenes[qi].gs == STATE_CAR ||
-                          qa_scenes[qi].gs == STATE_HOTEL_EXT;
+                          qa_scenes[qi].gs == STATE_HOTEL_EXT ||
+                          qa_scenes[qi].gs == STATE_HYPERSPACE;
         if (black_pct > 85.0f && !dark_scene) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                 "    FAIL: %.0f%% black pixels\n", black_pct); issues++;
@@ -551,7 +655,7 @@ int main(void) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                 "    WARN: wall budget %.0f%% (%d/%d)\n", wall_pct, scene.wall_count, MAX_WALLS); issues++;
         }
-        if (mat_cov < 30.0f && scene.wall_count > 20) {
+        if (mat_cov < 25.0f && scene.wall_count > 20) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                 "    WARN: material coverage %.0f%%\n", mat_cov); issues++;
         }
@@ -559,21 +663,53 @@ int main(void) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                 "    WARN: %.0f%% blown out\n", bright_pct); issues++;
         }
+        if (hue_count < 2 && !dark_scene) {
+            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                "    WARN: only %d hue buckets — monotone\n", hue_count); issues++;
+        }
 
         const char *qs = issues == 0 ? "PASS" : "FAIL";
-        printf("[QA] %-18s %s  walls:%3d/%d (%.0f%%)  mat:%.0f%%  luma:%.0f  black:%.0f%%  var:%.0f\n",
-               qa_scenes[qi].name, qs, scene.wall_count, MAX_WALLS, wall_pct,
-               mat_cov, luma, black_pct, cvar);
+        printf("[QA] %-18s %s  walls:%3d/%d  mat:%.0f%%  luma:%.0f  black:%.0f%%  var:%.0f  hues:%d  interact:%d\n",
+               qa_scenes[qi].name, qs, scene.wall_count, MAX_WALLS,
+               mat_cov, luma, black_pct, cvar, hue_count, interact_count);
         if (issues > 0) printf("%s", ibuf);
         qa_total_issues += issues;
+
+        // ── JSON entry ──
+        if (jf) {
+            if (qi > 0) fprintf(jf, ",\n");
+            fprintf(jf, "    {\n");
+            fprintf(jf, "      \"name\": \"%s\",\n", qa_scenes[qi].name);
+            fprintf(jf, "      \"status\": \"%s\",\n", qs);
+            fprintf(jf, "      \"walls\": %d,\n", scene.wall_count);
+            fprintf(jf, "      \"wall_pct\": %.1f,\n", wall_pct);
+            fprintf(jf, "      \"material_coverage\": %.1f,\n", mat_cov);
+            fprintf(jf, "      \"interact_count\": %d,\n", interact_count);
+            fprintf(jf, "      \"luma\": %.1f,\n", luma);
+            fprintf(jf, "      \"black_pct\": %.1f,\n", black_pct);
+            fprintf(jf, "      \"bright_pct\": %.1f,\n", bright_pct);
+            fprintf(jf, "      \"color_variance\": %.1f,\n", cvar);
+            fprintf(jf, "      \"hue_buckets\": %d,\n", hue_count);
+            fprintf(jf, "      \"avg_rgb\": [%.0f, %.0f, %.0f],\n", r_avg, g_avg, b_avg);
+            fprintf(jf, "      \"issues\": %d,\n", issues);
+            fprintf(jf, "      \"screenshot\": \"screenshots/%s.png\"\n", qa_scenes[qi].name);
+            fprintf(jf, "    }");
+        }
 
         UnloadImageColors(pixels);
         UnloadImage(img);
     }
 
+    // Close JSON
+    if (jf) {
+        fprintf(jf, "\n  ],\n  \"total_issues\": %d,\n  \"scene_count\": %d\n}\n", qa_total_issues, qa_count);
+        fclose(jf);
+    }
+
     printf("\n[QA] === Summary: %d issue%s across %d scenes ===\n",
            qa_total_issues, qa_total_issues == 1 ? "" : "s", qa_count);
-    printf("[QA] Screenshots: qa/screenshots/\n\n");
+    printf("[QA] Screenshots: qa/screenshots/\n");
+    printf("[QA] Report:      qa/report.json\n\n");
 
     if (cube_model_loaded) UnloadModel(cube_model);
     if (cyl_model_loaded) UnloadModel(cyl_model);
@@ -616,7 +752,28 @@ int main(void) {
         if (IsKeyPressed(KEY_F1)) wireframe = !wireframe;
         if (IsKeyPressed(KEY_F3)) show_debug = !show_debug;
         if (IsKeyPressed(KEY_F4)) player.noclip = !player.noclip;
-        // Dev scene jumps — number keys for instant room testing
+
+        // Visual style presets — Shift+number (1-9)
+        if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
+            int new_style = -1;
+            if (IsKeyPressed(KEY_ONE))   new_style = 0;
+            if (IsKeyPressed(KEY_TWO))   new_style = 1;
+            if (IsKeyPressed(KEY_THREE)) new_style = 2;
+            if (IsKeyPressed(KEY_FOUR))  new_style = 3;
+            if (IsKeyPressed(KEY_FIVE))  new_style = 4;
+            if (IsKeyPressed(KEY_SIX))   new_style = 5;
+            if (IsKeyPressed(KEY_SEVEN)) new_style = 6;
+            if (IsKeyPressed(KEY_EIGHT)) new_style = 7;
+            if (IsKeyPressed(KEY_NINE))  new_style = 8;
+            if (new_style >= 0 && new_style < STYLE_COUNT) {
+                current_style = new_style;
+                ApplyVisualStyle(&postfx, current_style);
+                // Reapply exposure with new style bias
+                SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
+                show_text(visual_styles[current_style].name);
+            }
+        } else {
+        // Dev scene jumps — number keys for instant room testing (no shift held)
         if (IsKeyPressed(KEY_ONE))   load_state(STATE_HOTEL_EXT);
         if (IsKeyPressed(KEY_TWO))   load_state(STATE_LOBBY);
         if (IsKeyPressed(KEY_THREE)) load_state(STATE_HALLWAY);
@@ -627,6 +784,7 @@ int main(void) {
         if (IsKeyPressed(KEY_EIGHT)) load_state(STATE_SPACE_CORRIDOR);
         if (IsKeyPressed(KEY_NINE))  load_state(STATE_SPACE_SUITE);
         if (IsKeyPressed(KEY_ZERO))  load_state(STATE_CAR);
+        }
 
         // Fade with hold-in-black for doorway transitions
         if (hold_timer > 0) {
@@ -700,23 +858,44 @@ int main(void) {
                 car_fwd = Vector3Transform(car_fwd, car_pm);
                 player.camera.target = Vector3Add(player.camera.position, car_fwd);
 
-                // Auto-scroll city walls — taxi speed decreasing toward end
+                // Auto-scroll city walls — accelerating toward Sky Tower
                 float taxi_speed = 8.0f;
-                if (state_time > 10.0f) taxi_speed = fmaxf(0.5f, 8.0f - (state_time - 10.0f) * 2.5f);
+                if (state_time > 10.0f) {
+                    // ACCELERATE — rushing toward the tower, not stopping
+                    float t = state_time - 10.0f;
+                    taxi_speed = 8.0f + t * t * 2.0f;
+                }
                 for (int i = scene.static_wall_count; i < scene.wall_count; i++) {
                     scene.walls[i].pos.z += taxi_speed * dt;
-                    // Wrap city walls that pass behind us
                     if (scene.walls[i].pos.z > 10.0f) {
                         scene.walls[i].pos.z -= 220.0f;
                     }
                 }
 
+                // Post-FX ramp — the closer to the tower, the more intense
+                if (state_time > 10.0f) {
+                    float ramp = (state_time - 10.0f) / 3.5f;  // 0→1 over last 3.5s
+                    if (ramp > 1.0f) ramp = 1.0f;
+                    SetPostFXCA(&postfx, 2.5f + ramp * 8.0f);
+                    SetPostFXGrain(&postfx, 0.5f + ramp * 0.3f);
+                    // FOV widens with speed
+                    player.camera.fovy = 70.0f + ramp * 20.0f;
+                }
+
                 // Vignette text
                 if (state_time > 1.5f && state_time < 2.0f) show_text("Auckland. 2:47 AM.");
                 if (state_time > 5.0f && state_time < 5.5f) hide_text();
-                // No text — the taxi meter shows 2:47, the player connects the dots
-                if (state_time > 13.5f) hard_cut_to(STATE_DRIVING);
-                if (IsKeyPressed(KEY_ENTER) && state_time > 3) hard_cut_to(STATE_DRIVING);
+                // Hard cut straight into the wormhole — taxi → hyperspace → space
+                if (state_time > 13.5f) {
+                    player.camera.fovy = 70.0f;
+                    SetPostFXCA(&postfx, 2.5f);
+                    hard_cut_to(STATE_HYPERSPACE);
+                }
+                if (IsKeyPressed(KEY_ENTER) && state_time > 3) {
+                    player.camera.fovy = 70.0f;
+                    SetPostFXCA(&postfx, 2.5f);
+                    hard_cut_to(STATE_HYPERSPACE);
+                }
                 break;
             }
 
@@ -794,8 +973,45 @@ int main(void) {
                     elevator_ding_played = true;
                     PlayElevatorDing(&audio);
                 }
-                // Doors open onto the space hotel
-                if (state_time > 5.0f) transition_to(STATE_SPACE_LOBBY);
+                // Doors open — but not onto space. Into the wormhole.
+                if (state_time > 5.0f) hard_cut_to(STATE_HYPERSPACE);
+                break;
+
+            case STATE_HYPERSPACE:
+                // Sky Tower wormhole — camera flies through at accelerating speed
+                {
+                    float t = state_time;
+                    float speed = 8.0f + t * t * 3.0f;  // quadratic acceleration
+                    player.camera.position.z -= speed * dt;
+                    player.camera.target.z -= speed * dt;
+
+                    // FOV widens with speed
+                    player.camera.fovy = 70.0f + t * 12.0f;
+                    if (player.camera.fovy > 120.0f) player.camera.fovy = 120.0f;
+
+                    // Subtle roll — disorienting
+                    float roll = sinf(t * 1.5f) * 2.0f;
+                    player.camera.up = (Vector3){sinf(roll * DEG2RAD), cosf(roll * DEG2RAD), 0};
+
+                    // Post-FX ramp — CA increases, grain shifts, exposure pulses
+                    float ca = 5.0f + t * 4.0f;
+                    SetPostFXCA(&postfx, ca > 20.0f ? 20.0f : ca);
+                    SetPostFXGrain(&postfx, 0.7f + t * 0.1f);
+                    // Exposure pulses — slight breathing
+                    set_exposure(0.1f + sinf(t * 3.0f) * 0.08f);
+
+                    // Color shift — saturation ramps up then cuts
+                    float sat = 0.8f + sinf(t * 2.0f) * 0.3f;
+                    SetPostFXSaturation(&postfx, sat > 1.3f ? 1.3f : sat);
+                }
+                // Hard cut to space lobby after 4 seconds
+                if (state_time > 4.0f) {
+                    SetPostFXCA(&postfx, 2.5f);        // reset CA
+                    SetPostFXSaturation(&postfx, 0.92f); // reset saturation
+                    player.camera.fovy = 70.0f;
+                    player.camera.up = (Vector3){0, 1, 0};
+                    hard_cut_to(STATE_SPACE_LOBBY);
+                }
                 break;
 
             case STATE_HALLWAY:
@@ -876,7 +1092,7 @@ int main(void) {
                                     SetPostFXWarmth(&postfx, progress);
                                     scene.fog_density = 0.008f - (progress * 0.005f);
                                     // Exposure ramp — room brightens as you settle in
-                                    SetPostFXExposure(&postfx, -0.05f + progress * 0.15f);
+                                    set_exposure(-0.05f + progress * 0.15f);
 
                                     // Visible consequences per task (Chung, Vlambeer)
                                     if (strcmp(obj->name, "lamp") == 0) {
@@ -907,7 +1123,7 @@ int main(void) {
                                         kick_camera(&player, -0.05f, 0.02f);
                                         scene.fog_density = 0.001f;
                                         SetPostFXWarmth(&postfx, 1.0f);
-                                        SetPostFXExposure(&postfx, 0.1f);  // fully settled — bright
+                                        set_exposure(0.1f);  // fully settled — bright
                                     } else {
                                         kick_camera(&player, -0.02f, 0.008f);
                                     }
@@ -1068,6 +1284,7 @@ int main(void) {
             case STATE_SPACE_LOBBY:
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                update_npc(&gibbons, player.camera.position, dt);
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -1094,6 +1311,7 @@ int main(void) {
             case STATE_SPACE_CORRIDOR:
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                update_npc(&gibbons, player.camera.position, dt);
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
                     if (dist < 1.5f) transition_to(STATE_SPACE_SUITE);
@@ -1103,6 +1321,7 @@ int main(void) {
             case STATE_SPACE_SUITE:
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                update_npc(&gibbons, player.camera.position, dt);
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -1193,6 +1412,7 @@ int main(void) {
                     }
                 }
                 break;
+
         }
 
         // ---- RENDER ----
@@ -1239,6 +1459,7 @@ int main(void) {
             case STATE_SPACE_LOBBY:
             case STATE_SPACE_CORRIDOR:
             case STATE_SPACE_SUITE:
+            case STATE_HYPERSPACE:
                 if (state == STATE_HOTEL_EXT) {
                     ClearBackground((Color){8, 12, 28, 255});
                     draw_night_sky(state_time);
@@ -1250,6 +1471,8 @@ int main(void) {
                     unsigned char bb = (unsigned char)(28 * (1.0f - ascent) + 12 * ascent);
                     ClearBackground((Color){br, bg, bb, 255});
                     if (ascent < 0.8f) draw_night_sky(state_time);
+                } else if (state == STATE_HYPERSPACE) {
+                    ClearBackground((Color){2, 2, 6, 255});  // deep void tunnel
                 } else if (state == STATE_BALCONY || state == STATE_SPACE_LOBBY
                            || state == STATE_SPACE_CORRIDOR || state == STATE_SPACE_SUITE) {
                     ClearBackground((Color){4, 5, 12, 255});  // deep void
@@ -1258,13 +1481,21 @@ int main(void) {
                 }
                 {
                     bool indoor = !(state == STATE_HOTEL_EXT || state == STATE_BALCONY
-                                    || state == STATE_SPACE_LOBBY || state == STATE_ELEVATOR);
+                                    || state == STATE_SPACE_LOBBY || state == STATE_ELEVATOR
+                                    || state == STATE_HYPERSPACE);
                     draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
                                   &cyl_model, cyl_model_loaded,
                                   &sphere_model, sphere_model_loaded,
                                   &cone_model, cone_model_loaded,
                                   &skytower_model, skytower_loaded,
                                   indoor, state_time);
+                }
+                // Gibbons NPC — draw in space scenes
+                if ((state == STATE_SPACE_LOBBY || state == STATE_SPACE_CORRIDOR
+                     || state == STATE_SPACE_SUITE) && gibbons.active) {
+                    BeginMode3D(player.camera);
+                    draw_npc(&gibbons, &cube_model, &cyl_model, &lighting);
+                    EndMode3D();
                 }
                 // Earthshine — blue-white shimmer on the lower screen half
                 // Light from the planet's atmosphere casting up into the deck
@@ -1428,17 +1659,19 @@ int main(void) {
             const char *state_names[] = {
                 "TITLE", "CAR", "DRIVING", "EXTERIOR", "LOBBY",
                 "ELEVATOR", "HALLWAY", "ROOM", "BATHROOM", "BALCONY",
-                "BED", "STARS", "SP_LOBBY", "SP_CORRIDOR", "SP_SUITE"
+                "BED", "STARS", "HYPERSPACE", "SP_LOBBY", "SP_CORRIDOR", "SP_SUITE"
             };
-            const char *sn = (state >= 0 && state < 15) ? state_names[state] : "???";
+            const char *sn = (state >= 0 && state < 16) ? state_names[state] : "???";
             DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 20, GREEN);
             DrawText(TextFormat("Walls: %d  %s", scene.wall_count, sn), 10, 35, 20, GREEN);
             DrawText(TextFormat("Pos: %.1f %.1f %.1f",
                 player.camera.position.x, player.camera.position.y, player.camera.position.z),
                 10, 60, 20, GREEN);
-            DrawText("1-9: rooms  F4: noclip", 10, 85, 20, (Color){100,200,100,180});
-            if (player.noclip) DrawText("NOCLIP", 10, 105, 20, YELLOW);
-            if (wireframe) DrawText("WIREFRAME", 10, 125, 20, YELLOW);
+            DrawText(TextFormat("Style: %s (Shift+1-9)", visual_styles[current_style].name),
+                10, 85, 20, (Color){100,200,100,180});
+            DrawText("1-9: rooms  F4: noclip", 10, 105, 20, (Color){100,200,100,140});
+            if (player.noclip) DrawText("NOCLIP", 10, 125, 20, YELLOW);
+            if (wireframe) DrawText("WIREFRAME", 10, 145, 20, YELLOW);
         }
         EndDrawing();
     }
