@@ -3,11 +3,16 @@
 #include "scene.h"
 #include "palette.h"
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
-    if (s->wall_count >= MAX_WALLS) return;
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — wall at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {w, h, d}, .color = c, .active = true,
         .shape = SHAPE_CUBE,
@@ -15,7 +20,11 @@ void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Co
 }
 
 void add_cylinder(Scene *s, float x, float y, float z, float diameter, float height, Color c) {
-    if (s->wall_count >= MAX_WALLS) return;
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — cylinder at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
         .active = true, .shape = SHAPE_CYLINDER,
@@ -23,7 +32,11 @@ void add_cylinder(Scene *s, float x, float y, float z, float diameter, float hei
 }
 
 void add_sphere(Scene *s, float x, float y, float z, float diameter, Color c) {
-    if (s->wall_count >= MAX_WALLS) return;
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — sphere at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {diameter, diameter, diameter}, .color = c,
         .active = true, .shape = SHAPE_SPHERE,
@@ -31,7 +44,11 @@ void add_sphere(Scene *s, float x, float y, float z, float diameter, Color c) {
 }
 
 void add_cone(Scene *s, float x, float y, float z, float diameter, float height, Color c) {
-    if (s->wall_count >= MAX_WALLS) return;
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — cone at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
         .active = true, .shape = SHAPE_CONE,
@@ -52,11 +69,154 @@ static void add_column(Scene *s, float x, float z, float r, float h, Color c) {
 }
 
 void add_skytower(Scene *s, float x, float y, float z, float scale, Color c) {
-    if (s->wall_count >= MAX_WALLS) return;
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — skytower at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {scale, scale, scale}, .color = c,
         .active = true, .shape = SHAPE_SKYTOWER,
     };
+}
+
+// Set material on the most recently added wall — chainable, non-breaking
+void set_last_material(Scene *s, MaterialType mat) {
+    if (s->wall_count > 0) s->walls[s->wall_count - 1].material = mat;
+}
+
+// Auto-assign materials by color matching after scene is built
+static void tag_materials_by_color(Scene *s) {
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (w->material != MAT_CONCRETE) continue;  // already tagged
+        unsigned char r = w->color.r, g = w->color.g, b = w->color.b;
+        // Brass range: warm gold-brown, r>g>b, r>150
+        if (r > 150 && g > 100 && g < 200 && b < g && r > g)
+            w->material = MAT_BRASS;
+        // Marble: light grey, all channels close, >170
+        else if (r > 170 && g > 170 && b > 165 && abs(r-g) < 20 && abs(g-b) < 20)
+            w->material = MAT_MARBLE;
+        // Wood: brown, r>g>b, r<160
+        else if (r > 60 && r < 160 && g > 40 && g < 120 && b < g && r > g)
+            w->material = MAT_WOOD;
+        // Glass/void: very dark, all < 20
+        else if (r < 20 && g < 20 && b < 20)
+            w->material = MAT_GLASS;
+        // White/cream: all > 220
+        else if (r > 220 && g > 220 && b > 210)
+            w->material = MAT_WALLPAPER;
+    }
+}
+
+// === Architectural detail helpers ===
+// These compose primitives into hotel vocabulary.
+
+void add_door_frame(Scene *s, float x, float y, float z,
+                    float w, float h, float depth, Color frame_color) {
+    float t = 0.08f;  // frame thickness
+    // Top
+    add_wall(s, x, y + h/2 - t/2, z, w + t*2, t, depth, frame_color);
+    set_last_material(s, MAT_WOOD);
+    // Left
+    add_wall(s, x - w/2 - t/2, y, z, t, h, depth, frame_color);
+    set_last_material(s, MAT_WOOD);
+    // Right
+    add_wall(s, x + w/2 + t/2, y, z, t, h, depth, frame_color);
+    set_last_material(s, MAT_WOOD);
+}
+
+void add_window(Scene *s, float x, float y, float z,
+                float w, float h, Color frame_color, Color glass_color) {
+    float t = 0.06f;
+    // Glass pane
+    add_wall(s, x, y, z, w, h, 0.02f, glass_color);
+    set_last_material(s, MAT_GLASS);
+    // Frame — top, bottom, left, right
+    add_wall(s, x, y + h/2 + t/2, z, w + t*2, t, 0.04f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, x, y - h/2 - t/2, z, w + t*2, t, 0.04f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, x - w/2 - t/2, y, z, t, h, 0.04f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, x + w/2 + t/2, y, z, t, h, 0.04f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    // Sill — thin shelf below
+    add_wall(s, x, y - h/2 - t, z + 0.04f, w + t*4, 0.03f, 0.08f, frame_color);
+    set_last_material(s, MAT_WOOD);
+}
+
+void add_baseboard(Scene *s, float x, float y, float z,
+                   float length, float depth_axis, Color c) {
+    // depth_axis: 'x' length along X, 'z' length along Z
+    // Thin strip at floor level
+    float h = 0.08f;
+    if (depth_axis > 0.01f) {
+        // Along Z axis
+        add_wall(s, x, y + h/2, z, 0.03f, h, length, c);
+    } else {
+        // Along X axis
+        add_wall(s, x, y + h/2, z, length, h, 0.03f, c);
+    }
+    set_last_material(s, MAT_WOOD);
+}
+
+void add_crown_molding(Scene *s, float x, float y, float z,
+                       float length, float along_z, Color c) {
+    float h = 0.06f;
+    if (along_z > 0.01f) {
+        add_wall(s, x, y - h/2, z, 0.04f, h, length, c);
+    } else {
+        add_wall(s, x, y - h/2, z, length, h, 0.04f, c);
+    }
+    set_last_material(s, MAT_WOOD);
+}
+
+void add_picture_frame(Scene *s, float x, float y, float z,
+                       float w, float h, Color frame_color, Color canvas_color) {
+    float t = 0.05f;
+    // Canvas
+    add_wall(s, x, y, z, w, h, 0.01f, canvas_color);
+    set_last_material(s, MAT_FABRIC);
+    // Frame strips
+    add_wall(s, x, y + h/2 + t/2, z, w + t*2, t, 0.03f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, x, y - h/2 - t/2, z, w + t*2, t, 0.03f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, x - w/2 - t/2, y, z, t, h, 0.03f, frame_color);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, x + w/2 + t/2, y, z, t, h, 0.03f, frame_color);
+    set_last_material(s, MAT_WOOD);
+}
+
+void add_bookshelf(Scene *s, float x, float y, float z,
+                   float w, float h, int rows, Color shelf_color) {
+    float row_h = h / (float)rows;
+    // Back panel
+    add_wall(s, x, y, z, w, h, 0.02f, shelf_color);
+    set_last_material(s, MAT_WOOD);
+    // Shelves
+    for (int i = 0; i <= rows; i++) {
+        float sy = y - h/2 + row_h * i;
+        add_wall(s, x, sy, z + 0.08f, w, 0.03f, 0.16f, shelf_color);
+        set_last_material(s, MAT_WOOD);
+    }
+    // Books on each shelf (colored rectangles)
+    for (int i = 0; i < rows; i++) {
+        float sy = y - h/2 + row_h * i + row_h * 0.5f;
+        int books = 3 + (i * 7) % 4;
+        float bw = w / (float)(books + 1);
+        for (int b = 0; b < books; b++) {
+            float bx = x - w/2 + bw * (b + 0.5f) + bw * 0.25f;
+            // Deterministic book colors
+            unsigned char cr = (unsigned char)(80 + ((b * 73 + i * 37) % 120));
+            unsigned char cg = (unsigned char)(40 + ((b * 51 + i * 89) % 80));
+            unsigned char cb = (unsigned char)(30 + ((b * 97 + i * 23) % 100));
+            add_wall(s, bx, sy, z + 0.1f, bw * 0.6f, row_h * 0.7f, 0.1f,
+                     (Color){cr, cg, cb, 255});
+            set_last_material(s, MAT_LEATHER);
+        }
+    }
 }
 
 void add_light_panel(Scene *s, float x, float y, float z,
@@ -125,74 +285,76 @@ static void add_dropped_ceiling(Scene *s, float x, float y, float z,
 
 void build_hotel_exterior(Scene *s) {
     memset(s, 0, sizeof(Scene));
-    // BOUNDS: open exterior — no enclosure needed (player walks to entrance)
+    // SKY TOWER BASE — Auckland CBD, 2 AM
+    // The tower IS the building. You walk to its entrance.
     s->surface = SURFACE_MARBLE;
 
-    Color gold_facade = {195, 170, 120, 255};  // DOMINANT — warm sandstone facade
-    Color dark_gold = {170, 140, 80, 255};
     Color gold = PAL_BRASS;
     Color window_lit = {240, 210, 130, 180};
-    Color sidewalk = PAL_CONCRETE;
+    Color sidewalk = {120, 115, 110, 255};
     Color road = {50, 50, 55, 255};
     Color godard_red = PAL_RED;
+    Color tower_base = {140, 135, 145, 255};   // concrete base structure
+    Color tower_steel = {100, 105, 115, 255};   // tower shaft
 
     s->fog_color = PAL_FOG_NIGHT;
-    s->fog_density = 0.005f;
+    s->fog_density = 0.004f;
 
-    // Sidewalk
-    add_wall(s, 0, -0.1f, 0, 20, 0.2f, 8, sidewalk);
-    // Road
-    add_wall(s, 0, -0.15f, -8, 30, 0.15f, 12, road);
+    // Sidewalk + road
+    add_wall(s, 0, -0.1f, 0, 24, 0.2f, 10, sidewalk);
+    set_last_material(s, MAT_CONCRETE);
+    add_wall(s, 0, -0.15f, -10, 35, 0.15f, 12, road);
+    set_last_material(s, MAT_CONCRETE);
 
-    // Hotel facade — 6 floors
-    float bw = 16, bh = 22, bd = 0.5f;
-    add_wall(s, 0, bh/2, 4, bw, bh, bd, gold_facade);
+    // Sky Tower — the main event, rising from the ground
+    // Placed right behind the entrance so it dominates the view
+    add_skytower(s, 0, 0, 8, 6.0f, tower_steel);
 
-    // Windows — 5 across, 5 floors
-    for (int floor = 0; floor < 5; floor++) {
-        for (int col = 0; col < 5; col++) {
-            float wx = -6 + col * 3;
-            float wy = 3 + floor * 3.5f;
-            // Window frame
-            add_wall(s, wx, wy, 3.7f, 1.8f, 2.4f, 0.1f, dark_gold);
-            // Glass — warm lit
-            if (floor != 2 || col != 3) {  // one dark window
-                add_wall(s, wx, wy, 3.65f, 1.5f, 2.0f, 0.05f, window_lit);
-            }
+    // Base structure — concrete podium building at the tower's feet
+    add_wall(s, 0, 3, 5, 12, 6, 8, tower_base);
+    set_last_material(s, MAT_CONCRETE);
+    // Darker inset panels on the base
+    add_wall(s, -4, 3, 0.9f, 3, 4, 0.1f, (Color){110,108,115,255});
+    add_wall(s, 4, 3, 0.9f, 3, 4, 0.1f, (Color){110,108,115,255});
+
+    // Ground floor — lit entrance (warm against cold concrete)
+    add_wall(s, 0, 1.8f, 0.95f, 4, 3.6f, 0.1f, (Color){250, 230, 170, 200});
+    // Awning — Godard red, same as Paris
+    add_wall(s, 0, 3.8f, 0, 5, 0.1f, 2, godard_red);
+    add_wall(s, -2.4f, 2.5f, 0, 0.06f, 2.5f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, 2.4f, 2.5f, 0, 0.06f, 2.5f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
+
+    // Entrance sign — gold strip
+    add_wall(s, 0, 4.2f, 0.92f, 6, 0.4f, 0.04f, gold);
+    set_last_material(s, MAT_BRASS);
+
+    // Windows on the base structure
+    for (int floor = 0; floor < 2; floor++) {
+        for (int col = 0; col < 4; col++) {
+            float wx = -4.5f + col * 3;
+            float wy = 2.5f + floor * 2.5f;
+            add_wall(s, wx, wy, 0.88f, 1.5f, 1.8f, 0.05f, window_lit);
+            set_last_material(s, MAT_GLASS);
         }
     }
 
-    // Ground floor — entrance
-    add_wall(s, 0, 1.8f, 3.5f, 4, 3.6f, 0.1f, (Color){250, 230, 170, 200});  // lit entrance
-    // Awning
-    add_wall(s, 0, 3.8f, 2.5f, 5, 0.1f, 2, godard_red);
-    // Awning supports
-    add_wall(s, -2.4f, 2.5f, 2, 0.06f, 2.5f, 0.06f, gold);
-    add_wall(s, 2.4f, 2.5f, 2, 0.06f, 2.5f, 0.06f, gold);
+    // Lamppost left
+    add_wall(s, -7, 1.8f, -2, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
+    add_light_panel(s, -7, 3.8f, -2, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
+    // Lamppost right
+    add_wall(s, 7, 1.8f, -2, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
+    add_light_panel(s, 7, 3.8f, -2, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
 
-    // Hotel name
-    add_wall(s, 0, 4.2f, 3.68f, 6, 0.4f, 0.04f, gold);
+    // Auckland CBD silhouettes
+    add_wall(s, -18, 8, 18, 6, 16, 3, (Color){20, 22, 38, 255});
+    add_wall(s, 16, 6, 20, 5, 12, 3, (Color){18, 20, 35, 255});
+    add_wall(s, -10, 5, 22, 8, 10, 3, (Color){22, 24, 40, 255});
+    add_wall(s, 22, 7, 16, 4, 14, 3, (Color){16, 18, 32, 255});
 
-    // Cornice/trim at each floor
-    for (int f = 0; f < 6; f++) {
-        float y = 1.2f + f * 3.5f;
-        add_wall(s, 0, y, 3.72f, bw + 0.2f, 0.1f, 0.06f, gold);
-    }
-
-    // Lamppost left — bold, visible at 480x300
-    add_wall(s, -6, 1.8f, -1, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
-    add_light_panel(s, -6, 3.8f, -1, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
-    // Lamppost right — bold
-    add_wall(s, 6, 1.8f, -1, 0.15f, 3.6f, 0.15f, (Color){70, 65, 55, 255});
-    add_light_panel(s, 6, 3.8f, -1, 0.6f, 0.6f, 0.6f, (Color){240, 210, 120, 200});
-
-    // Sky — distant building silhouettes
-    add_wall(s, -20, 8, 15, 8, 16, 2, (Color){20, 22, 38, 255});
-    add_wall(s, 18, 6, 18, 6, 12, 2, (Color){18, 20, 35, 255});
-    add_wall(s, -12, 5, 20, 10, 10, 2, (Color){22, 24, 40, 255});
-
-    s->spawn = (Vector3){0, 1.6f, -3};
-    s->exit_pos = (Vector3){0, 1.6f, 2.5f};
+    s->spawn = (Vector3){0, 1.6f, -4};
+    s->exit_pos = (Vector3){0, 1.6f, 0.5f};
     s->has_exit = true;
 }
 
@@ -219,9 +381,11 @@ void build_lobby(Scene *s) {
         for (int c = 0; c < cols; c++) {
             float tx = -15 + c * 2 + 1, tz = -10 + r * 2 + 1;
             add_wall(s, tx, -0.05f, tz, 1.98f, 0.1f, 1.98f, ((r+c)%2==0) ? marble_a : marble_b);
+            set_last_material(s, MAT_MARBLE);
         }
 
     add_wall(s, 0, 7, 0, 30, 0.2f, 20, cream);
+    set_last_material(s, MAT_WALLPAPER);
     // Hanging sphere light fixtures
     add_sphere(s, -4, 6.4f, 0, 0.5f, PAL_LIGHT_WARM);
     add_sphere(s, -2, 6.4f, -2, 0.45f, PAL_LIGHT_WARM);
@@ -229,19 +393,29 @@ void build_lobby(Scene *s) {
     add_sphere(s, 2, 6.4f, 1, 0.45f, PAL_LIGHT_WARM);
 
     add_wall(s, 0, 3.5f, -10, 30, 7, 0.3f, emerald);   // back wall — entirely deep green
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 10, 3.5f, 10, 8, 7, 0.3f, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, -2, 5.5f, 10, 6, 3, 0.3f, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, -15, 3.5f, 0, 0.3f, 7, 20, cream);     // side walls cream
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 15, 3.5f, -5, 0.3f, 7, 10, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 15, 3.5f, 6, 0.3f, 7, 8, cream);
+    set_last_material(s, MAT_WALLPAPER);
     // Green wainscoting on side walls — lower third
     add_wall(s, -14.8f, 1.0f, 0, 0.1f, 2.0f, 20, emerald);
     add_wall(s, 14.8f, 1.0f, 0, 0.1f, 2.0f, 20, emerald);
 
     add_wall(s, 0, 1.0f, -9.85f, 30, 0.06f, 0.1f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -14.85f, 1.0f, 0, 0.1f, 0.06f, 20, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 14.85f, 1.0f, 0, 0.1f, 0.06f, 20, gold);
+    set_last_material(s, MAT_BRASS);
 
     // Concrete reveal panel — architectural, not pop art
     add_wall(s, 0, 3.5f, -9.8f, 8, 3.5f, 0.08f, concrete_a);
@@ -256,7 +430,9 @@ void build_lobby(Scene *s) {
     add_wall(s, 10, 1, -8, 1.5f, 2, 0.4f, plant);
 
     add_wall(s, 0, 0.5f, -7, 6, 1.0f, 1.5f, gold);
+    set_last_material(s, MAT_WOOD);
     add_wall(s, 0, 1.02f, -7, 6.1f, 0.04f, 1.55f, (Color){230, 200, 110, 255});
+    set_last_material(s, MAT_BRASS);
 
     // Desk lamp — cylinder base + shade + glow
     add_cylinder(s, 2.2f, 1.08f, -7.0f, 0.06f, 0.04f, gold);          // base
@@ -303,7 +479,21 @@ void build_lobby(Scene *s) {
     add_wall(s, -3.55f, 1.5f, -9.76f, 0.1f, 3.0f, 0.08f, gold);  // left frame
     add_wall(s, -0.45f, 1.5f, -9.76f, 0.1f, 3.0f, 0.08f, gold);  // right frame
 
-    // Elevator doors are architectural set dressing — not interactable
+    // Elevator doors — interactive, the Glass Elevator to space
+    add_object(s, -2.0f, 1.5f, -9.5f, "elevator", gold, 1);
+
+    // Door frame around elevator doors
+    add_door_frame(s, -2.0f, 1.5f, -9.76f, 2.2f, 3.0f, 0.1f, gold);
+
+    // Picture frames flanking concrete reveal panel on back wall
+    add_picture_frame(s, -6.0f, 3.5f, -9.72f, 1.0f, 0.7f, gold, (Color){195,45,40,255});
+    add_picture_frame(s, 6.0f, 3.5f, -9.72f, 1.0f, 0.7f, gold, (Color){40,65,160,255});
+
+    // Baseboards — all 4 walls at floor level
+    add_baseboard(s, 0, 0, -9.85f, 30, 0, (Color){105,78,48,255});
+    add_baseboard(s, 0, 0, 9.85f, 30, 0, (Color){105,78,48,255});
+    add_baseboard(s, -14.85f, 0, 0, 20, 1.0f, (Color){105,78,48,255});
+    add_baseboard(s, 14.85f, 0, 0, 20, 1.0f, (Color){105,78,48,255});
 
     // BLOCKING WALL — seal the front entrance gap to prevent escape into void
     // The entrance area (z=10) has gaps between wall segments; block at z=10
@@ -391,6 +581,7 @@ void build_hallway(Scene *s) {
         for (int c = 0; c < cols; c++) {
             float tx = -W/2 + c*1.5f + 0.75f, tz = -r*1.5f - 0.75f;
             add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f, ((r+c)%2==0) ? carpet_a : carpet_b);
+            set_last_material(s, MAT_CARPET);
         }
 
     add_wall(s, 0, H, -L/2, W, 0.2f, L, ceiling_dark);
@@ -398,12 +589,18 @@ void build_hallway(Scene *s) {
         add_light_panel(s, 0, H-0.1f, -3 - i*5, 1.5f, 0.05f, 0.5f, warm_amber);
 
     add_wall(s, -W/2, H/2, -L/2, 0.3f, H, L, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, W/2, H/2, -L/2, 0.3f, H, L, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, H/2, 0, W, H, 0.3f, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, H/2, -L, W, H, 0.3f, cream);
+    set_last_material(s, MAT_WALLPAPER);
 
     add_wall(s, -W/2+0.05f, 1.0f, -L/2, 0.08f, 0.04f, L, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, W/2-0.05f, 1.0f, -L/2, 0.08f, 0.04f, L, gold);
+    set_last_material(s, MAT_BRASS);
 
     for (int i = 0; i < 4; i++) {
         float z = -3.5f - i*4.5f;
@@ -432,6 +629,28 @@ void build_hallway(Scene *s) {
 
     // "Do Not Disturb" sign on door 2 (left side)
     add_wall(s, -(W/2-0.1f)-0.02f, 1.1f, -3.5f - 1*4.5f, 0.3f, 0.15f, 0.04f, (Color){200,50,40,255});
+
+    // Door frames around all 4 doors
+    for (int i = 0; i < 4; i++) {
+        float z = -3.5f - i*4.5f;
+        float side = (i%2==0) ? -(W/2-0.1f) : (W/2-0.1f);
+        add_door_frame(s, side, 1.3f, z, 1.3f, 2.6f, 0.14f, gold);
+    }
+
+    // Picture frames between doors on alternate walls
+    add_picture_frame(s, -(W/2-0.08f), 2.2f, -6.0f, 0.6f, 0.45f, gold, (Color){195,45,40,255});
+    add_picture_frame(s, (W/2-0.08f), 2.2f, -15.0f, 0.6f, 0.45f, gold, (Color){40,65,160,255});
+
+    // Baseboards — both long walls
+    add_baseboard(s, -W/2+0.08f, 0, -L/2, L, 1.0f, (Color){105,78,48,255});
+    add_baseboard(s, W/2-0.08f, 0, -L/2, L, 1.0f, (Color){105,78,48,255});
+    // Baseboards — end walls
+    add_baseboard(s, 0, 0, -0.08f, W, 0, (Color){105,78,48,255});
+    add_baseboard(s, 0, 0, -L+0.08f, W, 0, (Color){105,78,48,255});
+
+    // Crown moldings — both long walls at ceiling
+    add_crown_molding(s, -W/2+0.08f, H, -L/2, L, 1.0f, gold);
+    add_crown_molding(s, W/2-0.08f, H, -L/2, L, 1.0f, gold);
 
     // Room service tray outside door 3 (right side)
     add_wall(s, (W/2-0.1f)*0.95f, 0.03f, -3.5f - 2*4.5f, 0.5f, 0.04f, 0.35f, (Color){200,198,195,255});
@@ -467,18 +686,28 @@ void build_hotel_room(Scene *s) {
         for (int c = 0; c < cols; c++) {
             float tx = -rw/2+c*0.8f+0.4f, tz = -rd/2+r*0.8f+0.4f;
             add_wall(s, tx, -0.05f, tz, 0.78f, 0.1f, 0.78f, ((r+c)%2==0) ? wood : (Color){145,108,65,255});
+            set_last_material(s, MAT_WOOD);
         }
 
     add_wall(s, 0, rh, 0, rw, 0.2f, rd, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, rh-0.08f, -rd/2+0.08f, rw, 0.12f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 0, rh-0.08f, rd/2-0.08f, rw, 0.12f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -rw/2+0.08f, rh-0.08f, 0, 0.06f, 0.12f, rd, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, rw/2-0.08f, rh-0.08f, 0, 0.06f, 0.12f, rd, gold);
+    set_last_material(s, MAT_BRASS);
 
     add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, wall_gold);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, wall_gold);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
+    set_last_material(s, MAT_WALLPAPER);
 
     add_wall(s, 0, 0.45f, -rd/2+0.08f, rw, 0.9f, 0.06f, dark_wood);
     add_wall(s, 0, 0.45f, rd/2-0.08f, rw, 0.9f, 0.06f, dark_wood);
@@ -487,11 +716,17 @@ void build_hotel_room(Scene *s) {
 
     // Bed
     add_wall(s, 0, 0.2f, -3.5f, 3.4f, 0.4f, 2.0f, dark_wood);
+    set_last_material(s, MAT_WOOD);
     add_wall(s, 0, 0.5f, -3.5f, 3.2f, 0.25f, 1.8f, white);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -0.6f, 0.68f, -4.2f, 0.7f, 0.2f, 0.4f, white);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 0.6f, 0.68f, -4.2f, 0.7f, 0.2f, 0.4f, white);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 0, 1.2f, -4.5f, 3.6f, 1.6f, 0.12f, godard_red);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 0, 2.05f, -4.48f, 3.7f, 0.05f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
 
     add_wall(s, -2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
     add_wall(s, 2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
@@ -511,26 +746,33 @@ void build_hotel_room(Scene *s) {
 
     // Desk
     add_wall(s, 5.0f, 0.4f, 0, 2.5f, 0.8f, 0.9f, wood);
+    set_last_material(s, MAT_WOOD);
     add_wall(s, 5.0f, 0.82f, 0, 2.6f, 0.03f, 0.95f, gold);
+    set_last_material(s, MAT_BRASS);
     // Desk chair — seat with 4 cylinder legs + back
     Color chair_c = {160,90,50,255};
     add_wall(s, 3.8f, 0.35f, 0, 0.5f, 0.04f, 0.5f, chair_c);          // seat (thin)
+    set_last_material(s, MAT_LEATHER);
     add_cylinder(s, 3.57f, 0.165f, -0.22f, 0.025f, 0.3f, chair_c);     // leg FL
     add_cylinder(s, 4.03f, 0.165f, -0.22f, 0.025f, 0.3f, chair_c);     // leg FR
     add_cylinder(s, 3.57f, 0.165f, 0.22f, 0.025f, 0.3f, chair_c);      // leg BL
     add_cylinder(s, 4.03f, 0.165f, 0.22f, 0.025f, 0.3f, chair_c);      // leg BR
     add_wall(s, 3.8f, 0.75f, -0.22f, 0.5f, 0.55f, 0.08f, chair_c);    // back (angled via offset)
+    set_last_material(s, MAT_LEATHER);
     add_wall(s, 5.75f, 1.8f, 0, 0.04f, 1.1f, 1.3f, (Color){200,205,210,180});
     add_wall(s, 5.78f, 1.8f, 0, 0.03f, 1.2f, 0.05f, gold);
 
     // Sofa — warm gray
     add_wall(s, -4.2f, 0.25f, 1.5f, 2.4f, 0.5f, 0.9f, warm_gray);
+    set_last_material(s, MAT_LEATHER);
     add_wall(s, -4.2f, 0.6f, 1.95f, 2.4f, 0.6f, 0.15f, warm_gray);
+    set_last_material(s, MAT_LEATHER);
     add_wall(s, -5.4f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
     add_wall(s, -3.0f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
 
     // Coffee table — flat top with 4 cylinder legs
     add_wall(s, -4.2f, 0.38f, 3.0f, 1.45f, 0.03f, 0.85f, gold);       // top surface
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, -4.85f, 0.18f, 2.62f, 0.025f, 0.35f, wood);        // leg FL
     add_cylinder(s, -3.55f, 0.18f, 2.62f, 0.025f, 0.35f, wood);        // leg FR
     add_cylinder(s, -4.85f, 0.18f, 3.38f, 0.025f, 0.35f, wood);        // leg BL
@@ -543,10 +785,15 @@ void build_hotel_room(Scene *s) {
 
     // Balcony door
     add_wall(s, -5.7f, 1.5f, -1, 0.08f, 2.8f, 1.7f, (Color){190,205,225,100});
+    set_last_material(s, MAT_GLASS);
     add_wall(s, -5.75f, 2.95f, -1, 0.06f, 0.12f, 1.85f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -5.75f, 0.05f, -1, 0.06f, 0.08f, 1.85f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -5.75f, 1.5f, -1.88f, 0.06f, 2.85f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -5.75f, 1.5f, -0.12f, 0.06f, 2.85f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -5.6f, 1.8f, -2.2f, 0.04f, 3.0f, 0.5f, cream);
     add_wall(s, -5.6f, 1.8f, 0.2f, 0.04f, 3.0f, 0.5f, cream);
 
@@ -614,10 +861,53 @@ void build_hotel_room(Scene *s) {
     // Tall rectangle, mysterious, hides a secret passage
     Color wardrobe_c = {75, 55, 32, 255};  // dark walnut
     add_wall(s, -5.5f, 1.2f, 3.5f, 0.8f, 2.4f, 0.6f, wardrobe_c);     // wardrobe body
+    set_last_material(s, MAT_WOOD);
     add_wall(s, -5.5f, 1.2f, 3.18f, 0.76f, 2.3f, 0.02f, (Color){65,48,28,255}); // front panel (darker)
+    set_last_material(s, MAT_WOOD);
     add_wall(s, -5.5f, 2.0f, 3.18f, 0.04f, 0.08f, 0.04f, gold);       // handle left
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -5.5f, 1.6f, 3.18f, 0.04f, 0.08f, 0.04f, gold);       // handle right
+    set_last_material(s, MAT_BRASS);
     add_object(s, -5.5f, 1.2f, 3.2f, "wardrobe", (Color){140,120,80,255}, 1);
+
+    // ============================================================
+    // ARCHITECTURAL DETAIL — picture frames, bookshelf, door frames,
+    // baseboards, crown moldings
+    // ============================================================
+
+    // Picture frames above bed — abstract hotel art (Godard canvases)
+    // Offset 0.02f from back wall to prevent z-fighting
+    add_picture_frame(s, -1.5f, 2.8f, -rd/2+0.18f, 0.7f, 0.5f, dark_wood, godard_red);
+    add_picture_frame(s, 1.5f, 2.8f, -rd/2+0.18f, 0.7f, 0.5f, dark_wood, (Color){40,65,160,255});
+
+    // Bookshelf on wall near desk — 3 rows
+    add_bookshelf(s, rw/2-0.2f, 1.6f, 0.02f, 1.2f, 1.2f, 3, dark_wood);
+
+    // Door frame around bathroom door
+    add_door_frame(s, rw/2-0.12f, 1.3f, -3.0f, 1.0f, 2.6f, 0.14f, dark_wood);
+
+    // Door frame around balcony door
+    add_door_frame(s, -rw/2+0.06f, 1.5f, -1.0f, 1.7f, 2.8f, 0.12f, dark_wood);
+
+    // Baseboards — all 4 walls at floor level
+    // Back wall (along X)
+    add_baseboard(s, 0, 0, -rd/2+0.08f, rw, 0, dark_wood);
+    // Front wall (along X)
+    add_baseboard(s, 0, 0, rd/2-0.08f, rw, 0, dark_wood);
+    // Left wall (along Z)
+    add_baseboard(s, -rw/2+0.08f, 0, 0, rd, 1.0f, dark_wood);
+    // Right wall (along Z)
+    add_baseboard(s, rw/2-0.08f, 0, 0, rd, 1.0f, dark_wood);
+
+    // Crown moldings — all 4 wall-ceiling joins
+    // Back wall (along X)
+    add_crown_molding(s, 0, rh, -rd/2+0.08f, rw, 0, gold);
+    // Front wall (along X)
+    add_crown_molding(s, 0, rh, rd/2-0.08f, rw, 0, gold);
+    // Left wall (along Z)
+    add_crown_molding(s, -rw/2+0.08f, rh, 0, rd, 1.0f, gold);
+    // Right wall (along Z)
+    add_crown_molding(s, rw/2-0.08f, rh, 0, rd, 1.0f, gold);
 
     // BLOCKING WALLS — extra collision barriers to prevent room escape
     // Corner reinforcement: thin invisible walls at all four corners
@@ -637,34 +927,45 @@ void build_hotel_room(Scene *s) {
 
 void build_balcony(Scene *s) {
     memset(s, 0, sizeof(Scene));
-    // BOUNDS: 5m x 3m, open-air (railing + back wall, no ceiling)
+    // OBSERVATION DECK — open to the void, Earth below
+    // Parisian balcony furniture, infinite space outside
     s->surface = SURFACE_MARBLE;
 
-    s->fog_color = PAL_FOG_NIGHT;
-    s->fog_density = 0.003f;
+    s->fog_color = (Color){2, 3, 8, 255};  // deep space
+    s->fog_density = 0.001f;  // almost no fog — vacuum clarity
 
     Color stone = PAL_MARBLE_A;
     Color railing = PAL_MID;
     Color gold = PAL_BRASS;
-    Color bldg_near = {60, 65, 85, 255};
-    Color bldg_mid = {45, 50, 72, 255};
-    Color bldg_far = {35, 40, 62, 255};
-    Color window = {240, 200, 110, 140};
-    Color tower = {70, 75, 95, 255};
+    Color hull = PAL_HULL;
 
+    // Floor + back wall (hull interior, but warm)
     add_wall(s, 0, -0.1f, 0, 5, 0.2f, 3, stone);
+    set_last_material(s, MAT_MARBLE);
     add_wall(s, 0, 2, 1.5f, 5, 4, 0.3f, (Color){200,175,120,255});
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, 2.8f, 1.35f, 1.8f, 0.12f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -0.95f, 1.5f, 1.35f, 0.06f, 2.8f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 0.95f, 1.5f, 1.35f, 0.06f, 2.8f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
 
-    // Railing — top rail and mid rail only, clean at 480x300 (Rodkin)
+    // Railing — the only thing between you and the void
     add_wall(s, 0, 0.95f, -1.5f, 5, 0.06f, 0.08f, railing);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 0, 0.5f, -1.5f, 5, 0.04f, 0.06f, railing);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -2.5f, 0.95f, 0, 0.08f, 0.06f, 3, railing);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 2.5f, 0.95f, 0, 0.08f, 0.06f, 3, railing);
+    set_last_material(s, MAT_BRASS);
 
-    // Wine + chair
+    // Side hull walls — the observation deck is a cutout in the station hull
+    add_wall(s, -2.7f, 2, 0, 0.3f, 4, 3.2f, hull);
+    add_wall(s, 2.7f, 2, 0, 0.3f, 4, 3.2f, hull);
+
+    // Wine + chair — same luxury, absurd context
     add_wall(s, -1.5f, 0.45f, -0.5f, 0.45f, 0.04f, 0.45f, (Color){120,100,70,255});
     add_wall(s, -1.5f, 0.22f, -0.5f, 0.05f, 0.45f, 0.05f, (Color){100,85,60,255});
     add_wall(s, -1.5f, 0.49f, -0.5f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160});
@@ -672,54 +973,64 @@ void build_balcony(Scene *s) {
     add_wall(s, -1.5f, 0.22f, 0.2f, 0.45f, 0.44f, 0.45f, (Color){120,100,70,255});
     add_wall(s, -1.5f, 0.58f, 0.42f, 0.45f, 0.4f, 0.06f, (Color){120,100,70,255});
 
-    // Second wine glass — further offset so both glasses are clearly a pair
-    add_wall(s, -1.0f, 0.49f, -0.8f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160}); // glass stem
-    add_wall(s, -1.0f, 0.52f, -0.8f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200}); // dark liquid
+    // Second wine glass
+    add_wall(s, -1.0f, 0.49f, -0.8f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160});
+    add_wall(s, -1.0f, 0.52f, -0.8f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200});
 
     // Ashtray with cigarette on railing table
     add_cylinder(s, -1.5f, 0.49f, -0.3f, 0.12f, 0.04f, (Color){140,135,130,255});
     add_object(s, -1.5f, 0.55f, -0.3f, "cigarette", (Color){200,195,185,255}, 1);
 
-    add_wall(s, -12, 4, -30, 4, 8, 2, bldg_near);
-    add_wall(s, -8, 5.5f, -28, 3, 11, 2, bldg_near);
-    add_wall(s, -16, 3, -32, 5, 6, 2, bldg_near);
-    add_wall(s, 16, 4.5f, -25, 3.5f, 9, 2, bldg_near);
-    add_wall(s, 5, 6, -50, 6, 12, 3, bldg_mid);
-    add_wall(s, -5, 5, -55, 8, 10, 3, bldg_mid);
-    add_wall(s, 15, 4, -45, 5, 8, 3, bldg_mid);
-    add_wall(s, -20, 5.5f, -48, 4, 11, 3, bldg_mid);
-    add_wall(s, 0, 3, -80, 25, 6, 4, bldg_far);
-    add_wall(s, -25, 4, -85, 15, 8, 4, bldg_far);
-    add_wall(s, 22, 3.5f, -82, 12, 7, 4, bldg_far);
+    // ============================================================
+    // EARTH — Rothko fields, not a ball.
+    // Five layers: glass → atmosphere → planet surface → city lights → stars
+    // The planet is a HORIZON LINE filling the lower view.
+    // Two color fields meeting at an edge. Rothko. Not geometry.
+    // ============================================================
 
-    for (int r = 0; r < 3; r++)
-        for (int c = 0; c < 2; c++)
-            if ((r+c)%2==0)
-                add_wall(s, -12.5f+c*1.5f, 1.5f+r*2.0f, -28.9f, 0.5f, 0.8f, 0.04f, window);
-    for (int r = 0; r < 4; r++)
-        for (int c = 0; c < 2; c++)
-            if ((r+c)%3!=2)
-                add_wall(s, -8.5f+c*1.2f, 1.5f+r*2.0f, -26.9f, 0.4f, 0.7f, 0.04f, window);
-    for (int r = 0; r < 4; r++)
-        for (int c = 0; c < 3; c++)
-            if ((r*3+c)%2==0)
-                add_wall(s, 3.5f+c*1.5f, 1.5f+r*2.5f, -48.5f, 0.45f, 0.7f, 0.04f, window);
+    // LAYER 1: Glass panel — barely visible boundary between you and death
+    add_wall(s, 0, 0.5f, -1.55f, 5, 1.0f, 0.02f, (Color){140, 180, 220, 15});
+    set_last_material(s, MAT_GLASS);
 
-    float tx = 8, tz = -90;
-    add_wall(s, tx, 10, tz, 0.7f, 20, 0.7f, tower);
-    add_wall(s, tx-2, 2, tz, 0.9f, 4, 0.9f, tower);
-    add_wall(s, tx+2, 2, tz, 0.9f, 4, 0.9f, tower);
-    add_wall(s, tx, 4.5f, tz, 4.5f, 0.35f, 0.5f, tower);
-    add_wall(s, tx, 9, tz, 2.8f, 0.25f, 0.4f, tower);
-    add_wall(s, tx, 14, tz, 1.3f, 0.25f, 0.35f, tower);
-    add_light_panel(s, tx, 4.5f, tz-0.3f, 4.6f, 0.15f, 0.04f, (Color){240,210,130,100});
-    add_light_panel(s, tx, 20.2f, tz, 0.25f, 0.4f, 0.25f, (Color){255,245,200,180});
+    // LAYER 2: Atmosphere — wide thin band at the horizon
+    // Three overlapping panels at different depths for glow bleed
+    add_wall(s, 0, -0.8f, -18, 80, 0.6f, 0.1f, (Color){80, 150, 210, 180});
+    add_wall(s, 0, -0.7f, -17, 90, 0.35f, 0.1f, (Color){120, 180, 230, 140});
+    add_wall(s, 0, -0.6f, -16, 100, 0.15f, 0.1f, (Color){180, 210, 240, 100});
 
-    for (int i = 0; i < 20; i++) {
-        float sx = -45+(i*41)%90, sy = 22+(i*17)%18, sz = -95-(i*13)%25;
-        add_wall(s, sx, sy, sz, 0.12f, 0.12f, 0.12f,
-                 (Color){240,235,225,(unsigned char)(120+(i*19)%80)});
+    // LAYER 3: Planet surface — dark fields below the atmosphere line
+    // Near field (looking down)
+    add_wall(s, 0, -3, -10, 60, 0.1f, 12, (Color){10, 18, 38, 255});
+    // Mid field — ocean bulk
+    add_wall(s, 0, -4, -20, 80, 0.1f, 15, (Color){12, 22, 45, 255});
+    // Land masses — slightly green-shifted patches
+    add_wall(s, -15, -3.5f, -14, 20, 0.1f, 8, (Color){14, 28, 25, 255});
+    add_wall(s, 12, -3.2f, -18, 12, 0.1f, 6, (Color){16, 30, 28, 255});
+    // Far field — fading to black
+    add_wall(s, 0, -5, -35, 100, 0.1f, 20, (Color){8, 14, 30, 255});
+
+    // LAYER 3b: City lights — BIG at 480x300 (Rodkin rule: visible or dead)
+    add_wall(s, -8, -2.8f, -11, 3.0f, 0.1f, 2.0f, (Color){240, 200, 110, 60});
+    add_wall(s, -7, -2.7f, -10.5f, 1.5f, 0.1f, 1.0f, (Color){255, 220, 130, 80});
+    add_wall(s, 5, -3.0f, -13, 2.5f, 0.1f, 1.5f, (Color){240, 200, 110, 50});
+    add_wall(s, 15, -3.3f, -16, 2.0f, 0.1f, 1.2f, (Color){240, 200, 110, 45});
+    add_wall(s, -20, -3.5f, -17, 1.8f, 0.1f, 1.0f, (Color){255, 210, 120, 55});
+    // Auckland — brighter cluster, recognizable
+    add_wall(s, -6, -2.6f, -9.5f, 2.0f, 0.1f, 1.5f, (Color){255, 230, 140, 100});
+    // Sky Tower beacon — single bright dot
+    add_wall(s, -5.5f, -2.5f, -9, 0.4f, 0.15f, 0.4f, (Color){255, 245, 200, 160});
+
+    // LAYER 4: Stars — sparse, bright, above the atmosphere
+    for (int i = 0; i < 25; i++) {
+        float sx = -30.0f + (float)((i*41)%60);
+        float sy = 2.0f + (float)((i*17)%15);
+        float sz = -25.0f - (float)((i*13)%30);
+        float size = 0.15f + (float)((i*7)%3) * 0.08f;
+        add_wall(s, sx, sy, sz, size, size, size,
+                 (Color){240,235,225,(unsigned char)(140+(i*19)%80)});
     }
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 0.5f};
     s->has_exit = false;
@@ -745,6 +1056,7 @@ void build_bathroom(Scene *s) {
 
     // Floor — darker concrete
     add_wall(s, 0, -0.05f, 0, bw, 0.1f, bd, floor_concrete);
+    set_last_material(s, MAT_TILE);
     // Drain — small flat dark cylinder on floor
     add_cylinder(s, 1.0f, 0.01f, 0.5f, 0.15f, 0.02f, (Color){60,58,55,255});
 
@@ -753,12 +1065,17 @@ void build_bathroom(Scene *s) {
 
     // Walls — concrete
     add_wall(s, 0, bh/2, -bd/2, bw, bh, 0.2f, concrete);       // back wall
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, bh/2, bd/2, bw, bh, 0.2f, concrete);        // front wall (entrance)
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, -bw/2, bh/2, 0, 0.2f, bh, bd, concrete);       // left wall
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, bw/2, bh/2, 0, 0.2f, bh, bd, concrete);        // right wall
+    set_last_material(s, MAT_CONCRETE);
 
     // Bathtub — large freestanding, with curved half-cylinder ends and brass faucet
     add_wall(s, -1.2f, 0.25f, -1.0f, 1.8f, 0.5f, 0.9f, porcelain);  // tub body
+    set_last_material(s, MAT_TILE);
     // Raised edges
     add_wall(s, -1.2f, 0.55f, -1.45f, 1.8f, 0.1f, 0.06f, porcelain); // back edge
     add_wall(s, -1.2f, 0.55f, -0.55f, 1.8f, 0.1f, 0.06f, porcelain); // front edge
@@ -769,17 +1086,23 @@ void build_bathroom(Scene *s) {
     add_cylinder(s, -0.3f, 0.3f, -1.0f, 0.5f, 0.5f, porcelain);      // right end
     // Brass faucet — on back wall above tub
     add_cylinder(s, -1.2f, 0.75f, -1.42f, 0.06f, 0.15f, brass);      // faucet pipe
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, -1.2f, 0.85f, -1.38f, 0.04f, 0.06f, brass);      // faucet spout
+    set_last_material(s, MAT_BRASS);
 
     // Sink — wall-mounted slab on right wall
     add_wall(s, 2.2f, 0.85f, 0.5f, 0.8f, 0.06f, 0.5f, porcelain);   // sink basin
+    set_last_material(s, MAT_TILE);
     add_wall(s, 2.35f, 0.85f, 0.5f, 0.06f, 0.5f, 0.5f, porcelain);  // wall bracket
     // Brass tap knobs — sphere shapes
     add_sphere(s, 2.0f, 0.95f, 0.5f, 0.08f, brass);
+    set_last_material(s, MAT_BRASS);
     add_sphere(s, 1.9f, 0.95f, 0.5f, 0.08f, brass);
+    set_last_material(s, MAT_BRASS);
 
     // Mirror — large rectangle above sink
     add_wall(s, 2.38f, 1.7f, 0.5f, 0.04f, 1.0f, 0.8f, mirror);
+    set_last_material(s, MAT_GLASS);
 
     // Toilet — simple block
     add_wall(s, 2.0f, 0.25f, -1.2f, 0.5f, 0.5f, 0.4f, porcelain);   // base
@@ -787,8 +1110,10 @@ void build_bathroom(Scene *s) {
 
     // Terracotta towel — ONE accent, hung on left wall
     add_wall(s, -2.38f, 1.4f, 0.0f, 0.06f, 0.9f, 0.5f, terracotta);
+    set_last_material(s, MAT_FABRIC);
     // Towel bar
     add_wall(s, -2.4f, 1.9f, 0.0f, 0.04f, 0.04f, 0.7f, brass);
+    set_last_material(s, MAT_BRASS);
 
     // Toiletries bag on counter near sink
     add_wall(s, 1.8f, 0.92f, 0.8f, 0.25f, 0.15f, 0.12f, (Color){60,55,50,255});
@@ -800,6 +1125,18 @@ void build_bathroom(Scene *s) {
                     (Color){245,242,235,200});
     // Light shaft on floor from the slot window
     add_wall(s, 0, 0.02f, -0.5f, 3.0f, 0.02f, 1.5f, (Color){240,238,230,100});
+
+    // Picture frame around mirror — wood frame wrapping existing mirror
+    add_picture_frame(s, 2.40f, 1.7f, 0.5f, 0.8f, 1.0f, brass, (Color){210,215,222,180});
+
+    // Door frame around bathroom entrance
+    add_door_frame(s, 0, 1.3f, bd/2-0.1f, 1.0f, 2.6f, 0.12f, brass);
+
+    // Baseboards — all 4 walls
+    add_baseboard(s, 0, 0, -bd/2+0.08f, bw, 0, (Color){158,155,150,255});
+    add_baseboard(s, 0, 0, bd/2-0.08f, bw, 0, (Color){158,155,150,255});
+    add_baseboard(s, -bw/2+0.08f, 0, 0, bd, 1.0f, (Color){158,155,150,255});
+    add_baseboard(s, bw/2-0.08f, 0, 0, bd, 1.0f, (Color){158,155,150,255});
 
     // Interact objects
     add_object(s, 2.0f, 0.95f, 0.5f, "tap", (Color){200,205,210,255}, 1);
@@ -830,15 +1167,21 @@ void build_stairwell(Scene *s) {
 
     // Floor
     add_wall(s, 0, -0.05f, 0, sw, 0.1f, sd, concrete);
+    set_last_material(s, MAT_CONCRETE);
 
     // Walls — tall concrete
     add_wall(s, 0, sh/2, -sd/2, sw, sh, 0.3f, concrete);       // back
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, sh/2, sd/2, sw, sh, 0.3f, concrete);        // front
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, -sw/2, sh/2, 0, 0.3f, sh, sd, concrete);       // left
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, sw/2, sh/2, 0, 0.3f, sh, sd, concrete);        // right
+    set_last_material(s, MAT_CONCRETE);
 
     // Ceiling
     add_wall(s, 0, sh, 0, sw, 0.2f, sd, (Color){195,192,188,255});
+    set_last_material(s, MAT_CONCRETE);
 
     // Skylight at top — bright light panel
     add_light_panel(s, 0, sh-0.1f, 0, 2.5f, 0.05f, 2.5f, (Color){245,242,235,220});
@@ -854,6 +1197,7 @@ void build_stairwell(Scene *s) {
     add_wall(s, 2.0f, 1.8f, -1.5f, 1.5f, 0.2f, 2.0f, step_color);
     // Handrail flight 1
     add_wall(s, -2.0f, 1.1f, -1.4f, 3.5f, 0.06f, 0.06f, metal);
+    set_last_material(s, MAT_BRASS);
 
     // Flight 2: right wall, going up right to left
     for (int i = 0; i < 6; i++) {
@@ -865,6 +1209,7 @@ void build_stairwell(Scene *s) {
     add_wall(s, -2.0f, 3.8f, 1.5f, 1.5f, 0.2f, 2.0f, step_color);
     // Handrail flight 2
     add_wall(s, 0, 3.1f, 2.1f, 3.5f, 0.06f, 0.06f, metal);
+    set_last_material(s, MAT_BRASS);
 
     // Flight 3: back again
     for (int i = 0; i < 6; i++) {
@@ -886,9 +1231,13 @@ void build_stairwell(Scene *s) {
 
     // Handrail supports — thin vertical cylinders on landings
     add_cylinder(s, 1.2f, 1.0f, -0.5f, 0.06f, 1.5f, metal);
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, -1.2f, 3.0f, 2.5f, 0.06f, 1.5f, metal);
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, 1.2f, 5.0f, -0.5f, 0.06f, 1.5f, metal);
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, -1.2f, 7.0f, 2.5f, 0.06f, 1.5f, metal);
+    set_last_material(s, MAT_BRASS);
 
     // Fire extinguisher — ONE accent, on the left wall
     add_wall(s, -sw/2+0.15f, 1.2f, 0, 0.2f, 0.5f, 0.15f, fire_ext);
@@ -926,12 +1275,17 @@ void build_roof(Scene *s) {
 
     // Concrete floor — 20x20m
     add_wall(s, 0, -0.1f, 0, 20, 0.2f, 20, concrete);
+    set_last_material(s, MAT_CONCRETE);
 
     // Parapet walls — 0.8m high around edges
     add_wall(s, 0, 0.4f, -10, 20, 0.8f, 0.3f, concrete);   // back
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, 0.4f, 10, 20, 0.8f, 0.3f, concrete);    // front
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, -10, 0.4f, 0, 0.3f, 0.8f, 20, concrete);   // left
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 10, 0.4f, 0, 0.3f, 0.8f, 20, concrete);    // right
+    set_last_material(s, MAT_CONCRETE);
 
     // Water tank / AC unit — blocky industrial in corner
     add_wall(s, 7, 1.2f, 7, 3, 2.4f, 2.5f, concrete_dark);
@@ -949,6 +1303,7 @@ void build_roof(Scene *s) {
     add_wall(s, 0, 1.5f, 8, 2.5f, 3, 2, concrete);
     // Door opening
     add_wall(s, 0, 1.3f, 7, 1.0f, 2.6f, 0.12f, (Color){120,100,75,255}); // rusted door
+    set_last_material(s, MAT_BRASS);
 
     // Distant cityscape — same buildings as balcony but from higher vantage
     add_wall(s, -12, 2, -30, 4, 8, 2, bldg_near);
@@ -966,23 +1321,20 @@ void build_roof(Scene *s) {
     // Building windows
     for (int r = 0; r < 4; r++)
         for (int c = 0; c < 2; c++)
-            if ((r+c)%2==0)
+            if ((r+c)%2==0) {
                 add_wall(s, -8.5f+c*1.2f, -0.5f+r*2.0f, -26.9f, 0.4f, 0.7f, 0.04f, window);
+                set_last_material(s, MAT_GLASS);
+            }
     for (int r = 0; r < 4; r++)
         for (int c = 0; c < 3; c++)
-            if ((r*3+c)%2==0)
+            if ((r*3+c)%2==0) {
                 add_wall(s, 3.5f+c*1.5f, -0.5f+r*2.5f, -48.5f, 0.45f, 0.7f, 0.04f, window);
+                set_last_material(s, MAT_GLASS);
+            }
 
-    // Eiffel Tower — from higher vantage
-    float tx = 8, tz = -90;
-    add_wall(s, tx, 8, tz, 0.7f, 20, 0.7f, tower);
-    add_wall(s, tx-2, 0, tz, 0.9f, 4, 0.9f, tower);
-    add_wall(s, tx+2, 0, tz, 0.9f, 4, 0.9f, tower);
-    add_wall(s, tx, 2.5f, tz, 4.5f, 0.35f, 0.5f, tower);
-    add_wall(s, tx, 7, tz, 2.8f, 0.25f, 0.4f, tower);
-    add_wall(s, tx, 12, tz, 1.3f, 0.25f, 0.35f, tower);
-    add_light_panel(s, tx, 2.5f, tz-0.3f, 4.6f, 0.15f, 0.04f, (Color){240,210,130,100});
-    add_light_panel(s, tx, 18.2f, tz, 0.25f, 0.4f, 0.25f, (Color){255,245,200,180});
+    // Sky Tower — from higher vantage on the roof
+    add_skytower(s, 8, -2, -90, 4.0f, tower);
+    add_light_panel(s, 8, 36.0f, -90, 0.4f, 0.6f, 0.4f, (Color){255,245,200,180});
 
     // Stars scattered in the sky
     for (int i = 0; i < 20; i++) {
@@ -1016,36 +1368,99 @@ void build_elevator(Scene *s) {
 
     // Floor — dark marble
     add_wall(s, 0, -0.05f, 0, ew, 0.1f, ed, floor_marble);
+    set_last_material(s, MAT_MARBLE);
 
     // Ceiling
     add_wall(s, 0, eh, 0, ew, 0.1f, ed, brass);
+    set_last_material(s, MAT_BRASS);
 
     // Ceiling light panel — single warm panel
     add_light_panel(s, 0, eh - 0.08f, 0, 1.0f, 0.04f, 1.0f, warm_panel);
 
-    // Walls — brass colored
+    // Walls — brass, except left wall is GLASS
     add_wall(s, 0, eh/2, -ed/2, ew, eh, 0.08f, brass);           // back wall
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 0, eh/2, ed/2, ew, eh, 0.08f, brass);            // front (doors, closed)
-    add_wall(s, -ew/2, eh/2, 0, 0.08f, eh, ed, brass);           // left wall
+    set_last_material(s, MAT_BRASS);
     add_wall(s, ew/2, eh/2, 0, 0.08f, eh, ed, brass);            // right wall
+    set_last_material(s, MAT_BRASS);
+
+    // LEFT WALL — glass viewport. The player SEES Auckland drop away.
+    // Thin brass frame around a transparent panel
+    add_wall(s, -ew/2, eh/2, 0, 0.02f, eh, ed, (Color){100, 130, 160, 20});  // glass
+    set_last_material(s, MAT_GLASS);
+    add_wall(s, -ew/2, eh-0.02f, 0, 0.04f, 0.06f, ed, brass);   // top frame
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -ew/2, 0.02f, 0, 0.04f, 0.06f, ed, brass);      // bottom frame
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -ew/2, eh/2, -ed/2, 0.04f, eh, 0.06f, brass);   // left frame
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -ew/2, eh/2, ed/2, 0.04f, eh, 0.06f, brass);    // right frame
+    set_last_material(s, MAT_BRASS);
 
     // Mirror on back wall
     add_wall(s, 0, 1.4f, -ed/2 + 0.06f, 1.2f, 1.4f, 0.03f, mirror);
+    set_last_material(s, MAT_GLASS);
 
-    // Button panel on right wall — 4 small brass rectangles stacked
+    // Button panel on right wall
     float panel_x = ew/2 - 0.06f;
     float panel_z = 0.3f;
-    // Panel backing
     add_wall(s, panel_x, 1.2f, panel_z, 0.04f, 0.7f, 0.2f, (Color){150, 135, 100, 255});
-    // Buttons: 4 floors, floor 2 is lit
+    set_last_material(s, MAT_BRASS);
     for (int i = 0; i < 4; i++) {
         float by = 0.95f + i * 0.15f;
-        Color bc = (i == 1) ? btn_lit : btn_dark;  // floor 2 lit
+        Color bc = (i == 1) ? btn_lit : btn_dark;
         add_wall(s, panel_x - 0.01f, by, panel_z, 0.03f, 0.08f, 0.08f, bc);
     }
 
     // Brass door seam on front wall
     add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
+
+    // ============================================================
+    // EXTERIOR — Auckland visible through the glass, dropping away
+    // These walls are STATIC; the camera rises, they stay put.
+    // The player watches the city shrink below them.
+    // ============================================================
+
+    // Sky Tower shaft — you're INSIDE it, rising past structural rings
+    for (int i = 0; i < 20; i++) {
+        float ry = -5.0f + i * 8.0f;
+        add_wall(s, -3, ry, 0, 0.15f, 0.4f, 3, (Color){80, 85, 95, 200});  // ring segment
+    }
+
+    // Auckland city lights — far below, visible at start, shrinking
+    Color city = {240, 200, 110, 100};
+    Color bldg = {20, 24, 35, 255};
+    // Building silhouettes (left of elevator shaft)
+    add_wall(s, -8, -2, -5, 3, 6, 2, bldg);
+    add_wall(s, -12, -1, -8, 4, 8, 2, (Color){18, 22, 32, 255});
+    add_wall(s, -6, -3, 3, 5, 4, 2, (Color){22, 26, 38, 255});
+    add_wall(s, -15, 0, 2, 3, 10, 2, bldg);
+    // Windows on buildings — amber glow
+    for (int b = 0; b < 4; b++) {
+        float bx = -8.0f - b * 3.5f;
+        for (int f = 0; f < 3; f++) {
+            add_wall(s, bx, -3.0f + f * 2.0f, -5.5f, 0.8f, 0.6f, 0.04f, city);
+        }
+    }
+    // Ground — road and sidewalk far below
+    add_wall(s, -8, -6, 0, 30, 0.1f, 30, (Color){25, 28, 32, 255});
+    // Streetlights
+    for (int i = 0; i < 5; i++) {
+        float lz = -10.0f + i * 5.0f;
+        add_wall(s, -5, -4, lz, 0.3f, 0.3f, 0.3f, (Color){240, 210, 120, 140});
+    }
+
+    // Stars — visible once above the city (high Y)
+    for (int i = 0; i < 15; i++) {
+        float sx = -20.0f + (float)((i*31)%40);
+        float sy = 60.0f + (float)((i*17)%40);
+        float sz = -15.0f + (float)((i*13)%30);
+        add_wall(s, sx, sy, sz, 0.2f, 0.2f, 0.2f,
+                 (Color){240,235,225,(unsigned char)(120+(i*23)%100)});
+    }
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 0};
     s->has_exit = false;
@@ -1104,13 +1519,16 @@ void build_taxi_ride(Scene *s) {
 
     // Rear-view mirror — small rectangle above dashboard center
     add_wall(s, 0, 1.15f, -1.1f, 0.2f, 0.1f, 0.04f, mirror_c);
+    set_last_material(s, MAT_GLASS);
     // Mirror support
     add_wall(s, 0, 1.2f, -1.05f, 0.02f, 0.06f, 0.08f, (Color){40, 38, 35, 255});
 
     // Backseat — player sits here
     add_wall(s, 0, 0.35f, 0.1f, 1.4f, 0.12f, 0.5f, leather);
+    set_last_material(s, MAT_LEATHER);
     // Seat back
     add_wall(s, 0, 0.65f, 0.35f, 1.4f, 0.5f, 0.1f, leather);
+    set_last_material(s, MAT_LEATHER);
 
     // A-pillars (window frames) — left and right
     add_wall(s, -0.85f, 0.85f, -0.5f, 0.06f, 1.0f, 1.4f, window_frame);
@@ -1238,10 +1656,13 @@ void build_taxi_ride(Scene *s) {
 
     // Distant city skyline — tall dark silhouettes at far Z
     add_wall(s, -15, 8, -220, 6, 16, 3, (Color){10, 14, 22, 255});
-    add_wall(s, 0, 12, -230, 4, 24, 3, (Color){12, 16, 24, 255});
     add_wall(s, 12, 6, -215, 8, 12, 3, (Color){8, 12, 20, 255});
     add_wall(s, -8, 10, -225, 5, 20, 3, (Color){11, 15, 23, 255});
     add_wall(s, 20, 7, -220, 5, 14, 3, (Color){9, 13, 21, 255});
+    // Sky Tower — rising above the skyline, first glimpse from the taxi
+    add_skytower(s, 0, 0, -230, 6.0f, (Color){40, 45, 65, 255});
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.0f, 0};
     s->has_exit = false;
@@ -1283,32 +1704,43 @@ void build_space_lobby(Scene *s) {
             float tx = -lw/2 + c*1.5f + 0.75f, tz = -ld/2 + r*1.5f + 0.75f;
             add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f,
                      ((r+c)%2==0) ? marble_a : marble_b);
+            set_last_material(s, MAT_MARBLE);
         }
 
     // Ceiling — hull panels with exposed structural ribs
     add_wall(s, 0, lh, 0, lw, 0.3f, ld, hull);
+    set_last_material(s, MAT_CONCRETE);
     // Structural ribs across ceiling — every 4m
     for (int i = 0; i < 6; i++) {
         float rz = -ld/2 + 1.5f + i * (ld/6.0f);
         add_wall(s, 0, lh - 0.15f, rz, lw, 0.3f, 0.15f, hull_lt);
+        set_last_material(s, MAT_CONCRETE);
     }
 
     // Walls — hull exterior with cream paneling inside
     // Back wall — hull with large observation window
     add_wall(s, 0, lh/2, -ld/2, lw, lh, 0.4f, hull);
+    set_last_material(s, MAT_CONCRETE);
     // Cream paneling on lower half
     add_wall(s, 0, lh*0.25f, -ld/2+0.22f, lw-2, lh*0.5f, 0.05f, cream);
+    set_last_material(s, MAT_WALLPAPER);
 
     // OBSERVATION WINDOW — the money shot
     // Floor-to-ceiling void, framed in brass. Pure black = infinite space.
     add_wall(s, 0, lh/2, -ld/2+0.1f, 10, 6, 0.08f, void_black);
+    set_last_material(s, MAT_GLASS);
     // Brass frame — thick, bold at 480x300
     add_wall(s, 0, lh/2+3.1f, -ld/2+0.12f, 10.4f, 0.2f, 0.1f, brass);  // top
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 0, lh/2-3.1f, -ld/2+0.12f, 10.4f, 0.2f, 0.1f, brass);  // bottom
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -5.1f, lh/2, -ld/2+0.12f, 0.2f, 6.2f, 0.1f, brass);    // left
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 5.1f, lh/2, -ld/2+0.12f, 0.2f, 6.2f, 0.1f, brass);     // right
+    set_last_material(s, MAT_BRASS);
     // Mullion — vertical brass divider
     add_wall(s, 0, lh/2, -ld/2+0.14f, 0.1f, 6, 0.06f, brass);
+    set_last_material(s, MAT_BRASS);
 
     // Earth glow bleeding through window — subtle blue wash on floor
     add_wall(s, 0, 0.02f, -ld/2+2, 8, 0.02f, 3, earth_glow);
@@ -1319,19 +1751,28 @@ void build_space_lobby(Scene *s) {
 
     // Side walls — hull with brass trim
     add_wall(s, -lw/2, lh/2, 0, 0.4f, lh, ld, hull);
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, lw/2, lh/2, 0, 0.4f, lh, ld, hull);
+    set_last_material(s, MAT_CONCRETE);
     // Cream paneling on side walls
     add_wall(s, -lw/2+0.22f, lh*0.25f, 0, 0.05f, lh*0.5f, ld-2, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, lw/2-0.22f, lh*0.25f, 0, 0.05f, lh*0.5f, ld-2, cream);
+    set_last_material(s, MAT_WALLPAPER);
 
     // Front wall
     add_wall(s, 0, lh/2, ld/2, lw, lh, 0.4f, hull);
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, lh*0.25f, ld/2-0.22f, lw-2, lh*0.5f, 0.05f, cream);
+    set_last_material(s, MAT_WALLPAPER);
 
     // Brass trim at wainscoting line — all walls
     add_wall(s, 0, lh*0.5f+0.02f, -ld/2+0.24f, lw-2, 0.04f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -lw/2+0.24f, lh*0.5f+0.02f, 0, 0.02f, 0.04f, ld-2, brass);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, lw/2-0.24f, lh*0.5f+0.02f, 0, 0.02f, 0.04f, ld-2, brass);
+    set_last_material(s, MAT_BRASS);
 
     // PORTHOLES — circular windows on side walls (spheres with void backing)
     for (int i = 0; i < 3; i++) {
@@ -1394,7 +1835,9 @@ void build_space_lobby(Scene *s) {
 
     // RECEPTION DESK — same brass desk as Paris, but floating 2cm above floor
     add_wall(s, -6, 0.52f, -5, 4, 1.0f, 1.2f, brass);
+    set_last_material(s, MAT_WOOD);
     add_wall(s, -6, 1.04f, -5, 4.1f, 0.04f, 1.25f, gold);
+    set_last_material(s, MAT_BRASS);
     // Desk lamp — floating
     add_cylinder(s, -4.5f, 1.1f, -5, 0.06f, 0.04f, brass);
     add_cylinder(s, -4.5f, 1.2f, -5, 0.03f, 0.15f, brass);
@@ -1410,6 +1853,7 @@ void build_space_lobby(Scene *s) {
 
     // SEATING — Godard red bench, floating
     add_wall(s, 7, 0.55f, -4, 2.5f, 0.5f, 0.7f, godard_red);
+    set_last_material(s, MAT_FABRIC);
 
     // Recessed panels on hull walls — industrial-meets-luxury
     add_recessed_panel(s, -8, lh*0.6f, -ld/2+0.26f, 3, 2, 0.08f, hull);
@@ -1424,11 +1868,26 @@ void build_space_lobby(Scene *s) {
                  (Color){240,238,232,(unsigned char)(140+(i*23)%80)});
     }
 
+    // ============================================================
+    // ARCHITECTURAL DETAIL — Space Lobby
+    // ============================================================
+
+    // Bookshelves in back corners — station library
+    add_bookshelf(s, -lw/2+0.3f, 1.6f, -ld/2+1.5f, 1.8f, 1.4f, 3, cream);
+    add_bookshelf(s, lw/2-0.3f, 1.6f, -ld/2+1.5f, 1.8f, 1.4f, 3, cream);
+
+    // Picture frames flanking observation window
+    add_picture_frame(s, -7.0f, lh*0.55f, -ld/2+0.26f, 1.0f, 0.8f, brass, (Color){195,45,40,255});
+    add_picture_frame(s, 7.0f, lh*0.55f, -ld/2+0.26f, 1.0f, 0.8f, brass, (Color){35,75,140,255});
+
     // Interactive objects
     add_object(s, -5.5f, 1.2f, -4.5f, "bell", (Color){200,195,180,255}, 1);
     add_object(s, 6, 1.8f, -2, "wineglass", (Color){210,210,215,255}, 1);
 
-    s->spawn = (Vector3){0, 1.6f, 6};
+    tag_materials_by_color(s);
+
+    // Spawn facing the observation window, not the exit
+    s->spawn = (Vector3){0, 1.6f, 4};
     s->exit_pos = (Vector3){0, 1.6f, ld/2-1};
     s->has_exit = true;
 }
@@ -1436,7 +1895,7 @@ void build_space_lobby(Scene *s) {
 void build_space_corridor(Scene *s) {
     memset(s, 0, sizeof(Scene));
     // BOUNDS: curved corridor — 4m wide, 30m long, hull walls with portholes
-    s->surface = SURFACE_MARBLE;
+    s->surface = SURFACE_CARPET;
 
     Color hull = PAL_HULL;
     Color hull_lt = PAL_HULL_LIGHT;
@@ -1477,24 +1936,33 @@ void build_space_corridor(Scene *s) {
             float tz = cz;
             add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, seg_len-0.1f,
                      ((i+t)%2==0) ? carpet_a : carpet_b);
+            set_last_material(s, MAT_CARPET);
         }
 
         // Ceiling
         add_wall(s, cx, H, cz, W, 0.2f, seg_len, hull);
+        set_last_material(s, MAT_CONCRETE);
         // Structural rib
         add_wall(s, cx, H-0.1f, cz, W+0.1f, 0.2f, 0.12f, hull_lt);
+        set_last_material(s, MAT_CONCRETE);
 
         // Walls
         add_wall(s, cx-W/2, H/2, cz, 0.25f, H, seg_len, hull);
+        set_last_material(s, MAT_CONCRETE);
         add_wall(s, cx+W/2, H/2, cz, 0.25f, H, seg_len, hull);
+        set_last_material(s, MAT_CONCRETE);
 
         // Cream paneling — lower walls
         add_wall(s, cx-W/2+0.14f, H*0.25f, cz, 0.04f, H*0.5f, seg_len-0.2f, cream);
+        set_last_material(s, MAT_WALLPAPER);
         add_wall(s, cx+W/2-0.14f, H*0.25f, cz, 0.04f, H*0.5f, seg_len-0.2f, cream);
+        set_last_material(s, MAT_WALLPAPER);
 
         // Brass trim at wainscot
         add_wall(s, cx-W/2+0.15f, H*0.5f, cz, 0.02f, 0.04f, seg_len-0.2f, brass);
+        set_last_material(s, MAT_BRASS);
         add_wall(s, cx+W/2-0.15f, H*0.5f, cz, 0.02f, 0.04f, seg_len-0.2f, brass);
+        set_last_material(s, MAT_BRASS);
 
         // Ceiling light — every other segment
         if (i % 2 == 0) {
@@ -1549,6 +2017,28 @@ void build_space_corridor(Scene *s) {
 
     // Runner strip down center — brass inlay in floor
     add_wall(s, 0, 0.01f, mid_z, 0.3f, 0.02f, segs*seg_len*0.8f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // ============================================================
+    // ARCHITECTURAL DETAIL — Space Corridor
+    // ============================================================
+
+    // Picture frames on walls between doors
+    {
+        // Between seg 1 and 3 (left wall area)
+        float a_mid1 = start_angle + 1.5f * (total_angle / segs);
+        float cx1 = sinf(a_mid1) * curve_radius;
+        float cz1 = -cosf(a_mid1) * curve_radius + curve_radius;
+        add_picture_frame(s, cx1-(W/2-0.08f), 2.0f, cz1, 0.5f, 0.4f, brass, (Color){195,45,40,255});
+
+        // Between seg 5 and 7 (right wall area)
+        float a_mid5 = start_angle + 5.5f * (total_angle / segs);
+        float cx5 = sinf(a_mid5) * curve_radius;
+        float cz5 = -cosf(a_mid5) * curve_radius + curve_radius;
+        add_picture_frame(s, cx5+(W/2-0.08f), 2.0f, cz5, 0.5f, 0.4f, brass, (Color){40,65,160,255});
+    }
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){end0_x, 1.6f, end0_z};
     s->exit_pos = (Vector3){end1_x, 1.6f, end1_z};
@@ -1587,45 +2077,67 @@ void build_space_suite(Scene *s) {
             float tz = -rd/2 + r*0.6f + 0.3f;
             Color plank = ((r+c)%2==0) ? wood : dark_wood;
             add_wall(s, tx, -0.05f, tz, 0.58f, 0.1f, 0.58f, plank);
+            set_last_material(s, MAT_WOOD);
         }
 
     // Ceiling — hull with structural ribs
     add_wall(s, 0, rh, 0, rw, 0.3f, rd, hull);
+    set_last_material(s, MAT_CONCRETE);
     for (int i = 0; i < 4; i++) {
         float rz = -rd/2 + 2 + i * (rd/4.0f);
         add_wall(s, 0, rh-0.15f, rz, rw, 0.25f, 0.12f, hull_lt);
+        set_last_material(s, MAT_CONCRETE);
     }
 
     // Walls — hull exterior, cream paneling interior
     // Back wall — behind bed
     add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, hull);
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, rh*0.25f, -rd/2+0.17f, rw-1, rh*0.5f, 0.04f, cream);
+    set_last_material(s, MAT_WALLPAPER);
     // Front wall
     add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, hull);
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, rh*0.25f, rd/2-0.17f, rw-1, rh*0.5f, 0.04f, cream);
+    set_last_material(s, MAT_WALLPAPER);
     // Side walls
     add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, hull);
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, hull);
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, -rw/2+0.17f, rh*0.25f, 0, 0.04f, rh*0.5f, rd-1, cream);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, rw/2-0.17f, rh*0.25f, 0, 0.04f, rh*0.5f, rd-1, cream);
+    set_last_material(s, MAT_WALLPAPER);
 
     // Wainscoting trim — brass line
     add_wall(s, 0, rh*0.5f, -rd/2+0.19f, rw-1, 0.04f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, 0, rh*0.5f, rd/2-0.19f, rw-1, 0.04f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -rw/2+0.19f, rh*0.5f, 0, 0.02f, 0.04f, rd-1, brass);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, rw/2-0.19f, rh*0.5f, 0, 0.02f, 0.04f, rd-1, brass);
+    set_last_material(s, MAT_BRASS);
 
     // FLOOR-TO-CEILING WINDOW — left wall, the Glass Elevator view
     // Massive void panel with thin brass frame
     add_wall(s, -rw/2+0.08f, rh/2, -1, 0.06f, rh-1, 5, void_black);
+    set_last_material(s, MAT_GLASS);
     // Brass frame
     add_wall(s, -rw/2+0.1f, rh-0.4f, -1, 0.04f, 0.15f, 5.3f, brass);   // top
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -rw/2+0.1f, 0.4f, -1, 0.04f, 0.15f, 5.3f, brass);      // bottom
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -rw/2+0.1f, rh/2, -3.65f, 0.04f, rh-0.8f, 0.15f, brass); // left
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -rw/2+0.1f, rh/2, 1.65f, 0.04f, rh-0.8f, 0.15f, brass);  // right
+    set_last_material(s, MAT_BRASS);
     // Mullions — horizontal brass bars
     add_wall(s, -rw/2+0.12f, rh*0.33f, -1, 0.03f, 0.06f, 5, brass);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, -rw/2+0.12f, rh*0.66f, -1, 0.03f, 0.06f, 5, brass);
+    set_last_material(s, MAT_BRASS);
 
     // Earth glow on floor from window
     add_wall(s, -rw/2+3, 0.02f, -1, 4, 0.02f, 4, earth_glow);
@@ -1649,16 +2161,24 @@ void build_space_suite(Scene *s) {
 
     // BED — same composition as Paris, but headboard is taller (double height room)
     add_wall(s, 0, 0.2f, -4.5f, 3.4f, 0.4f, 2.0f, dark_wood);       // frame
+    set_last_material(s, MAT_WOOD);
     add_wall(s, 0, 0.5f, -4.5f, 3.2f, 0.25f, 1.8f, white);           // mattress
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -0.6f, 0.68f, -5.2f, 0.7f, 0.2f, 0.4f, white);       // pillow L
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 0.6f, 0.68f, -5.2f, 0.7f, 0.2f, 0.4f, white);        // pillow R
+    set_last_material(s, MAT_FABRIC);
     // Headboard — tall navy panel (Godard blue relative)
     add_wall(s, 0, 1.8f, -5.5f, 3.6f, 2.8f, 0.12f, navy);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 0, 3.25f, -5.48f, 3.7f, 0.05f, 0.06f, brass);        // brass cap
+    set_last_material(s, MAT_BRASS);
 
     // Nightstands — floating 2cm above floor
     add_wall(s, -2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
+    set_last_material(s, MAT_WOOD);
     add_wall(s, 2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
+    set_last_material(s, MAT_WOOD);
 
     // Bedside lamps
     add_cylinder(s, -2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
@@ -1672,16 +2192,23 @@ void build_space_suite(Scene *s) {
 
     // DESK — against right wall
     add_wall(s, 5.5f, 0.4f, -2, 2.5f, 0.8f, 0.9f, wood);
+    set_last_material(s, MAT_WOOD);
     add_wall(s, 5.5f, 0.82f, -2, 2.6f, 0.03f, 0.95f, brass);
+    set_last_material(s, MAT_BRASS);
 
     // SOFA — facing window (the view IS the television)
     add_wall(s, -3, 0.25f, 2, 2.4f, 0.5f, 0.9f, navy);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -3, 0.6f, 2.45f, 2.4f, 0.6f, 0.15f, navy);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -4.2f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, -1.8f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
+    set_last_material(s, MAT_FABRIC);
 
     // Coffee table — brass, low
     add_wall(s, -3, 0.35f, 3.5f, 1.2f, 0.03f, 0.7f, brass);
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, -3.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
     add_cylinder(s, -2.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
     add_cylinder(s, -3.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
@@ -1700,10 +2227,10 @@ void build_space_suite(Scene *s) {
     // Champagne glass inverted near ceiling — the absurd detail
     add_cone(s, -5, 4.2f, -2, 0.08f, 0.1f, (Color){210,210,215,160});
     add_cylinder(s, -5, 4.05f, -2, 0.02f, 0.12f, (Color){210,210,215,160});
-    // Champagne droplets — tiny gold spheres floating
-    add_sphere(s, -4.8f, 3.8f, -1.8f, 0.06f, gold);
-    add_sphere(s, -5.1f, 3.5f, -2.2f, 0.04f, gold);
-    add_sphere(s, -4.6f, 3.3f, -1.6f, 0.05f, gold);
+    // Champagne droplets — gold spheres drifting (scaled for 480x300 visibility)
+    add_sphere(s, -4.8f, 3.8f, -1.8f, 0.18f, gold);
+    add_sphere(s, -5.1f, 3.5f, -2.2f, 0.14f, gold);
+    add_sphere(s, -4.6f, 3.3f, -1.6f, 0.16f, gold);
 
     // Photograph floating face-down — same as Paris (you can't flip it here either)
     add_wall(s, 3, 2.5f, 0, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
@@ -1720,12 +2247,35 @@ void build_space_suite(Scene *s) {
     add_recessed_panel(s, 5, rh*0.6f, rd/2-0.2f, 3, 1.8f, 0.08f, hull);
 
     // Light shaft from window across floor
-    add_wall(s, -rw/2+4, 0.02f, -1, 5, 0.02f, 3, (Color){60,130,200,50});
+    add_wall(s, -rw/2+4, 0.02f, -1, 5, 0.02f, 3, (Color){60,130,200,100});
     // Secondary earth glow — warm band on ceiling reflected
     add_wall(s, -rw/2+2, rh-0.1f, -1, 3, 0.02f, 3, (Color){45,100,180,30});
 
     // DROPPED CEILING with warm light — above bed area
     add_dropped_ceiling(s, 0, rh, -4, 5, 4, 0.2f, hull, warm_light);
+
+    // ============================================================
+    // ARCHITECTURAL DETAIL — Space Suite
+    // ============================================================
+
+    // Picture frames above bed — Earth photography, brass frames
+    add_picture_frame(s, -1.5f, 3.8f, -rd/2+0.2f, 0.8f, 0.6f, brass, (Color){35,75,140,255});
+    add_picture_frame(s, 1.5f, 3.8f, -rd/2+0.2f, 0.8f, 0.6f, brass, (Color){60,130,200,255});
+
+    // Bookshelf on side wall — 3 rows, cream shelves
+    add_bookshelf(s, rw/2-0.2f, 1.6f, 0.02f, 1.4f, 1.2f, 3, cream);
+
+    // Baseboards — all 4 walls (brass, matching station trim)
+    add_baseboard(s, 0, 0, -rd/2+0.08f, rw, 0, brass);
+    add_baseboard(s, 0, 0, rd/2-0.08f, rw, 0, brass);
+    add_baseboard(s, -rw/2+0.08f, 0, 0, rd, 1.0f, brass);
+    add_baseboard(s, rw/2-0.08f, 0, 0, rd, 1.0f, brass);
+
+    // Crown moldings at ceiling — brass
+    add_crown_molding(s, 0, rh, -rd/2+0.08f, rw, 0, brass);
+    add_crown_molding(s, 0, rh, rd/2-0.08f, rw, 0, brass);
+    add_crown_molding(s, -rw/2+0.08f, rh, 0, rd, 1.0f, brass);
+    add_crown_molding(s, rw/2-0.08f, rh, 0, rd, 1.0f, brass);
 
     // Corner reinforcement — prevent room escape
     add_wall(s, -rw/2+0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
@@ -1738,6 +2288,8 @@ void build_space_suite(Scene *s) {
     add_object(s, 5.5f, 1.0f, -2, "desk", (Color){200,155,90,255}, 2);
     add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 1);
     add_object(s, 0, 0.8f, -4.5f, "bed", white, 2);
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 4};
     s->has_exit = false;

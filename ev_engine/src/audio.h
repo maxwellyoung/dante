@@ -9,6 +9,9 @@ typedef enum {
     DRONE_LOBBY,
     DRONE_HALLWAY,
     DRONE_ROOM,
+    DRONE_SPACE_LOBBY,
+    DRONE_SPACE_CORRIDOR,
+    DRONE_SPACE_SUITE,
 } DroneType;
 
 typedef enum {
@@ -35,6 +38,9 @@ typedef struct {
     Sound drone_lobby;
     Sound drone_hallway;
     Sound drone_room;
+    Sound drone_space_lobby;
+    Sound drone_space_corridor;
+    Sound drone_space_suite;
     DroneType current_drone;
     bool ambient_playing;
 

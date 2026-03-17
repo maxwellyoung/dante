@@ -1,7 +1,7 @@
 # CLAUDE.md - Endearing Void Engine
 
 ## Philosophy
-> "Three hours to kill." — A first-person exploration of a Paris hotel at 2 AM, built in pure C.
+> "Three hours to kill." — Auckland at 2 AM. A taxi. The Sky Tower. An elevator to orbit. A luxury hotel that has no business being in space. Built in pure C.
 
 ## The Endearing Void Aesthetic
 - **Palette:** Neutral warm whites + specific Pantone accents (French red, French blue, brass)
@@ -49,9 +49,13 @@ src/
 ## Game Flow
 
 ```
-TITLE → TAXI (auto-cinematic) → ARRIVAL (auto) → HOTEL_EXT (3D, walk to entrance)
-→ LOBBY (3D) → HALLWAY (3D) → ROOM (3D, 5 multi-step tasks) → BALCONY (3D, Paris)
-→ BED (2D, phosphorescent stars) → STARS (2D, title card)
+TITLE → CAR (Auckland taxi) → DRIVING (arrival) → HOTEL_EXT (Sky Tower)
+→ LOBBY (terminal) → ELEVATOR (ascent to orbit)
+→ SPACE_LOBBY (observation window) → SPACE_CORRIDOR (portholes)
+→ SPACE_SUITE (4 tasks: lamp, desk, champagne, bed)
+→ BALCONY (Earth view) → BED (phosphorescent stars) → STARS (credits)
+
+Orphaned (dev keys only): HALLWAY, BATHROOM, ROOM (Paris hotel)
 ```
 
 ## Debug Keys
@@ -59,8 +63,18 @@ TITLE → TAXI (auto-cinematic) → ARRIVAL (auto) → HOTEL_EXT (3D, walk to en
 | Key | Action |
 |-----|--------|
 | F1 | Wireframe toggle |
-| F3 | Debug overlay (FPS, walls, position, state) |
+| F3 | Debug overlay (FPS, walls, position, state, key hint) |
 | F4 | Noclip (fly through walls, Space=up, Ctrl=down) |
+| 0 | Jump to: Taxi |
+| 1 | Jump to: Hotel Exterior |
+| 2 | Jump to: Lobby |
+| 3 | Jump to: Hallway (orphaned) |
+| 4 | Jump to: Room (Paris, orphaned) |
+| 5 | Jump to: Balcony |
+| 6 | Jump to: Bathroom (orphaned) |
+| 7 | Jump to: Space Lobby |
+| 8 | Jump to: Space Corridor |
+| 9 | Jump to: Space Suite |
 
 ## Design Principles
 
@@ -78,8 +92,14 @@ TITLE → TAXI (auto-cinematic) → ARRIVAL (auto) → HOTEL_EXT (3D, walk to en
 - Tiny detail objects at 480x300 — they're invisible, scale up or remove
 - Yellow-tinting everything — neutral base, SPECIFIC accent colors
 - Interactive feedback that's only shader-level — if you can't see it in a screenshot, it doesn't count
-- Adding Claude attribution to commits
+- Grey-on-grey in space — hull walls must pop against void, not blend into fog
+- Earth glow as a whisper — it's the emotional anchor, make it a landmark
+- Reusing Paris audio for space — space needs its own acoustic character
 
 ## Current State (March 2026)
 
-Working full game loop with all scenes. Needs: better geometry variety, real composed music, more rooms/spaces, polished ending, sound design depth. This is a years-long project — quality over speed.
+Working full game loop with all scenes. Space scenes have their own procedural drones (hull resonance, air circulation, insulated quiet). Task counts are split: Paris room has 5, space suite has 4. State resets are centralized in `load_state()`.
+
+**Legacy/dev-only scenes:** HALLWAY, ROOM, BATHROOM (Paris hotel). Accessible via dev keys 3/4/6. ~350 lines of craft preserved for potential reintegration. Not in the main game flow.
+
+Needs: better geometry variety, real composed music, more rooms/spaces, polished ending, sound design depth. This is a years-long project — quality over speed.

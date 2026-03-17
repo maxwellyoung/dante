@@ -35,6 +35,8 @@ typedef struct {
     int pointPosLoc;
     int pointColorLoc;
     int pointRadiusLoc;
+    // Material
+    int materialIdLoc;
     bool ready;
 } EVLighting;
 
@@ -45,6 +47,13 @@ void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, flo
 // Apply a per-scene lighting preset
 void SetSceneLighting(EVLighting *lighting, SceneLighting preset);
 
+// Move the point light dynamically (e.g. lamp turned on, candle lit)
+void SetPointLight(EVLighting *lighting, float x, float y, float z,
+                   float r, float g, float b, float radius);
+
+// Set per-wall material ID (called before each DrawModelEx)
+void SetMaterialId(EVLighting *lighting, int materialId);
+
 // Built-in presets per scene
 SceneLighting LightingPreset_Taxi(void);
 SceneLighting LightingPreset_Exterior(void);
@@ -54,6 +63,8 @@ SceneLighting LightingPreset_Hallway(void);
 SceneLighting LightingPreset_Room(void);
 SceneLighting LightingPreset_Bathroom(void);
 SceneLighting LightingPreset_Balcony(void);
-SceneLighting LightingPreset_Space(void);
+SceneLighting LightingPreset_SpaceLobby(void);
+SceneLighting LightingPreset_SpaceCorridor(void);
+SceneLighting LightingPreset_SpaceSuite(void);
 
 #endif

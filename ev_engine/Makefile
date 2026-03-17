@@ -33,7 +33,19 @@ src/%.dev.o: src/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -DDEV_START=$(SCENE) -c $< -o $@
 
 clean:
-	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main
+	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o
+
+# ── QA Mode — automated screenshot + pixel analysis ───────────────
+QA_OBJ = $(SRC:.c=.qa.o)
+
+qa: $(QA_OBJ)
+	$(CC) $(QA_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots
+	./$(BIN)
+	@rm -f src/*.qa.o
+
+src/%.qa.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -c $< -o $@
 
 # ── Quality & Analysis ──────────────────────────────────────────────
 
@@ -90,4 +102,4 @@ tests/test_main: tests/test_main.c src/ev_types.h src/scene.h src/player.h src/a
 devclean:
 	rm -f src/*.dev.o
 
-.PHONY: all run clean devclean check count todo release fmt test dev
+.PHONY: all run clean devclean check count todo release fmt test dev qa

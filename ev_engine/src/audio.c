@@ -378,6 +378,125 @@ static Sound gen_ambient_room(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// --- SPACE AMBIENTS — hull resonance, not Earth ambience ---
+
+// Space Lobby: vast pressurized hull. Deep sub-bass hum (40Hz) with slow filter sweep.
+// Metallic resonance — you feel the mass of the station around you.
+static Sound gen_ambient_space_lobby(void) {
+    float loop_len = 20.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.15f);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Deep sub-bass — hull vibration
+        float sub = sinf(2 * PI * 40.0f * t) * 0.5f;
+        // Slow filter sweep — metallic resonance shifting
+        float sweep = 80.0f + 40.0f * sinf(2 * PI * t / 12.0f);
+        float resonance = sinf(2 * PI * sweep * t) * 0.2f;
+        // Very high harmonic — distant electrical hum
+        float high = sinf(2 * PI * 320.0f * t) * 0.04f;
+        // Breathing amplitude — station life support rhythm
+        float breath = 0.7f + 0.3f * sinf(2 * PI * t / 8.0f);
+        float sample = (sub + resonance + high) * breath;
+        // Loop crossfade
+        if (lt < 0.02f) sample *= lt / 0.02f;
+        if (lt > 0.98f) sample *= (1.0f - lt) / 0.02f;
+        d[i] = (short)(sample * 2000);
+    }
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.12f);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Space Corridor: tighter, more enclosed. Air circulation pulse.
+// Higher frequency hum with subtle rhythmic element.
+static Sound gen_ambient_space_corridor(void) {
+    float loop_len = 16.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Medium hum — air ducting
+        float duct = sinf(2 * PI * 65.0f * t) * 0.35f;
+        duct += sinf(2 * PI * 130.0f * t) * 0.15f;  // second harmonic
+        // Rhythmic pulse — air circulation, ~0.8Hz
+        float pulse = 0.6f + 0.4f * sinf(2 * PI * 0.8f * t);
+        // Subtle high whine — corridor lighting
+        float whine = sinf(2 * PI * 440.0f * t) * 0.02f;
+        whine += sinf(2 * PI * 442.0f * t) * 0.02f;  // beating frequency
+        float sample = (duct * pulse + whine);
+        // Loop crossfade
+        if (lt < 0.02f) sample *= lt / 0.02f;
+        if (lt > 0.98f) sample *= (1.0f - lt) / 0.02f;
+        d[i] = (short)(sample * 2200);
+    }
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.1f);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Space Suite: near-silence. The luxury of insulation.
+// Occasional soft tone emerging from quiet — warmest of the three.
+static Sound gen_ambient_space_suite(void) {
+    float loop_len = 24.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.12f);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 314;
+
+    // Sparse tones that fade in and out — like hearing the station breathe
+    float tones[][3] = {
+        {220.0f, 2.0f, 3.0f},   // A3 — warm, fading in at 2s
+        {196.0f, 8.0f, 4.0f},   // G3 — gentle
+        {261.63f, 14.0f, 3.0f}, // C4 — brief brightness
+        {220.0f, 20.0f, 3.0f},  // A3 — return
+    };
+    int tone_count = 4;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Very quiet base — you can barely hear the hull
+        float base = sinf(2 * PI * 35.0f * t) * 0.1f;
+        float sample = base;
+        // Sparse tones
+        for (int n = 0; n < tone_count; n++) {
+            float freq = tones[n][0];
+            float start = tones[n][1];
+            float dur = tones[n][2];
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 2.0f) continue;
+            // Slow fade in/out — gentle bell
+            float attack = (nt < 0.5f) ? nt / 0.5f : 1.0f;
+            float env = attack * expf(-0.5f * nt);
+            // Pure tone with slight detune — warm, not clinical
+            float tone = sinf(2 * PI * freq * t) * 0.6f +
+                         sinf(2 * PI * (freq * 2.001f) * t) * 0.15f;
+            sample += tone * env * 0.15f;
+        }
+        // Loop crossfade
+        if (lt < 0.03f) sample *= lt / 0.03f;
+        if (lt > 0.97f) sample *= (1.0f - lt) / 0.03f;
+        d[i] = (short)(sample * 1800);
+    }
+    (void)rng;
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.15f);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // --- INTERACTION SOUNDS ---
 
 static Sound gen_click(void) {
@@ -652,6 +771,9 @@ void InitEVAudio(EVAudio *audio) {
     audio->drone_lobby = gen_ambient_lobby();
     audio->drone_hallway = gen_ambient_hallway();
     audio->drone_room = gen_ambient_room();
+    audio->drone_space_lobby = gen_ambient_space_lobby();
+    audio->drone_space_corridor = gen_ambient_space_corridor();
+    audio->drone_space_suite = gen_ambient_space_suite();
     audio->snd_city = gen_city_ambient();
     audio->snd_clock = gen_clock_ambient();
     audio->snd_stairwell = gen_stairwell_ambient();
@@ -682,6 +804,9 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->drone_lobby, 0.04f);     // barely there — through walls
     SetSoundVolume(audio->drone_hallway, 0.03f);   // anticipation, not presence
     SetSoundVolume(audio->drone_room, 0.06f);      // the room's own music — present but not prominent
+    SetSoundVolume(audio->drone_space_lobby, 0.05f);     // hull presence — felt
+    SetSoundVolume(audio->drone_space_corridor, 0.04f);  // air circulation — tighter
+    SetSoundVolume(audio->drone_space_suite, 0.03f);     // near-silence — luxury
     SetSoundVolume(audio->snd_city, 0.03f);        // distant city
     SetSoundVolume(audio->snd_clock, 0.025f);      // clock — barely there
     SetSoundVolume(audio->snd_stairwell, 0.025f);  // distant door thuds — ambient
@@ -701,6 +826,8 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->elevator_hum); UnloadSound(audio->elevator_ding);
     UnloadSound(audio->drone_lobby); UnloadSound(audio->drone_hallway);
     UnloadSound(audio->drone_room);
+    UnloadSound(audio->drone_space_lobby); UnloadSound(audio->drone_space_corridor);
+    UnloadSound(audio->drone_space_suite);
     UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
     UnloadSound(audio->snd_stairwell); UnloadSound(audio->snd_wind);
     CloseAudioDevice();
@@ -716,7 +843,10 @@ static Sound *get_steps(EVAudio *audio, SurfaceType s) {
 static Sound *get_drone(EVAudio *audio, DroneType t) {
     switch(t) { case DRONE_LOBBY: return &audio->drone_lobby;
                 case DRONE_HALLWAY: return &audio->drone_hallway;
-                case DRONE_ROOM: return &audio->drone_room; }
+                case DRONE_ROOM: return &audio->drone_room;
+                case DRONE_SPACE_LOBBY: return &audio->drone_space_lobby;
+                case DRONE_SPACE_CORRIDOR: return &audio->drone_space_corridor;
+                case DRONE_SPACE_SUITE: return &audio->drone_space_suite; }
     return &audio->drone_room;
 }
 

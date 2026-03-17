@@ -39,12 +39,27 @@ typedef enum {
 
 typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER } ShapeType;
 
+// Procedural material types — shader generates surface detail from world position
+typedef enum {
+    MAT_CONCRETE,   // 0 — raw brutalist, subtle pitting
+    MAT_MARBLE,     // 1 — veined, polished
+    MAT_WOOD,       // 2 — grain, warm
+    MAT_CARPET,     // 3 — dense fuzzy noise
+    MAT_WALLPAPER,  // 4 — damask repeat pattern
+    MAT_TILE,       // 5 — grid with grout lines
+    MAT_BRASS,      // 6 — metallic, high specular
+    MAT_GLASS,      // 7 — slight transparency, reflective
+    MAT_LEATHER,    // 8 — subtle grain
+    MAT_FABRIC,     // 9 — soft weave
+} MaterialType;
+
 typedef struct {
     Vector3 pos;
     Vector3 size;
     Color color;
     bool active;
     ShapeType shape;
+    MaterialType material;  // default 0 = MAT_CONCRETE (C zero-init)
 } Wall;
 
 typedef struct {

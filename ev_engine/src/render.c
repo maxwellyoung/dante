@@ -224,6 +224,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         if (!w->active) continue;
 
         if (lighting->ready) {
+            SetMaterialId(lighting, (int)w->material);
             switch (w->shape) {
                 case SHAPE_CYLINDER:
                     if (cyl_model_loaded) {
