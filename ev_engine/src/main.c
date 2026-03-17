@@ -2835,7 +2835,9 @@ int main(void) {
             const char *line = npc_current_dialogue(&gibbons);
             if (line && vig_text != line) {
                 show_text(line);
-            } else if (!line && vig_text && gibbons.active) {
+            } else if (!line && vig_text && !gibbons.line_showing
+                       && gibbons.current_line >= gibbons.line_count) {
+                // Only hide text when ALL dialogue is exhausted, not between lines
                 hide_text();
             }
         }

@@ -193,8 +193,6 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
             if (!npc->line_showing && npc->idle_timer > 0.5f) {
                 npc->line_showing = true;
                 npc->line_timer = 0;
-                printf("[NPC] showing line %d: \"%s\"\n", npc->current_line,
-                       npc->lines[npc->current_line]);
             }
             if (npc->line_showing) {
                 npc->line_timer += dt;
