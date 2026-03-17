@@ -10,18 +10,26 @@ typedef struct {
     int timeLoc;
     int resolutionLoc;
     int warmthLoc;
+    int exposureLoc;
+    int grainLoc;
+    int flashLoc;        // flash intensity (0-1), for scene cut flashes
+    int flashColorLoc;   // flash color (vec3)
     bool ready;
 } EVPostFX;
 
 EVPostFX LoadEVPostFX(void);
 void UnloadEVPostFX(EVPostFX *pfx);
 void SetPostFXWarmth(EVPostFX *pfx, float warmth);
+void SetPostFXExposure(EVPostFX *pfx, float exposure);
+void SetPostFXGrain(EVPostFX *pfx, float grain);
+void SetPostFXFlash(EVPostFX *pfx, float intensity, float r, float g, float b);
 
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *cube_model, bool cube_model_loaded,
                    Model *cyl_model, bool cyl_model_loaded,
                    Model *sphere_model, bool sphere_model_loaded,
                    Model *cone_model, bool cone_model_loaded,
+                   Model *skytower_model, bool skytower_model_loaded,
                    bool indoor, float time);
 void draw_hud(Player *player, Scene *scene);
 void draw_title(void);

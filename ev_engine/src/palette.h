@@ -50,8 +50,8 @@
 #define PAL_FOG_CONCRETE (Color){125, 123, 120, 255}
 #define PAL_FOG_NIGHT   (Color){18, 22, 38, 255}
 #define PAL_FOG_BRASS   (Color){145, 130, 100, 255}
-#define PAL_FOG_VOID    (Color){6, 8, 18, 255}
-#define PAL_FOG_STATION (Color){22, 28, 45, 255}
+#define PAL_FOG_VOID    (Color){4, 5, 12, 255}
+#define PAL_FOG_STATION (Color){8, 10, 20, 255}
 
 // Space hotel materials
 #define PAL_HULL        (Color){62, 68, 78, 255}

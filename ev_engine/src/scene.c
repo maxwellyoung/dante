@@ -51,6 +51,14 @@ static void add_column(Scene *s, float x, float z, float r, float h, Color c) {
     add_cylinder(s, x, h/2, z, r*2, h, c);
 }
 
+void add_skytower(Scene *s, float x, float y, float z, float scale, Color c) {
+    if (s->wall_count >= MAX_WALLS) return;
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z}, .size = {scale, scale, scale}, .color = c,
+        .active = true, .shape = SHAPE_SKYTOWER,
+    };
+}
+
 void add_light_panel(Scene *s, float x, float y, float z,
                      float w, float h, float d, Color c) {
     add_wall(s, x, y, z, w, h, d, (Color){c.r, c.g, c.b, 160});
@@ -1236,5 +1244,501 @@ void build_taxi_ride(Scene *s) {
     add_wall(s, 20, 7, -220, 5, 14, 3, (Color){9, 13, 21, 255});
 
     s->spawn = (Vector3){0, 1.0f, 0};
+    s->has_exit = false;
+}
+
+// ============================================================
+// SPACE HOTEL — The Great Glass Elevator
+// A luxury hotel that has no business being in orbit.
+// Parisian warmth inside, infinite void outside.
+// ============================================================
+
+void build_space_lobby(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    // BOUNDS: 24m x 16m, fully enclosed cylindrical station interior
+    s->surface = SURFACE_MARBLE;
+
+    Color hull = PAL_HULL;
+    Color hull_lt = PAL_HULL_LIGHT;
+    Color brass = PAL_BRASS;
+    Color cream = PAL_CREAM;
+    Color void_black = PAL_PORTHOLE;
+    Color gold = PAL_GOLD;
+    Color godard_red = PAL_RED;
+    Color godard_blue = PAL_BLUE;
+    Color marble_a = PAL_MARBLE_A;
+    Color marble_b = PAL_MARBLE_B;
+    Color warm_light = PAL_LIGHT_WARM;
+    Color earth_glow = PAL_EARTH_GLOW;
+
+    s->fog_color = PAL_FOG_STATION;
+    s->fog_density = 0.001f;
+
+    float lw = 24, ld = 16, lh = 8;
+
+    // Floor — checkerboard marble, same luxury as Paris
+    int cols = (int)(lw/1.5f), rows = (int)(ld/1.5f);
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            float tx = -lw/2 + c*1.5f + 0.75f, tz = -ld/2 + r*1.5f + 0.75f;
+            add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f,
+                     ((r+c)%2==0) ? marble_a : marble_b);
+        }
+
+    // Ceiling — hull panels with exposed structural ribs
+    add_wall(s, 0, lh, 0, lw, 0.3f, ld, hull);
+    // Structural ribs across ceiling — every 4m
+    for (int i = 0; i < 6; i++) {
+        float rz = -ld/2 + 1.5f + i * (ld/6.0f);
+        add_wall(s, 0, lh - 0.15f, rz, lw, 0.3f, 0.15f, hull_lt);
+    }
+
+    // Walls — hull exterior with cream paneling inside
+    // Back wall — hull with large observation window
+    add_wall(s, 0, lh/2, -ld/2, lw, lh, 0.4f, hull);
+    // Cream paneling on lower half
+    add_wall(s, 0, lh*0.25f, -ld/2+0.22f, lw-2, lh*0.5f, 0.05f, cream);
+
+    // OBSERVATION WINDOW — the money shot
+    // Floor-to-ceiling void, framed in brass. Pure black = infinite space.
+    add_wall(s, 0, lh/2, -ld/2+0.1f, 10, 6, 0.08f, void_black);
+    // Brass frame — thick, bold at 480x300
+    add_wall(s, 0, lh/2+3.1f, -ld/2+0.12f, 10.4f, 0.2f, 0.1f, brass);  // top
+    add_wall(s, 0, lh/2-3.1f, -ld/2+0.12f, 10.4f, 0.2f, 0.1f, brass);  // bottom
+    add_wall(s, -5.1f, lh/2, -ld/2+0.12f, 0.2f, 6.2f, 0.1f, brass);    // left
+    add_wall(s, 5.1f, lh/2, -ld/2+0.12f, 0.2f, 6.2f, 0.1f, brass);     // right
+    // Mullion — vertical brass divider
+    add_wall(s, 0, lh/2, -ld/2+0.14f, 0.1f, 6, 0.06f, brass);
+
+    // Earth glow bleeding through window — subtle blue wash on floor
+    add_wall(s, 0, 0.02f, -ld/2+2, 8, 0.02f, 3, earth_glow);
+    // Earth — solid blue sphere visible through the window, far behind the glass
+    add_sphere(s, 3, lh/2+1, -ld/2-12, 5.0f, (Color){35, 75, 140, 255});
+    // Atmosphere rim — bright thin ring (slightly larger sphere, lighter)
+    add_sphere(s, 3, lh/2+1, -ld/2-12, 5.4f, (Color){120, 170, 220, 255});
+
+    // Side walls — hull with brass trim
+    add_wall(s, -lw/2, lh/2, 0, 0.4f, lh, ld, hull);
+    add_wall(s, lw/2, lh/2, 0, 0.4f, lh, ld, hull);
+    // Cream paneling on side walls
+    add_wall(s, -lw/2+0.22f, lh*0.25f, 0, 0.05f, lh*0.5f, ld-2, cream);
+    add_wall(s, lw/2-0.22f, lh*0.25f, 0, 0.05f, lh*0.5f, ld-2, cream);
+
+    // Front wall
+    add_wall(s, 0, lh/2, ld/2, lw, lh, 0.4f, hull);
+    add_wall(s, 0, lh*0.25f, ld/2-0.22f, lw-2, lh*0.5f, 0.05f, cream);
+
+    // Brass trim at wainscoting line — all walls
+    add_wall(s, 0, lh*0.5f+0.02f, -ld/2+0.24f, lw-2, 0.04f, 0.02f, brass);
+    add_wall(s, -lw/2+0.24f, lh*0.5f+0.02f, 0, 0.02f, 0.04f, ld-2, brass);
+    add_wall(s, lw/2-0.24f, lh*0.5f+0.02f, 0, 0.02f, 0.04f, ld-2, brass);
+
+    // PORTHOLES — circular windows on side walls (spheres with void backing)
+    for (int i = 0; i < 3; i++) {
+        float pz = -4 + i * 4;
+        // Left wall portholes
+        add_sphere(s, -lw/2+0.18f, lh*0.6f, pz, 1.2f, void_black);
+        add_cylinder(s, -lw/2+0.2f, lh*0.6f, pz, 1.4f, 0.08f, brass);
+        // Right wall portholes
+        add_sphere(s, lw/2-0.18f, lh*0.6f, pz, 1.2f, void_black);
+        add_cylinder(s, lw/2-0.2f, lh*0.6f, pz, 1.4f, 0.08f, brass);
+    }
+
+    // GLASS ELEVATOR SHAFT — structural rings + light column
+    // No solid cylinder — brass rings define the form, light fills the void
+    float shaft_r = 1.0f;
+    // 5 brass rings stacked vertically — the skeleton of the elevator
+    for (int i = 0; i < 5; i++) {
+        float ry = 0.2f + i * (lh - 0.4f) / 4.0f;
+        add_cylinder(s, 0, ry, 0, shaft_r*2+0.15f, 0.1f, brass);
+    }
+    // 4 vertical brass posts connecting the rings
+    add_wall(s, -shaft_r, lh/2, 0, 0.08f, lh, 0.08f, brass);
+    add_wall(s, shaft_r, lh/2, 0, 0.08f, lh, 0.08f, brass);
+    add_wall(s, 0, lh/2, -shaft_r, 0.08f, lh, 0.08f, brass);
+    add_wall(s, 0, lh/2, shaft_r, 0.08f, lh, 0.08f, brass);
+    // Light column inside — the warm glow that makes it the Glass Elevator
+    add_light_panel(s, 0, lh/2, 0, 0.4f, lh-0.5f, 0.4f, warm_light);
+
+    // CHANDELIER — hanging from ceiling, brass + warm light
+    // Above the observation window area
+    add_cylinder(s, 0, lh-0.5f, -3, 0.04f, 1.0f, brass);     // chain
+    add_cylinder(s, 0, lh-1.5f, -3, 0.8f, 0.08f, brass);      // ring
+    add_cone(s, 0, lh-1.8f, -3, 0.6f, 0.3f, cream);           // shade
+    add_light_panel(s, 0, lh-1.6f, -3, 1.0f, 0.8f, 1.0f, warm_light);
+
+    // COLUMNS — cylindrical, brass-capped, framing the view
+    add_column(s, -4, -4, 0.4f, lh, cream);
+    add_column(s, 4, -4, 0.4f, lh, cream);
+    add_column(s, -4, 4, 0.4f, lh, cream);
+    add_column(s, 4, 4, 0.4f, lh, cream);
+    // Brass caps
+    for (int i = 0; i < 4; i++) {
+        float cx = (i < 2) ? -4 : 4;
+        float cz = (i % 2 == 0) ? -4 : 4;
+        add_cylinder(s, cx, 0.02f, cz, 1.0f, 0.04f, brass);
+        add_cylinder(s, cx, lh-0.02f, cz, 1.0f, 0.04f, brass);
+    }
+
+    // FLOATING FURNITURE — weightlessness tells the story
+    // Wine glass hovering mid-air, no table beneath it
+    add_wall(s, 6, 1.8f, -2, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160});
+    add_wall(s, 6, 1.85f, -2, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200});
+    // Book drifting near ceiling
+    add_wall(s, -7, 5.5f, 2, 0.8f, 0.06f, 0.5f, godard_red);
+    // Suitcase floating at waist height
+    add_wall(s, 8, 1.2f, 3, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
+    add_wall(s, 7.85f, 1.32f, 3.22f, 0.18f, 0.13f, 0.02f, godard_blue);
+    // Napkin — white rectangle drifting
+    add_wall(s, -3, 3.2f, 5, 0.3f, 0.01f, 0.3f, (Color){245,242,238,200});
+
+    // RECEPTION DESK — same brass desk as Paris, but floating 2cm above floor
+    add_wall(s, -6, 0.52f, -5, 4, 1.0f, 1.2f, brass);
+    add_wall(s, -6, 1.04f, -5, 4.1f, 0.04f, 1.25f, gold);
+    // Desk lamp — floating
+    add_cylinder(s, -4.5f, 1.1f, -5, 0.06f, 0.04f, brass);
+    add_cylinder(s, -4.5f, 1.2f, -5, 0.03f, 0.15f, brass);
+    add_cone(s, -4.5f, 1.38f, -5, 0.15f, 0.12f, cream);
+    add_light_panel(s, -4.5f, 1.3f, -5, 0.2f, 0.25f, 0.2f, warm_light);
+
+    // Hotel bell — floating just above desk
+    add_cylinder(s, -5.5f, 1.12f, -4.5f, 0.06f, 0.03f, (Color){200,195,180,255});
+
+    // Dropped ceiling sections with light panels
+    add_dropped_ceiling(s, -6, lh, -2, 6, 5, 0.25f, hull, warm_light);
+    add_dropped_ceiling(s, 6, lh, -2, 6, 5, 0.25f, hull, warm_light);
+
+    // SEATING — Godard red bench, floating
+    add_wall(s, 7, 0.55f, -4, 2.5f, 0.5f, 0.7f, godard_red);
+
+    // Recessed panels on hull walls — industrial-meets-luxury
+    add_recessed_panel(s, -8, lh*0.6f, -ld/2+0.26f, 3, 2, 0.08f, hull);
+    add_recessed_panel(s, 8, lh*0.6f, -ld/2+0.26f, 3, 2, 0.08f, hull);
+
+    // Stars visible through portholes — tiny bright cubes far behind walls
+    for (int i = 0; i < 15; i++) {
+        float sx = -30 + (i*41)%60;
+        float sy = 2 + (i*17)%6;
+        float sz = -ld/2 - 5 - (i*13)%15;
+        add_wall(s, sx, sy, sz, 0.1f, 0.1f, 0.1f,
+                 (Color){240,238,232,(unsigned char)(140+(i*23)%80)});
+    }
+
+    // Interactive objects
+    add_object(s, -5.5f, 1.2f, -4.5f, "bell", (Color){200,195,180,255}, 1);
+    add_object(s, 6, 1.8f, -2, "wineglass", (Color){210,210,215,255}, 1);
+
+    s->spawn = (Vector3){0, 1.6f, 6};
+    s->exit_pos = (Vector3){0, 1.6f, ld/2-1};
+    s->has_exit = true;
+}
+
+void build_space_corridor(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    // BOUNDS: curved corridor — 4m wide, 30m long, hull walls with portholes
+    s->surface = SURFACE_MARBLE;
+
+    Color hull = PAL_HULL;
+    Color hull_lt = PAL_HULL_LIGHT;
+    Color brass = PAL_BRASS;
+    Color cream = PAL_CREAM;
+    Color void_black = PAL_PORTHOLE;
+    Color carpet_a = {55, 45, 75, 255};      // deep violet carpet — not red, this is space
+    Color carpet_b = {62, 52, 82, 255};
+    Color warm_amber = PAL_GLOW_AMBER;
+    Color door_colors[2] = {PAL_RED, PAL_BLUE};
+
+    s->fog_color = PAL_FOG_VOID;
+    s->fog_density = 0.002f;
+
+    float W = 4.5f, H = 3.5f;
+
+    // CURVED CORRIDOR — approximate a gentle arc with 8 straight segments
+    // Each segment is 4m long, angled slightly to create the curve
+    int segs = 8;
+    float seg_len = 4.0f;
+    float curve_radius = 40.0f;  // gentle curve
+    float total_angle = (segs * seg_len) / curve_radius;
+    float start_angle = -total_angle / 2;
+
+    for (int i = 0; i < segs; i++) {
+        float a0 = start_angle + i * (total_angle / segs);
+        float a1 = start_angle + (i + 1) * (total_angle / segs);
+        float amid = (a0 + a1) / 2;
+
+        // Center of this segment
+        float cx = sinf(amid) * curve_radius;
+        float cz = -cosf(amid) * curve_radius + curve_radius;
+
+        // Approximate segment with axis-aligned geometry
+        // Floor tiles
+        for (int t = 0; t < 3; t++) {
+            float tx = cx - W/2 + t*1.5f + 0.75f;
+            float tz = cz;
+            add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, seg_len-0.1f,
+                     ((i+t)%2==0) ? carpet_a : carpet_b);
+        }
+
+        // Ceiling
+        add_wall(s, cx, H, cz, W, 0.2f, seg_len, hull);
+        // Structural rib
+        add_wall(s, cx, H-0.1f, cz, W+0.1f, 0.2f, 0.12f, hull_lt);
+
+        // Walls
+        add_wall(s, cx-W/2, H/2, cz, 0.25f, H, seg_len, hull);
+        add_wall(s, cx+W/2, H/2, cz, 0.25f, H, seg_len, hull);
+
+        // Cream paneling — lower walls
+        add_wall(s, cx-W/2+0.14f, H*0.25f, cz, 0.04f, H*0.5f, seg_len-0.2f, cream);
+        add_wall(s, cx+W/2-0.14f, H*0.25f, cz, 0.04f, H*0.5f, seg_len-0.2f, cream);
+
+        // Brass trim at wainscot
+        add_wall(s, cx-W/2+0.15f, H*0.5f, cz, 0.02f, 0.04f, seg_len-0.2f, brass);
+        add_wall(s, cx+W/2-0.15f, H*0.5f, cz, 0.02f, 0.04f, seg_len-0.2f, brass);
+
+        // Ceiling light — every other segment
+        if (i % 2 == 0) {
+            add_light_panel(s, cx, H-0.12f, cz, 1.2f, 0.04f, 1.5f, warm_amber);
+        }
+
+        // PORTHOLES — on alternating sides, every other segment
+        if (i % 2 == 1) {
+            float side = (i % 4 == 1) ? -(W/2-0.1f) : (W/2-0.1f);
+            float px = cx + side;
+            // Void backing
+            add_sphere(s, px, H*0.55f, cz, 0.9f, void_black);
+            // Brass rim
+            add_cylinder(s, px, H*0.55f, cz, 1.1f, 0.06f, brass);
+            // Star visible through porthole
+            add_wall(s, px + (side > 0 ? 2 : -2), H*0.55f, cz-1,
+                     0.08f, 0.08f, 0.08f, (Color){240,238,232,180});
+        }
+
+        // DOORS — Godard red/blue, on alternating sides
+        if (i >= 2 && i <= 6 && i % 2 == 0) {
+            float side = (i % 4 == 0) ? -(W/2-0.1f) : (W/2-0.1f);
+            Color door_c = door_colors[(i / 4) % 2];
+            add_wall(s, cx+side, 1.3f, cz, 0.12f, 2.6f, 1.0f, door_c);
+            // Door frame
+            add_wall(s, cx+side, 2.75f, cz, 0.12f, 0.12f, 1.1f, brass);
+            add_wall(s, cx+side, 1.3f, cz-0.55f, 0.12f, 2.6f, 0.05f, brass);
+            add_wall(s, cx+side, 1.3f, cz+0.55f, 0.12f, 2.6f, 0.05f, brass);
+            // Room number plate
+            add_wall(s, cx+side*0.95f, 2, cz-0.7f, 0.06f, 0.2f, 0.15f, brass);
+        }
+    }
+
+    // End caps — walls closing the corridor
+    float end0_z = -cosf(start_angle) * curve_radius + curve_radius;
+    float end1_z = -cosf(start_angle + total_angle) * curve_radius + curve_radius;
+    float end0_x = sinf(start_angle) * curve_radius;
+    float end1_x = sinf(start_angle + total_angle) * curve_radius;
+    add_wall(s, end0_x, H/2, end0_z - seg_len/2, W, H, 0.25f, hull);
+    add_wall(s, end1_x, H/2, end1_z + seg_len/2, W, H, 0.25f, hull);
+
+    // FLOATING OBJECTS in corridor
+    // Fire extinguisher — floating off the wall
+    add_wall(s, end0_x - W/2+0.3f, 1.8f, end0_z, 0.2f, 0.5f, 0.15f, door_colors[0]);
+    // Newspaper drifting mid-corridor
+    float mid_x = sinf(0) * curve_radius;
+    float mid_z = -cosf(0) * curve_radius + curve_radius;
+    add_wall(s, mid_x+0.5f, 2.2f, mid_z, 0.5f, 0.01f, 0.35f, (Color){235,232,228,200});
+
+    // Light shaft effect near first porthole
+    add_wall(s, end0_x, 0.02f, end0_z+3, 1.0f, 0.02f, 1.5f, (Color){60,130,200,40});
+
+    // Runner strip down center — brass inlay in floor
+    add_wall(s, 0, 0.01f, mid_z, 0.3f, 0.02f, segs*seg_len*0.8f, brass);
+
+    s->spawn = (Vector3){end0_x, 1.6f, end0_z};
+    s->exit_pos = (Vector3){end1_x, 1.6f, end1_z};
+    s->has_exit = true;
+}
+
+void build_space_suite(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    // BOUNDS: 14m x 12m, fully enclosed — the Glass Elevator suite
+    // Dahl's space hotel room: absurd luxury in zero gravity
+    s->surface = SURFACE_WOOD;
+
+    Color hull = PAL_HULL;
+    Color hull_lt = PAL_HULL_LIGHT;
+    Color brass = PAL_BRASS;
+    Color cream = PAL_CREAM;
+    Color white = PAL_WHITE;
+    Color void_black = PAL_PORTHOLE;
+    Color gold = PAL_GOLD;
+    Color wood = PAL_WOOD_DARK;
+    Color dark_wood = {105, 78, 48, 255};
+    Color warm_light = PAL_LIGHT_WARM;
+    Color earth_glow = PAL_EARTH_GLOW;
+    Color navy = PAL_NAVY;
+
+    s->fog_color = PAL_FOG_STATION;
+    s->fog_density = 0.001f;
+
+    float rw = 14, rd = 12, rh = 5;  // taller than Paris room — double height
+
+    // Floor — dark wood herringbone (alternating planks)
+    int cols = (int)(rw/0.6f), rows = (int)(rd/0.6f);
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            float tx = -rw/2 + c*0.6f + 0.3f;
+            float tz = -rd/2 + r*0.6f + 0.3f;
+            Color plank = ((r+c)%2==0) ? wood : dark_wood;
+            add_wall(s, tx, -0.05f, tz, 0.58f, 0.1f, 0.58f, plank);
+        }
+
+    // Ceiling — hull with structural ribs
+    add_wall(s, 0, rh, 0, rw, 0.3f, rd, hull);
+    for (int i = 0; i < 4; i++) {
+        float rz = -rd/2 + 2 + i * (rd/4.0f);
+        add_wall(s, 0, rh-0.15f, rz, rw, 0.25f, 0.12f, hull_lt);
+    }
+
+    // Walls — hull exterior, cream paneling interior
+    // Back wall — behind bed
+    add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, hull);
+    add_wall(s, 0, rh*0.25f, -rd/2+0.17f, rw-1, rh*0.5f, 0.04f, cream);
+    // Front wall
+    add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, hull);
+    add_wall(s, 0, rh*0.25f, rd/2-0.17f, rw-1, rh*0.5f, 0.04f, cream);
+    // Side walls
+    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, hull);
+    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, hull);
+    add_wall(s, -rw/2+0.17f, rh*0.25f, 0, 0.04f, rh*0.5f, rd-1, cream);
+    add_wall(s, rw/2-0.17f, rh*0.25f, 0, 0.04f, rh*0.5f, rd-1, cream);
+
+    // Wainscoting trim — brass line
+    add_wall(s, 0, rh*0.5f, -rd/2+0.19f, rw-1, 0.04f, 0.02f, brass);
+    add_wall(s, 0, rh*0.5f, rd/2-0.19f, rw-1, 0.04f, 0.02f, brass);
+    add_wall(s, -rw/2+0.19f, rh*0.5f, 0, 0.02f, 0.04f, rd-1, brass);
+    add_wall(s, rw/2-0.19f, rh*0.5f, 0, 0.02f, 0.04f, rd-1, brass);
+
+    // FLOOR-TO-CEILING WINDOW — left wall, the Glass Elevator view
+    // Massive void panel with thin brass frame
+    add_wall(s, -rw/2+0.08f, rh/2, -1, 0.06f, rh-1, 5, void_black);
+    // Brass frame
+    add_wall(s, -rw/2+0.1f, rh-0.4f, -1, 0.04f, 0.15f, 5.3f, brass);   // top
+    add_wall(s, -rw/2+0.1f, 0.4f, -1, 0.04f, 0.15f, 5.3f, brass);      // bottom
+    add_wall(s, -rw/2+0.1f, rh/2, -3.65f, 0.04f, rh-0.8f, 0.15f, brass); // left
+    add_wall(s, -rw/2+0.1f, rh/2, 1.65f, 0.04f, rh-0.8f, 0.15f, brass);  // right
+    // Mullions — horizontal brass bars
+    add_wall(s, -rw/2+0.12f, rh*0.33f, -1, 0.03f, 0.06f, 5, brass);
+    add_wall(s, -rw/2+0.12f, rh*0.66f, -1, 0.03f, 0.06f, 5, brass);
+
+    // Earth glow on floor from window
+    add_wall(s, -rw/2+3, 0.02f, -1, 4, 0.02f, 4, earth_glow);
+
+    // Stars outside the window
+    for (int i = 0; i < 12; i++) {
+        float sx = -rw/2 - 3 - (i*7)%10;
+        float sy = 1 + (i*13)%5;
+        float sz = -3 + (i*11)%7;
+        add_wall(s, sx, sy, sz, 0.08f, 0.08f, 0.08f,
+                 (Color){240,238,232,(unsigned char)(120+(i*29)%100)});
+    }
+
+    // PORTHOLE — right wall, circular
+    add_sphere(s, rw/2-0.15f, rh*0.55f, 0, 1.5f, void_black);
+    add_cylinder(s, rw/2-0.13f, rh*0.55f, 0, 1.7f, 0.08f, brass);
+
+    // ============================================================
+    // FURNITURE — grounded luxury with floating accents
+    // ============================================================
+
+    // BED — same composition as Paris, but headboard is taller (double height room)
+    add_wall(s, 0, 0.2f, -4.5f, 3.4f, 0.4f, 2.0f, dark_wood);       // frame
+    add_wall(s, 0, 0.5f, -4.5f, 3.2f, 0.25f, 1.8f, white);           // mattress
+    add_wall(s, -0.6f, 0.68f, -5.2f, 0.7f, 0.2f, 0.4f, white);       // pillow L
+    add_wall(s, 0.6f, 0.68f, -5.2f, 0.7f, 0.2f, 0.4f, white);        // pillow R
+    // Headboard — tall navy panel (Godard blue relative)
+    add_wall(s, 0, 1.8f, -5.5f, 3.6f, 2.8f, 0.12f, navy);
+    add_wall(s, 0, 3.25f, -5.48f, 3.7f, 0.05f, 0.06f, brass);        // brass cap
+
+    // Nightstands — floating 2cm above floor
+    add_wall(s, -2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
+    add_wall(s, 2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
+
+    // Bedside lamps
+    add_cylinder(s, -2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
+    add_cylinder(s, -2.5f, 0.76f, -4.8f, 0.03f, 0.2f, brass);
+    add_cone(s, -2.5f, 0.92f, -4.8f, 0.18f, 0.14f, cream);
+    add_light_panel(s, -2.5f, 0.87f, -4.8f, 0.2f, 0.35f, 0.2f, warm_light);
+    add_cylinder(s, 2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
+    add_cylinder(s, 2.5f, 0.76f, -4.8f, 0.03f, 0.2f, brass);
+    add_cone(s, 2.5f, 0.92f, -4.8f, 0.18f, 0.14f, cream);
+    add_light_panel(s, 2.5f, 0.87f, -4.8f, 0.2f, 0.35f, 0.2f, warm_light);
+
+    // DESK — against right wall
+    add_wall(s, 5.5f, 0.4f, -2, 2.5f, 0.8f, 0.9f, wood);
+    add_wall(s, 5.5f, 0.82f, -2, 2.6f, 0.03f, 0.95f, brass);
+
+    // SOFA — facing window (the view IS the television)
+    add_wall(s, -3, 0.25f, 2, 2.4f, 0.5f, 0.9f, navy);
+    add_wall(s, -3, 0.6f, 2.45f, 2.4f, 0.6f, 0.15f, navy);
+    add_wall(s, -4.2f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
+    add_wall(s, -1.8f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
+
+    // Coffee table — brass, low
+    add_wall(s, -3, 0.35f, 3.5f, 1.2f, 0.03f, 0.7f, brass);
+    add_cylinder(s, -3.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
+    add_cylinder(s, -2.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
+    add_cylinder(s, -3.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
+    add_cylinder(s, -2.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
+
+    // ============================================================
+    // FLOATING OBJECTS — zero gravity storytelling
+    // ============================================================
+
+    // Bathrobe hovering — Dahl absurdity, golden fabric catching light
+    add_wall(s, 5.5f, 2.8f, 1, 0.8f, 1.6f, 0.1f, (Color){240,220,50,255});
+
+    // Pen floating above desk — tiny brass cylinder, spinning implied
+    add_cylinder(s, 5.8f, 1.6f, -2.2f, 0.02f, 0.2f, brass);
+
+    // Champagne glass inverted near ceiling — the absurd detail
+    add_cone(s, -5, 4.2f, -2, 0.08f, 0.1f, (Color){210,210,215,160});
+    add_cylinder(s, -5, 4.05f, -2, 0.02f, 0.12f, (Color){210,210,215,160});
+    // Champagne droplets — tiny gold spheres floating
+    add_sphere(s, -4.8f, 3.8f, -1.8f, 0.06f, gold);
+    add_sphere(s, -5.1f, 3.5f, -2.2f, 0.04f, gold);
+    add_sphere(s, -4.6f, 3.3f, -1.6f, 0.05f, gold);
+
+    // Photograph floating face-down — same as Paris (you can't flip it here either)
+    add_wall(s, 3, 2.5f, 0, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
+
+    // Book open, pages fanned — floating near sofa
+    add_wall(s, -2, 1.5f, 3, 0.6f, 0.04f, 0.4f, white);
+    add_wall(s, -2.05f, 1.53f, 3, 0.55f, 0.02f, 0.38f, (Color){30,30,35,255});
+
+    // ============================================================
+    // RECESSED PANELS — depth on hull walls
+    // ============================================================
+    add_recessed_panel(s, -3, rh*0.6f, -rd/2+0.2f, 2.5f, 1.5f, 0.08f, hull);
+    add_recessed_panel(s, 3, rh*0.6f, -rd/2+0.2f, 2.5f, 1.5f, 0.08f, hull);
+    add_recessed_panel(s, 5, rh*0.6f, rd/2-0.2f, 3, 1.8f, 0.08f, hull);
+
+    // Light shaft from window across floor
+    add_wall(s, -rw/2+4, 0.02f, -1, 5, 0.02f, 3, (Color){60,130,200,50});
+    // Secondary earth glow — warm band on ceiling reflected
+    add_wall(s, -rw/2+2, rh-0.1f, -1, 3, 0.02f, 3, (Color){45,100,180,30});
+
+    // DROPPED CEILING with warm light — above bed area
+    add_dropped_ceiling(s, 0, rh, -4, 5, 4, 0.2f, hull, warm_light);
+
+    // Corner reinforcement — prevent room escape
+    add_wall(s, -rw/2+0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
+    add_wall(s, rw/2-0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
+    add_wall(s, -rw/2+0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
+    add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
+
+    // Interactive objects
+    add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);
+    add_object(s, 5.5f, 1.0f, -2, "desk", (Color){200,155,90,255}, 2);
+    add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 1);
+    add_object(s, 0, 0.8f, -4.5f, "bed", white, 2);
+
+    s->spawn = (Vector3){0, 1.6f, 4};
     s->has_exit = false;
 }

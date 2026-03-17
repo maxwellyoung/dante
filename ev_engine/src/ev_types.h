@@ -37,7 +37,7 @@ typedef enum {
     SURFACE_WOOD,
 } SurfaceType;
 
-typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE } ShapeType;
+typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER } ShapeType;
 
 typedef struct {
     Vector3 pos;

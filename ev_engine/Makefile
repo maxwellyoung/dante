@@ -19,6 +19,19 @@ src/%.o: src/%.c
 run: $(BIN)
 	./$(BIN)
 
+# Dev mode — skip title, boot straight into a scene
+# Usage: make dev SCENE=STATE_SPACE_LOBBY
+#   or:  make dev  (defaults to STATE_SPACE_LOBBY)
+SCENE ?= STATE_SPACE_LOBBY
+DEV_OBJ = $(SRC:.c=.dev.o)
+
+dev: $(DEV_OBJ)
+	$(CC) $(DEV_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	./$(BIN)
+
+src/%.dev.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DDEV_START=$(SCENE) -c $< -o $@
+
 clean:
 	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main
 
@@ -74,4 +87,7 @@ test: tests/test_main
 tests/test_main: tests/test_main.c src/ev_types.h src/scene.h src/player.h src/audio.h src/render.h src/lighting.h
 	$(CC) -std=c99 -Wall -Wextra $(INCLUDES) -DHEADLESS_TEST tests/test_main.c -o tests/test_main
 
-.PHONY: all run clean check count todo release fmt test
+devclean:
+	rm -f src/*.dev.o
+
+.PHONY: all run clean devclean check count todo release fmt test dev
