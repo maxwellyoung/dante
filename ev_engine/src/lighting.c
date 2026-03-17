@@ -635,18 +635,18 @@ SceneLighting LightingPreset_Hallway(void) {
 
 SceneLighting LightingPreset_Room(void) {
     // The hotel room — the emotional core
-    // Starts cool (arrived at night), warms as you settle in
-    // Golden key from window side, cool fill from corridor
+    // 2AM: strong overhead pool + bedside warmth vs dark corners
+    // Key steeper for shadow drama on walls and furniture
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.2f, -0.7f, -0.3f}),
-        .keyColor = {1.2f, 1.05f, 0.82f},       // golden — Hotel Chevalier
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.85f, -0.3f}),
+        .keyColor = {1.6f, 1.3f, 0.85f},        // HOT golden — chandelier intensity
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.30f, 0.35f, 0.45f},     // cool blue contrast
-        .ambient = {0.10f, 0.09f, 0.08f},        // LOW — 2AM hotel room, shadows must read
-        // Ceiling light panel — center of room
-        .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {0, 0.5f, 3.5f}},
-        .pointColor = {{0.9f, 0.7f, 0.45f}, {0.8f, 0.6f, 0.35f}, {0.5f, 0.4f, 0.2f}},
-        .pointRadius = {7.0f, 4.0f, 3.0f},
+        .fillColor = {0.10f, 0.12f, 0.18f},     // barely-there cool blue — night
+        .ambient = {0.05f, 0.04f, 0.03f},        // VERY LOW — corners go dark
+        // Tight ceiling pool + warm bedside lamps
+        .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
+        .pointColor = {{1.2f, 0.9f, 0.55f}, {0.8f, 0.6f, 0.35f}, {0.8f, 0.6f, 0.35f}},
+        .pointRadius = {6.0f, 3.5f, 3.5f},
     };
 }
 
@@ -750,18 +750,17 @@ SceneLighting LightingPreset_Hyperspace(void) {
 }
 
 SceneLighting LightingPreset_ParisDream(void) {
-    // Hotel Chevalier golden hour — the OPPOSITE of space blue
-    // Steeper key angle creates longer shadows, drives contrast ratio up
-    // Reduced ambient so shadows actually go dark (was 0.22 — too bright, QA fail)
+    // Hotel Chevalier golden hour — HOT light, DEEP shadows
+    // The dream is saturated, contrasty — memory intensifies everything
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.7f, -0.6f, -0.3f}),
-        .keyColor = {2.0f, 1.4f, 0.65f},
+        .keyDir = Vector3Normalize((Vector3){-0.5f, -0.7f, -0.3f}),
+        .keyColor = {2.2f, 1.5f, 0.70f},        // blazing golden
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.20f, 0.15f, 0.08f},
-        .ambient = {0.12f, 0.09f, 0.05f},
+        .fillColor = {0.08f, 0.06f, 0.03f},     // barely there
+        .ambient = {0.05f, 0.04f, 0.02f},        // VERY LOW — dream shadows go black
         .pointPos = {{0, 3.6f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
-        .pointColor = {{1.6f, 1.1f, 0.50f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
-        .pointRadius = {8.0f, 4.0f, 4.0f},
+        .pointColor = {{1.8f, 1.3f, 0.60f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
+        .pointRadius = {7.0f, 3.5f, 3.5f},
     };
 }
 
