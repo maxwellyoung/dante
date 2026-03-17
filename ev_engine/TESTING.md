@@ -1,0 +1,104 @@
+# EV Engine — Testing & QA
+
+## 1. Quick Reference
+
+| Command | What it does |
+|---------|-------------|
+| `make test` | Headless unit tests (no Raylib, no window) |
+| `make qa` | Build with `-DQA_MODE`, run all 14 scenes, dump screenshots + `qa/report.json` |
+| `make qa-full` | Full pipeline: build + screenshot + analyze + diff + archive |
+| `make qa-baseline` | Build + run + save current screenshots/grades as the diff baseline |
+| `make qa-watch` | Re-run full pipeline on every source change (polls every 5s) |
+| `make qa-diff` | Diff current screenshots against saved baseline (no rebuild) |
+| `make qa-history` | Print last 10 archived run grades with timestamps |
+| `make check` | Static analysis — pedantic clang warnings, syntax-only, no link |
+| `make dev-diff` | Quick QA rebuild + diff against baseline (fast regression check) |
+| `make playtest` | Clean `-O2 -DPLAYTEST` binary in `playtest/` with README for testers |
+
+## 2. Headless Unit Tests
+
+`tests/test_main.c` compiles without Raylib by stubbing all Raylib types (`Vector3`, `Color`, `Camera3D`, etc.) and defining `HEADLESS_TEST` + the `RAYLIB_H` include guard.
+
+What it validates:
+- Constants: `MAX_WALLS == 768`, `MAX_OBJECTS == 64`, `RENDER_W == 480`, `RENDER_H == 300`
+- Struct sizes: `Wall`, `Player`, `Scene`, `InteractObject`, `EVAudio`, `EVPostFX`, `EVLighting` are all non-zero
+- Enum integrity: `GameState` count == 12, `SurfaceType` values (MARBLE=0, CARPET=1, WOOD=2)
+
+**Adding a new test:** Add assertions inside `main()` in `tests/test_main.c`. Include any new header in the stub section. The build rule recompiles whenever any `src/*.h` changes:
+
+```
+tests/test_main: tests/test_main.c src/ev_types.h src/scene.h src/player.h src/audio.h src/render.h src/lighting.h
+```
+
+## 3. QA Pipeline
+
+When you run `make qa`:
+
+1. Every `.c` file is compiled with `-DQA_MODE` (produces `*.qa.o` objects).
+2. The binary launches a window with `FLAG_WINDOW_ALWAYS_RUN` (renders even when unfocused).
+3. The `qa_scenes[]` array in `main.c` defines 14 entries, each with:
+   - A `GameState` enum value
+   - A string name (used for filenames)
+   - Hero camera angle (tuned composition shot)
+   - Spawn camera angle (what the player sees on entry)
+   - Flags: `dark_by_design`, `outdoor`
+4. For each scene: `load_state()` builds geometry, then the engine renders 10 frames to stabilize, captures a hero screenshot and a spawn screenshot to `qa/screenshots/`.
+5. The hero image is analyzed in C: pixel-by-pixel scan computing luma, contrast ratio, edge density (Sobel), hue buckets, color variance, warmth, quadrant luma, material breakdown, and interaction object reachability.
+6. Anti-pattern checks flag: horror vibes (cold + dark), grey-on-grey in space, yellow tint, missing Earth glow.
+7. Per-scene results print as `[QA] scene_name PASS/FAIL` with metrics. A JSON report is written to `qa/report.json`.
+
+**Scenes in the registry:** hotel_ext, lobby, hallway, room, bathroom, balcony, elevator, space_lobby, space_corridor, space_suite, taxi, hyperspace, paris_dream, return_taxi.
+
+## 4. Analysis & Grading
+
+`qa/analyze.py` reads `qa/report.json` and scores each scene on six pillars (1-5 each):
+
+| Pillar | What it measures |
+|--------|-----------------|
+| **Composition** | Edge density, contrast ratio, center luma, L/R balance. Low edges + low color variance = penalty. |
+| **Lighting** | Luma level, black%, bright%, mid-tone%, quadrant range (directional light test). |
+| **Materials** | Material type count, non-concrete coverage%, concrete dominance check. |
+| **Color** | Hue bucket count, color variance, warmth/coolness per scene type, grey detection. |
+| **Interaction** | Object count (transitional scenes get a pass), unreachable object penalty. |
+| **Anti-patterns** | Horror vibe detection, grey-on-grey in space, yellow tint, missing Earth glow. |
+
+Grading scale: A (>= 4.5 avg), B (>= 3.5), C (>= 2.5), D (>= 1.5), F (< 1.5). The analyzer prints a per-scene breakdown with star ratings, pillar averages, urgent fixes, and the weakest pillar.
+
+**Output files:**
+- `qa/report.json` — raw metrics from the C pipeline
+- `qa/grades.json` — machine-readable grades (overall, per-pillar averages, per-scene breakdown)
+
+Run `make qa-full` for the complete pipeline, or `./qa/run.sh --grade` to re-run the analyzer without rebuilding.
+
+## 5. Baselines & Diffing
+
+**Save a baseline:** `make qa-baseline` (or `./qa/run.sh --baseline`). Copies all `*.png` screenshots plus `report.json` and `grades.json` into `qa/baseline/`.
+
+**Diff against baseline:** `make qa-diff` (or `./qa/run.sh --diff`). Compares hero screenshots with binary `cmp` (byte-identical or changed). Also diffs `grades.json`: reports overall grade change and per-pillar/per-scene score deltas (threshold: 0.3 points).
+
+**History:** Every `make qa-full` run archives screenshots + grades to `qa/history/YYYYMMDD_HHMMSS/`. The last 20 runs are kept; older ones are pruned automatically. View with `make qa-history`.
+
+**Workflow:** Save a baseline before a refactor, then `make dev-diff` after changes to instantly see what regressed.
+
+## 6. Static Analysis
+
+`make check` runs clang in `-fsyntax-only` mode with strict flags on every `src/*.c`:
+
+```
+CHECK_FLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wdouble-promotion
+              -Wformat=2 -Wundef -Wno-unused-parameter -Wno-sign-conversion
+              -std=c99 -fsyntax-only
+```
+
+Each file prints OK or WARN. On WARN, the full diagnostic output is shown. No linking occurs. This catches type issues, shadowed variables, implicit conversions, and format string problems that the normal `-Wall -Wextra` build misses.
+
+## 7. Playtest Builds
+
+`make playtest` produces a clean binary for external testers:
+
+- Compiled with `-O2 -DNDEBUG -DPLAYTEST`
+- The `PLAYTEST` flag `#ifndef`s out: debug keys (F1-F5), scene jump keys (0-9), wireframe toggle, noclip, nudge mode, and the debug overlay
+- Output goes to `playtest/endearing_void` with `playtest/assets/` copied alongside
+- A `playtest/README.txt` is generated with controls and five feedback questions (duration, where they paused, where they rushed, what confused them, how they felt)
+
+Ship the `playtest/` directory as-is. The binary is stripped of all dev affordances.
