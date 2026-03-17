@@ -146,6 +146,11 @@ static int interaction_phases[4] = {0};    // current animation phase
 // ── Ambient fade (P4) ──
 static float ambient_fade = 1.0f;
 
+// ── Interaction micro-freeze + camera lean ──
+static float interact_freeze = 0;   // >0 = game paused for attention beat
+static float interact_lean = 0;     // FOV narrowing on interaction
+static float interact_lean_vel = 0; // spring velocity
+
 // ============================================================
 // PAUSE MENU & SETTINGS
 // ============================================================
@@ -1440,7 +1445,28 @@ int main(void) {
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
-        UpdateFileMusic(&audio);  // stream music buffers (even when paused)
+        UpdateFileMusic(&audio);
+
+        // ── Interaction micro-freeze — a moment of attention ──
+        // 50ms pause after pressing E on an object. The world holds its breath.
+        if (interact_freeze > 0) {
+            interact_freeze -= dt;
+            if (interact_freeze > 0) {
+                // Skip the rest of the frame — freeze
+                BeginDrawing();
+                EndDrawing();
+                continue;
+            }
+        }
+        // Interaction lean spring — FOV snaps narrow then recovers
+        if (interact_lean > 0.01f || fabsf(interact_lean_vel) > 0.01f) {
+            float spring_k = 200.0f, spring_d = 18.0f;
+            float force = -spring_k * interact_lean - spring_d * interact_lean_vel;
+            interact_lean_vel += force * dt;
+            interact_lean += interact_lean_vel * dt;
+            if (interact_lean < 0) { interact_lean = 0; interact_lean_vel = 0; }
+        }
+
         update_menu_springs(dt);
         bool menu_active = update_pause_menu();
         if (!menu_active) {
@@ -1729,17 +1755,31 @@ int main(void) {
 
             case STATE_HOTEL_EXT:
                 update_player(&player, &scene, dt);
+                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
+                // Sky Tower beacon — red pulse every 2 seconds
+                {
+                    float beacon = sinf(state_time * 3.14159f) * 0.5f + 0.5f;
+                    beacon = beacon * beacon;  // sharper pulse
+                    SetPointLightIdx(&lighting, 2,
+                        0, 52, 8,
+                        beacon * 0.8f, beacon * 0.05f, beacon * 0.05f,
+                        beacon * 15.0f);
+                }
+                // Looking up at the tower — FOV widens with awe
+                if (player.camera.target.y > player.camera.position.y + 0.3f) {
+                    float look_up = fminf(1.0f,
+                        (player.camera.target.y - player.camera.position.y - 0.3f) / 0.5f);
+                    player.fov_current += (78.0f - player.fov_current) * look_up * 0.05f;
+                }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
                     // Threshold crossing — slow the player as they approach the door
-                    // "Getting out and grabbing it is a core part of the experience"
-                    // Every transition is deliberate, not automatic
                     if (dist < 3.0f) {
-                        float threshold_t = 1.0f - (dist / 3.0f);  // 0 at 3m, 1 at door
-                        float slow = 1.0f - threshold_t * 0.5f;    // 50% slowdown at door
+                        float threshold_t = 1.0f - (dist / 3.0f);
+                        float slow = 1.0f - threshold_t * 0.5f;
                         player.vel.x *= slow;
                         player.vel.z *= slow;
-                        // FOV narrows — contraction
+                        // FOV narrows — contraction into the building
                         player.fov_current += (65.0f - player.fov_current) * threshold_t * 0.1f;
                     }
                     if (dist < 1.5f) transition_to(STATE_LOBBY);
@@ -3298,6 +3338,11 @@ int main(void) {
             float still = 1.0f - fminf(1.0f, player.speed_current / 2.0f);
             SetPostFXExposure(&postfx, scene_exposure +
                 visual_styles[current_style].exposure_bias + breath * still);
+        }
+
+        // Apply interaction lean to FOV (spring-based narrowing)
+        if (interact_lean > 0.01f) {
+            player.camera.fovy -= interact_lean * 8.0f;  // max ~4° narrowing
         }
 
         // Post-FX — feed player speed to shader for speed lines

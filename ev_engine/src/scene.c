@@ -471,6 +471,101 @@ void build_hotel_exterior(Scene *s) {
     // Interactive entrance door — diegetic. Walk up, press E, enter.
     add_object(s, 0, 1.8f, 0.5f, "door", (Color){230, 200, 110, 255}, 1);
 
+    // ============================================================
+    // AUCKLAND AT 2 AM — the city is mostly asleep
+    // Rain-slicked streets, neon haze, harbor in the distance.
+    // Michael Mann's Collateral: beauty in empty streets.
+    // ============================================================
+
+    // RAIN PUDDLES — irregular pools reflecting the tower and lampposts
+    // Large puddle near entrance — reflects the warm entrance glow
+    add_wall(s, -2, 0.005f, -2, 3.0f, 0.005f, 2.5f, (Color){250, 230, 170, 18});
+    set_last_decal(s);
+    // Puddle catching lamppost glow — left
+    add_wall(s, -8, 0.005f, -3, 2.5f, 0.005f, 2.0f, (Color){240, 210, 120, 22});
+    set_last_decal(s);
+    // Puddle near taxi — red taillight reflection
+    add_wall(s, -5, 0.005f, -6, 2.0f, 0.005f, 1.5f, (Color){180, 40, 40, 15});
+    set_last_decal(s);
+    // Narrow puddle along curb — continuous
+    add_wall(s, 0, 0.003f, -7, 12, 0.005f, 0.6f, (Color){120, 140, 170, 10});
+    set_last_decal(s);
+
+    // NEON SIGNAGE — Auckland CBD nocturnal texture
+    // Bar sign on left building — Godard red neon rectangle
+    add_wall(s, -16, 4.5f, 17.5f, 2.5f, 0.8f, 0.06f, (Color){220, 45, 40, 160});
+    // Neon glow pool on sidewalk below
+    add_wall(s, -16, 0.01f, 15, 2.0f, 0.005f, 2.0f, (Color){180, 35, 30, 12});
+    set_last_decal(s);
+    // Pharmacy cross — blue-green, right side
+    add_wall(s, 14, 5.0f, 18, 0.3f, 1.2f, 0.06f, (Color){40, 200, 180, 140});
+    add_wall(s, 14, 5.0f, 18, 1.2f, 0.3f, 0.06f, (Color){40, 200, 180, 140});
+    // Hotel name — brass letters on the awning (warm glow)
+    add_light_panel(s, 0, 4.0f, 0.3f, 4.0f, 0.3f, 0.1f, (Color){240, 210, 120, 60});
+
+    // NIGHT SKY — stars visible between buildings, above the tower
+    for (int i = 0; i < 25; i++) {
+        float sx = -30.0f + (float)((i*37)%60);
+        float sy = 20.0f + (float)((i*17)%30);
+        float sz = 30.0f + (float)((i*13)%20);
+        float size = 0.2f + (float)((i*7)%3) * 0.1f;
+        add_wall(s, sx, sy, sz, size, size, size,
+                 (Color){220,218,210,(unsigned char)(60+(i*23)%80)});
+    }
+
+    // SKY TOWER TOP — observation deck glow and beacon
+    // The tower model is at (0, 0, 8), scale 6.0
+    // Red beacon at the very top — aircraft warning light
+    add_sphere(s, 0, 52, 8, 0.5f, (Color){220, 30, 30, 180});
+    // Observation deck glow — amber ring of light high up
+    add_cylinder(s, 0, 38, 8, 4.0f, 0.3f, (Color){240, 210, 120, 40});
+    // Restaurant level glow — warm amber band
+    add_wall(s, 0, 35, 7.5f, 3.5f, 1.2f, 0.1f, (Color){240, 200, 110, 60});
+
+    // HARBOR — Auckland's Waitemata Harbour in the distance
+    // Water surface — dark, faintly reflective, far behind the tower
+    add_wall(s, 0, -0.5f, 35, 80, 0.05f, 25, (Color){8, 14, 28, 255});
+    // Harbor reflections — scattered city light on water
+    for (int i = 0; i < 8; i++) {
+        float hx = -20.0f + (float)((i*31)%40);
+        float hz = 30.0f + (float)((i*13)%20);
+        add_wall(s, hx, -0.45f, hz, 1.5f, 0.02f, 0.3f,
+                 (Color){240, 200, 110, (unsigned char)(15+(i*11)%20)});
+        set_last_decal(s);
+    }
+    // Harbor Bridge — distant silhouette, arc shape approximated
+    add_wall(s, -15, 3, 45, 35, 0.3f, 0.5f, (Color){20, 22, 30, 255});
+    // Bridge lights — dotted line of amber
+    for (int i = 0; i < 12; i++) {
+        float bx = -28.0f + i * 4.5f;
+        float by = 3.2f + sinf(i * 0.5f) * 0.8f;  // gentle arc
+        add_wall(s, bx, by, 45, 0.15f, 0.15f, 0.15f,
+                 (Color){240, 200, 100, (unsigned char)(80+(i*17)%60)});
+    }
+
+    // STREET LIFE — 2 AM detritus
+    // Takeaway container on sidewalk — someone ate here
+    add_wall(s, 4, 0.02f, -5, 0.25f, 0.08f, 0.2f, (Color){235, 230, 220, 200});
+    // Newspaper page caught against bollard — wind-pressed
+    add_wall(s, 3.1f, 0.3f, -3, 0.4f, 0.5f, 0.02f, (Color){220, 215, 205, 150});
+    // Shopping bag — plastic, ghostly
+    add_wall(s, -9, 0.15f, -1, 0.2f, 0.3f, 0.15f, (Color){200, 200, 210, 60});
+    // Traffic light — red (intersection empty, but the light doesn't know)
+    add_wall(s, 10, 3.5f, -8, 0.12f, 0.35f, 0.12f, (Color){30, 30, 30, 255});
+    add_wall(s, 10, 3.65f, -8.08f, 0.08f, 0.08f, 0.02f, (Color){220, 30, 30, 180});
+    add_wall(s, 10, 0.01f, -8, 0.8f, 0.005f, 0.8f, (Color){180, 30, 30, 10});
+    set_last_decal(s);
+
+    // DRAIN GRATE — brass, mundane, real
+    add_wall(s, -1, 0.005f, -6, 0.5f, 0.01f, 0.5f, (Color){100, 90, 70, 200});
+    set_last_material(s, MAT_BRASS);
+
+    // SECOND AWNING — closed shop next door, dark
+    add_wall(s, -8, 3.0f, 0.5f, 3, 0.08f, 1.5f, (Color){25, 28, 35, 255});
+    // Rolled-down security shutter
+    add_wall(s, -8, 1.5f, 0.95f, 3, 3, 0.06f, (Color){45, 48, 55, 255});
+    set_last_material(s, MAT_CONCRETE);
+
     s->spawn = (Vector3){0, 1.6f, -4};
     s->exit_pos = (Vector3){0, 1.6f, 0.5f};
     s->has_exit = true;
@@ -835,7 +930,7 @@ void build_hotel_room(Scene *s) {
     // BOUNDS: 12m x 10m, fully enclosed (4 walls + floor + ceiling + corner blocks)
     s->surface = SURFACE_WOOD;
 
-    Color wall_gold = PAL_GOLD;
+    Color wall_gold = {200, 188, 155, 255};  // warm champagne — Hotel Chevalier, not Minecraft
     Color gold = PAL_BRASS;
     Color cream = PAL_CREAM;
     Color godard_red = PAL_RED;
@@ -853,8 +948,8 @@ void build_hotel_room(Scene *s) {
     add_wall(s, 0, -0.05f, 0, rw, 0.1f, rd, wood);
     set_last_material(s, MAT_PARQUET);
 
-    add_wall(s, 0, rh, 0, rw, 0.2f, rd, cream);
-    set_last_material(s, MAT_WALLPAPER);
+    add_wall(s, 0, rh, 0, rw, 0.2f, rd, (Color){165, 158, 145, 255});  // warm gray ceiling — NOT bright cream
+    set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, rh-0.08f, -rd/2+0.08f, rw, 0.12f, 0.06f, gold);
     set_last_material(s, MAT_BRASS);
     add_wall(s, 0, rh-0.08f, rd/2-0.08f, rw, 0.12f, 0.06f, gold);
@@ -873,10 +968,30 @@ void build_hotel_room(Scene *s) {
     add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
     set_last_material(s, MAT_WALLPAPER);
 
+    // Baseboards — dark wood
     add_wall(s, 0, 0.45f, -rd/2+0.08f, rw, 0.9f, 0.06f, dark_wood);
     add_wall(s, 0, 0.45f, rd/2-0.08f, rw, 0.9f, 0.06f, dark_wood);
     add_wall(s, -rw/2+0.08f, 0.45f, 0, 0.06f, 0.9f, rd, dark_wood);
     add_wall(s, rw/2-0.08f, 0.45f, 0, 0.06f, 0.9f, rd, dark_wood);
+
+    // Recessed wall panels — slightly darker, create visual rhythm + depth
+    {
+        Color panel = {180, 170, 142, 255};  // darker champagne — shadow reveal
+        // Back wall: 3 evenly spaced panels
+        for (int p = 0; p < 3; p++) {
+            float px = -3.0f + p * 3.0f;
+            add_wall(s, px, rh*0.5f, -rd/2+0.05f, 2.2f, rh*0.6f, 0.02f, panel);
+            set_last_material(s, MAT_WALLPAPER);
+        }
+        // Side walls: 2 panels each
+        for (int p = 0; p < 2; p++) {
+            float pz = -2.0f + p * 4.0f;
+            add_wall(s, -rw/2+0.05f, rh*0.5f, pz, 0.02f, rh*0.6f, 2.8f, panel);
+            set_last_material(s, MAT_WALLPAPER);
+            add_wall(s, rw/2-0.05f, rh*0.5f, pz, 0.02f, rh*0.6f, 2.8f, panel);
+            set_last_material(s, MAT_WALLPAPER);
+        }
+    }
 
     // Bed
     add_wall(s, 0, 0.2f, -3.5f, 3.4f, 0.4f, 2.0f, dark_wood);
@@ -3091,25 +3206,25 @@ void build_space_suite(Scene *s) {
         set_last_material(s, MAT_BRASS);
     }
 
-    // Walls — hull exterior, cream paneling interior
+    // Walls — hull exterior, cream paneling interior (80% height — luxury, not bunker)
     // Back wall — behind bed
     add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, 0, rh*0.25f, -rd/2+0.17f, rw-1, rh*0.5f, 0.04f, cream);
+    add_wall(s, 0, rh*0.4f, -rd/2+0.17f, rw-1, rh*0.8f, 0.04f, cream);
     set_last_material(s, MAT_WALLPAPER);
     // Front wall
     add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, 0, rh*0.25f, rd/2-0.17f, rw-1, rh*0.5f, 0.04f, cream);
+    add_wall(s, 0, rh*0.4f, rd/2-0.17f, rw-1, rh*0.8f, 0.04f, cream);
     set_last_material(s, MAT_WALLPAPER);
     // Side walls
     add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, hull);
     set_last_material(s, MAT_CONCRETE);
     add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, hull);
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, -rw/2+0.17f, rh*0.25f, 0, 0.04f, rh*0.5f, rd-1, cream);
+    add_wall(s, -rw/2+0.17f, rh*0.4f, 0, 0.04f, rh*0.8f, rd-1, cream);
     set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, rw/2-0.17f, rh*0.25f, 0, 0.04f, rh*0.5f, rd-1, cream);
+    add_wall(s, rw/2-0.17f, rh*0.4f, 0, 0.04f, rh*0.8f, rd-1, cream);
     set_last_material(s, MAT_WALLPAPER);
 
     // Wainscoting trim — brass line
