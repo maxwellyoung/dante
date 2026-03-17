@@ -720,19 +720,19 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
 }
 
 SceneLighting LightingPreset_SpaceSuite(void) {
-    // Space suite — Earth glow from window, warm lamps by bed
-    // Key angled down from window — casts shadows across furniture
-    // Intimate room: tight pools, dark corners, Earth as backdrop
+    // Space suite — warm amber interior vs cold Earth blue from window
+    // Hotel Chevalier in orbit: golden lamplight, blue void outside
+    // Intimate room: tight warm pools, dark corners, Earth as cold counterpoint
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.5f, -0.5f, -0.2f}),  // diagonal from window — shadows!
-        .keyColor = {0.65f, 0.78f, 0.95f},        // Earth blue — strong but not overwhelming
+        .keyColor = {0.55f, 0.68f, 0.90f},        // Earth blue key — slightly dimmed
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.4f, 0.2f}),
-        .fillColor = {0.20f, 0.16f, 0.10f},       // warm floor bounce — dim
-        .ambient = {0.08f, 0.08f, 0.10f},          // LOW — luxury suite at night
-        // Ceiling light above bed + bedside lamps + Earth glow from window
+        .fillColor = {0.25f, 0.20f, 0.12f},       // warmer floor bounce — amber undertone
+        .ambient = {0.10f, 0.08f, 0.06f},          // warm-shifted ambient — breaks grey neutrality
+        // Ceiling light above bed (warm) + bedside lamps (warmer) + Earth glow (cool)
         .pointPos = {{0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0}},
-        .pointColor = {{1.0f, 0.80f, 0.50f}, {0.9f, 0.7f, 0.4f}, {0.9f, 0.7f, 0.4f}, {0.3f, 0.5f, 0.8f}},
-        .pointRadius = {10.0f, 5.0f, 5.0f, 8.0f},
+        .pointColor = {{1.2f, 0.90f, 0.50f}, {1.1f, 0.80f, 0.45f}, {1.1f, 0.80f, 0.45f}, {0.20f, 0.40f, 0.75f}},
+        .pointRadius = {10.0f, 6.0f, 6.0f, 8.0f},
     };
 }
 

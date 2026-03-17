@@ -1732,6 +1732,10 @@ void build_elevator(Scene *s) {
         add_wall(s, panel_x - 0.01f, by, panel_z, 0.03f, 0.08f, 0.08f, bc);
     }
 
+    // Carpet runner on marble floor — warm against cold stone
+    add_wall(s, 0, 0.01f, 0, 0.8f, 0.02f, 1.4f, (Color){120, 45, 38, 255});
+    set_last_material(s, MAT_CARPET);
+
     // Brass door seam on front wall
     add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
 
