@@ -1,4 +1,4 @@
-// player.c — Mirror's Edge movement + noclip debug
+// player.c — Mirror's Edge movement + slide + ground height + noclip debug
 #include "player.h"
 #include "raymath.h"
 #include <math.h>
@@ -23,6 +23,9 @@ void init_player(Player *p, Vector3 pos) {
     p->vy = 0;
     p->grounded = true;
     p->land_timer = 0;
+    p->ground_y = 0.0f;
+    p->sliding = false;
+    p->slide_speed = 0;
     p->noclip = false;
 }
 
@@ -67,7 +70,30 @@ void update_player(Player *p, Scene *scene, float dt) {
         p->sprint_stamina += dt * 0.15f;
         if (p->sprint_stamina > 1) p->sprint_stamina = 1;
     }
-    float target_speed = p->sprinting ? SPRINT_SPEED : WALK_SPEED;
+
+    // Slide — Ctrl while moving and grounded
+    bool want_slide = IsKeyDown(KEY_LEFT_CONTROL) && !p->noclip;
+    if (want_slide && p->moving && p->grounded) {
+        if (!p->sliding) {
+            p->sliding = true;
+            p->slide_speed = p->speed_current;
+        }
+    } else if (!want_slide || !p->moving) {
+        p->sliding = false;
+        p->slide_speed = 0;
+    }
+    // Landing from jump while holding Ctrl = instant slide
+    if (want_slide && p->grounded && !p->sliding && p->land_timer > 0) {
+        p->sliding = true;
+        p->slide_speed = p->speed_current;
+    }
+
+    float target_speed;
+    if (p->sliding) {
+        target_speed = (p->sprinting ? SPRINT_SPEED : WALK_SPEED) * 1.5f;
+    } else {
+        target_speed = p->sprinting ? SPRINT_SPEED : WALK_SPEED;
+    }
 
     // Input
     Vector3 flat_forward = {forward.x, 0, forward.z};
@@ -88,8 +114,9 @@ void update_player(Player *p, Scene *scene, float dt) {
         if (IsKeyDown(KEY_LEFT_CONTROL)) { wish_dir.y -= 1; p->moving = true; }
     }
 
-    // Smooth accel/decel
-    float accel = p->moving ? (p->sprinting ? 18.0f : 12.0f) : 20.0f;
+    // Smooth accel/decel — sliding has halved friction (decel)
+    float decel = p->sliding ? 8.0f : 20.0f;
+    float accel = p->moving ? (p->sprinting ? 18.0f : 12.0f) : decel;
     float speed_target = p->moving ? target_speed : 0;
     p->speed_current += (speed_target - p->speed_current) * fminf(1.0f, accel * dt);
 
@@ -97,16 +124,25 @@ void update_player(Player *p, Scene *scene, float dt) {
     if (p->moving && p->speed_current > 0.1f) {
         wish_dir = Vector3Normalize(wish_dir);
         move = Vector3Scale(wish_dir, p->speed_current * dt);
-        p->bob_timer += dt * (p->sprinting ? 14 : 9);
+        float bob_rate = p->sliding ? 18.0f : (p->sprinting ? 14.0f : 9.0f);
+        p->bob_timer += dt * bob_rate;
     }
 
-    // FOV
-    float target_fov = p->sprinting && p->moving ? 82.0f : 70.0f;
+    // FOV — sliding is widest
+    float target_fov;
+    if (p->sliding) {
+        target_fov = 88.0f;
+    } else if (p->sprinting && p->moving) {
+        target_fov = 82.0f;
+    } else {
+        target_fov = 70.0f;
+    }
     p->fov_current += (target_fov - p->fov_current) * fminf(1.0f, 8.0f * dt);
     p->camera.fovy = p->fov_current;
 
-    // Tilt
-    float target_tilt = strafe * (p->sprinting ? 2.5f : 1.5f);
+    // Tilt — sliding tilts more
+    float tilt_mult = p->sliding ? 3.5f : (p->sprinting ? 2.5f : 1.5f);
+    float target_tilt = strafe * tilt_mult;
     if (!p->moving) target_tilt = 0;
     p->tilt_current += (target_tilt - p->tilt_current) * fminf(1.0f, 10.0f * dt);
 
@@ -118,12 +154,22 @@ void update_player(Player *p, Scene *scene, float dt) {
             Wall *w = &scene->walls[i];
             if (!w->active) continue;
             float pr = 0.45f;
+            float wall_top = w->pos.y + w->size.y / 2;
+            float wall_bot = w->pos.y - w->size.y / 2;
+            // Only collide with walls the player can't step over
+            // If the wall top is below the player's feet + step threshold, skip collision
+            float feet_y = p->ground_y;
+            float step_threshold = 0.5f;  // can step up to 0.5m
+            if (wall_top <= feet_y + step_threshold && wall_top > feet_y - 0.1f) {
+                // This is a steppable surface, skip horizontal collision
+                continue;
+            }
             if (new_pos.x > w->pos.x - w->size.x/2 - pr &&
                 new_pos.x < w->pos.x + w->size.x/2 + pr &&
                 new_pos.z > w->pos.z - w->size.z/2 - pr &&
                 new_pos.z < w->pos.z + w->size.z/2 + pr &&
-                new_pos.y > w->pos.y - w->size.y/2 &&
-                new_pos.y < w->pos.y + w->size.y/2) {
+                new_pos.y > wall_bot &&
+                new_pos.y < wall_top) {
                 Vector3 try_x = {new_pos.x, p->camera.position.y, p->camera.position.z};
                 Vector3 try_z = {p->camera.position.x, p->camera.position.y, new_pos.z};
                 bool bx = (try_x.x > w->pos.x - w->size.x/2 - pr && try_x.x < w->pos.x + w->size.x/2 + pr &&
@@ -135,20 +181,51 @@ void update_player(Player *p, Scene *scene, float dt) {
             }
         }
 
+        // Ground height — scan all walls to find the highest surface below feet
+        float ground_y = 0.0f;
+        float eye_height = p->sliding ? 1.2f : 1.6f;
+        for (int i = 0; i < scene->wall_count; i++) {
+            Wall *w = &scene->walls[i];
+            if (!w->active) continue;
+            if (w->shape != SHAPE_CUBE) continue;  // only cubes are walkable
+            float top = w->pos.y + w->size.y / 2;
+            // Is the player standing on top of this wall?
+            // Wall top must be below eye height and above current ground
+            if (top < new_pos.y &&       // wall top is below current eye position
+                top > ground_y &&         // higher than current known ground
+                top <= p->ground_y + 0.6f && // can only step up 0.6m at a time
+                new_pos.x > w->pos.x - w->size.x/2 - 0.3f &&
+                new_pos.x < w->pos.x + w->size.x/2 + 0.3f &&
+                new_pos.z > w->pos.z - w->size.z/2 - 0.3f &&
+                new_pos.z < w->pos.z + w->size.z/2 + 0.3f) {
+                ground_y = top;
+            }
+        }
+        // Smooth ground_y transition (don't snap, glide)
+        float ground_speed = (ground_y > p->ground_y) ? 12.0f : 8.0f;  // faster going up
+        p->ground_y += (ground_y - p->ground_y) * fminf(1.0f, ground_speed * dt);
+
+        float base_y = p->ground_y + eye_height;
+
         // Jump
         if (IsKeyPressed(KEY_SPACE) && p->grounded) {
             p->vy = 5.5f;
             p->grounded = false;
+            p->sliding = false;  // jumping cancels slide
         }
 
         // Gravity
         p->vy -= 18.0f * dt;
-        float base_y = 1.6f;
 
         // Head bob (only when grounded and moving)
         float bob = 0;
         if (p->grounded && p->moving) {
-            float bob_amp = p->sprinting ? 0.08f : 0.04f;
+            float bob_amp;
+            if (p->sliding) {
+                bob_amp = 0.10f;  // doubled amplitude while sliding
+            } else {
+                bob_amp = p->sprinting ? 0.08f : 0.04f;
+            }
             bob = sinf(p->bob_timer) * bob_amp * fminf(1.0f, p->speed_current / WALK_SPEED);
         }
 

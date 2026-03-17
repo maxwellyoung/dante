@@ -104,37 +104,54 @@ static Sound gen_step_wood(int seed) {
 
 // Lobby: same melody as room but one octave higher, slower decay (reverb-like)
 // Heard through walls — distant, ethereal
+// 32 seconds with A/B sections and a second phrase
 static Sound gen_ambient_lobby(void) {
-    float beat = 0.6f;  // slower tempo — more contemplative
-    float loop_len = 16.0f * beat * 2;
+    float beat = 0.6f;
+    float loop_len = 32.0f * beat * 2;  // doubled: 32 bars
     int len = (int)(SAMPLE_RATE * loop_len);
     int reverb_delay = (int)(SAMPLE_RATE * 0.1f);
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
+    unsigned int timing_rng = 42;
 
-    // Same progression, one octave up
+    // A section (bars 1-8): original descending phrase, octave up
+    // B section (bars 9-16): new phrase — ascending, different character
+    // A' section (bars 17-24): return with variation
+    // C section (bars 25-32): sparse, breathing, resolving
     float melody[][3] = {
+        // A section (bars 1-8)
         {659.26f, 0, 2}, {587.33f, 2, 1}, {523.25f, 3, 1},
         {440.00f, 4, 4},
         {659.26f, 8, 2}, {698.46f, 10, 1}, {659.26f, 11, 1},
         {587.33f, 12, 4},
-        {659.26f, 16, 2}, {587.33f, 18, 1}, {523.25f, 19, 1},
-        {440.00f, 20, 4},
-        {659.26f, 24, 2}, {698.46f, 26, 1}, {659.26f, 27, 1},
+        // B section (bars 9-16) — new phrase, shifts harmony
+        {783.99f, 16, 2}, {698.46f, 18, 1}, {659.26f, 19, 1},
+        {523.25f, 20, 4},
+        {783.99f, 24, 1}, {698.46f, 25, 1}, {659.26f, 26, 2},
         {587.33f, 28, 4},
+        // A' section (bars 17-24) — return, slight variation
+        {659.26f, 32, 2}, {587.33f, 34, 1}, {523.25f, 35, 1},
+        {440.00f, 36, 4},
+        {659.26f, 40, 2}, {587.33f, 42, 2},
+        // C section (bars 25-32) — sparse, resolving
+        {523.25f, 48, 4}, {440.00f, 52, 4},
+        {659.26f, 56, 2}, {587.33f, 58, 1}, {523.25f, 59, 1},
+        // rest — breathing room, silence in bars 61-64
     };
-    int note_count = 16;
+    int note_count = 25;
 
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float sample = 0;
         for (int n = 0; n < note_count; n++) {
             float freq = melody[n][0];
-            float start = melody[n][1] * beat;
+            // Subtle timing humanization: +-20ms per note
+            unsigned int note_seed = (unsigned int)(n * 997 + 7);
+            float time_offset = (ev_randf(&note_seed) - 0.5f) * 0.04f;
+            float start = melody[n][1] * beat + time_offset;
             float dur = melody[n][2] * beat;
             float nt = t - start;
             if (nt < 0 || nt > dur + 3.0f) continue;
-            // Hammer noise on attack (first 10ms)
             float noise_burst = 0;
             if (nt < 0.01f) {
                 unsigned int ns = (unsigned int)(n * 997 + i);
@@ -142,8 +159,7 @@ static Sound gen_ambient_lobby(void) {
             }
             float attack = (nt < 0.05f) ? nt / 0.05f : 1.0f;
             float env = attack * expf(-0.8f * nt);
-            // Rich harmonics + detuning for chorus warmth
-            float detune = 0.5f;  // Hz
+            float detune = 0.5f;
             float tone = sinf(2 * PI * freq * t) +
                          0.3f * sinf(2 * PI * (freq * 2.0f + detune) * t) +
                          0.1f * sinf(2 * PI * (freq * 3.0f - detune) * t) +
@@ -155,42 +171,55 @@ static Sound gen_ambient_lobby(void) {
         if (lt < 0.02f) sample *= lt / 0.02f;
         d[i] = (short)(sample * 1800);
     }
-    // Reverb approximation
+    (void)timing_rng;
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
-// Hallway: just root notes as sustained tones — building anticipation
-// E3, A2, E3, D3 — the skeleton of the melody, stripped bare
+// Hallway: sustained root tones — building anticipation
+// Doubled length (32s), with a sustained "through-the-wall" string note
+// that fades in and out over 8 seconds like distant strings
 static Sound gen_ambient_hallway(void) {
-    float beat = 0.6f;  // slower tempo
-    float loop_len = 16.0f * beat * 2;
+    float beat = 0.6f;
+    float loop_len = 32.0f * beat * 2;  // doubled
     int len = (int)(SAMPLE_RATE * loop_len);
     int reverb_delay = (int)(SAMPLE_RATE * 0.1f);
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
-    // Root notes only — sustained, hollow
+    // Root notes — sustained, hollow, now with a B section
     float roots[][3] = {
-        {164.81f, 0, 8},   // E3 — bars 1-2
-        {110.00f, 8, 8},   // A2 — bars 3-4
-        {164.81f, 16, 8},  // E3 — bars 5-6
-        {146.83f, 24, 8},  // D3 — bars 7-8
+        // A section
+        {164.81f, 0, 8},    // E3
+        {110.00f, 8, 8},    // A2
+        {164.81f, 16, 8},   // E3
+        {146.83f, 24, 8},   // D3
+        // B section — different roots, more tension
+        {130.81f, 32, 8},   // C3 — new color
+        {110.00f, 40, 8},   // A2
+        {146.83f, 48, 8},   // D3
+        {164.81f, 56, 8},   // E3 — resolving back
     };
-    int root_count = 4;
+    int root_count = 8;
+
+    // Sustained "through-the-wall" string — A3 (220Hz), fades in/out over 8s cycles
+    float string_freq = 220.0f;
 
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float sample = 0;
+
+        // Root notes with timing humanization
         for (int n = 0; n < root_count; n++) {
             float freq = roots[n][0];
-            float start = roots[n][1] * beat;
+            unsigned int note_seed = (unsigned int)(n * 1013 + 3);
+            float time_offset = (ev_randf(&note_seed) - 0.5f) * 0.04f;
+            float start = roots[n][1] * beat + time_offset;
             float dur = roots[n][2] * beat;
             float nt = t - start;
             if (nt < 0 || nt > dur) continue;
-            // Hammer noise on attack
             float noise_burst = 0;
             if (nt < 0.01f) {
                 unsigned int ns = (unsigned int)(n * 1013 + i);
@@ -199,7 +228,6 @@ static Sound gen_ambient_hallway(void) {
             float attack = (nt < 0.1f) ? nt / 0.1f : 1.0f;
             float release = (nt > dur - 0.5f) ? (dur - nt) / 0.5f : 1.0f;
             float env = attack * release;
-            // Rich harmonics + detuning
             float detune = 0.5f;
             float tone = sinf(2 * PI * freq * t) +
                          0.3f * sinf(2 * PI * (freq * 2.0f + detune) * t) +
@@ -207,69 +235,104 @@ static Sound gen_ambient_hallway(void) {
                          0.05f * sinf(2 * PI * freq * 5.0f * t);
             sample += (tone * env + noise_burst);
         }
+
+        // Distant string — fades in and out over 8-second cycles
+        // Like hearing music through a hotel wall
+        float string_env = 0.5f + 0.5f * sinf(2 * PI * t / 8.0f);
+        string_env *= string_env;  // smooth the curve
+        float string_tone = sinf(2 * PI * string_freq * t) * 0.15f +
+                           sinf(2 * PI * (string_freq * 2.001f) * t) * 0.06f +
+                           sinf(2 * PI * (string_freq * 3.002f) * t) * 0.03f;
+        sample += string_tone * string_env;
+
         float lt = (float)i / len;
         if (lt > 0.95f) sample *= (1.0f - lt) / 0.05f;
         if (lt < 0.02f) sample *= lt / 0.02f;
         d[i] = (short)(sample * 2200);
     }
-    // Reverb approximation
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
-// Room: composed piano melody — Satie-inspired descending phrase
-// 8 bars, slower tempo (0.6s per beat), loops every ~19 seconds
-// Rich harmonics, hammer noise attack, bass note in bar 3, delay reverb
+// Room: composed piano melody — Satie-inspired, now with ABAB' structure
+// 16 bars, 32 seconds — twice as long with a B section and breathing room
+// Rich harmonics, hammer noise attack, varied bass, delay reverb, timing humanization
 static Sound gen_ambient_room(void) {
-    float beat = 0.6f;  // ~100 BPM — more contemplative than 120
-    float loop_len = 16.0f * beat * 2;  // 8 bars of 4 beats
+    float beat = 0.6f;  // ~100 BPM
+    float loop_len = 32.0f * beat * 2;  // 16 bars of 4 beats = 32 seconds
     int len = (int)(SAMPLE_RATE * loop_len);
     int reverb_delay = (int)(SAMPLE_RATE * 0.1f);
     Wave w = gen_wave(len);
     short *d = (short *)w.data;
 
-    // Melody: bar 1-4, then repeat for bars 5-8
-    // Each entry: {freq_hz, start_beat, duration_beats}
+    // 16-bar melody with B section:
+    // Bars 1-4 (A): E4, D4, C4, A3 — the original descending phrase
+    // Bars 5-8 (A): E4, F4, E4, D4 — ascending variation
+    // Bars 9-12 (B): G4, F4, E4, C4 — new phrase, shifts harmony
+    // Bars 13-16 (A'): E4, D4, C4, rest — ends with silence
     float melody[][3] = {
-        // Bar 1: E4 half, D4 quarter, C4 quarter
-        {329.63f, 0, 2}, {293.66f, 2, 1}, {261.63f, 3, 1},
-        // Bar 2: A3 whole
-        {220.00f, 4, 4},
-        // Bar 3: E4 half, F4 quarter, E4 quarter
-        {329.63f, 8, 2}, {349.23f, 10, 1}, {329.63f, 11, 1},
-        // Bar 4: D4 whole
-        {293.66f, 12, 4},
-        // Bars 5-8: repeat
-        {329.63f, 16, 2}, {293.66f, 18, 1}, {261.63f, 19, 1},
-        {220.00f, 20, 4},
-        {329.63f, 24, 2}, {349.23f, 26, 1}, {329.63f, 27, 1},
-        {293.66f, 28, 4},
+        // A section — bars 1-4
+        {329.63f, 0, 2}, {293.66f, 2, 1}, {261.63f, 3, 1},  // E4, D4, C4
+        {220.00f, 4, 4},                                       // A3 whole
+        // A section — bars 5-8
+        {329.63f, 8, 2}, {349.23f, 10, 1}, {329.63f, 11, 1},  // E4, F4, E4
+        {293.66f, 12, 4},                                       // D4 whole
+        // B section — bars 9-12 (new phrase, G4 entry)
+        {392.00f, 16, 2}, {349.23f, 18, 1}, {329.63f, 19, 1}, // G4, F4, E4
+        {261.63f, 20, 4},                                       // C4 whole
+        {392.00f, 24, 1}, {349.23f, 25, 1}, {329.63f, 26, 2}, // G4, F4, E4
+        {293.66f, 28, 4},                                       // D4 whole
+        // A' section — bars 13-16 (resolving, then silence)
+        {329.63f, 32, 2}, {293.66f, 34, 1}, {261.63f, 35, 1}, // E4, D4, C4
+        {220.00f, 36, 4},                                       // A3 whole
+        {329.63f, 40, 3},                                       // E4 — lingering
+        // bars 44-48: rest — breathing room, silence
+        // bars 49-64: second half mirrors with slight variation
+        // Second A
+        {329.63f, 48, 2}, {293.66f, 50, 1}, {261.63f, 51, 1},
+        {220.00f, 52, 4},
+        {329.63f, 56, 2}, {349.23f, 58, 1}, {329.63f, 59, 1},
+        {293.66f, 60, 4},
     };
-    int note_count = 16;
+    int note_count = 26;
 
-    // Bass notes — octave below, entering softly in bar 3 onward
+    // Bass notes — varies by section
+    // Bars 1-8: bass on A2 (110Hz)
+    // Bars 9-12: bass on C3 (130.81Hz) — new root, harmonic shift
+    // Bars 13-16: bass on A2 resolving
     float bass[][3] = {
-        {164.81f, 8, 4},   // E3 under bar 3
-        {146.83f, 12, 4},  // D3 under bar 4
-        {164.81f, 24, 4},  // E3 under bar 7
-        {146.83f, 28, 4},  // D3 under bar 8
+        {110.00f, 4, 4},    // A2 under bar 2
+        {110.00f, 8, 4},    // A2 under bar 3
+        {110.00f, 12, 4},   // A2 under bar 4
+        {130.81f, 16, 4},   // C3 under bar 5 (B section!)
+        {130.81f, 20, 4},   // C3 under bar 6
+        {130.81f, 24, 4},   // C3 under bar 7
+        {130.81f, 28, 4},   // C3 under bar 8
+        {110.00f, 32, 4},   // A2 resolving
+        {110.00f, 36, 4},   // A2
+        // Second half bass
+        {110.00f, 52, 4},
+        {110.00f, 56, 4},
+        {110.00f, 60, 4},
     };
-    int bass_count = 4;
+    int bass_count = 12;
 
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float sample = 0;
 
-        // Melody notes — rich harmonics
+        // Melody notes — rich harmonics with timing humanization
         for (int n = 0; n < note_count; n++) {
             float freq = melody[n][0];
-            float start = melody[n][1] * beat;
+            // Subtle timing variation: +-20ms per note (not machine-perfect)
+            unsigned int note_seed = (unsigned int)(n * 997 + 13);
+            float time_offset = (ev_randf(&note_seed) - 0.5f) * 0.04f;
+            float start = melody[n][1] * beat + time_offset;
             float dur = melody[n][2] * beat;
             float nt = t - start;
             if (nt < 0 || nt > dur + 2.0f) continue;
-            // Hammer noise on attack (first 10ms) — simulates key strike
             float noise_burst = 0;
             if (nt < 0.01f) {
                 unsigned int ns = (unsigned int)(n * 997 + i);
@@ -277,8 +340,6 @@ static Sound gen_ambient_room(void) {
             }
             float attack = (nt < 0.05f) ? nt / 0.05f : 1.0f;
             float env = attack * expf(-1.5f * nt);
-            // 3 harmonics: fundamental + 2nd (0.3) + 3rd (0.1) + 5th (0.05)
-            // Bell-like timbre with richer upper partials
             float tone = sinf(2 * PI * freq * t) +
                          0.3f * sinf(2 * PI * freq * 2.0f * t) +
                          0.1f * sinf(2 * PI * freq * 3.0f * t) +
@@ -286,10 +347,12 @@ static Sound gen_ambient_room(void) {
             sample += (tone * env + noise_burst) * 0.7f;
         }
 
-        // Bass notes — soft, warm, supporting
+        // Bass notes — soft, warm, supporting, with humanization
         for (int n = 0; n < bass_count; n++) {
             float freq = bass[n][0];
-            float start = bass[n][1] * beat;
+            unsigned int bass_seed = (unsigned int)(n * 1103 + 7);
+            float bass_offset = (ev_randf(&bass_seed) - 0.5f) * 0.03f;
+            float start = bass[n][1] * beat + bass_offset;
             float dur = bass[n][2] * beat;
             float nt = t - start;
             if (nt < 0 || nt > dur + 1.5f) continue;
@@ -307,7 +370,7 @@ static Sound gen_ambient_room(void) {
         d[i] = (short)(sample * 2400);
     }
 
-    // Reverb approximation — mix delayed sample at 0.15 amplitude
+    // Reverb approximation
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }

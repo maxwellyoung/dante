@@ -26,6 +26,9 @@ typedef enum {
     STATE_BALCONY,
     STATE_BED,
     STATE_STARS,
+    STATE_SPACE_LOBBY,
+    STATE_SPACE_CORRIDOR,
+    STATE_SPACE_SUITE,
 } GameState;
 
 typedef enum {
@@ -74,6 +77,10 @@ typedef struct {
     float vy;           // vertical velocity
     bool grounded;
     float land_timer;   // camera dip on landing
+    float ground_y;     // current ground height (for stairs/platforms)
+    // Slide
+    bool sliding;
+    float slide_speed;
     // Debug
     bool noclip;
 } Player;

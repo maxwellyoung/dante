@@ -301,8 +301,62 @@ void build_lobby(Scene *s) {
     // The entrance area (z=10) has gaps between wall segments; block at z=10
     add_wall(s, -1, 2, 10, 12, 4, 0.3f, cream);  // lower fill across entrance
 
+    // ============================================================
+    // GRAND STAIRCASE — wide stairs up to mezzanine at y=2.4
+    // Against the back wall, 8 steps, each 0.3m high, 0.6m deep, 4m wide
+    // ============================================================
+    float stair_w = 4.0f;
+    float step_h = 0.3f;
+    float step_d = 0.6f;
+    int num_steps = 8;
+    float stair_base_z = -8.0f;  // starts near back wall
+
+    for (int i = 0; i < num_steps; i++) {
+        float sy = (i + 1) * step_h - step_h / 2;  // center of step
+        float sz = stair_base_z + i * step_d;
+        add_wall(s, 0, sy, sz, stair_w, step_h, step_d, concrete_a);
+    }
+
+    // Brass banister railings along staircase sides
+    for (int i = 0; i < num_steps; i++) {
+        float sy = (i + 1) * step_h + 0.45f;  // railing height above step
+        float sz = stair_base_z + i * step_d;
+        // Left railing post
+        add_wall(s, -stair_w / 2 - 0.05f, sy, sz, 0.06f, 0.9f, 0.06f, gold);
+        // Right railing post
+        add_wall(s, stair_w / 2 + 0.05f, sy, sz, 0.06f, 0.9f, 0.06f, gold);
+    }
+    // Railing top rail — angled, approximated with one long bar
+    float rail_y_bot = step_h + 0.9f;
+    float rail_y_top = num_steps * step_h + 0.9f;
+    float rail_y_mid = (rail_y_bot + rail_y_top) / 2;
+    float rail_z_mid = stair_base_z + (num_steps - 1) * step_d / 2;
+    float rail_len = num_steps * step_d;
+    add_wall(s, -stair_w / 2 - 0.05f, rail_y_mid, rail_z_mid, 0.04f, 0.04f, rail_len, gold);
+    add_wall(s, stair_w / 2 + 0.05f, rail_y_mid, rail_z_mid, 0.04f, 0.04f, rail_len, gold);
+
+    // MEZZANINE PLATFORM — 4m x 6m at the top of the stairs
+    float mezz_y = num_steps * step_h;  // 2.4m
+    float mezz_z = stair_base_z + num_steps * step_d + 3.0f;  // extends back from top step
+    // Platform floor
+    add_wall(s, 0, mezz_y - 0.05f, mezz_z - 3.0f + step_d, stair_w + 2, 0.1f, 6.0f, concrete_b);
+
+    // Mezzanine railing — overlooking the lobby floor
+    float railing_h = 0.9f;
+    // Front railing (facing lobby)
+    add_wall(s, 0, mezz_y + railing_h / 2, mezz_z - 6.0f + step_d, stair_w + 2, railing_h, 0.06f, gold);
+    // Side railings
+    add_wall(s, -(stair_w / 2 + 1), mezz_y + railing_h / 2, mezz_z - 3.0f + step_d,
+             0.06f, railing_h, 6.0f, gold);
+    add_wall(s, (stair_w / 2 + 1), mezz_y + railing_h / 2, mezz_z - 3.0f + step_d,
+             0.06f, railing_h, 6.0f, gold);
+
+    // Mezzanine light panel — warm glow above
+    add_light_panel(s, 0, 6.8f, mezz_z - 2.0f, 3.0f, 0.05f, 2.0f, gold);
+
     s->spawn = (Vector3){0, 1.6f, 8};
-    s->exit_pos = (Vector3){14.5f, 1.6f, 1};
+    // Exit is now on the mezzanine — you go UP to leave the lobby
+    s->exit_pos = (Vector3){0, mezz_y + 1.6f, mezz_z - 1.0f};
     s->has_exit = true;
 }
 
@@ -547,6 +601,15 @@ void build_hotel_room(Scene *s) {
     add_wall(s, rw/2-0.12f, 1.3f, -3.0f, 0.12f, 2.6f, 1.0f, (Color){210,207,202,255});  // door
     add_wall(s, rw/2-0.12f, 2.75f, -3.0f, 0.12f, 0.12f, 1.1f, gold);                    // frame top
     add_object(s, rw/2-0.3f, 1.2f, -3.0f, "bathroom", (Color){200,195,188,255}, 1);
+
+    // WARDROBE — dark wood, against left wall near sofa
+    // Tall rectangle, mysterious, hides a secret passage
+    Color wardrobe_c = {75, 55, 32, 255};  // dark walnut
+    add_wall(s, -5.5f, 1.2f, 3.5f, 0.8f, 2.4f, 0.6f, wardrobe_c);     // wardrobe body
+    add_wall(s, -5.5f, 1.2f, 3.18f, 0.76f, 2.3f, 0.02f, (Color){65,48,28,255}); // front panel (darker)
+    add_wall(s, -5.5f, 2.0f, 3.18f, 0.04f, 0.08f, 0.04f, gold);       // handle left
+    add_wall(s, -5.5f, 1.6f, 3.18f, 0.04f, 0.08f, 0.04f, gold);       // handle right
+    add_object(s, -5.5f, 1.2f, 3.2f, "wardrobe", (Color){140,120,80,255}, 1);
 
     // BLOCKING WALLS — extra collision barriers to prevent room escape
     // Corner reinforcement: thin invisible walls at all four corners

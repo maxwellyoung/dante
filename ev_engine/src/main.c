@@ -513,6 +513,22 @@ int main(void) {
                                     transition_to(STATE_BATHROOM);
                                     break;
                                 }
+                                // Wardrobe — secret passage to lobby mezzanine
+                                if (strcmp(obj->name, "wardrobe") == 0) {
+                                    obj->step++; obj->done = true;
+                                    PlayInteract(&audio, INTERACT_FABRIC);
+                                    kick_camera(&player, -0.03f, 0.01f);
+                                    // Hard cut to lobby — you emerge on the mezzanine
+                                    // Disorienting, Blendo-style, but rewarding
+                                    load_state(STATE_LOBBY);
+                                    // Override spawn to mezzanine position
+                                    player.camera.position = scene.exit_pos;
+                                    player.ground_y = 2.4f;  // mezzanine height
+                                    Vector3 fwd = {0, player.camera.position.y, player.camera.position.z - 1};
+                                    player.camera.target = fwd;
+                                    fade_alpha = 0.8f; fade_target = 0.0f;
+                                    break;
+                                }
                                 obj->step++;
                                 PlayInteract(&audio, get_interact_sound(obj->name));
                                 kick_camera(&player, -0.01f, 0.005f);
