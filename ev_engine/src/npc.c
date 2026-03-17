@@ -268,7 +268,12 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float cy = cosf(yaw), sy = sinf(yaw);
 
     float walk_bob = walking ? sinf(t) * 0.05f : 0;
-    float idle_sway = sinf(idle * 0.8f) * 0.015f;
+    // Walk dynamics — upper body counter-rotation, hip sway
+    float walk_twist = walking ? sinf(t * 1.5f) * 3.0f : 0;  // torso twist (degrees)
+    float walk_hip_sway = walking ? sinf(t * 1.5f) * 0.02f : 0;  // lateral hip shift
+    // Breathing — subtle torso expansion when idle (Bolaño: he's alive, waiting)
+    float breathe = sinf(idle * 1.2f) * 0.008f;
+    float idle_sway = sinf(idle * 0.8f) * 0.015f + breathe;
     float idle_tilt = sinf(idle * 1.3f) * 2.5f;
 
     // Sprint 4A: Reading behavior — head tilts down (looking at newspaper)
@@ -367,9 +372,12 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     D(m, DC(210, 180, 100, 255),6);
     DRAW(0, hip_y + belt_h/2, -body_d/2 - 0.01f, 0.06f, 0.05f, 0.02f);
 
-    // ── TORSO ── (bow_pitch tilts torso forward)
+    // ── TORSO ── (bow_pitch tilts forward, walk_twist counter-rotates)
     D(m, npc->body_color, 9);
-    DRAW(0, torso_mid - bow_pitch * 0.1f, -bow_pitch * 0.2f, body_w, body_h, body_d);
+    DrawModelEx(*cube_model,
+        P(walk_hip_sway, torso_mid - bow_pitch * 0.1f, -bow_pitch * 0.2f),
+        (Vector3){0,1,0}, yaw * RAD2DEG + walk_twist,
+        (Vector3){body_w, body_h + breathe * 2, body_d}, WHITE);
 
     // ── LAPELS — lighter navy V on chest ──
     D(m, DC(50, 55, 80, 255),9);
@@ -469,6 +477,28 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     // Cap band — gold trim
     D(m, DC(210, 180, 100, 255),6);
     DRAW_TILT(0, cap_y - cap_h * 0.35f, 0, cap_w + 0.01f, 0.025f, cap_w + 0.01f);
+
+    // ── BLOB SHADOW — grounds the character in the scene ──
+    // Dark ellipse on floor beneath feet. Uses flattened cylinder.
+    {
+        float shadow_y = base_y + 0.02f;  // just above floor
+        float shadow_scale = 0.5f;  // base size
+        // Shadow stretches when walking, shrinks when still
+        float shadow_stretch = walking ? 1.1f + sinf(t) * 0.1f : 0.95f;
+        // Fade shadow based on height above ground (jump/fall)
+        float height_above = npc->pos.y - base_y - 1.6f;
+        float shadow_alpha = 1.0f - fminf(1.0f, fabsf(height_above) * 0.5f);
+        if (shadow_alpha > 0.05f) {
+            unsigned char sa = (unsigned char)(80 * shadow_alpha);
+            cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0, 0, 0, sa};
+            SetMaterialId(lighting, 0);  // MAT_CONCRETE — flat
+            DrawModelEx(*cyl_model,
+                (Vector3){npc->pos.x, shadow_y, npc->pos.z},
+                (Vector3){0, 1, 0}, yaw * RAD2DEG,
+                (Vector3){shadow_scale * shadow_stretch, 0.01f, shadow_scale},
+                WHITE);
+        }
+    }
 
     #undef P
     #undef D

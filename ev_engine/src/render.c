@@ -529,6 +529,32 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         }
     }
 
+    // Blob shadows — dark discs under furniture, grounds objects in scene
+    if (indoor && cyl_model_loaded && cyl_model && cyl_model->meshCount > 0) {
+        if (lighting->ready) SetMaterialId(lighting, 0);
+        int shadow_count = 0;
+        for (int i = 0; i < scene->wall_count && shadow_count < 40; i++) {
+            Wall *w = &scene->walls[i];
+            if (!w->active || w->shape != SHAPE_CUBE) continue;
+            float bot = w->pos.y - w->size.y / 2;
+            if (bot > 0.08f && bot < 2.0f && w->size.x < 4.0f && w->size.z < 4.0f
+                && w->size.y > 0.1f) {
+                float sx = fminf(w->size.x, 2.0f) * 0.7f;
+                float sz = fminf(w->size.z, 2.0f) * 0.7f;
+                float fade = 1.0f - fminf(1.0f, bot * 0.4f);
+                if (fade > 0.1f) {
+                    unsigned char sa = (unsigned char)(35 * fade);
+                    cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0,0,0,sa};
+                    DrawModelEx(*cyl_model,
+                        (Vector3){w->pos.x, 0.015f, w->pos.z},
+                        (Vector3){0,1,0}, 0,
+                        (Vector3){sx, 0.01f, sz}, WHITE);
+                    shadow_count++;
+                }
+            }
+        }
+    }
+
     // Dust motes in indoor scenes
     if (indoor) {
         draw_dust_motes(player->camera, time);
