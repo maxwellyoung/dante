@@ -2,6 +2,7 @@
 // No hand-holding. No task counter. No exit beacon.
 // The space speaks for itself.
 #include "render.h"
+#include "palette.h"
 #include "raymath.h"
 #include <math.h>
 #include <stdio.h>
@@ -115,9 +116,26 @@ void SetPostFXWarmth(EVPostFX *pfx, float warmth) {
     }
 }
 
+void draw_text_box(const char *text, int y, int font_size, Color text_color) {
+    if (!text) return;
+    if (font_size < 10) font_size = 10;
+    int tw = MeasureText(text, font_size);
+    int tx = RENDER_W / 2 - tw / 2;
+    int pad = 8;
+    // Solid dark background bar — full screen width
+    DrawRectangle(0, y - pad, RENDER_W, font_size + pad * 2,
+                  (Color){12, 12, 14, 230});
+    // Shadow — 1px offset
+    DrawText(text, tx + 1, y + 1, font_size, PAL_TEXT_SHADOW);
+    // Text
+    DrawText(text, tx, y, font_size, text_color);
+}
+
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *cube_model, bool cube_model_loaded,
                    Model *cyl_model, bool cyl_model_loaded,
+                   Model *sphere_model, bool sphere_model_loaded,
+                   Model *cone_model, bool cone_model_loaded,
                    bool indoor, float time) {
     if (lighting->ready) {
         UpdateEVLighting(lighting, player->camera, scene->fog_color, scene->fog_density);
@@ -130,14 +148,37 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         Wall *w = &scene->walls[i];
         if (!w->active) continue;
 
-        if (w->cylinder && lighting->ready && cyl_model_loaded) {
-            cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-            DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, 0,
-                       (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
-        } else if (lighting->ready && cube_model_loaded) {
-            cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-            DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, 0,
-                       w->size, WHITE);
+        if (lighting->ready) {
+            switch (w->shape) {
+                case SHAPE_CYLINDER:
+                    if (cyl_model_loaded) {
+                        cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                        DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, 0,
+                                   (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
+                    }
+                    break;
+                case SHAPE_SPHERE:
+                    if (sphere_model_loaded) {
+                        sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                        DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, 0,
+                                   (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
+                    }
+                    break;
+                case SHAPE_CONE:
+                    if (cone_model_loaded) {
+                        cone_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                        DrawModelEx(*cone_model, w->pos, (Vector3){0,1,0}, 0,
+                                   (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
+                    }
+                    break;
+                default: // SHAPE_CUBE
+                    if (cube_model_loaded) {
+                        cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                        DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, 0,
+                                   w->size, WHITE);
+                    }
+                    break;
+            }
         } else {
             Vector3 cam = player->camera.position;
             float dx = w->pos.x - cam.x;
@@ -198,9 +239,11 @@ void draw_hud(Player *player, Scene *scene) {
                 // Brighter, larger crosshair dot when aimed at something
                 DrawCircle(RENDER_W/2, RENDER_H/2 + 1, 3,
                     (Color){255, 248, 235, (unsigned char)(180 * alpha)});
-                // Object name below crosshair
-                int tw = MeasureText(obj->name, 8);
-                DrawText(obj->name, RENDER_W/2 - tw/2, RENDER_H/2 + 8, 8,
+                // Object name below crosshair — with shadow
+                int tw = MeasureText(obj->name, 10);
+                DrawText(obj->name, RENDER_W/2 - tw/2 + 1, RENDER_H/2 + 9, 10,
+                    (Color){0, 0, 0, (unsigned char)(180 * alpha)});
+                DrawText(obj->name, RENDER_W/2 - tw/2, RENDER_H/2 + 8, 10,
                     (Color){245, 238, 225, (unsigned char)(200 * alpha)});
             }
         }
@@ -220,23 +263,23 @@ void draw_title(void) {
                   (Color){178, 155, 107, (unsigned char)(180 * line_alpha)});
 
     // Title — above the line
-    const char *title = "E N D E A R I N G   V O I D";
-    int tw = MeasureText(title, 14);
-    DrawText(title, RENDER_W/2 - tw/2, line_y - 22, 14,
-             (Color){200, 178, 130, (unsigned char)(230 * line_alpha)});
+    if (line_alpha > 0.1f) {
+        draw_text_box("E N D E A R I N G   V O I D", RENDER_H / 2 - 10, 16,
+                      (Color){200, 178, 130, (unsigned char)(230 * line_alpha)});
+    }
 
     // Studio name — below the line
-    const char *sub = "Maxwell Young";
-    int sw = MeasureText(sub, 8);
-    DrawText(sub, RENDER_W/2 - sw/2, line_y + 8, 8,
-             (Color){140, 135, 128, (unsigned char)(120 * line_alpha)});
+    if (line_alpha > 0.1f) {
+        draw_text_box("Maxwell Young", RENDER_H / 2 + 10, 10,
+                      (Color){140, 135, 128, (unsigned char)(120 * line_alpha)});
+    }
 
     // Press enter — bottom, pulsing gently
     float pulse = 0.5f + 0.3f * sinf(t * 2.5f);
-    const char *prompt = "PRESS ENTER";
-    int pw = MeasureText(prompt, 8);
-    DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H - 20, 8,
-             (Color){235, 228, 218, (unsigned char)(200 * pulse * line_alpha)});
+    if (line_alpha > 0.1f) {
+        draw_text_box("PRESS ENTER", RENDER_H - 22, 10,
+                      (Color){235, 228, 218, (unsigned char)(200 * pulse * line_alpha)});
+    }
 }
 
 void draw_night_sky(float time) {

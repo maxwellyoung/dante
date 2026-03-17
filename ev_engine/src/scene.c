@@ -1,6 +1,7 @@
 // scene.c — Scene construction
 // Material palette. Clean volumes. Dramatic light.
 #include "scene.h"
+#include "palette.h"
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@ void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Co
     if (s->wall_count >= MAX_WALLS) return;
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {w, h, d}, .color = c, .active = true,
-        .cylinder = false,
+        .shape = SHAPE_CUBE,
     };
 }
 
@@ -17,7 +18,23 @@ void add_cylinder(Scene *s, float x, float y, float z, float diameter, float hei
     if (s->wall_count >= MAX_WALLS) return;
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
-        .active = true, .cylinder = true,
+        .active = true, .shape = SHAPE_CYLINDER,
+    };
+}
+
+void add_sphere(Scene *s, float x, float y, float z, float diameter, Color c) {
+    if (s->wall_count >= MAX_WALLS) return;
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z}, .size = {diameter, diameter, diameter}, .color = c,
+        .active = true, .shape = SHAPE_SPHERE,
+    };
+}
+
+void add_cone(Scene *s, float x, float y, float z, float diameter, float height, Color c) {
+    if (s->wall_count >= MAX_WALLS) return;
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
+        .active = true, .shape = SHAPE_CONE,
     };
 }
 
@@ -105,13 +122,13 @@ void build_hotel_exterior(Scene *s) {
 
     Color gold_facade = {195, 170, 120, 255};  // DOMINANT — warm sandstone facade
     Color dark_gold = {170, 140, 80, 255};
-    Color gold = {178, 155, 107, 255};         // brass
+    Color gold = PAL_BRASS;
     Color window_lit = {240, 210, 130, 180};
-    Color sidewalk = {160, 155, 145, 255};
+    Color sidewalk = PAL_CONCRETE;
     Color road = {50, 50, 55, 255};
-    Color godard_red = {210, 55, 50, 255};
+    Color godard_red = PAL_RED;
 
-    s->fog_color = (Color){20, 25, 45, 255};  // night blue
+    s->fog_color = PAL_FOG_NIGHT;
     s->fog_density = 0.005f;
 
     // Sidewalk
@@ -176,18 +193,17 @@ void build_lobby(Scene *s) {
     // BOUNDS: 30m x 20m, partially enclosed (front wall has gaps for entrance)
     s->surface = SURFACE_MARBLE;
 
-    Color cream = {235, 230, 222, 255};       // cream accents
-    Color gold = {178, 155, 107, 255};        // brass
-    Color warm_white = {230, 225, 218, 255};
-    Color emerald = {45, 95, 65, 255};        // DOMINANT — deep emerald green
-    Color concrete_a = {190, 187, 183, 255};  // concrete reveal panel
-    Color concrete_b = {180, 177, 173, 255};  // slightly darker concrete
+    Color cream = PAL_CREAM;
+    Color gold = PAL_BRASS;
+    Color emerald = PAL_GREEN;
+    Color concrete_a = PAL_MARBLE_A;
+    Color concrete_b = PAL_MARBLE_B;
     Color marble_a = {60, 58, 55, 255};       // dark marble floor
     Color marble_b = {70, 68, 65, 255};
     Color plant = {60, 130, 65, 255};
-    Color terracotta = {175, 85, 65, 255};    // accent
+    Color terracotta = PAL_TERRACOTTA;
 
-    s->fog_color = (Color){55, 75, 60, 255};  // green-tinted fog
+    s->fog_color = PAL_FOG_GREEN;
     s->fog_density = 0.008f;
 
     int cols = 15, rows = 10;
@@ -198,11 +214,11 @@ void build_lobby(Scene *s) {
         }
 
     add_wall(s, 0, 7, 0, 30, 0.2f, 20, cream);
-    // Hanging cylindrical lights — replacing flat panels
-    add_cylinder(s, -4, 6.4f, 0, 0.4f, 0.6f, gold);
-    add_cylinder(s, -2, 6.4f, -2, 0.35f, 0.5f, gold);
-    add_cylinder(s, 4, 6.4f, -3, 0.4f, 0.6f, warm_white);
-    add_cylinder(s, 2, 6.4f, 1, 0.35f, 0.5f, warm_white);
+    // Hanging sphere light fixtures
+    add_sphere(s, -4, 6.4f, 0, 0.5f, PAL_LIGHT_WARM);
+    add_sphere(s, -2, 6.4f, -2, 0.45f, PAL_LIGHT_WARM);
+    add_sphere(s, 4, 6.4f, -3, 0.5f, PAL_LIGHT_WARM);
+    add_sphere(s, 2, 6.4f, 1, 0.45f, PAL_LIGHT_WARM);
 
     add_wall(s, 0, 3.5f, -10, 30, 7, 0.3f, emerald);   // back wall — entirely deep green
     add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, cream);
@@ -295,16 +311,16 @@ void build_hallway(Scene *s) {
     // BOUNDS: 4.5m x 40m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_CARPET;
 
-    Color cream = {232, 228, 220, 255};       // warm cream walls
-    Color gold = {178, 155, 107, 255};        // brass
-    Color godard_red = {200, 50, 45, 255};    // door accent — stays bold
-    Color godard_blue = {45, 70, 165, 255};   // door accent — stays bold
+    Color cream = PAL_CREAM;
+    Color gold = PAL_BRASS;
+    Color godard_red = PAL_RED;
+    Color godard_blue = PAL_BLUE;
     Color carpet_a = {160, 55, 45, 255};      // DOMINANT — warm terracotta/red carpet
     Color carpet_b = {170, 62, 50, 255};
-    Color warm_amber = {240, 200, 100, 255};
-    Color ceiling_dark = {40, 38, 35, 255};   // dark ceiling
+    Color warm_amber = PAL_GLOW_AMBER;
+    Color ceiling_dark = PAL_CHARCOAL;
 
-    s->fog_color = (Color){140, 80, 65, 255};  // warm red-tinted fog
+    s->fog_color = PAL_FOG_RED;
     s->fog_density = 0.010f;
     float L = 20, W = 4.5f, H = 4;
 
@@ -370,17 +386,17 @@ void build_hotel_room(Scene *s) {
     // BOUNDS: 12m x 10m, fully enclosed (4 walls + floor + ceiling + corner blocks)
     s->surface = SURFACE_WOOD;
 
-    Color wall_gold = {210, 180, 120, 255};    // DOMINANT — golden amber walls
-    Color gold = {178, 155, 107, 255};        // brass
-    Color cream = {228, 222, 210, 255};       // warm cream ceiling
-    Color godard_red = {170, 35, 35, 255};    // deep crimson accent — headboard
-    Color wood = {95, 70, 42, 255};           // rich dark wood floor
+    Color wall_gold = PAL_GOLD;
+    Color gold = PAL_BRASS;
+    Color cream = PAL_CREAM;
+    Color godard_red = PAL_RED;
+    Color wood = PAL_WOOD_DARK;
     Color dark_wood = {105, 78, 48, 255};
-    Color white = {240, 238, 230, 255};
-    Color warm_gray = {35, 45, 85, 255};      // navy blue sofa — spy-film palette
-    Color warm_light = {235, 220, 190, 150};  // softer, less saturated
+    Color white = PAL_WHITE;
+    Color warm_gray = PAL_NAVY;
+    Color warm_light = PAL_LIGHT_WARM;
 
-    s->fog_color = (Color){175, 155, 110, 255};  // golden fog
+    s->fog_color = PAL_FOG_GOLD;
     s->fog_density = 0.006f;
     float rw = 12, rd = 10, rh = 3.8f;
 
@@ -417,18 +433,18 @@ void build_hotel_room(Scene *s) {
 
     add_wall(s, -2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
     add_wall(s, 2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
-    // Bedside lamps — cylinder base + shaft + shade + glow
-    Color brass_lamp = {178,155,107,255};
+    // Bedside lamps — cylinder base + shaft + cone shade + glow
+    Color brass_lamp = PAL_BRASS;
     Color cream_shade = {235,228,215,255};
     // Left lamp
     add_cylinder(s, -2.5f, 0.62f, -3.8f, 0.08f, 0.04f, brass_lamp);  // base
     add_cylinder(s, -2.5f, 0.74f, -3.8f, 0.03f, 0.2f, brass_lamp);   // shaft
-    add_cylinder(s, -2.5f, 0.90f, -3.8f, 0.15f, 0.12f, cream_shade); // shade
+    add_cone(s, -2.5f, 0.90f, -3.8f, 0.18f, 0.14f, cream_shade);     // cone shade
     add_light_panel(s, -2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
     // Right lamp
     add_cylinder(s, 2.5f, 0.62f, -3.8f, 0.08f, 0.04f, brass_lamp);
     add_cylinder(s, 2.5f, 0.74f, -3.8f, 0.03f, 0.2f, brass_lamp);
-    add_cylinder(s, 2.5f, 0.90f, -3.8f, 0.15f, 0.12f, cream_shade);
+    add_cone(s, 2.5f, 0.90f, -3.8f, 0.18f, 0.14f, cream_shade);      // cone shade
     add_light_panel(s, 2.5f, 0.85f, -3.8f, 0.2f, 0.35f, 0.2f, warm_light);
 
     // Desk
@@ -553,12 +569,12 @@ void build_balcony(Scene *s) {
     // BOUNDS: 5m x 3m, open-air (railing + back wall, no ceiling)
     s->surface = SURFACE_MARBLE;
 
-    s->fog_color = (Color){35, 45, 80, 255};  // pre-dawn navy — time has passed
+    s->fog_color = PAL_FOG_NIGHT;
     s->fog_density = 0.003f;
 
-    Color stone = {195, 190, 182, 255};       // cleaner stone
-    Color railing = {120, 115, 105, 255};
-    Color gold = {178, 155, 107, 255};        // brass
+    Color stone = PAL_MARBLE_A;
+    Color railing = PAL_MID;
+    Color gold = PAL_BRASS;
     Color bldg_near = {60, 65, 85, 255};
     Color bldg_mid = {45, 50, 72, 255};
     Color bldg_far = {35, 40, 62, 255};
@@ -643,17 +659,17 @@ void build_bathroom(Scene *s) {
     // BOUNDS: 5m x 4m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
-    Color concrete = {155,152,148,255};        // DOMINANT — darker concrete walls
-    Color ceiling = {238,236,232,255};         // white plaster ceiling
-    Color porcelain = {245,242,238,255};       // pure white porcelain
-    Color brass = {178,155,107,255};           // brass taps
+    Color concrete = PAL_CONCRETE;
+    Color ceiling = PAL_WHITE;
+    Color porcelain = PAL_WHITE;
+    Color brass = PAL_BRASS;
     Color floor_concrete = {100,98,95,255};    // dark concrete floor
     Color mirror = {210,215,222,180};          // bluer, translucent
-    Color terracotta = {175,85,65,255};        // ONE accent — towel
+    Color terracotta = PAL_TERRACOTTA;
 
     float bw = 5, bd = 4, bh = 3;
 
-    s->fog_color = (Color){135,133,130,255};   // concrete fog
+    s->fog_color = PAL_FOG_CONCRETE;
     s->fog_density = 0.005f;
 
     // Floor — darker concrete
@@ -687,9 +703,9 @@ void build_bathroom(Scene *s) {
     // Sink — wall-mounted slab on right wall
     add_wall(s, 2.2f, 0.85f, 0.5f, 0.8f, 0.06f, 0.5f, porcelain);   // sink basin
     add_wall(s, 2.35f, 0.85f, 0.5f, 0.06f, 0.5f, 0.5f, porcelain);  // wall bracket
-    // Brass taps
-    add_wall(s, 2.0f, 0.95f, 0.5f, 0.08f, 0.12f, 0.06f, brass);
-    add_wall(s, 1.9f, 0.95f, 0.5f, 0.08f, 0.12f, 0.06f, brass);
+    // Brass tap knobs — sphere shapes
+    add_sphere(s, 2.0f, 0.95f, 0.5f, 0.08f, brass);
+    add_sphere(s, 1.9f, 0.95f, 0.5f, 0.08f, brass);
 
     // Mirror — large rectangle above sink
     add_wall(s, 2.38f, 1.7f, 0.5f, 0.04f, 1.0f, 0.8f, mirror);
@@ -915,16 +931,16 @@ void build_elevator(Scene *s) {
     // BOUNDS: 2m x 2m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
-    Color brass = {178, 155, 107, 255};         // DOMINANT — all brass, golden box
-    Color floor_marble = {55, 52, 48, 255};      // dark marble floor
+    Color brass = PAL_BRASS;
+    Color floor_marble = PAL_DARK;
     Color mirror = {210, 215, 220, 180};
-    Color warm_panel = {235, 230, 220, 200};
+    Color warm_panel = PAL_LIGHT_WARM;
     Color btn_dark = {140, 125, 90, 255};
     Color btn_lit = {240, 220, 140, 255};
 
     float ew = 2, ed = 2, eh = 2.5f;
 
-    s->fog_color = (Color){178, 175, 170, 255};  // darker — more contrast with brass
+    s->fog_color = PAL_FOG_BRASS;
     s->fog_density = 0.002f;
 
     // Floor — dark marble

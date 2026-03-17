@@ -34,12 +34,14 @@ typedef enum {
     SURFACE_WOOD,
 } SurfaceType;
 
+typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE } ShapeType;
+
 typedef struct {
     Vector3 pos;
     Vector3 size;
     Color color;
     bool active;
-    bool cylinder;  // if true, draw as cylinder instead of cube
+    ShapeType shape;
 } Wall;
 
 typedef struct {

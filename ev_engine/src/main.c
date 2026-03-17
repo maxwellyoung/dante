@@ -33,6 +33,10 @@ static Model cube_model = {0};
 static bool cube_model_loaded = false;
 static Model cyl_model = {0};
 static bool cyl_model_loaded = false;
+static Model sphere_model = {0};
+static bool sphere_model_loaded = false;
+static Model cone_model = {0};
+static bool cone_model_loaded = false;
 static RenderTexture2D render_target;
 static RenderTexture2D postfx_target;
 
@@ -275,11 +279,8 @@ static void load_state(GameState s) {
 
 static void draw_vignette_text(void) {
     if (!vig_text || vig_text_alpha < 0.01f) return;
-    int tw = MeasureText(vig_text, 14);
-    unsigned char a = (unsigned char)(220 * vig_text_alpha);
-    // Bottom of screen, clean
-    DrawRectangle(0, RENDER_H - 36, RENDER_W, 32, (Color){0, 0, 0, (unsigned char)(120 * vig_text_alpha)});
-    DrawText(vig_text, RENDER_W/2 - tw/2, RENDER_H - 29, 14, (Color){235, 228, 210, a});
+    unsigned char a = (unsigned char)(240 * vig_text_alpha);
+    draw_text_box(vig_text, RENDER_H - 30, 12, (Color){232, 228, 222, a});
 }
 
 // ============================================================
@@ -309,6 +310,18 @@ int main(void) {
     cyl_model = LoadModelFromMesh(cyl_mesh);
     if (lighting.ready) cyl_model.materials[0].shader = lighting.shader;
     cyl_model_loaded = true;
+
+    // Sphere model — for light fixtures, decorative elements
+    Mesh sphere_mesh = GenMeshSphere(0.5f, 8, 8);
+    sphere_model = LoadModelFromMesh(sphere_mesh);
+    if (lighting.ready) sphere_model.materials[0].shader = lighting.shader;
+    sphere_model_loaded = true;
+
+    // Cone model — for lamp shades, decorative elements
+    Mesh cone_mesh = GenMeshCone(0.5f, 1.0f, 12);
+    cone_model = LoadModelFromMesh(cone_mesh);
+    if (lighting.ready) cone_model.materials[0].shader = lighting.shader;
+    cone_model_loaded = true;
 
     DisableCursor();
     load_state(STATE_TITLE);
@@ -742,7 +755,10 @@ int main(void) {
                 ClearBackground((Color){8, 12, 28, 255});
                 draw_night_sky(state_time);
                 draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
-                              &cyl_model, cyl_model_loaded, false, state_time);
+                              &cyl_model, cyl_model_loaded,
+                              &sphere_model, sphere_model_loaded,
+                              &cone_model, cone_model_loaded,
+                              false, state_time);
                 // Rain overlay on windshield — 2D after 3D
                 for (int i = 0; i < MAX_RAIN; i++) {
                     rain[i].y += rain[i].speed * 1.5f * dt;
@@ -772,7 +788,10 @@ int main(void) {
                 {
                     bool indoor = !(state == STATE_HOTEL_EXT || state == STATE_BALCONY);
                     draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
-                                  &cyl_model, cyl_model_loaded, indoor, state_time);
+                                  &cyl_model, cyl_model_loaded,
+                                  &sphere_model, sphere_model_loaded,
+                                  &cone_model, cone_model_loaded,
+                                  indoor, state_time);
                 }
                 if (state == STATE_BALCONY && eiffel_sparkle && sparkle_timer < 8.0f) {
                     SetRandomSeed((unsigned int)(sparkle_timer * 10));
@@ -849,25 +868,19 @@ int main(void) {
                 // Title
                 if (state_time > 3) {
                     float a = fminf(1, (state_time - 3) / 3.0f);
-                    const char *t = "E N D E A R I N G   V O I D";
-                    int tw = MeasureText(t, 14);
-                    DrawText(t, RENDER_W/2-tw/2, RENDER_H/2-8, 14,
-                             (Color){240,232,210,(unsigned char)(230*a)});
+                    draw_text_box("E N D E A R I N G   V O I D", RENDER_H/2-8, 14,
+                                  (Color){240,232,210,(unsigned char)(230*a)});
                 }
                 // Credits — fade in like end of a film
                 if (state_time > 5) {
                     float ca = fminf(1, (state_time - 5) / 2.0f);
-                    const char *by = "A game by Maxwell Young";
-                    int bw = MeasureText(by, 8);
-                    DrawText(by, RENDER_W/2-bw/2, RENDER_H - 40, 8,
-                             (Color){180,175,165,(unsigned char)(180*ca)});
+                    draw_text_box("A game by Maxwell Young", RENDER_H - 40, 10,
+                                  (Color){180,175,165,(unsigned char)(180*ca)});
                 }
                 if (state_time > 7) {
                     float na = fminf(1, (state_time - 7) / 2.0f);
-                    const char *names = "Maxwell Young";
-                    int nw = MeasureText(names, 8);
-                    DrawText(names, RENDER_W/2-nw/2, RENDER_H - 28, 8,
-                             (Color){160,155,148,(unsigned char)(160*na)});
+                    draw_text_box("Maxwell Young", RENDER_H - 28, 10,
+                                  (Color){160,155,148,(unsigned char)(160*na)});
                 }
                 break;
             }
@@ -948,6 +961,8 @@ int main(void) {
 
     if (cube_model_loaded) UnloadModel(cube_model);
     if (cyl_model_loaded) UnloadModel(cyl_model);
+    if (sphere_model_loaded) UnloadModel(sphere_model);
+    if (cone_model_loaded) UnloadModel(cone_model);
     UnloadEVLighting(&lighting);
     UnloadEVPostFX(&postfx);
     UnloadEVAudio(&audio);
