@@ -235,6 +235,7 @@ typedef enum {
     MAT_CHECKERBOARD, // 10 — two-tone checkerboard from baseColor
     MAT_HERRINGBONE,  // 11 — interlocking plank pattern
     MAT_PARQUET,      // 12 — alternating wood grain direction
+    MAT_VELVET,       // 13 — directional sheen, view-dependent nap
 } MaterialType;
 
 typedef struct {
@@ -342,6 +343,8 @@ typedef enum {
     NPC_WAITING,
     NPC_READING,
     NPC_SITTING,
+    NPC_GAZING,     // looking at something (window, Earth) — not the player
+    NPC_GESTURING,  // arm extended, inviting player through a door
 } NPCBehavior;
 
 // NPC — geometric cube-person (Gravity Bone / Thirty Flights style)

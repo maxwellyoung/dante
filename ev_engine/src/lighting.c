@@ -254,6 +254,15 @@ static const char *fs_source =
     "        baseColor *= mix(0.75, 1.0, border);\n"
     "        specMult = 0.14;\n"
     "    }\n"
+    "    else if (materialId == 13) {\n"
+    "        // VELVET — directional sheen, view-dependent luminance\n"
+    "        // Velvet appears lighter at grazing angles (Fresnel-like nap)\n"
+    "        float NdotV = max(dot(norm, normalize(viewPos - fragPosition)), 0.0);\n"
+    "        float sheen = pow(1.0 - NdotV, 2.0) * 0.25;\n"
+    "        float nap = noise(surfUV * 15.0) * 0.06;\n"
+    "        baseColor *= 0.88 + sheen + nap;\n"
+    "        specMult = 0.03;\n"  // nearly matte, except at edges
+    "    }\n"
     "\n"
     "    // Shadow\n"
     "    float shadow = ShadowCalc(fragPosLightSpace);\n"
@@ -686,11 +695,11 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
         .keyColor = {1.2f, 1.0f, 0.70f},           // warm overhead amber — BRIGHT
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
         .fillColor = {0.20f, 0.28f, 0.40f},        // porthole starlight — cool blue
-        .ambient = {0.10f, 0.10f, 0.14f},           // LOW — corridor must have drama
+        .ambient = {0.22f, 0.22f, 0.28f},           // Brighter — drama via shadows, not crushing blacks
         // Ceiling panels spread along corridor + one blue porthole
         .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {0, 3.2f, 16}},
         .pointColor = {{1.0f, 0.80f, 0.55f}, {0.9f, 0.75f, 0.50f}, {0.8f, 0.70f, 0.45f}, {0.5f, 0.6f, 0.8f}},
-        .pointRadius = {10.0f, 10.0f, 10.0f, 8.0f},
+        .pointRadius = {14.0f, 14.0f, 14.0f, 12.0f},
     };
 }
 
@@ -743,14 +752,15 @@ SceneLighting LightingPreset_ParisDream(void) {
 
 SceneLighting LightingPreset_ReturnTaxi(void) {
     // Dawn Auckland — soft pink-gold, NOT sodium orange
+    // Warmer and brighter than night taxi — city must be readable
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.5f, -0.4f}),
-        .keyColor = {1.2f, 0.85f, 0.65f},
+        .keyColor = {1.4f, 1.0f, 0.75f},            // boosted — dawn sun is strong
         .fillDir = Vector3Normalize((Vector3){0.2f, -0.3f, 0.5f}),
-        .fillColor = {0.25f, 0.22f, 0.35f},
-        .ambient = {0.30f, 0.28f, 0.32f},
-        .pointPos = {{0.45f, 0.72f, -1.06f}},
-        .pointColor = {{0.3f, 0.5f, 0.4f}},
-        .pointRadius = {3.0f},
+        .fillColor = {0.35f, 0.30f, 0.42f},          // brighter fill — dawn sky bounce
+        .ambient = {0.42f, 0.38f, 0.40f},             // up from 0.30 — city silhouettes need light
+        .pointPos = {{0.45f, 0.72f, -1.06f}, {0, 0.5f, -3.0f}},
+        .pointColor = {{0.4f, 0.6f, 0.5f}, {0.6f, 0.45f, 0.35f}},  // dash + dawn windshield glow
+        .pointRadius = {4.0f, 8.0f},
     };
 }
