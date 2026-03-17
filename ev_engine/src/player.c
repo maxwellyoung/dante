@@ -60,6 +60,7 @@ void init_player(Player *p, Vector3 pos) {
     p->dash_dir = (Vector3){0, 0, 0};
     p->peak_speed = 0;
     p->control_mult = 1.0f;
+    p->gravity_mult = 1.0f;
     p->idle_time = 0;
     p->noclip = false;
 }
@@ -489,16 +490,18 @@ void update_player(Player *p, Scene *scene, float dt) {
             && (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))) {
             float side = flat_right.x * col.normal.x + flat_right.z * col.normal.z;
             p->wall_running = true;
-            p->wall_run_timer = phys.wall_run_duration;
+            // Low gravity = longer wall runs (up to 2.5x in zero-g)
+            float grav_bonus = 1.0f + (1.0f - p->gravity_mult) * 1.5f;
+            p->wall_run_timer = phys.wall_run_duration * grav_bonus;
             p->wall_normal = col.normal;
             p->wall_run_side = (side > 0) ? -1.0f : 1.0f;
-            p->vy = fmaxf(p->vy, 0.5f);  // small upward nudge to start
+            p->vy = fmaxf(p->vy, 0.5f + (1.0f - p->gravity_mult) * 1.0f);
         }
 
         // Update wall run
         if (p->wall_running) {
             p->wall_run_timer -= dt;
-            p->vy -= phys.wall_run_gravity * dt;
+            p->vy -= phys.wall_run_gravity * p->gravity_mult * dt;
 
             // End conditions: timer, grounded, stopped moving, detached from wall
             if (p->wall_run_timer <= 0 || p->grounded || !p->moving
@@ -591,7 +594,9 @@ void update_player(Player *p, Scene *scene, float dt) {
             p->jump_buffer = 0;
             just_jumped = true;
         } else if (can_jump && wants_jump) {
-            float impulse = phys.jump_impulse;
+            // Low gravity = higher jumps (up to 1.6x in space)
+            float grav_jump = 1.0f + (1.0f - p->gravity_mult) * 0.6f;
+            float impulse = phys.jump_impulse * grav_jump;
             if (p->sliding) impulse += phys.crouch_jump_bonus;
             p->vy = impulse;
             p->grounded = false;
@@ -618,7 +623,7 @@ void update_player(Player *p, Scene *scene, float dt) {
 
         // ── Gravity ─────────────────────────────────────────────────
         if (!p->wall_running && !p->dashing) {
-            p->vy -= phys.gravity * dt;
+            p->vy -= phys.gravity * p->gravity_mult * dt;
         }
 
         // ── Head bob — figure-8 (vertical + horizontal sway) ────────

@@ -526,6 +526,7 @@ static void load_state(GameState s) {
             StopMuffledPiano(&audio); StopDistantVoices(&audio); StopFootstepsAbove(&audio);
             PlayElevatorHum(&audio);
             PlayElevatorWhoosh(&audio);  // ascending wind — building toward hyperspace
+            player.gravity_mult = 1.0f;  // Earth gravity — last time you'll feel this
             SetSceneLighting(&lighting, LightingPreset_Elevator());
             set_exposure(0.0f);
             SetPostFXGrain(&postfx, 0.3f);  // fluorescent — less grain
@@ -611,6 +612,7 @@ static void load_state(GameState s) {
             PlayBalconyMusic(&audio);  // ambient4 — the void outside
             PlayWindAmbient(&audio);  // void wind — no city sounds in orbit
             PlayBalconyGust(&audio);  // one-shot rush — the void entering
+            player.gravity_mult = 0.3f;  // exposed to void — lightest gravity
             SetPostFXWarmth(&postfx, 1.0f);
             SetSceneLighting(&lighting, LightingPreset_Balcony());
             set_exposure(0.05f);  // slight lift — Earth glow
@@ -638,6 +640,7 @@ static void load_state(GameState s) {
             build_hotel_room(&scene);
             init_player(&player, scene.spawn);
             player.control_mult = 0.5f;  // dream movement — slow, deliberate
+            player.gravity_mult = 0.7f;  // dream gravity — slightly floaty
             // The photograph is now interactable
             add_object(&scene, -2.5f, 0.62f, -3.5f, "photograph", (Color){240,238,230,255}, 1);
             // The balcony door — look through it to see Paris
@@ -715,6 +718,7 @@ static void load_state(GameState s) {
             PlayGravitySettle(&audio);   // hull creak — the ship acknowledges your weight
             PlayAirlockHiss(&audio);     // pressurization — you're aboard
             PlayEarthPresence(&audio);   // 30Hz sub-bass — the planet's weight
+            player.gravity_mult = 0.4f;  // orbital gravity — jumps soar, wall runs linger
             StartAmbient(&audio, DRONE_SPACE_LOBBY);
             SetSceneLighting(&lighting, LightingPreset_SpaceLobby());
             set_exposure(-0.05f);
@@ -756,6 +760,7 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             PlayAirlockHiss(&audio);  // pressurization — entering sealed corridor
             PlayDoorThud(&audio);     // bulkhead sealing behind you
+            player.gravity_mult = 0.4f;  // orbital gravity persists
             StartAmbient(&audio, DRONE_SPACE_CORRIDOR);
             PlayCorridorMusic(&audio);  // ambient1 — underneath the walk
             // Through bulkheads: distant voices, other passengers
@@ -801,6 +806,7 @@ static void load_state(GameState s) {
             StopSound(audio.snd_running_water); StopSound(audio.snd_tv_murmur);
             PlayDoorThud(&audio);     // suite door closing — sealed in
             PlayAirlockHiss(&audio);  // pressurization equalize
+            player.gravity_mult = 0.5f;  // suite has more gravity — domestic, grounded
             StartAmbient(&audio, DRONE_SPACE_SUITE);
             PlayClockAmbient(&audio);  // the room's heartbeat
             audio.clock_rate = 1.0f;   // reset clock rate
@@ -2020,6 +2026,18 @@ int main(void) {
                     player.control_mult = balc_ctrl;
                 }
                 if (!cigarette_anim) update_player(&player, &scene, dt);
+                // Railing approach — the void opens as you lean toward it
+                {
+                    float railing_z = -1.5f;
+                    float dist_to_rail = player.camera.position.z - railing_z;
+                    if (dist_to_rail < 1.5f && dist_to_rail > 0) {
+                        float t = 1.0f - (dist_to_rail / 1.5f);
+                        // FOV widens — the view expands
+                        player.fov_current += (80.0f - player.fov_current) * t * 0.06f;
+                        // Exposure lifts — Earth brightens
+                        set_exposure(0.05f + t * 0.08f);
+                    }
+                }
                 UpdateEVAudio(&audio, player.moving && !cigarette_anim, player.sprinting, scene.surface, dt);
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
@@ -2273,8 +2291,12 @@ int main(void) {
                         float slow = 1.0f - t * 0.55f;
                         player.vel.x *= slow;
                         player.vel.z *= slow;
-                        // FOV narrows gradually — tunnel vision on the window
+                        // FOV narrows — tunnel vision on the window
                         player.fov_current += (60.0f - player.fov_current) * t * 0.04f;
+                        // Exposure lifts — Earth fills your vision with light
+                        set_exposure(-0.05f + t * 0.12f);
+                        // Grain drops — the closer you get, the cleaner the image
+                        SetPostFXGrain(&postfx, 0.4f - t * 0.2f);
                     }
                     // Earth glow pulse — the planet breathes light into the room
                     {
@@ -3069,6 +3091,17 @@ int main(void) {
                 UnloadImageColors(px);
                 UnloadImage(di);
             }
+        }
+
+        // ── Scene breathing — exposure subtly pulses in contemplative spaces ──
+        // The scene is alive. Not static. Like a held breath.
+        if (state == STATE_SPACE_SUITE || state == STATE_BALCONY ||
+            state == STATE_SPACE_LOBBY || state == STATE_ROOM) {
+            float breath = sinf(state_time * 0.3f) * 0.02f;  // ±0.02 EV, very slow
+            // Only when player is still or slow — movement kills the effect
+            float still = 1.0f - fminf(1.0f, player.speed_current / 2.0f);
+            SetPostFXExposure(&postfx, scene_exposure +
+                visual_styles[current_style].exposure_bias + breath * still);
         }
 
         // Post-FX — feed player speed to shader for speed lines

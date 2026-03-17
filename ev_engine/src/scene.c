@@ -2344,6 +2344,32 @@ void build_space_lobby(Scene *s) {
     // Ash drifting away — tiny grey dot
     add_wall(s, 2.6f, 1.9f, 1.1f, 0.01f, 0.01f, 0.01f, (Color){120,115,110,80});
 
+    // ================================================================
+    // MEZZANINE — brass observation platform at 4m height
+    // Reachable by wall-running the back wall + mantling the window frame
+    // Reward: Earth fills your entire view from up here
+    // ================================================================
+    // Main platform — brass walkway along the observation window
+    add_wall(s, 0, 4.0f, -7.0f, 10.0f, 0.1f, 2.0f, (Color){180,155,90,255});
+    set_last_material(s, 6);  // brass
+    // Brass railing — front edge
+    add_wall(s, 0, 4.4f, -6.0f, 10.0f, 0.04f, 0.04f, (Color){180,155,90,220});
+    // Railing posts
+    add_cylinder(s, -4.0f, 4.2f, -6.0f, 0.03f, 0.4f, (Color){180,155,90,220});
+    add_cylinder(s,  0.0f, 4.2f, -6.0f, 0.03f, 0.4f, (Color){180,155,90,220});
+    add_cylinder(s,  4.0f, 4.2f, -6.0f, 0.03f, 0.4f, (Color){180,155,90,220});
+    // Step ledges on the side walls — parkour stepping stones
+    // Left wall: low ledge at 2m, then high ledge at 3.2m
+    add_wall(s, -11.8f, 2.0f, -4.0f, 0.2f, 0.15f, 3.0f, (Color){180,155,90,200});
+    set_last_material(s, 6);
+    add_wall(s, -11.8f, 3.2f, -6.0f, 0.2f, 0.15f, 2.0f, (Color){180,155,90,200});
+    set_last_material(s, 6);
+    // Right wall: matching ledges
+    add_wall(s, 11.8f, 2.0f, -4.0f, 0.2f, 0.15f, 3.0f, (Color){180,155,90,200});
+    set_last_material(s, 6);
+    add_wall(s, 11.8f, 3.2f, -6.0f, 0.2f, 0.15f, 2.0f, (Color){180,155,90,200});
+    set_last_material(s, 6);
+
 }
 
 void build_space_corridor(Scene *s) {
@@ -2673,6 +2699,34 @@ void build_space_corridor(Scene *s) {
     // Visible through the porthole — in the neighbor's room.
     // Someone else is waiting too.
     add_cylinder(s, -3.4f, 1.1f, 6.05f, 0.008f, 0.03f, (Color){230,225,215,100});
+
+    // ================================================================
+    // HIGH ROUTE — parkour path along the corridor ceiling
+    // Wall-run + mantle onto window/door frames for an alternate view
+    // ================================================================
+    // Maintenance ledges running along both walls at 2.6m height
+    // Left wall — continuous brass rail (mantleable)
+    add_wall(s, -W/2+0.1f, 2.6f, seg_len*4, 0.12f, 0.08f, seg_len*7.5f,
+             (Color){160,140,80,180});
+    set_last_material(s, 6);  // brass
+    // Right wall — matching rail
+    add_wall(s, W/2-0.1f, 2.6f, seg_len*4, 0.12f, 0.08f, seg_len*7.5f,
+             (Color){160,140,80,180});
+    set_last_material(s, 6);
+    // Ceiling vent grates — look down through these from the high route
+    // You can see into the rooms below (narrative reward for parkour)
+    for (int vi = 0; vi < 3; vi++) {
+        float vz = 3.0f + vi * 8.0f;
+        // Vent frame
+        add_wall(s, -W/2+0.5f, H-0.15f, vz, 0.8f, 0.1f, 0.5f,
+                 (Color){80,75,70,200});
+        // Warm light leaking through — someone's room below
+        add_wall(s, -W/2+0.5f, H-0.16f, vz, 0.6f, 0.01f, 0.35f,
+                 (Color){240,200,120, (unsigned char)(100 - vi*25)});
+    }
+    // Pipe obstacles on the high route — must duck or jump over
+    add_cylinder(s, 0, 2.9f, 8.0f, 0.06f, W, (Color){90,85,80,255});
+    add_cylinder(s, 0, 2.9f, 20.0f, 0.06f, W, (Color){90,85,80,255});
 
 }
 
