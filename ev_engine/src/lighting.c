@@ -540,19 +540,19 @@ SceneLighting LightingPreset_Exterior(void) {
 }
 
 SceneLighting LightingPreset_Lobby(void) {
-    // Grand lobby — overhead chandeliers, warm marble reflection
-    // Think: Wes Anderson hotel interior, symmetrical, golden
-    // Strong directional key for shadows + drama, green fill from emerald walls
+    // Grand lobby — one dominant chandelier, deep shadows elsewhere
+    // Wes Anderson symmetry: light pools on marble, dark wood walls
+    // Steeper key angle + much lower ambient = contrast separation
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.4f, -0.8f, -0.5f}),
-        .keyColor = {2.0f, 1.5f, 0.9f},          // hot chandelier — strong shadows
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.9f, -0.4f}),
+        .keyColor = {2.2f, 1.6f, 0.9f},          // hot chandelier — boosted for contrast
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.4f}),
-        .fillColor = {0.08f, 0.12f, 0.06f},     // green wall bounce — very dim
-        .ambient = {0.06f, 0.05f, 0.04f},        // VERY LOW — deep shadows outside light pools
-        // 4 point lights: main chandelier tight, others accent
+        .fillColor = {0.04f, 0.06f, 0.03f},     // nearly invisible — green whisper
+        .ambient = {0.03f, 0.025f, 0.02f},       // VERY LOW — walls go dark, light pools pop
+        // Tight main chandelier + dim accents (tighter radii = more contrast)
         .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}, {0, 3.5f, -5}},
-        .pointColor = {{1.8f, 1.3f, 0.75f}, {0.7f, 0.50f, 0.30f}, {0.7f, 0.50f, 0.30f}, {0.9f, 0.65f, 0.40f}},
-        .pointRadius = {12.0f, 8.0f, 8.0f, 6.0f},
+        .pointColor = {{2.0f, 1.5f, 0.85f}, {0.5f, 0.38f, 0.22f}, {0.5f, 0.38f, 0.22f}, {0.7f, 0.50f, 0.30f}},
+        .pointRadius = {10.0f, 6.0f, 6.0f, 5.0f},
     };
 }
 
