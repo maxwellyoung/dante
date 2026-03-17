@@ -372,11 +372,12 @@ void build_hotel_exterior(Scene *s) {
     s->fog_color = PAL_FOG_NIGHT;
     s->fog_density = 0.002f;  // open air — don't choke the view
 
-    // Sidewalk + road
+    // Sidewalk — stone tile, not poured concrete
     add_wall(s, 0, -0.1f, 0, 24, 0.2f, 10, sidewalk);
-    set_last_material(s, MAT_CONCRETE);
+    set_last_material(s, MAT_TILE);
+    // Road — dark asphalt
     add_wall(s, 0, -0.15f, -10, 35, 0.15f, 12, road);
-    set_last_material(s, MAT_CONCRETE);
+    set_last_material(s, MAT_TILE);
 
     // Sky Tower — the main event, rising from the ground
     // Placed right behind the entrance so it dominates the view
@@ -385,9 +386,11 @@ void build_hotel_exterior(Scene *s) {
     // Base structure — concrete podium building at the tower's feet
     add_wall(s, 0, 3, 5, 12, 6, 8, tower_base);
     set_last_material(s, MAT_CONCRETE);
-    // Darker inset panels on the base
+    // Darker inset panels on the base — marble cladding
     add_wall(s, -4, 3, 0.9f, 3, 4, 0.1f, (Color){110,108,115,255});
+    set_last_material(s, MAT_MARBLE);
     add_wall(s, 4, 3, 0.9f, 3, 4, 0.1f, (Color){110,108,115,255});
+    set_last_material(s, MAT_MARBLE);
 
     // Ground floor — lit entrance (warm against cold concrete)
     add_wall(s, 0, 1.8f, 0.95f, 4, 3.6f, 0.1f, (Color){250, 230, 170, 200});
@@ -1741,6 +1744,16 @@ void build_elevator(Scene *s) {
     // Safety notice on right wall — reads at 480x300 as a cream rectangle
     add_wall(s, ew/2 - 0.06f, 1.8f, -0.3f, 0.02f, 0.4f, 0.3f, (Color){235, 232, 228, 255});
     set_last_material(s, MAT_WALLPAPER);
+
+    // Lower wall panels — dark wood wainscoting (Hotel Chevalier warmth)
+    add_wall(s, 0, 0.45f, -ed/2 + 0.06f, ew - 0.2f, 0.9f, 0.03f, PAL_WOOD_DARK);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, ew/2 - 0.07f, 0.45f, 0, 0.03f, 0.9f, ed - 0.2f, PAL_WOOD_DARK);
+    set_last_material(s, MAT_WOOD);
+
+    // Leather pad on handrail — tactile detail
+    add_wall(s, 0, 0.92f, -ed/2 + 0.09f, 1.3f, 0.05f, 0.04f, PAL_LEATHER);
+    set_last_material(s, MAT_LEATHER);
 
     // Handrail on back wall — brass bar
     add_wall(s, 0, 0.9f, -ed/2 + 0.08f, 1.4f, 0.03f, 0.03f, brass);
