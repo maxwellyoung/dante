@@ -65,6 +65,23 @@ typedef struct {
     bool distant_voices_playing;
     bool footsteps_above_playing;
 
+    // Sprint 1: Bed drone + held chord for ending
+    Sound snd_bed_drone;         // low ~50Hz, 20s loop — surrender
+    Sound snd_held_chord;        // C3-G3-D4 stacked fifths, 3s attack, infinite sustain
+    bool bed_drone_playing;
+    bool held_chord_playing;
+
+    // Sprint 2: Per-door spatial sounds (corridor)
+    Sound snd_running_water;     // filtered noise — bathroom behind door
+    Sound snd_tv_murmur;         // modulated noise bursts — TV behind door
+
+    // Sprint 3: Hyperspace rising tone
+    Sound snd_hyperspace_tone;   // 80Hz→400Hz glissando over 6s
+    bool hyperspace_tone_playing;
+
+    // Clock rate — for pitch modulation
+    float clock_rate;            // 1.0 = normal, 0.0 = stopped
+
     float step_timer;
     float step_interval;
     int step_index;
@@ -99,5 +116,21 @@ void PlayDistantVoices(EVAudio *audio);
 void StopDistantVoices(EVAudio *audio);
 void PlayFootstepsAbove(EVAudio *audio);
 void StopFootstepsAbove(EVAudio *audio);
+
+// Sprint 1: Ending sounds
+void PlayBedDrone(EVAudio *audio);
+void StopBedDrone(EVAudio *audio);
+void PlayHeldChord(EVAudio *audio);
+void StopHeldChord(EVAudio *audio);
+
+// Sprint 2: Clock rate modulation
+void SetClockRate(EVAudio *audio, float rate);
+
+// Sprint 2: Per-door spatial sounds
+void SetDoorSoundVolume(EVAudio *audio, int door_index, float volume);
+
+// Sprint 3: Hyperspace tone
+void PlayHyperspaceTone(EVAudio *audio);
+void StopHyperspaceTone(EVAudio *audio);
 
 #endif

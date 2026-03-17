@@ -304,6 +304,10 @@ typedef struct {
     Vector3 dash_dir;       // locked direction during dash
     // Speed tracking
     float peak_speed;       // highest speed reached (for feedback scaling)
+    // Agency dial — scales wish_speed and mouse sens (1.0 = full, 0.0 = frozen)
+    float control_mult;
+    // Idle breathing — accumulates when nearly still
+    float idle_time;
     // Debug
     bool noclip;
     // Deprecated — kept for compatibility
@@ -325,6 +329,14 @@ typedef struct {
     SurfaceType surface;
     int static_wall_count;  // walls below this index move with camera (taxi interior)
 } Scene;
+
+// NPC behavior states — what Gibbons is doing right now
+typedef enum {
+    NPC_WALKING,
+    NPC_WAITING,
+    NPC_READING,
+    NPC_SITTING,
+} NPCBehavior;
 
 // NPC — geometric cube-person (Gravity Bone / Thirty Flights style)
 #define MAX_NPC_WAYPOINTS 32
@@ -349,6 +361,7 @@ typedef struct {
     float collision_radius;
     float idle_timer;       // time spent waiting (drives quirks)
     float yaw_target;       // smoothed facing
+    NPCBehavior behavior;   // current behavior state
     // Appearance
     Color body_color;
     Color head_color;

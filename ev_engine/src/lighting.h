@@ -9,6 +9,7 @@
 #include "raymath.h"
 
 #define MAX_POINT_LIGHTS 4
+#define SHADOW_MAP_SIZE 512
 
 // Per-scene lighting configuration — set once per scene transition
 typedef struct {
@@ -39,12 +40,28 @@ typedef struct {
     int pointRadiusLoc[MAX_POINT_LIGHTS];
     // Material
     int materialIdLoc;
+    // Shadow mapping
+    unsigned int shadowFBO;
+    unsigned int shadowDepthTex;
+    Shader shadowShader;
+    int shadowMapLoc;            // sampler2D in lighting shader
+    int lightSpaceMatrixLoc;     // mat4 in lighting shader
+    int shadowMvpLoc;            // mvp in shadow shader
+    Matrix lightSpaceMatrix;
+    bool shadowReady;
     bool ready;
 } EVLighting;
 
 EVLighting LoadEVLighting(void);
 void UnloadEVLighting(EVLighting *lighting);
 void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, float fogDensity);
+
+// Shadow mapping
+void CreateShadowMap(EVLighting *lighting);
+void DestroyShadowMap(EVLighting *lighting);
+void UpdateShadowMatrix(EVLighting *lighting, Vector3 keyDir, Vector3 sceneCenter, float sceneRadius);
+void BindShadowMap(EVLighting *lighting);
+void UnbindShadowMap(void);
 
 // Apply a per-scene lighting preset
 void SetSceneLighting(EVLighting *lighting, SceneLighting preset);

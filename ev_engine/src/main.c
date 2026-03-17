@@ -75,6 +75,18 @@ static Vector3 cigarette_cam_target = {0};
 
 static NPC gibbons = {0};
 
+// Sprint 1: Clock deceleration state
+static float bed_clock_rate = 1.0f;
+
+// Sprint 2: Door positions for spatial audio (corridor)
+static Vector3 door_positions[3] = {{0}};
+
+// Sprint 3: Agency removal
+static float agency_removal_timer = 0;
+
+// Sprint 5C: Lobby memory palace
+static int lobby_visit_count = 0;
+
 static bool show_debug = false;
 static bool wireframe = false;
 static int current_style = 0;   // visual style preset index
@@ -358,8 +370,17 @@ static void load_state(GameState s) {
             SetPostFXGrain(&postfx, 0.6f);      // contemplative grain
             break;
 
-        case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio); break;
-        case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio); break;
+        case STATE_BED:
+            StopAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio);
+            // Clock keeps playing — will decelerate
+            bed_clock_rate = 1.0f;
+            PlayClockAmbient(&audio);
+            break;
+        case STATE_STARS:
+            StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio);
+            StopBedDrone(&audio);
+            PlayHeldChord(&audio);  // stacked fifths — credits as elegy
+            break;
 
         case STATE_HYPERSPACE:
             build_hyperspace(&scene);
@@ -370,6 +391,7 @@ static void load_state(GameState s) {
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
+            PlayHyperspaceTone(&audio);  // rising 80Hz→400Hz glissando
             SetSceneLighting(&lighting, LightingPreset_Hyperspace());
             set_exposure(0.1f);
             SetPostFXGrain(&postfx, 0.7f);
@@ -384,11 +406,19 @@ static void load_state(GameState s) {
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopDistantVoices(&audio); StopFootstepsAbove(&audio);
+            StopHyperspaceTone(&audio);
             StartAmbient(&audio, DRONE_SPACE_LOBBY);
             SetSceneLighting(&lighting, LightingPreset_SpaceLobby());
             set_exposure(-0.05f);
             SetPostFXGrain(&postfx, 0.4f);
             SetPostFXCA(&postfx, 2.5f);  // reset CA from hyperspace
+            // Sprint 5C: Lobby memory palace — warmer on revisit
+            lobby_visit_count++;
+            if (lobby_visit_count > 1) {
+                float revisit_warmth = fminf(0.15f, (lobby_visit_count - 1) * 0.08f);
+                SetPostFXWarmth(&postfx, revisit_warmth);
+                set_exposure(-0.05f + revisit_warmth * 0.1f);
+            }
             // Gibbons — leads past observation window to glass elevator
             {
                 Vector3 lobby_wps[] = {
@@ -418,6 +448,14 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_SPACE_CORRIDOR);
             // Through bulkheads: distant voices, other passengers
             PlayDistantVoices(&audio);
+            // Per-door spatial sounds — door 0: piano, door 1: TV, door 2: silence
+            PlayMuffledPiano(&audio);
+            PlaySound(audio.snd_running_water);
+            PlaySound(audio.snd_tv_murmur);
+            // Door positions for distance-based volume
+            door_positions[0] = (Vector3){-3.5f, 1.6f, 4.0f};   // warm light door
+            door_positions[1] = (Vector3){3.5f, 1.6f, 8.0f};    // blue light door
+            door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f};  // dark door — silence
             SetSceneLighting(&lighting, LightingPreset_SpaceCorridor());
             set_exposure(0.0f);
             SetPostFXGrain(&postfx, 0.4f);
@@ -447,8 +485,12 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopFootstepsAbove(&audio);
             StopDistantVoices(&audio);
+            StopSound(audio.snd_running_water); StopSound(audio.snd_tv_murmur);
             StartAmbient(&audio, DRONE_SPACE_SUITE);
             PlayClockAmbient(&audio);  // the room's heartbeat
+            audio.clock_rate = 1.0f;   // reset clock rate
+            SetSoundPitch(audio.snd_clock, 1.0f);
+            agency_removal_timer = 0;
             SetSceneLighting(&lighting, LightingPreset_SpaceSuite());
             set_exposure(-0.1f);
             SetPostFXGrain(&postfx, 0.35f);
@@ -475,6 +517,31 @@ static void load_state(GameState s) {
         ApplyVisualStyle(&postfx, current_style);
         SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
     }
+
+    // Update shadow matrix for current scene's key light
+    if (lighting.shadowReady) {
+        SceneLighting curPreset = LightingPreset_Room(); // default fallback
+        switch (s) {
+            case STATE_CAR: curPreset = LightingPreset_Taxi(); break;
+            case STATE_HOTEL_EXT: curPreset = LightingPreset_Exterior(); break;
+            case STATE_LOBBY: curPreset = LightingPreset_Lobby(); break;
+            case STATE_ELEVATOR: curPreset = LightingPreset_Elevator(); break;
+            case STATE_HALLWAY: curPreset = LightingPreset_Hallway(); break;
+            case STATE_ROOM: curPreset = LightingPreset_Room(); break;
+            case STATE_BATHROOM: curPreset = LightingPreset_Bathroom(); break;
+            case STATE_BALCONY: curPreset = LightingPreset_Balcony(); break;
+            case STATE_SPACE_LOBBY: curPreset = LightingPreset_SpaceLobby(); break;
+            case STATE_SPACE_CORRIDOR: curPreset = LightingPreset_SpaceCorridor(); break;
+            case STATE_SPACE_SUITE: curPreset = LightingPreset_SpaceSuite(); break;
+            case STATE_HYPERSPACE: curPreset = LightingPreset_Hyperspace(); break;
+            default: break;
+        }
+        UpdateShadowMatrix(&lighting, curPreset.keyDir, (Vector3){0, 2, 0}, 25.0f);
+    }
+
+    // Reset interaction ritual timers
+    for (int i = 0; i < 4; i++) { interaction_timers[i] = 0; interaction_phases[i] = 0; }
+    ambient_fade = 1.0f;
 }
 
 // ============================================================
@@ -1266,38 +1333,64 @@ int main(void) {
                 break;
 
             case STATE_HYPERSPACE:
-                // Sky Tower wormhole — camera flies through at accelerating speed
+                // Sprint 3A: 6-phase hyperspace transformation
+                // Phase 1 (0-2s): gentle acceleration
+                // Phase 2 (2-4s): tunnel narrows, FOV compresses 85→60, volume drops
+                // Phase 3 (4-4.5s): silence + black
+                // Phase 4 (4.5-6s): release, FOV snaps to 90, hard cut
                 {
                     float t = state_time;
-                    float speed = 8.0f + t * t * 3.0f;  // quadratic acceleration
-                    player.camera.position.z -= speed * dt;
-                    player.camera.target.z -= speed * dt;
 
-                    // FOV widens with speed
-                    player.camera.fovy = 70.0f + t * 12.0f;
-                    if (player.camera.fovy > 120.0f) player.camera.fovy = 120.0f;
+                    if (t < 4.0f) {
+                        // Phase 1-2: acceleration with FOV manipulation
+                        float speed = 8.0f + t * t * 3.0f;
+                        player.camera.position.z -= speed * dt;
+                        player.camera.target.z -= speed * dt;
 
-                    // Subtle roll — disorienting
-                    float roll = sinf(t * 1.5f) * 2.0f;
-                    player.camera.up = (Vector3){sinf(roll * DEG2RAD), cosf(roll * DEG2RAD), 0};
+                        if (t < 2.0f) {
+                            // Phase 1: gentle accel, FOV widens
+                            player.camera.fovy = 70.0f + t * 7.5f;  // 70→85
+                        } else {
+                            // Phase 2: tunnel narrows, FOV compresses
+                            float p2 = (t - 2.0f) / 2.0f;  // 0→1 over 2s
+                            player.camera.fovy = 85.0f - p2 * 25.0f;  // 85→60
+                            // Volume drops — world receding
+                            SetMasterVolume(1.0f - p2 * 0.7f);
+                        }
 
-                    // Post-FX ramp — CA increases, grain shifts, exposure pulses
-                    float ca = 5.0f + t * 4.0f;
-                    SetPostFXCA(&postfx, ca > 20.0f ? 20.0f : ca);
-                    SetPostFXGrain(&postfx, 0.7f + t * 0.1f);
-                    // Exposure pulses — slight breathing
-                    set_exposure(0.1f + sinf(t * 3.0f) * 0.08f);
+                        // Subtle roll — disorienting
+                        float roll = sinf(t * 1.5f) * 2.0f;
+                        player.camera.up = (Vector3){sinf(roll * DEG2RAD), cosf(roll * DEG2RAD), 0};
 
-                    // Color shift — saturation ramps up then cuts
-                    float sat = 0.8f + sinf(t * 2.0f) * 0.3f;
-                    SetPostFXSaturation(&postfx, sat > 1.3f ? 1.3f : sat);
+                        // Post-FX ramp
+                        float ca = 5.0f + t * 4.0f;
+                        SetPostFXCA(&postfx, ca > 20.0f ? 20.0f : ca);
+                        SetPostFXGrain(&postfx, 0.7f + t * 0.1f);
+                        set_exposure(0.1f + sinf(t * 3.0f) * 0.08f);
+                        float sat = 0.8f + sinf(t * 2.0f) * 0.3f;
+                        SetPostFXSaturation(&postfx, sat > 1.3f ? 1.3f : sat);
+                    } else if (t < 4.5f) {
+                        // Phase 3: silence + black — the void between
+                        SetMasterVolume(0.0f);
+                        set_exposure(-1.0f);  // pure black
+                    } else if (t < 6.0f) {
+                        // Phase 4: release — FOV snaps wide
+                        float p4 = (t - 4.5f) / 1.5f;
+                        player.camera.fovy = 60.0f + p4 * 30.0f;  // 60→90
+                        SetMasterVolume(p4);  // volume returns
+                        set_exposure(-1.0f + p4 * 1.1f);
+                    }
                 }
-                // Hard cut to space lobby after 4 seconds
-                if (state_time > 4.0f) {
-                    SetPostFXCA(&postfx, 2.5f);        // reset CA
-                    SetPostFXSaturation(&postfx, 0.92f); // reset saturation
+                // P6: Hyperspace → Space Lobby — 1.5s BLACK + silence before arrival
+                if (state_time > 6.0f) {
+                    StopHyperspaceTone(&audio);
+                    SetPostFXCA(&postfx, 2.5f);
+                    SetPostFXSaturation(&postfx, 0.92f);
                     player.camera.fovy = 70.0f;
                     player.camera.up = (Vector3){0, 1, 0};
+                    // Extended hold in black — true silence before the lobby
+                    transition_hold = 1.5f;
+                    SetMasterVolume(0.0f);
                     hard_cut_to(STATE_SPACE_LOBBY);
                 }
                 break;
@@ -1492,6 +1585,16 @@ int main(void) {
                 break;
 
             case STATE_BALCONY:
+                // Sprint 3B: Balcony starts at 0.3 control (can look, barely walk)
+                // Before BED transition: 0.0
+                {
+                    float balc_ctrl = 0.3f;
+                    if (state_time > 10.0f) {
+                        float fade = fminf(1.0f, (state_time - 10.0f) / 4.0f);
+                        balc_ctrl = 0.3f * (1.0f - fade);
+                    }
+                    player.control_mult = balc_ctrl;
+                }
                 if (!cigarette_anim) update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving && !cigarette_anim, player.sprinting, scene.surface, dt);
                 if (IsKeyPressed(KEY_E)) {
@@ -1563,13 +1666,41 @@ int main(void) {
                 break;
 
             case STATE_BED:
-                // Ceiling materializes, stars emerge, then hard cut to void
-                if (state_time > 16 || (state_time > 10 && IsKeyPressed(KEY_ENTER)))
+                // Sprint 1A: Clock deceleration — the emotional peak
+                // Don't stop clock on load. Ramp from 1.0→0.0 over 8 seconds.
+                // Clock stopping = commandment #4 ("remove the constant")
+                if (state_time < 8.0f) {
+                    bed_clock_rate = 1.0f - (state_time / 8.0f);
+                    if (bed_clock_rate < 0.05f) bed_clock_rate = 0;
+                    SetClockRate(&audio, bed_clock_rate);
+                } else if (bed_clock_rate > 0) {
+                    bed_clock_rate = 0;
+                    SetClockRate(&audio, 0);  // silence — the peak
+                }
+                // Bed drone fades in with ceiling (3s+)
+                if (state_time > 3.0f && !audio.bed_drone_playing) {
+                    PlayBedDrone(&audio);
+                }
+                // Camera breathing — looking up at ceiling
+                {
+                    float breath = sinf(state_time * 0.5f) * 0.002f;
+                    player.camera.target.y += breath;
+                }
+                // Transition — no early skip until 30s (let the player sit in it)
+                if (state_time > 20)
                     hard_cut_to(STATE_STARS);
                 break;
 
             case STATE_STARS:
-                if (IsKeyPressed(KEY_ESCAPE) || (state_time > 10 && IsKeyPressed(KEY_ENTER))) {
+                // P4: The Removal — ambient fade to silence over 2s
+                if (state_time < 2.0f) {
+                    ambient_fade = 1.0f - state_time / 2.0f;
+                    SetMasterVolume(ambient_fade * ambient_fade);
+                } else {
+                    SetMasterVolume(0.0f);
+                }
+                // No early skip for first 30 seconds — let it breathe
+                if (IsKeyPressed(KEY_ESCAPE) || (state_time > 30 && IsKeyPressed(KEY_ENTER))) {
                     CloseWindow(); return 0;
                 }
                 break;
@@ -1652,6 +1783,24 @@ int main(void) {
                         if (s < silence) silence = s;
                     }
                     SetMasterVolume(silence);
+
+                    // Sprint 2A: Per-door sound sources — distance-based volume
+                    // Door 0 (warm light): muffled piano
+                    // Door 1 (blue light): TV/voices (running water behind bathroom)
+                    // Door 2 (dark): silence — the absence IS the point
+                    for (int di = 0; di < 2; di++) {
+                        float ddx = player.camera.position.x - door_positions[di].x;
+                        float ddz = player.camera.position.z - door_positions[di].z;
+                        float ddist = sqrtf(ddx*ddx + ddz*ddz);
+                        float dvol = 1.0f / (1.0f + ddist * ddist);
+                        // Scale by base volume and master silence
+                        dvol *= silence * 0.03f;
+                        if (di == 0) SetSoundVolume(audio.snd_muffled_piano, dvol);
+                        else {
+                            SetSoundVolume(audio.snd_running_water, dvol * 0.8f);
+                            SetSoundVolume(audio.snd_tv_murmur, dvol);
+                        }
+                    }
                 }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
@@ -1705,13 +1854,29 @@ int main(void) {
                     // Blend: cold overrides warm (void is more powerful)
                     float temp = warm_t * 0.3f - cold_t * 0.2f;
                     float base_warmth = (float)tasks_done / SPACE_TASK_COUNT;
-                    SetPostFXWarmth(&postfx, base_warmth + temp);
+                    // Sprint 5A: Time-based warmth — suite warms over time, not just on tasks
+                    float time_warmth = fminf(0.15f, state_time * 0.001f);
+                    SetPostFXWarmth(&postfx, base_warmth + temp + time_warmth);
                     // Grain: more near void (raw exposure), less in bed (cocoon)
                     float spatial_grain = 0.35f + cold_t * 0.3f - warm_t * 0.1f;
                     SetPostFXGrain(&postfx, spatial_grain);
                 }
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
+                // P3: Lamp ritual — filament warms over 1.5s
+                if (interaction_phases[0] == 1) {
+                    interaction_timers[0] -= dt;
+                    float gt = fminf(1.0f, 1.0f - interaction_timers[0] / 1.5f);
+                    SetPointLightIdx(&lighting, 0, -2.5f, 1.2f, -4.8f, gt, gt*0.82f, gt*0.45f, gt*8.0f);
+                    if (interaction_timers[0] <= 0) interaction_phases[0] = 2;
+                }
+                // P3: Bed ritual — camera descends over 2s
+                if (interaction_phases[3] == 1) {
+                    interaction_timers[3] -= dt;
+                    float bt = fminf(1.0f, 1.0f - interaction_timers[3] / 2.0f);
+                    player.camera.position.y += ((1.6f - bt*0.8f) - player.camera.position.y) * dt * 2.0f;
+                    if (interaction_timers[3] <= 0) interaction_phases[3] = 2;
+                }
                 if (IsKeyPressed(KEY_E)) {
                     for (int i = 0; i < scene.object_count; i++) {
                         InteractObject *obj = &scene.objects[i];
@@ -1727,9 +1892,11 @@ int main(void) {
 
                                 // Per-step visual feedback — world accumulates changes
                                 if (strcmp(obj->name, "lamp") == 0 && obj->step == 1) {
-                                    // Shade tilts — warm glow appears
+                                    // P3: Start lamp glow ritual — filament visible
                                     add_wall(&scene, -2.5f, 1.0f, -4.65f, 0.15f, 0.25f, 0.15f,
                                              (Color){220,210,185,180});
+                                    interaction_phases[0] = 1;
+                                    interaction_timers[0] = 1.5f;
                                 } else if (strcmp(obj->name, "desk") == 0 && obj->step == 1) {
                                     // Open a drawer — blue folder visible
                                     add_wall(&scene, 5.3f, 0.45f, -1.6f, 0.4f, 0.04f, 0.3f,
@@ -1759,6 +1926,12 @@ int main(void) {
                                     SetPostFXWarmth(&postfx, (float)tasks_done / SPACE_TASK_COUNT);
                                     scene.fog_density = 0.001f - ((float)tasks_done / SPACE_TASK_COUNT * 0.0005f);
 
+                                    // Sprint 2B: Clock heartbeat deceleration
+                                    // Each task: clock rate drops by ~0.2
+                                    float new_rate = 1.0f - (float)tasks_done * 0.2f;
+                                    if (new_rate < 0.1f) new_rate = 0.1f;
+                                    SetClockRate(&audio, new_rate);
+
                                     // Visible consequences — completion rewards
                                     if (strcmp(obj->name, "lamp") == 0) {
                                         // Lamp is on — warm golden glow
@@ -1774,9 +1947,11 @@ int main(void) {
                                         add_wall(&scene, 5.7f, 0.86f, -1.8f, 0.04f, 0.005f, 0.04f,
                                                  (Color){240,235,220,180});
                                     } else if (strcmp(obj->name, "bed") == 0) {
-                                        // Chocolate on pillow — same as Paris
+                                        // P3: Start bed descent ritual
                                         add_wall(&scene, 0, 0.68f, -5.0f, 0.18f, 0.04f, 0.12f,
                                                  (Color){90,50,25,255});
+                                        interaction_phases[3] = 1;
+                                        interaction_timers[3] = 2.0f;
                                     } else if (strcmp(obj->name, "champagne") == 0) {
                                         // Pour complete — golden liquid in glass + bubbles in zero-g
                                         add_wall(&scene, -3.1f, 0.41f, 3.5f, 0.05f, 0.06f, 0.05f,
@@ -1802,10 +1977,22 @@ int main(void) {
                         }
                     }
                 }
-                // All tasks done — hard cut to balcony (Earth observation)
+                // All tasks done — agency removal then balcony
                 if (tasks_done >= SPACE_TASK_COUNT) {
                     done_pause += dt;
-                    if (done_pause > 2.0f) {
+                    // Sprint 2B: After final task, stop the clock — silence = completion
+                    if (done_pause > 0.5f) {
+                        StopClockAmbient(&audio);
+                    }
+                    // Sprint 3B: Progressive agency removal over 4s before balcony cut
+                    if (done_pause < 4.0f) {
+                        float removal = done_pause / 4.0f;  // 0→1
+                        player.control_mult = 1.0f - removal;
+                    } else {
+                        player.control_mult = 0.0f;
+                    }
+                    if (done_pause > 5.0f) {
+                        player.control_mult = 1.0f;  // restore for balcony
                         balcony_flash_triggered = false;
                         balcony_flash_timer = 0;
                         hard_cut_to(STATE_BALCONY);
@@ -1943,6 +2130,13 @@ int main(void) {
                     draw_npc(&gibbons, &cube_model, &cyl_model, &lighting);
                     EndMode3D();
                 }
+                // Sprint 5B: Zero-G sparkles — larger drift, occasional bright flashes
+                if (state == STATE_SPACE_CORRIDOR || state == STATE_SPACE_SUITE
+                    || state == STATE_SPACE_LOBBY) {
+                    BeginMode3D(player.camera);
+                    draw_zero_g_sparkles(player.camera, state_time);
+                    EndMode3D();
+                }
                 // Earthshine — blue-white shimmer on the lower screen half
                 // Light from the planet's atmosphere casting up into the deck
                 if (state == STATE_BALCONY && eiffel_sparkle && sparkle_timer < 12.0f) {
@@ -1987,7 +2181,8 @@ int main(void) {
                     ClearBackground((Color){cr, cg, cb, 255});
                 }
 
-                // Stars emerge one by one after 8s — warm amber/gold
+                // Stars emerge one by one after 8s
+                // Sprint 1A: Color progression — first 5 warm gold, next 5 cool white, final 10 pale blue
                 if (state_time > 8.0f) {
                     int max_stars = 20;
                     int sc = (int)fminf(max_stars, (state_time - 8.0f) * 2.5f);
@@ -1998,11 +2193,23 @@ int main(void) {
                         float appear = fmaxf(0, state_time - 8.0f - i * 0.4f);
                         float bri = fminf(1.0f, appear / 1.5f);
                         float gl = 0.6f + 0.3f * sinf(GetTime()*(0.3f+i*0.07f) + i*2);
-                        // Warm amber/gold — not green
-                        DrawCircle(sx, sy, 1.5f,
-                            (Color){240, 200, 100, (unsigned char)(bri*gl*160)});
-                        DrawCircle(sx, sy, 5,
-                            (Color){220, 180, 80, (unsigned char)(bri*gl*35)});
+                        // Color progression: warm gold → cool white → pale blue
+                        Color star_core, star_glow;
+                        if (i < 5) {
+                            // Warm gold
+                            star_core = (Color){240, 200, 100, (unsigned char)(bri*gl*160)};
+                            star_glow = (Color){220, 180, 80, (unsigned char)(bri*gl*35)};
+                        } else if (i < 10) {
+                            // Cool white
+                            star_core = (Color){230, 235, 245, (unsigned char)(bri*gl*150)};
+                            star_glow = (Color){210, 220, 240, (unsigned char)(bri*gl*30)};
+                        } else {
+                            // Pale blue — the void reaching in
+                            star_core = (Color){180, 200, 255, (unsigned char)(bri*gl*140)};
+                            star_glow = (Color){150, 180, 240, (unsigned char)(bri*gl*25)};
+                        }
+                        DrawCircle(sx, sy, 1.5f, star_core);
+                        DrawCircle(sx, sy, 5, star_glow);
                     }
                 }
                 break;
@@ -2011,6 +2218,28 @@ int main(void) {
             case STATE_STARS: {
                 ClearBackground((Color){4, 5, 12, 255});
                 float zoom = fminf(1, state_time / 4.0f);
+
+                // Sprint 1B: BED stars persist — same seed (99), continuous transition
+                // They expand from ceiling positions into full-field
+                SetRandomSeed(99);
+                for (int i = 0; i < 20; i++) {
+                    int bx = GetRandomValue(RENDER_W/8, RENDER_W*7/8);
+                    int by = GetRandomValue(RENDER_H/8, RENDER_H*5/8);
+                    // Expand outward over first 4s
+                    float expand = fminf(1.0f, state_time / 4.0f);
+                    int sx = (int)(bx + (bx - RENDER_W/2) * expand * 0.5f);
+                    int sy = (int)(by + (by - RENDER_H/2) * expand * 0.5f);
+                    float gl = 0.6f + 0.3f * sinf(GetTime()*(0.3f+i*0.07f) + i*2);
+                    // Keep color progression from BED
+                    unsigned char r, g, b;
+                    if (i < 5) { r = 240; g = 200; b = 100; }
+                    else if (i < 10) { r = 230; g = 235; b = 245; }
+                    else { r = 180; g = 200; b = 255; }
+                    DrawCircle(sx, sy, 1.5f, (Color){r, g, b, (unsigned char)(gl*120)});
+                    DrawCircle(sx, sy, 4, (Color){r, g, b, (unsigned char)(gl*25)});
+                }
+
+                // Background star field expands
                 SetRandomSeed(77);
                 int count = 60 + (int)(zoom * 140);
                 for (int i = 0; i < count; i++) {
@@ -2064,6 +2293,9 @@ int main(void) {
         // Fade
         if (fade_alpha > 0.01f)
             DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){0,0,0,(unsigned char)(255*fade_alpha)});
+
+        // Unbind shadow map
+        if (lighting.shadowReady) UnbindShadowMap();
 
         EndTextureMode();
 
@@ -2147,6 +2379,7 @@ int main(void) {
     if (sphere_model_loaded) UnloadModel(sphere_model);
     if (cone_model_loaded) UnloadModel(cone_model);
     if (skytower_loaded) UnloadModel(skytower_model);
+    DestroyShadowMap(&lighting);
     UnloadEVLighting(&lighting);
     UnloadEVPostFX(&postfx);
     UnloadEVAudio(&audio);

@@ -40,6 +40,14 @@ void add_baseboard(Scene *s, float x, float y, float z, float length, float dept
 void add_crown_molding(Scene *s, float x, float y, float z, float length, float along_z, Color c);
 void add_picture_frame(Scene *s, float x, float y, float z, float w, float h, Color frame_color, Color canvas_color);
 void add_bookshelf(Scene *s, float x, float y, float z, float w, float h, int rows, Color shelf_color);
+// P5: Enhanced geometry helpers
+void add_arch_doorframe(Scene *s, float x, float y, float z, float w, float h,
+                        float depth, Color frame_color);
+void add_crown_molding_detailed(Scene *s, float x, float y, float z,
+                                float length, bool along_z, Color color);
+void add_corridor_door(Scene *s, float x, float y, float z,
+                       float side, Color door_color, Color frame_color);
+
 void build_lobby(Scene *s);
 void build_hallway(Scene *s);
 void build_hotel_room(Scene *s);

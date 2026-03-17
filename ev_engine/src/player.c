@@ -59,6 +59,8 @@ void init_player(Player *p, Vector3 pos) {
     p->dash_cooldown_timer = 0;
     p->dash_dir = (Vector3){0, 0, 0};
     p->peak_speed = 0;
+    p->control_mult = 1.0f;
+    p->idle_time = 0;
     p->noclip = false;
 }
 
@@ -250,8 +252,9 @@ void update_player(Player *p, Scene *scene, float dt) {
 
     // ── Mouse look ──────────────────────────────────────────────────
     Vector2 mouse_delta = GetMouseDelta();
-    float yaw_delta = -mouse_delta.x * MOUSE_SENS;
-    float pitch_delta = -mouse_delta.y * MOUSE_SENS;
+    float sens = MOUSE_SENS * p->control_mult;
+    float yaw_delta = -mouse_delta.x * sens;
+    float pitch_delta = -mouse_delta.y * sens;
 
     if (p->kick_decay > 0) {
         float kt = p->kick_decay * p->kick_decay;
@@ -366,6 +369,7 @@ void update_player(Player *p, Scene *scene, float dt) {
     // ── Target speed ────────────────────────────────────────────────
     float wish_speed = p->sprinting ? phys.sprint_speed : phys.walk_speed;
     if (p->sliding) wish_speed *= phys.slide_speed_mult;
+    wish_speed *= p->control_mult;  // agency dial
 
     // ── Movement physics ────────────────────────────────────────────
     bool just_jumped = false;
@@ -683,6 +687,23 @@ void update_player(Player *p, Scene *scene, float dt) {
 
     p->camera.position = new_pos;
     p->camera.target = Vector3Add(new_pos, forward);
+
+    // ── Idle breathing — Kubrick stillness ───────────────────────
+    // When nearly still and grounded: subtle sine camera sway
+    if (p->speed_current < 0.3f && p->grounded) {
+        p->idle_time += dt;
+        // Scale inversely with speed — zero when moving
+        float idle_scale = 1.0f - (p->speed_current / 0.3f);
+        float breath_pitch = sinf(p->idle_time * 0.7f) * 0.001f * idle_scale;
+        float breath_yaw = sinf(p->idle_time * 0.5f) * 0.0005f * idle_scale;
+        // Apply to camera target (not position — subtle look sway)
+        Vector3 look = Vector3Subtract(p->camera.target, p->camera.position);
+        look.y += breath_pitch;
+        look.x += breath_yaw;
+        p->camera.target = Vector3Add(p->camera.position, look);
+    } else {
+        p->idle_time = 0;
+    }
 
     float tilt_rad = p->tilt_current * (3.14159f / 180.0f);
     p->camera.up = (Vector3){sinf(tilt_rad), cosf(tilt_rad), 0};

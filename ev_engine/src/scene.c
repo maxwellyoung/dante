@@ -11,6 +11,9 @@
 #ifndef DEG2RAD
 #define DEG2RAD 0.017453293f
 #endif
+#ifndef PI
+#define PI 3.14159265358979f
+#endif
 
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
     if (s->wall_count >= MAX_WALLS) {
@@ -101,6 +104,57 @@ void set_last_rotation(Scene *s, float degrees) {
 // Mark most recent wall as decal — rendered with polygon offset to prevent z-fighting
 void set_last_decal(Scene *s) {
     if (s->wall_count > 0) s->walls[s->wall_count - 1].is_decal = true;
+}
+
+// ── P5: Enhanced geometry helpers ──
+
+// Arched doorframe — rectangular frame + semicircle of boxes at top
+void add_arch_doorframe(Scene *s, float x, float y, float z, float w, float h,
+                        float depth, Color frame_color) {
+    // Side posts
+    add_wall(s, x - w/2, y + h/2, z, 0.08f, h, depth, frame_color);
+    add_wall(s, x + w/2, y + h/2, z, 0.08f, h, depth, frame_color);
+    // Top lintel
+    add_wall(s, x, y + h, z, w + 0.16f, 0.08f, depth, frame_color);
+    // Arch segments — 8 small boxes arranged in a semicircle above the lintel
+    for (int i = 0; i < 8; i++) {
+        float angle = PI * (float)i / 7.0f;
+        float ax = x + cosf(angle) * w * 0.5f;
+        float ay = y + h + sinf(angle) * w * 0.25f;
+        add_wall(s, ax, ay, z, 0.1f, 0.06f, depth * 0.8f, frame_color);
+    }
+}
+
+// Crown molding with stepped profile — more dimensional than flat strip
+void add_crown_molding_detailed(Scene *s, float x, float y, float z,
+                                float length, bool along_z, Color color) {
+    float lx = along_z ? 0.04f : length;
+    float lz = along_z ? length : 0.04f;
+    // Base strip
+    add_wall(s, x, y, z, lx, 0.06f, lz, color);
+    // Angled strip (slight offset down and out)
+    float ox = along_z ? 0.03f : 0;
+    float oz = along_z ? 0 : 0.03f;
+    add_wall(s, x + ox, y - 0.04f, z + oz, lx * 0.9f, 0.04f, lz * 0.9f, color);
+    // Top lip
+    add_wall(s, x - ox * 0.5f, y + 0.04f, z - oz * 0.5f,
+             lx * 0.8f, 0.025f, lz * 0.8f, color);
+}
+
+// Corridor door — recessed frame, door panel, handle
+void add_corridor_door(Scene *s, float x, float y, float z,
+                       float side, Color door_color, Color frame_color) {
+    float dx = side > 0 ? 0.12f : -0.12f;
+    // Recessed frame (3 boxes)
+    add_wall(s, x + dx, y + 1.3f, z, 0.12f, 2.6f, 0.05f, frame_color);  // top
+    add_wall(s, x + dx, y + 1.3f, z - 0.55f, 0.12f, 2.6f, 0.05f, frame_color);
+    add_wall(s, x + dx, y + 1.3f, z + 0.55f, 0.12f, 2.6f, 0.05f, frame_color);
+    // Door panel
+    add_wall(s, x + dx * 0.8f, y + 1.3f, z, 0.1f, 2.5f, 0.95f, door_color);
+    // Handle — small sphere
+    add_sphere(s, x + dx * 0.6f, y + 1.1f, z + 0.35f * (side > 0 ? -1 : 1),
+               0.06f, frame_color);
+    set_last_material(s, MAT_BRASS);
 }
 
 // Auto-assign materials by color matching after scene is built
@@ -2609,6 +2663,41 @@ void build_space_suite(Scene *s) {
     add_wall(s, rw/2-0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
     add_wall(s, -rw/2+0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
     add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
+
+    // ── P5: Non-interactive storytelling objects ──
+    // Half-packed suitcase by door — someone arrived but hasn't settled
+    add_wall(s, 4.5f, 0.15f, 4.0f, 0.6f, 0.3f, 0.4f, dark_wood);  // open case
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 4.5f, 0.31f, 4.2f, 0.55f, 0.02f, 0.15f, cream);   // fabric draped over edge
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 4.5f, 0.08f, 4.0f, 0.35f, 0.08f, 0.25f, navy);    // folded shirt inside
+    set_last_material(s, MAT_FABRIC);
+
+    // Postcard face-down on nightstand — unread, unknowable
+    add_wall(s, -2.3f, 0.88f, -4.5f, 0.18f, 0.005f, 0.12f, cream);
+    set_last_rotation(s, 8.0f);
+
+    // Shoes by door — two small dark boxes, slightly angled
+    add_wall(s, 5.2f, 0.04f, 3.5f, 0.12f, 0.08f, 0.22f, (Color){35,30,25,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_rotation(s, -5.0f);
+    add_wall(s, 5.5f, 0.04f, 3.4f, 0.12f, 0.08f, 0.22f, (Color){35,30,25,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_rotation(s, 12.0f);
+
+    // ── P5: Furniture detail in suite ──
+    // Bed pillows — two small boxes at head
+    add_wall(s, -0.5f, 0.72f, -5.3f, 0.5f, 0.12f, 0.35f, white);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 0.5f, 0.72f, -5.3f, 0.5f, 0.12f, 0.35f, white);
+    set_last_material(s, MAT_FABRIC);
+
+    // Wardrobe slightly ajar — door box rotated 15°
+    add_wall(s, rw/2-0.5f, 1.2f, -3.0f, 0.6f, 2.2f, 0.5f, dark_wood);  // wardrobe body
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, rw/2-0.82f, 1.2f, -2.75f, 0.04f, 2.1f, 0.45f, dark_wood);  // door ajar
+    set_last_material(s, MAT_WOOD);
+    set_last_rotation(s, 15.0f);
 
     // Interactive objects
     add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);

@@ -941,6 +941,13 @@ static Sound gen_footsteps_above(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Forward declarations for sounds defined below InitEVAudio
+static Sound gen_bed_drone(void);
+static Sound gen_held_chord(void);
+static Sound gen_running_water(void);
+static Sound gen_tv_murmur(void);
+static Sound gen_hyperspace_tone(void);
+
 // --- ENGINE ---
 
 void InitEVAudio(EVAudio *audio) {
@@ -974,6 +981,11 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_muffled_piano = gen_muffled_piano();
     audio->snd_distant_voices = gen_distant_voices();
     audio->snd_footsteps_above = gen_footsteps_above();
+    audio->snd_bed_drone = gen_bed_drone();
+    audio->snd_held_chord = gen_held_chord();
+    audio->snd_running_water = gen_running_water();
+    audio->snd_tv_murmur = gen_tv_murmur();
+    audio->snd_hyperspace_tone = gen_hyperspace_tone();
     audio->city_playing = false;
     audio->clock_playing = false;
     audio->stairwell_playing = false;
@@ -981,6 +993,10 @@ void InitEVAudio(EVAudio *audio) {
     audio->muffled_piano_playing = false;
     audio->distant_voices_playing = false;
     audio->footsteps_above_playing = false;
+    audio->bed_drone_playing = false;
+    audio->held_chord_playing = false;
+    audio->hyperspace_tone_playing = false;
+    audio->clock_rate = 1.0f;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
     audio->step_index = 0;
@@ -1015,6 +1031,11 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_muffled_piano, 0.02f);     // barely there — someone else's room
     SetSoundVolume(audio->snd_distant_voices, 0.015f);   // murmur — other lives
     SetSoundVolume(audio->snd_footsteps_above, 0.02f);   // thuds — felt more than heard
+    SetSoundVolume(audio->snd_bed_drone, 0.04f);         // low hum — felt, not heard
+    SetSoundVolume(audio->snd_held_chord, 0.05f);        // credits chord — present but gentle
+    SetSoundVolume(audio->snd_running_water, 0.015f);    // behind door — muffled
+    SetSoundVolume(audio->snd_tv_murmur, 0.015f);        // behind door — muffled
+    SetSoundVolume(audio->snd_hyperspace_tone, 0.06f);   // rising tone — builds tension
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -1037,6 +1058,9 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_stairwell); UnloadSound(audio->snd_wind);
     UnloadSound(audio->snd_muffled_piano); UnloadSound(audio->snd_distant_voices);
     UnloadSound(audio->snd_footsteps_above);
+    UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
+    UnloadSound(audio->snd_running_water); UnloadSound(audio->snd_tv_murmur);
+    UnloadSound(audio->snd_hyperspace_tone);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -1205,4 +1229,187 @@ void StopFootstepsAbove(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_footsteps_above);
     audio->footsteps_above_playing = false;
+}
+
+// ── Sprint 1: Bed drone — low ~50Hz, 20-second loop ────────────────
+// The sound of surrender. Fades in with the ceiling.
+static Sound gen_bed_drone(void) {
+    int len = SAMPLE_RATE * 20;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Envelope: slow fade in, sustain, fade out for loop
+        float env = 1.0f;
+        if (lt < 0.05f) env = lt / 0.05f;
+        if (lt > 0.95f) env = (1.0f - lt) / 0.05f;
+        // 50Hz fundamental — felt more than heard
+        float tone = sinf(2 * PI * 50 * t) * 0.6f;
+        // Second harmonic — warmth
+        tone += sinf(2 * PI * 100 * t) * 0.2f;
+        // Very slow amplitude modulation — breathing
+        float breath = 0.7f + 0.3f * sinf(t * 0.4f);
+        d[i] = (short)(tone * env * breath * 3000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// ── Sprint 1: Held chord — stacked fifths (C3-G3-D4) ──────────────
+// Three notes, 3s attack, sustains indefinitely. Credits as elegy.
+static Sound gen_held_chord(void) {
+    int len = SAMPLE_RATE * 20;  // 20s loop
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    // C3 = 130.81Hz, G3 = 196.00Hz, D4 = 293.66Hz
+    float freqs[] = {130.81f, 196.00f, 293.66f};
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // 3-second attack, infinite sustain, loop crossfade at end
+        float env = fminf(1.0f, t / 3.0f);
+        if (lt > 0.95f) env *= (1.0f - lt) / 0.05f;
+        float chord = 0;
+        for (int n = 0; n < 3; n++) {
+            chord += sinf(2 * PI * freqs[n] * t) * 0.3f;
+            // Slight detuning for warmth
+            chord += sinf(2 * PI * freqs[n] * 1.003f * t) * 0.1f;
+        }
+        d[i] = (short)(chord * env * 4000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayBedDrone(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->bed_drone_playing) {
+        PlaySound(audio->snd_bed_drone);
+        audio->bed_drone_playing = true;
+    }
+}
+void StopBedDrone(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_bed_drone);
+    audio->bed_drone_playing = false;
+}
+void PlayHeldChord(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->held_chord_playing) {
+        PlaySound(audio->snd_held_chord);
+        audio->held_chord_playing = true;
+    }
+}
+void StopHeldChord(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_held_chord);
+    audio->held_chord_playing = false;
+}
+
+// ── Sprint 2: Clock rate modulation ────────────────────────────────
+void SetClockRate(EVAudio *audio, float rate) {
+    if (!audio->initialized) return;
+    audio->clock_rate = rate;
+    if (audio->clock_playing) {
+        SetSoundPitch(audio->snd_clock, fmaxf(0.01f, rate));
+        if (rate < 0.01f) {
+            StopSound(audio->snd_clock);
+            audio->clock_playing = false;
+        }
+    }
+}
+
+// ── Sprint 2: Per-door spatial sounds ──────────────────────────────
+// Filtered noise — running water behind a bathroom door
+static Sound gen_running_water(void) {
+    int len = SAMPLE_RATE * 10;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    float prev = 0;
+    unsigned int rng = 5555;
+    for (int i = 0; i < len; i++) {
+        float lt = (float)i / len;
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Heavy low-pass — muffled through wall
+        prev = prev * 0.92f + noise * 0.08f;
+        // Slow modulation — water pressure variation
+        float mod = 0.7f + 0.3f * sinf((float)i / SAMPLE_RATE * 0.6f);
+        // Loop envelope
+        float env = 1.0f;
+        if (lt < 0.02f) env = lt / 0.02f;
+        if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
+        d[i] = (short)(prev * mod * env * 5000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Modulated noise bursts — TV behind a door
+static Sound gen_tv_murmur(void) {
+    int len = SAMPLE_RATE * 10;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 6666;
+    float prev1 = 0, prev2 = 0;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Band-pass — speech-like frequencies
+        prev1 = prev1 * 0.85f + noise * 0.15f;
+        prev2 = prev2 * 0.9f + prev1 * 0.1f;
+        float filtered = prev1 - prev2;
+        // Burst modulation — simulates speech rhythm
+        float burst = 0.3f + 0.7f * fmaxf(0, sinf(t * 3.5f) * sinf(t * 1.7f));
+        // Loop envelope
+        float env = 1.0f;
+        if (lt < 0.02f) env = lt / 0.02f;
+        if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
+        d[i] = (short)(filtered * burst * env * 4000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void SetDoorSoundVolume(EVAudio *audio, int door_index, float volume) {
+    if (!audio->initialized) return;
+    if (door_index == 0) SetSoundVolume(audio->snd_muffled_piano, volume);
+    else if (door_index == 1) SetSoundVolume(audio->snd_running_water, volume);
+}
+
+// ── Sprint 3: Hyperspace rising tone — 80Hz→400Hz over 6s ─────────
+static Sound gen_hyperspace_tone(void) {
+    int len = SAMPLE_RATE * 6;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Exponential frequency sweep: 80Hz → 400Hz
+        float freq = 80.0f * powf(5.0f, lt);
+        // Phase accumulation for smooth sweep
+        (void)freq; // used indirectly below
+        float phase = 2 * PI * 80.0f * (powf(5.0f, lt) - 1.0f) / logf(5.0f) / SAMPLE_RATE * i;
+        (void)phase;
+        // Re-derive: integrate freq over time
+        // Actually simpler: accumulate phase manually
+        float tone = sinf(2 * PI * freq * t) * 0.5f;
+        // Add sub-octave for body
+        tone += sinf(2 * PI * freq * 0.5f * t) * 0.3f;
+        // Envelope: fade in, crescendo, cut
+        float env = fminf(1.0f, t / 1.0f);  // 1s fade-in
+        env *= 0.5f + 0.5f * lt;  // crescendo
+        d[i] = (short)(tone * env * 5000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayHyperspaceTone(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->hyperspace_tone_playing) {
+        PlaySound(audio->snd_hyperspace_tone);
+        audio->hyperspace_tone_playing = true;
+    }
+}
+void StopHyperspaceTone(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_hyperspace_tone);
+    audio->hyperspace_tone_playing = false;
 }

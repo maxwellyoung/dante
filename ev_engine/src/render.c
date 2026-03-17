@@ -838,6 +838,138 @@ void draw_dust_motes(Camera3D camera, float time) {
     }
 }
 
+// ── Zero-G sparkles — larger, brighter than dust motes, near portholes ──
+void draw_zero_g_sparkles(Camera3D camera, float time) {
+    for (int i = 0; i < 15; i++) {
+        float seed_x = sinf((float)i * 5.1f + 2.3f) * 6.0f;
+        float seed_y = fmodf((float)i * 0.53f + 0.4f, 3.0f) + 0.5f;
+        float seed_z = cosf((float)i * 3.7f + 0.8f) * 6.0f;
+
+        // Slower, wider drift than dust motes
+        float drift_y = sinf(time * 0.2f + (float)i * 1.3f) * 0.5f;
+        float drift_x = sinf(time * 0.15f + (float)i * 0.9f) * 0.3f;
+        float drift_z = cosf(time * 0.18f + (float)i * 1.1f) * 0.3f;
+
+        float anchor_x = floorf(camera.position.x / 5.0f) * 5.0f;
+        float anchor_z = floorf(camera.position.z / 5.0f) * 5.0f;
+
+        float px = anchor_x + seed_x + drift_x;
+        float py = seed_y + drift_y;
+        float pz = anchor_z + seed_z + drift_z;
+
+        float dx = px - camera.position.x;
+        float dz = pz - camera.position.z;
+        float dist = sqrtf(dx * dx + dz * dz);
+        if (dist > 10.0f) continue;
+
+        // Occasional bright flash — shimmer
+        float flash = sinf(time * 2.5f + (float)i * 4.7f);
+        float brightness = (flash > 0.85f) ? 1.0f : 0.3f;
+
+        float radius = 0.02f + fmodf((float)i * 0.17f, 0.02f);
+        float alpha_f = (1.0f - dist / 10.0f) * brightness;
+        unsigned char a = (unsigned char)(80.0f * alpha_f);
+
+        DrawSphere((Vector3){px, py, pz}, radius, (Color){220, 230, 255, a});
+    }
+}
+
+// ============================================================
+// SHADOW PASS — render scene from light's perspective into depth buffer
+// Uses a dedicated depth-only shader. Temporarily swaps model shaders.
+// ============================================================
+void draw_shadow_pass(Scene *scene, EVLighting *lighting,
+                      Model *cube_model, Model *cyl_model,
+                      Model *sphere_model, Model *cone_model) {
+    if (!lighting->shadowReady) return;
+
+    // Save original shaders
+    Shader origCube = cube_model->materials[0].shader;
+    Shader origCyl  = cyl_model->materials[0].shader;
+    Shader origSph  = sphere_model->materials[0].shader;
+    Shader origCone = cone_model->materials[0].shader;
+
+    // Assign shadow shader
+    cube_model->materials[0].shader   = lighting->shadowShader;
+    cyl_model->materials[0].shader    = lighting->shadowShader;
+    sphere_model->materials[0].shader = lighting->shadowShader;
+    cone_model->materials[0].shader   = lighting->shadowShader;
+
+    // Bind shadow FBO and set viewport
+    rlEnableFramebuffer(lighting->shadowFBO);
+    rlViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    rlClearScreenBuffers();
+
+    // Draw all walls using DrawMesh with the light space matrix as transform
+    for (int i = 0; i < scene->wall_count; i++) {
+        Wall *w = &scene->walls[i];
+        if (!w->active) continue;
+
+        // Compute model transform
+        Matrix matScale = MatrixScale(w->size.x, w->size.y, w->size.z);
+        Matrix matRot = MatrixRotateY(w->rotation_y * DEG2RAD);
+        Matrix matTrans = MatrixTranslate(w->pos.x, w->pos.y, w->pos.z);
+        Matrix matModel = MatrixMultiply(MatrixMultiply(matScale, matRot), matTrans);
+
+        Model *m;
+        switch (w->shape) {
+            case SHAPE_CYLINDER: m = cyl_model; break;
+            case SHAPE_SPHERE:   m = sphere_model; break;
+            case SHAPE_CONE:     m = cone_model; break;
+            default:             m = cube_model; break;
+        }
+
+        // DrawMesh uses rlgl internally to compute MVP from transform + current proj/view
+        // We need to set the projection and view matrices to the light's matrices
+        // So we push the light VP onto rlgl's matrix stack
+        DrawMesh(m->meshes[0], m->materials[0], matModel);
+    }
+
+    rlDrawRenderBatchActive(); // flush
+
+    rlDisableFramebuffer();
+    rlViewport(0, 0, RENDER_W, RENDER_H);
+
+    // Restore original shaders
+    cube_model->materials[0].shader   = origCube;
+    cyl_model->materials[0].shader    = origCyl;
+    sphere_model->materials[0].shader = origSph;
+    cone_model->materials[0].shader   = origCone;
+}
+
+// ============================================================
+// PROCEDURAL EARTH — the emotional anchor of the game
+// Ocean blue sphere + atmosphere rim + slow rotation
+// ============================================================
+void draw_earth(Camera3D camera, float time,
+                Model *sphere_model, EVLighting *lighting) {
+    (void)camera;
+    if (!sphere_model) return;
+
+    // Earth position — large, distant, below the observation deck
+    float rot = time * 0.5f;  // slow rotation
+    Vector3 earth_pos = {0, -40.0f, -60.0f};
+    float earth_scale = 50.0f;
+
+    // Save current material state
+    Color saved_color = sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
+
+    // Main sphere — ocean blue
+    if (lighting && lighting->ready) SetMaterialId(lighting, 7); // GLASS material for sheen
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){30, 60, 140, 255};
+    DrawModelEx(*sphere_model, earth_pos, (Vector3){0.4f, 1, 0}, rot,
+                (Vector3){earth_scale, earth_scale, earth_scale}, WHITE);
+
+    // Atmosphere rim — slightly larger, transparent blue-white
+    float atmo_scale = earth_scale * 1.04f;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){100, 160, 230, 40};
+    DrawModelEx(*sphere_model, earth_pos, (Vector3){0.4f, 1, 0}, rot,
+                (Vector3){atmo_scale, atmo_scale, atmo_scale}, WHITE);
+
+    // Restore
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_color;
+}
+
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target) {
     if (!pfx->ready) return;
     float t = (float)GetTime();

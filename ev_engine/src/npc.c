@@ -23,6 +23,7 @@ static void init_common(NPC *npc, Vector3 start, Vector3 *waypoints, int count,
     npc->waiting = false;
     npc->current_waypoint = 0;
     npc->idle_timer = 0;
+    npc->behavior = NPC_WALKING;
     npc->waypoint_count = count > MAX_NPC_WAYPOINTS ? MAX_NPC_WAYPOINTS : count;
     for (int i = 0; i < npc->waypoint_count; i++)
         npc->waypoints[i] = waypoints[i];
@@ -170,39 +171,51 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
 
     if (npc->waiting) {
         npc->idle_timer += dt;
+        npc->behavior = NPC_WAITING;
+
+        // Sprint 4A: Reading behavior — idle > 5s at waypoint
+        // Holds "newspaper" (head looks down). Player approach → looks up.
+        Vector3 to_player = Vector3Subtract(player_pos, npc->pos);
+        float player_dist = Vector3Length(to_player);
+        if (npc->idle_timer > 5.0f && player_dist > npc->wait_radius * 1.5f) {
+            npc->behavior = NPC_READING;
+        }
+        // Player approaches reading Gibbons → he looks up (breaks reading)
+        if (npc->behavior == NPC_READING && player_dist < npc->wait_radius * 1.5f) {
+            npc->behavior = NPC_WAITING;
+        }
 
         // Dialogue — deliver a line after arriving at waypoint
         if (npc->lines && npc->current_line < npc->line_count) {
             if (!npc->line_showing && npc->idle_timer > 0.5f) {
-                // Start showing current line after brief pause
                 npc->line_showing = true;
                 npc->line_timer = 0;
             }
             if (npc->line_showing) {
                 npc->line_timer += dt;
                 if (npc->line_timer > npc->line_duration) {
-                    // Line finished — advance to next
                     npc->line_showing = false;
                     npc->current_line++;
                 }
             }
         }
 
-        // Face toward the player — smoothly
-        Vector3 to_player = Vector3Subtract(player_pos, npc->pos);
-        npc->yaw_target = atan2f(-to_player.x, -to_player.z);
+        // Face toward the player — smoothly (unless reading)
+        if (npc->behavior != NPC_READING) {
+            npc->yaw_target = atan2f(-to_player.x, -to_player.z);
+        }
         float yaw_diff = npc->yaw_target - npc->yaw;
         while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
         while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
         npc->yaw += yaw_diff * fminf(1.0f, 5.0f * dt);
 
         // Player proximity → advance (only after dialogue finishes or no dialogue)
-        float player_dist = Vector3Length(to_player);
         bool dialogue_done = !npc->lines || npc->current_line >= npc->line_count;
         if (player_dist < npc->wait_radius && dialogue_done) {
             npc->current_waypoint++;
             npc->waiting = false;
             npc->idle_timer = 0;
+            npc->behavior = NPC_WALKING;
             if (npc->current_waypoint >= npc->waypoint_count) {
                 npc->active = false;
                 return;
@@ -211,6 +224,7 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
         }
     } else {
         npc->idle_timer = 0;
+        npc->behavior = NPC_WALKING;
         // Move toward waypoint (XZ only, let physics handle Y)
         float dir_x = dx / (dist + 0.001f);
         float dir_z = dz / (dist + 0.001f);
@@ -220,7 +234,6 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
         npc->pos.z += dir_z * move;
 
         // Face movement direction — smooth
-        // Model faces -Z at yaw=0, so negate direction
         npc->yaw_target = atan2f(-dir_x, -dir_z);
         float yaw_diff = npc->yaw_target - npc->yaw;
         while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
@@ -257,6 +270,24 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float walk_bob = walking ? sinf(t) * 0.05f : 0;
     float idle_sway = sinf(idle * 0.8f) * 0.015f;
     float idle_tilt = sinf(idle * 1.3f) * 2.5f;
+
+    // Sprint 4A: Reading behavior — head tilts down (looking at newspaper)
+    float reading_pitch = 0;
+    if (npc->behavior == NPC_READING) {
+        reading_pitch = -15.0f;  // head tilts forward, looking down
+        idle_tilt *= 0.3f;      // less idle sway when focused
+    }
+
+    // P6: Bow animation — torso tilts forward at waypoint arrival
+    float bow_pitch = 0;
+    if (!walking && idle > 0.5f && idle < 1.8f) {
+        float bow_t = idle - 0.5f;
+        if (bow_t < 0.5f) bow_pitch = (bow_t / 0.5f) * 0.5f;
+        else if (bow_t < 0.8f) bow_pitch = 0.5f;
+        else if (bow_t < 1.3f) bow_pitch = 0.5f * (1.0f - (bow_t - 0.8f) / 0.5f);
+    }
+    // P6: Briefcase swing during walk
+    float case_swing = walking ? sinf(t * 2.0f) * 0.15f : 0;
 
     // ── Proportions — total ~1.72m ──
     float shoe_h = 0.06f, shoe_w = 0.18f, shoe_d = 0.22f;
@@ -307,7 +338,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     #define DRAW(px,py,pz, sx,sy2,sz) DrawModelEx(*cube_model, P(px,py,pz), \
         (Vector3){0,1,0}, yaw*RAD2DEG, (Vector3){sx,sy2,sz}, WHITE)
     #define DRAW_TILT(px,py,pz, sx,sy2,sz) DrawModelEx(*cube_model, P(px,py,pz), \
-        (Vector3){0,1,0}, yaw*RAD2DEG+idle_tilt, (Vector3){sx,sy2,sz}, WHITE)
+        (Vector3){0,1,0}, yaw*RAD2DEG+idle_tilt+reading_pitch, (Vector3){sx,sy2,sz}, WHITE)
     // Cylinder helper
     #define DRAWCYL(px,py,pz, diam,h) DrawModelEx(*cyl_model, P(px,py,pz), \
         (Vector3){0,1,0}, yaw*RAD2DEG, (Vector3){diam,h,diam}, WHITE)
@@ -336,9 +367,9 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     D(m, DC(210, 180, 100, 255),6);
     DRAW(0, hip_y + belt_h/2, -body_d/2 - 0.01f, 0.06f, 0.05f, 0.02f);
 
-    // ── TORSO ──
+    // ── TORSO ── (bow_pitch tilts torso forward)
     D(m, npc->body_color, 9);
-    DRAW(0, torso_mid, 0, body_w, body_h, body_d);
+    DRAW(0, torso_mid - bow_pitch * 0.1f, -bow_pitch * 0.2f, body_w, body_h, body_d);
 
     // ── LAPELS — lighter navy V on chest ──
     D(m, DC(50, 55, 80, 255),9);
@@ -401,10 +432,10 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     // ── BRIEFCASE — left hand ──
     D(m, npc->briefcase_color, 8);
     float case_y2 = l_hand_y - hand_s - case_h/2;
-    DRAW(-arm_x, case_y2, 0, case_d, case_h, case_w);
+    DRAW(-arm_x, case_y2 + case_swing * 0.1f, case_swing * 0.05f, case_d, case_h, case_w);
     // Brass latch
     D(m, DC(210, 180, 100, 255),6);
-    DRAW(-arm_x, case_y2 + case_h * 0.3f, -case_w/2 - 0.01f, 0.04f, 0.05f, 0.03f);
+    DRAW(-arm_x, case_y2 + case_h * 0.3f + case_swing * 0.1f, -case_w/2 - 0.01f + case_swing * 0.05f, 0.04f, 0.05f, 0.03f);
     // Handle — dark strip on top
     D(m, DC(60, 45, 25, 255),8);
     DRAW(-arm_x, case_y2 + case_h/2 + 0.02f, 0, 0.03f, 0.03f, 0.12f);

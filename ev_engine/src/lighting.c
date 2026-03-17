@@ -4,6 +4,11 @@
 
 #include "lighting.h"
 #include "raymath.h"
+#include "rlgl.h"
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#endif
 #include <stdio.h>
 
 static const char *vs_source =
@@ -15,15 +20,18 @@ static const char *vs_source =
     "uniform mat4 mvp;\n"
     "uniform mat4 matModel;\n"
     "uniform mat4 matNormal;\n"
+    "uniform mat4 lightSpaceMatrix;\n"
     "out vec3 fragPosition;\n"
     "out vec3 fragNormal;\n"
     "out vec4 fragColor;\n"
     "out vec2 fragTexCoord;\n"
+    "out vec4 fragPosLightSpace;\n"
     "void main() {\n"
     "    fragPosition = vec3(matModel * vec4(vertexPosition, 1.0));\n"
     "    fragNormal = normalize(vec3(matNormal * vec4(vertexNormal, 0.0)));\n"
     "    fragColor = vertexColor;\n"
     "    fragTexCoord = vertexTexCoord;\n"
+    "    fragPosLightSpace = lightSpaceMatrix * vec4(fragPosition, 1.0);\n"
     "    gl_Position = mvp * vec4(vertexPosition, 1.0);\n"
     "}\n";
 
@@ -33,6 +41,8 @@ static const char *fs_source =
     "in vec3 fragNormal;\n"
     "in vec4 fragColor;\n"
     "in vec2 fragTexCoord;\n"
+    "in vec4 fragPosLightSpace;\n"
+    "uniform sampler2D shadowMap;\n"
     "uniform vec3 viewPos;\n"
     "uniform vec3 ambient;\n"
     "uniform vec3 fogColor;\n"
@@ -71,6 +81,23 @@ static const char *fs_source =
     "    v += noise(p * 2.0) * 0.25;\n"
     "    v += noise(p * 4.0) * 0.125;\n"
     "    return v;\n"
+    "}\n"
+    "\n"
+    // Shadow calculation — PCF 3x3 for soft edges at 480x300
+    "float ShadowCalc(vec4 lsPos) {\n"
+    "    vec3 proj = lsPos.xyz / lsPos.w;\n"
+    "    proj = proj * 0.5 + 0.5;\n"
+    "    if (proj.z > 1.0) return 0.0;\n"
+    "    float bias = 0.005;\n"
+    "    float shadow = 0.0;\n"
+    "    vec2 texelSize = 1.0 / vec2(512.0);\n"
+    "    for (int x = -1; x <= 1; x++) {\n"
+    "        for (int y = -1; y <= 1; y++) {\n"
+    "            float d = texture(shadowMap, proj.xy + vec2(x,y)*texelSize).r;\n"
+    "            shadow += proj.z - bias > d ? 1.0 : 0.0;\n"
+    "        }\n"
+    "    }\n"
+    "    return shadow / 9.0;\n"
     "}\n"
     "\n"
     "void main() {\n"
@@ -205,18 +232,21 @@ static const char *fs_source =
     "        specMult = 0.14;\n"
     "    }\n"
     "\n"
-    "    // Key light — warm, generous\n"
+    "    // Shadow\n"
+    "    float shadow = ShadowCalc(fragPosLightSpace);\n"
+    "\n"
+    "    // Key light — warm, generous, attenuated by shadow\n"
     "    float NdotL = dot(norm, -lightDir);\n"
     "    float halfLambert = NdotL * 0.5 + 0.5;\n"
     "    halfLambert = halfLambert * halfLambert;\n"
-    "    vec3 keyDiffuse = lightColor * halfLambert;\n"
+    "    vec3 keyDiffuse = lightColor * halfLambert * (1.0 - shadow * 0.7);\n"
     "\n"
     "    // Fill light — soft counter\n"
     "    float NdotF = dot(norm, -fillDir);\n"
     "    float fillLambert = max(NdotF * 0.5 + 0.5, 0.0);\n"
     "    vec3 fillDiffuse = fillColor * fillLambert * 0.5;\n"
     "\n"
-    "    // Point lights — practicals (lamps, candles, fixtures)\n"
+    "    // Point lights — practicals (lamps, candles, fixtures) + floor pools\n"
     "    vec3 pointLit = vec3(0.0);\n"
     "    for (int i = 0; i < 4; i++) {\n"
     "        if (pointRadius[i] > 0.0) {\n"
@@ -227,6 +257,13 @@ static const char *fs_source =
     "            float atten = 1.0 / (1.0 + pDist * pDist / (pointRadius[i] * pointRadius[i] * 0.25));\n"
     "            atten *= smoothstep(pointRadius[i], pointRadius[i] * 0.5, pDist);\n"
     "            pointLit += pointColor[i] * NdotP * atten;\n"
+    "            // Light pool on floors — soft projected circle beneath practicals\n"
+    "            if (norm.y > 0.9) {\n"
+    "                float floorDist = length(fragPosition.xz - pointPos[i].xz);\n"
+    "                float poolR = pointRadius[i] * 0.25;\n"
+    "                float pool = smoothstep(poolR, poolR * 0.2, floorDist);\n"
+    "                pointLit += pointColor[i] * pool * 0.4 * atten;\n"
+    "            }\n"
     "        }\n"
     "    }\n"
     "\n"
@@ -291,6 +328,8 @@ EVLighting LoadEVLighting(void) {
             lighting.pointRadiusLoc[i] = GetShaderLocation(lighting.shader, name);
         }
         lighting.materialIdLoc = GetShaderLocation(lighting.shader, "materialId");
+        lighting.shadowMapLoc = GetShaderLocation(lighting.shader, "shadowMap");
+        lighting.lightSpaceMatrixLoc = GetShaderLocation(lighting.shader, "lightSpaceMatrix");
         int matNormalLoc = GetShaderLocation(lighting.shader, "matNormal");
         lighting.shader.locs[SHADER_LOC_MATRIX_NORMAL] = matNormalLoc;
 
@@ -359,6 +398,100 @@ void SetPointLightIdx(EVLighting *lighting, int index, float x, float y, float z
 void SetMaterialId(EVLighting *lighting, int materialId) {
     if (!lighting->ready) return;
     SetShaderValue(lighting->shader, lighting->materialIdLoc, &materialId, SHADER_UNIFORM_INT);
+}
+
+// ============================================================
+// SHADOW MAPPING
+// ============================================================
+
+static const char *shadow_vs =
+    "#version 330\n"
+    "in vec3 vertexPosition;\n"
+    "uniform mat4 mvp;\n"
+    "void main() {\n"
+    "    gl_Position = mvp * vec4(vertexPosition, 1.0);\n"
+    "}\n";
+
+static const char *shadow_fs =
+    "#version 330\n"
+    "out vec4 finalColor;\n"
+    "void main() {\n"
+    "    finalColor = vec4(1.0);\n"
+    "}\n";
+
+void CreateShadowMap(EVLighting *lighting) {
+    if (lighting->shadowReady) return;
+
+    // Load depth-only shader
+    lighting->shadowShader = LoadShaderFromMemory(shadow_vs, shadow_fs);
+    if (lighting->shadowShader.id == 0) {
+        printf("[EV] WARNING: Shadow shader failed\n");
+        return;
+    }
+    lighting->shadowMvpLoc = GetShaderLocation(lighting->shadowShader, "mvp");
+
+    // Create FBO with depth texture
+    lighting->shadowFBO = rlLoadFramebuffer();
+    if (lighting->shadowFBO == 0) {
+        printf("[EV] WARNING: Shadow FBO failed\n");
+        return;
+    }
+
+    rlEnableFramebuffer(lighting->shadowFBO);
+
+    lighting->shadowDepthTex = rlLoadTextureDepth(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, false);
+    rlTextureParameters(lighting->shadowDepthTex, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
+    rlTextureParameters(lighting->shadowDepthTex, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
+    rlFramebufferAttach(lighting->shadowFBO, lighting->shadowDepthTex,
+                        RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+
+    if (rlFramebufferComplete(lighting->shadowFBO)) {
+        lighting->shadowReady = true;
+        printf("[EV] Shadow map created — %dx%d depth texture\n", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    } else {
+        printf("[EV] WARNING: Shadow FBO incomplete\n");
+        rlUnloadFramebuffer(lighting->shadowFBO);
+        lighting->shadowFBO = 0;
+    }
+
+    rlDisableFramebuffer();
+}
+
+void DestroyShadowMap(EVLighting *lighting) {
+    if (!lighting->shadowReady) return;
+    rlUnloadTexture(lighting->shadowDepthTex);
+    rlUnloadFramebuffer(lighting->shadowFBO);
+    UnloadShader(lighting->shadowShader);
+    lighting->shadowReady = false;
+}
+
+void UpdateShadowMatrix(EVLighting *lighting, Vector3 keyDir, Vector3 sceneCenter, float sceneRadius) {
+    if (!lighting->ready) return;
+
+    // Light camera — orthographic, looking at scene from key light direction
+    Vector3 lightPos = Vector3Add(sceneCenter, Vector3Scale(Vector3Negate(keyDir), sceneRadius * 2.0f));
+    Matrix lightView = MatrixLookAt(lightPos, sceneCenter, (Vector3){0, 1, 0});
+    Matrix lightProj = MatrixOrtho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius,
+                                    0.1f, sceneRadius * 4.0f);
+    lighting->lightSpaceMatrix = MatrixMultiply(lightView, lightProj);
+
+    // Upload to lighting shader
+    SetShaderValueMatrix(lighting->shader, lighting->lightSpaceMatrixLoc, lighting->lightSpaceMatrix);
+}
+
+void BindShadowMap(EVLighting *lighting) {
+    if (!lighting->shadowReady || !lighting->ready) return;
+    // Bind shadow depth texture to texture unit 1
+    rlActiveTextureSlot(1);
+    rlEnableTexture(lighting->shadowDepthTex);
+    int slot = 1;
+    SetShaderValue(lighting->shader, lighting->shadowMapLoc, &slot, SHADER_UNIFORM_INT);
+}
+
+void UnbindShadowMap(void) {
+    rlActiveTextureSlot(1);
+    rlDisableTexture();
+    rlActiveTextureSlot(0);
 }
 
 // ============================================================

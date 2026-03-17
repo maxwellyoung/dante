@@ -66,6 +66,11 @@ void SetPostFXTint(EVPostFX *pfx, float r, float g, float b);
 void ApplyVisualStyle(EVPostFX *pfx, int style_index);
 void SetPostFXSpeed(EVPostFX *pfx, float speed);
 
+void draw_shadow_pass(Scene *scene, EVLighting *lighting,
+                      Model *cube_model, Model *cyl_model,
+                      Model *sphere_model, Model *cone_model);
+void draw_earth(Camera3D camera, float time,
+                Model *sphere_model, EVLighting *lighting);
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *cube_model, bool cube_model_loaded,
                    Model *cyl_model, bool cyl_model_loaded,
@@ -79,6 +84,7 @@ void reset_title_state(void);
 void draw_night_sky(float time);
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target);
 void draw_dust_motes(Camera3D camera, float time);
+void draw_zero_g_sparkles(Camera3D camera, float time);
 void draw_text_box(const char *text, int y, int font_size, Color text_color);
 
 #endif
