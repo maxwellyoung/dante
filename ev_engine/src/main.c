@@ -322,17 +322,6 @@ static void transition_to(GameState s) {
     PlayDoorSound(&audio);
 }
 
-static void transition_to_slow(GameState s, float spd) {
-    if (transitioning) return;  // already in flight — don't reset
-    transitioning = true;
-    next_state = s;
-    fade_target = 1.0f;
-    fade_speed = spd;
-    transition_hold = (s == STATE_BED) ? 1.0f : 0.3f;
-    hold_timer = 0;
-    PlayDoorSound(&audio);
-}
-
 // Hard cut — bypasses fade, instantly loads state (Blendo-style ellipsis)
 // Flash kick: 2-3 frames of warm white, then instant scene
 static float cut_flash_timer = 0;
@@ -527,9 +516,9 @@ static void load_state(GameState s) {
                 };
                 init_npc(&gibbons, (Vector3){-3, 1.6f, -7}, lobby_wps, 3, 2.0f, 4.0f);
                 static const char *lobby_lines[] = {
-                    "Good evening. You're expected.",
-                    "The elevator is this way.",
-                    "Going up.",
+                    "You made it. I had a feeling.",
+                    "I've been here... a while. The building settles at night.",
+                    "The elevator. It goes further than you'd think.",
                 };
                 npc_set_dialogue(&gibbons, lobby_lines, 3, 3.0f);
             }
@@ -1815,7 +1804,7 @@ int main(void) {
                                 if (strcmp(obj->name, "newspaper") == 0) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_FABRIC);
-                                    show_text("SKY TOWER HOTEL OPENS ORBITAL SUITE");
+                                    show_text("ORBITAL SUITE OPENS — THREE HOURS TO KILL");
                                     break;
                                 }
                                 if (strcmp(obj->name, "bell") == 0) {
@@ -1880,18 +1869,49 @@ int main(void) {
                         hard_cut_to(STATE_SPACE_CORRIDOR);
                     }
                 } else {
-                    // TERRESTRIAL ELEVATOR — ascending to orbit
+                    // TERRESTRIAL ELEVATOR — Auckland lobby to orbit
+                    // The threshold. Everything you know drops away below.
                     {
-                        float accel = 0.3f + state_time * 0.4f;
+                        float t = state_time;
+                        float accel = 0.3f + t * 0.4f;
                         player.camera.position.y += accel * dt;
                         player.camera.target.y += accel * dt;
+
+                        // Mechanical vibration — you feel the tower
+                        if (t < 3.0f) {
+                            float vib = (1.0f - t / 3.0f) * 0.004f;
+                            player.camera.position.x += sinf(t * 40) * vib;
+                        }
+
+                        // PostFX ramp — reality dissolving
+                        if (t > 2.0f) {
+                            float dissolve = (t - 2.0f) / 3.0f;
+                            if (dissolve > 1.0f) dissolve = 1.0f;
+                            // Grain increases — film burning
+                            SetPostFXGrain(&postfx, 0.3f + dissolve * 0.5f);
+                            // Saturation drains — color leaving the world
+                            SetPostFXSaturation(&postfx, 1.0f - dissolve * 0.3f);
+                            // Slight warmth increase — last taste of Earth
+                            SetPostFXWarmth(&postfx, dissolve * 0.15f);
+                        }
+
+                        // FOV narrows — tunnel vision, leaving everything behind
+                        if (t > 3.0f) {
+                            float narrow = (t - 3.0f) / 2.0f;
+                            if (narrow > 1.0f) narrow = 1.0f;
+                            player.camera.fovy = 70.0f - narrow * 15.0f;  // 70→55
+                        }
                     }
-                    // Ding at 2 seconds
+                    // Ding at 2 seconds — last familiar sound
                     if (state_time > 2.0f && !elevator_ding_played) {
                         elevator_ding_played = true;
                         PlayElevatorDing(&audio);
                     }
-                    if (state_time > 5.0f) hard_cut_to(STATE_HYPERSPACE);
+                    // Hard cut to hyperspace — the world snaps
+                    if (state_time > 5.0f) {
+                        player.camera.fovy = 70.0f;
+                        hard_cut_to(STATE_HYPERSPACE);
+                    }
                 }
                 break;
 
@@ -3129,8 +3149,9 @@ int main(void) {
                                   indoor, state_time);
                 }
                 // Gibbons NPC — draw in space scenes
-                if ((state == STATE_SPACE_LOBBY || state == STATE_SPACE_CORRIDOR
-                     || state == STATE_SPACE_SUITE) && gibbons.active) {
+                if ((state == STATE_LOBBY || state == STATE_SPACE_LOBBY
+                     || state == STATE_SPACE_CORRIDOR || state == STATE_SPACE_SUITE)
+                    && gibbons.active) {
                     BeginMode3D(player.camera);
                     draw_npc(&gibbons, &cube_model, &cyl_model, &lighting);
                     EndMode3D();
