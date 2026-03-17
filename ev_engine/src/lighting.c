@@ -589,16 +589,17 @@ SceneLighting LightingPreset_Lobby(void) {
 }
 
 SceneLighting LightingPreset_Elevator(void) {
-    // Enclosed box — single overhead fluorescent, slightly green
+    // Enclosed brass box — warm amber overhead, dark marble floor absorbs
+    // Hotel Chevalier golden cage. Not clinical fluorescent.
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
-        .keyColor = {0.85f, 0.90f, 0.80f},      // overhead fluorescent
+        .keyColor = {0.95f, 0.80f, 0.55f},      // warm amber overhead
         .fillDir = Vector3Normalize((Vector3){0.0f, 1.0f, 0.0f}),
-        .fillColor = {0.15f, 0.14f, 0.12f},     // floor bounce
-        .ambient = {0.15f, 0.15f, 0.14f},
-        .pointPos = {{0, 2.4f, 0}},
-        .pointColor = {{0.7f, 0.75f, 0.65f}},
-        .pointRadius = {3.0f},
+        .fillColor = {0.08f, 0.07f, 0.05f},     // dark marble absorbs — low bounce
+        .ambient = {0.06f, 0.06f, 0.05f},        // LOW — brass catches light, shadows go deep
+        .pointPos = {{0, 2.4f, 0}, {-0.9f, 1.2f, 0}},
+        .pointColor = {{1.0f, 0.85f, 0.55f}, {0.15f, 0.22f, 0.35f}},  // warm overhead + cool glass viewport
+        .pointRadius = {3.5f, 2.5f},
     };
 }
 
@@ -702,19 +703,19 @@ SceneLighting LightingPreset_SpaceLobby(void) {
 }
 
 SceneLighting LightingPreset_SpaceCorridor(void) {
-    // Narrow corridor — overhead amber strips, porthole starlight
-    // Kubrick hallway but cold and blue-shifted
-    // Strong overhead key for shadow drama along the walkway
+    // Narrow corridor — warm amber strips vs cold void blue from portholes
+    // Kubrick hallway: warm pools at intervals, blue-black between
+    // Color identity: amber/violet contrast, not grey neutrality
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),   // steep overhead
-        .keyColor = {1.2f, 1.0f, 0.70f},           // warm overhead amber — BRIGHT
+        .keyColor = {1.3f, 1.0f, 0.65f},           // warm amber — pushed warmer
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.20f, 0.28f, 0.40f},        // porthole starlight — cool blue
-        .ambient = {0.30f, 0.30f, 0.36f},           // Readable at 480x300 — drama via shadows not crushing
-        // Ceiling panels spread along corridor + one blue porthole
-        .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {0, 3.2f, 16}},
-        .pointColor = {{1.2f, 0.95f, 0.65f}, {1.1f, 0.90f, 0.60f}, {1.0f, 0.85f, 0.55f}, {0.6f, 0.7f, 0.9f}},
-        .pointRadius = {18.0f, 18.0f, 18.0f, 14.0f},
+        .fillColor = {0.12f, 0.18f, 0.35f},        // porthole starlight — stronger blue
+        .ambient = {0.18f, 0.18f, 0.28f},           // blue-shifted ambient — corridor reads cool between pools
+        // Amber ceiling panels + one distinctly blue porthole accent
+        .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {-2, 1.5f, 12}},
+        .pointColor = {{1.3f, 1.0f, 0.60f}, {1.2f, 0.95f, 0.55f}, {1.1f, 0.88f, 0.50f}, {0.25f, 0.40f, 0.80f}},
+        .pointRadius = {14.0f, 14.0f, 14.0f, 10.0f},
     };
 }
 

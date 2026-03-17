@@ -442,20 +442,24 @@ void build_hotel_exterior(Scene *s) {
 
     // Parked taxi — you just got out of this
     add_wall(s, -5, 0.7f, -5, 2.2f, 1.2f, 4.0f, (Color){220, 200, 50, 255}); // body
-    set_last_material(s, MAT_CONCRETE);
+    set_last_material(s, MAT_TILE);  // painted metal reads as tile sheen
     add_wall(s, -5, 1.4f, -5.2f, 1.8f, 0.5f, 2.2f, (Color){220, 200, 50, 255}); // roof
+    set_last_material(s, MAT_TILE);
     add_wall(s, -5, 0.9f, -5, 2.0f, 0.7f, 3.6f, (Color){30, 35, 45, 200}); // windows
     set_last_material(s, MAT_GLASS);
-    // Taillights
-    add_wall(s, -4.1f, 0.6f, -7.0f, 0.15f, 0.1f, 0.04f, (Color){220, 30, 30, 200});
-    add_wall(s, -5.9f, 0.6f, -7.0f, 0.15f, 0.1f, 0.04f, (Color){220, 30, 30, 200});
+    // Taillights — Godard red accents
+    add_wall(s, -4.1f, 0.6f, -7.0f, 0.15f, 0.1f, 0.04f, PAL_RED);
+    add_wall(s, -5.9f, 0.6f, -7.0f, 0.15f, 0.1f, 0.04f, PAL_RED);
 
     // Street furniture
-    // Bollard
+    // Bollard — brass-topped
     add_cylinder(s, -3, 0.4f, -3, 0.15f, 0.8f, (Color){80, 78, 75, 255});
+    set_last_material(s, MAT_BRASS);
     add_cylinder(s, 3, 0.4f, -3, 0.15f, 0.8f, (Color){80, 78, 75, 255});
+    set_last_material(s, MAT_BRASS);
     // Trash bin
     add_wall(s, 8, 0.5f, -3, 0.5f, 1.0f, 0.5f, (Color){55, 55, 55, 255});
+    set_last_material(s, MAT_TILE);
 
     // More city buildings — deeper, taller, creating a canyon feel
     add_wall(s, -25, 12, 25, 8, 24, 4, (Color){15, 17, 30, 255});
