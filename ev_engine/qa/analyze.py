@@ -478,6 +478,66 @@ def analyze(report_path):
     return 0 if overall_pct >= 70 else 1
 
 
+def analyze_health(health_path):
+    """Read health-latest.json and print a human-readable report."""
+    try:
+        with open(health_path) as f:
+            h = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"  (health report not available: {e})")
+        return
+
+    print()
+    print("=" * 56)
+    print("  HEALTH CHECK REPORT")
+    print("=" * 56)
+    print()
+
+    ts = h.get("timestamp", "unknown")
+    print(f"  Timestamp:    {ts}")
+
+    compile_ok = h.get("compile", {}).get("ok", False)
+    print(f"  Compile:      {'OK' if compile_ok else 'FAILED'}")
+    if not compile_ok:
+        errors = h.get("compile", {}).get("errors", "")
+        if errors:
+            for line in str(errors).split("\n")[:10]:
+                print(f"    {line}")
+
+    print(f"  Screenshots:  {h.get('screenshots', 0)}")
+    print(f"  Report:       {'generated' if h.get('report_generated') else 'missing'}")
+    print(f"  QA exit code: {h.get('qa_exit_code', '?')}")
+    print()
+
+    scenes = h.get("scenes", [])
+    if scenes:
+        print("  Per-scene status:")
+        for s in scenes:
+            status = s.get("status", "?")
+            icon = "OK" if status == "PASS" else "!!"
+            print(f"    [{icon}] {s.get('name', '?')}")
+    print()
+
+    total_issues = h.get("total_issues", 0)
+    if total_issues == 0 and compile_ok:
+        print("  ALL CLEAR")
+    else:
+        print(f"  {total_issues} issue(s) detected")
+    print()
+
+
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else "qa/report.json"
+
+    # If --health flag or health JSON path passed, analyze health
+    if len(sys.argv) > 1 and sys.argv[1] == "--health":
+        health_path = sys.argv[2] if len(sys.argv) > 2 else "qa/health-latest.json"
+        analyze_health(health_path)
+        sys.exit(0)
+
+    # If path ends with health-latest.json, analyze that instead
+    if path.endswith("health-latest.json"):
+        analyze_health(path)
+        sys.exit(0)
+
     sys.exit(analyze(path))
