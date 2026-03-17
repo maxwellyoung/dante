@@ -2848,21 +2848,39 @@ int main(void) {
                     ClearBackground((Color){2, 2, 6, 255});  // deep void tunnel
                 } else if (state == STATE_BALCONY || state == STATE_SPACE_LOBBY
                            || state == STATE_SPACE_CORRIDOR || state == STATE_SPACE_SUITE) {
-                    ClearBackground((Color){4, 5, 12, 255});  // deep void
-                    // Deep space star field — 2D pixel stars before 3D scene
+                    ClearBackground((Color){4, 5, 12, 255});
+                    // Void gradient — not flat black. Space has depth.
+                    // Subtle blue-purple wash from bottom (Earth-lit) to black (deep space)
+                    for (int gy = 0; gy < RENDER_H; gy++) {
+                        float gt = (float)gy / RENDER_H;
+                        // Bottom: faint Earth blue. Top: pure void.
+                        unsigned char gr = (unsigned char)(4 + gt * 3);
+                        unsigned char gg = (unsigned char)(5 + gt * 4);
+                        unsigned char gb = (unsigned char)(12 + gt * 8);
+                        if (gr > 4 || gg > 5 || gb > 12)
+                            DrawRectangle(0, RENDER_H - gy, RENDER_W, 1, (Color){gr, gg, gb, 255});
+                    }
+                    // Deep space star field — 2D pixel stars
                     {
                         SetRandomSeed(42);
-                        int star_count = (state == STATE_BALCONY) ? 120 : 60;
+                        int star_count = (state == STATE_BALCONY) ? 140 : 70;
                         for (int si = 0; si < star_count; si++) {
                             int sx = GetRandomValue(0, RENDER_W);
                             int sy = GetRandomValue(0, RENDER_H);
-                            float bri = 0.15f + (GetRandomValue(0, 85) / 100.0f);
+                            float bri = 0.12f + (GetRandomValue(0, 88) / 100.0f);
                             float twk = 0.6f + 0.4f * sinf(state_time * (0.3f + GetRandomValue(0, 10) / 10.0f) + si * 2.7f);
-                            // Color temperature variation — some warm, some cool
                             unsigned char sr = (si % 5 == 0) ? 255 : (si % 7 == 0) ? 200 : 230;
                             unsigned char sg = 225;
                             unsigned char sb = (si % 5 == 0) ? 200 : (si % 7 == 0) ? 255 : 230;
                             DrawPixel(sx, sy, (Color){sr, sg, sb, (unsigned char)(255 * bri * twk)});
+                            // Bright stars get a 3x3 glow halo
+                            if (bri > 0.7f) {
+                                unsigned char ha = (unsigned char)(30 * bri * twk);
+                                DrawPixel(sx-1, sy, (Color){sr,sg,sb,ha});
+                                DrawPixel(sx+1, sy, (Color){sr,sg,sb,ha});
+                                DrawPixel(sx, sy-1, (Color){sr,sg,sb,ha});
+                                DrawPixel(sx, sy+1, (Color){sr,sg,sb,ha});
+                            }
                         }
                     }
                     // Procedural Earth — positioned per scene so it's visible through windows
