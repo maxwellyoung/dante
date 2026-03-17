@@ -3345,11 +3345,18 @@ void build_space_suite(Scene *s) {
     add_wall(s, -1.8f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
     set_last_material(s, MAT_FABRIC);
 
+    // Throw pillow on sofa — Godard red against navy
+    add_wall(s, -3.5f, 0.55f, 1.8f, 0.35f, 0.30f, 0.30f, PAL_RED);
+    set_last_material(s, MAT_FABRIC);
+
     // Coffee table — brass, low
     add_wall(s, -3, 0.35f, 3.5f, 1.2f, 0.03f, 0.7f, brass);
     set_last_material(s, MAT_BRASS);
     add_cylinder(s, -3.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
     add_cylinder(s, -2.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
+    // Book on coffee table — bold blue spine, cream pages
+    add_wall(s, -3.1f, 0.37f, 3.5f, 0.3f, 0.04f, 0.2f, PAL_BLUE);
+    set_last_material(s, MAT_LEATHER);
     add_cylinder(s, -3.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
     add_cylinder(s, -2.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
 

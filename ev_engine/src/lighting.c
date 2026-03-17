@@ -766,16 +766,16 @@ SceneLighting LightingPreset_ParisDream(void) {
 }
 
 SceneLighting LightingPreset_ReturnTaxi(void) {
-    // Dawn Auckland — soft pink-gold, NOT sodium orange
-    // Warmer and brighter than night taxi — city must be readable
+    // Dawn Auckland — golden hour glow through windshield
+    // Everything reads warmer and brighter than night. Circle closing.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.5f, -0.4f}),
-        .keyColor = {1.4f, 1.0f, 0.75f},            // boosted — dawn sun is strong
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.4f, -0.5f}),
+        .keyColor = {1.8f, 1.3f, 0.85f},            // strong dawn — golden, not pink
         .fillDir = Vector3Normalize((Vector3){0.2f, -0.3f, 0.5f}),
-        .fillColor = {0.35f, 0.30f, 0.42f},          // brighter fill — dawn sky bounce
-        .ambient = {0.42f, 0.38f, 0.40f},             // up from 0.30 — city silhouettes need light
-        .pointPos = {{0.45f, 0.72f, -1.06f}, {0, 0.5f, -3.0f}},
-        .pointColor = {{0.4f, 0.6f, 0.5f}, {0.6f, 0.45f, 0.35f}},  // dash + dawn windshield glow
-        .pointRadius = {4.0f, 8.0f},
+        .fillColor = {0.40f, 0.35f, 0.45f},          // sky bounce — lilac dawn
+        .ambient = {0.50f, 0.45f, 0.42f},             // higher — dawn illuminates the whole cab
+        .pointPos = {{0.45f, 0.72f, -1.06f}, {0, 0.5f, -3.0f}, {0, 1.0f, 2.0f}},
+        .pointColor = {{0.5f, 0.7f, 0.5f}, {0.8f, 0.60f, 0.40f}, {1.0f, 0.75f, 0.45f}},  // dash + windshield + dawn sky through rear
+        .pointRadius = {4.0f, 8.0f, 12.0f},
     };
 }
