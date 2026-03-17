@@ -174,15 +174,14 @@ static void transition_to_slow(GameState s, float spd) {
 static float cut_flash_timer = 0;
 
 static void hard_cut_to(GameState s) {
-    printf("[DBG] hard_cut_to(%d), transition_hold was %.2f, MasterVolume restore\n", s, transition_hold);
     StopClockAmbient(&audio);
     load_state(s);
     fade_alpha = 0.0f;  fade_target = 0.0f;
     transitioning = false;  hold_timer = 0;
-    transition_hold = 0.3f;  // reset to default after each hard cut
+    transition_hold = 0.3f;  // reset to default
     cut_flash_timer = 0.12f;
     SetPostFXFlash(&postfx, 1.0f, 1.0f, 0.95f, 0.85f);
-    SetMasterVolume(1.0f);  // always restore audio after hard cut
+    SetMasterVolume(1.0f);  // restore audio (hyperspace sets it to 0)
 }
 
 static void load_state(GameState s) {
@@ -579,27 +578,12 @@ static void load_state(GameState s) {
     // Re-apply scene exposure with style bias
     SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
 
-    // Update shadow matrix for current scene's key light
+    // Update shadow light direction — use a default overhead angle
+    // (The actual key direction varies per scene but this gives good general shadows)
     if (lighting.shadowReady) {
-        SceneLighting curPreset = LightingPreset_Room(); // default fallback
-        switch (s) {
-            case STATE_CAR: curPreset = LightingPreset_Taxi(); break;
-            case STATE_HOTEL_EXT: curPreset = LightingPreset_Exterior(); break;
-            case STATE_LOBBY: curPreset = LightingPreset_Lobby(); break;
-            case STATE_ELEVATOR: curPreset = LightingPreset_Elevator(); break;
-            case STATE_HALLWAY: curPreset = LightingPreset_Hallway(); break;
-            case STATE_ROOM: curPreset = LightingPreset_Room(); break;
-            case STATE_BATHROOM: curPreset = LightingPreset_Bathroom(); break;
-            case STATE_BALCONY: curPreset = LightingPreset_Balcony(); break;
-            case STATE_SPACE_LOBBY: curPreset = LightingPreset_SpaceLobby(); break;
-            case STATE_SPACE_CORRIDOR: curPreset = LightingPreset_SpaceCorridor(); break;
-            case STATE_SPACE_SUITE: curPreset = LightingPreset_SpaceSuite(); break;
-            case STATE_HYPERSPACE: curPreset = LightingPreset_Hyperspace(); break;
-            case STATE_PARIS_DREAM: curPreset = LightingPreset_ParisDream(); break;
-            case STATE_RETURN_TAXI: curPreset = LightingPreset_ReturnTaxi(); break;
-            default: break;
-        }
-        UpdateShadowMatrix(&lighting, curPreset.keyDir, (Vector3){0, 2, 0}, 25.0f);
+        UpdateShadowMatrix(&lighting,
+            Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),
+            (Vector3){0, 2, 0}, 25.0f);
     }
 
     // Reset interaction ritual timers
@@ -2080,9 +2064,11 @@ int main(void) {
                                                  (Color){210,210,215,200});
                                 }
 
-                                // Step 2 interactions get glass clink sound
+                                // Step 2: champagne pour — start 2s ritual
                                 if (strcmp(obj->name, "champagne") == 0 && obj->step == 2) {
                                     PlayInteract(&audio, INTERACT_GLASS_CLINK);
+                                    interaction_phases[1] = 1;
+                                    interaction_timers[1] = 2.0f;
                                 }
 
                                 if (obj->step >= obj->max_steps) {
@@ -2180,45 +2166,18 @@ int main(void) {
             }
         }
 
-        // ---- SHADOW PASS ----
-        // DEBUG: DISABLED to confirm shadow pass is the rendering corruption source
-        if (0 && lighting.shadowReady && state != STATE_TITLE && state != STATE_BED && state != STATE_STARS) {
-            if (state_time < 0.05f) printf("[DBG] Shadow pass running for state %d, shadowReady=%d, shadowFBO=%u, shadowDepthTex=%u\n",
-                state, lighting.shadowReady, lighting.shadowFBO, lighting.shadowDepthTex);
-            // Set up light camera matrices on rlgl stack
-            rlMatrixMode(RL_PROJECTION);
-            rlPushMatrix();
-            rlLoadIdentity();
-            float ls = 25.0f;
-            rlOrtho(-ls, ls, -ls, ls, 0.1f, ls * 4.0f);
-            rlMatrixMode(RL_MODELVIEW);
-            rlPushMatrix();
-            rlLoadIdentity();
-            SceneLighting curPreset = LightingPreset_Room();
-            Vector3 lightPos = Vector3Scale(Vector3Negate(curPreset.keyDir), 50.0f);
-            Matrix lightView = MatrixLookAt(lightPos, (Vector3){0,0,0}, (Vector3){0,1,0});
-            rlMultMatrixf(MatrixToFloat(lightView));
-
+        // ---- SHADOW PASS (self-contained, no rlgl leaks) ----
+        if (lighting.shadowReady && state != STATE_TITLE && state != STATE_BED && state != STATE_STARS) {
             draw_shadow_pass(&scene, &lighting,
                             &cube_model, &cyl_model, &sphere_model, &cone_model);
-
-            rlMatrixMode(RL_PROJECTION);
-            rlPopMatrix();
-            rlMatrixMode(RL_MODELVIEW);
-            rlPopMatrix();
-            if (state_time < 0.05f) printf("[DBG] Shadow pass complete, restoring viewport %dx%d\n", RENDER_W, RENDER_H);
         }
-
-        // DEBUG: log render state
-        if (state_time < 0.05f) printf("[DBG] Main render: state=%d walls=%d fade_alpha=%.2f transition_hold=%.2f\n",
-            state, scene.wall_count, fade_alpha, transition_hold);
 
         // ---- RENDER ----
         BeginTextureMode(render_target);
         ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8, 10, 22, 255});
         if (wireframe) rlEnableWireMode();
 
-        // Bind shadow map for main pass
+        // Bind shadow map for lighting shader
         if (lighting.shadowReady) BindShadowMap(&lighting);
 
         switch (state) {
@@ -2475,9 +2434,7 @@ int main(void) {
         if (fade_alpha > 0.01f)
             DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){0,0,0,(unsigned char)(255*fade_alpha)});
 
-        // Unbind shadow map
         if (lighting.shadowReady) UnbindShadowMap();
-
         EndTextureMode();
 
         // Post-FX — feed player speed to shader for speed lines

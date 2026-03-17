@@ -1951,9 +1951,28 @@ void build_hyperspace(Scene *s) {
                  (Color){240,238,232,(unsigned char)(120+(i*23)%100)});
     }
 
+    // Second star field — tighter, closer, brighter (depth layering)
+    for (int i = 0; i < 12; i++) {
+        float sx = -1.5f + (float)((i*29)%30) * 0.1f;
+        float sy = -1.0f + (float)((i*13)%20) * 0.1f;
+        float sz = -10.0f - (float)((i*37)%50);
+        add_wall(s, sx, sy, sz, 0.03f, 0.03f, 3.0f,
+                 (Color){255,250,240,(unsigned char)(180+(i*17)%75)});
+    }
+
+    // Convergence point — bright orb at the far end (the destination)
+    add_sphere(s, 0, 0, -95.0f, 3.0f, (Color){200, 220, 255, 180});
+    add_sphere(s, 0, 0, -95.0f, 5.0f, (Color){150, 180, 230, 60});
+
     // Void floor/ceiling — barely visible, gives orientation
     add_wall(s, 0, -3.0f, -45, 6, 0.02f, 90, void_black);
     add_wall(s, 0, 3.0f, -45, 6, 0.02f, 90, void_black);
+
+    // Additional Godard color flashes — denser in the middle section
+    add_wall(s, 0.7f, 0.8f, -35, 0.08f, 0.4f, 0.3f, godard_red);
+    add_wall(s, -0.5f, -0.6f, -52, 0.3f, 0.08f, 0.4f, godard_blue);
+    add_wall(s, 1.3f, 0.2f, -68, 0.06f, 0.6f, 0.2f, godard_red);
+    add_wall(s, -1.1f, 0.4f, -82, 0.2f, 0.06f, 0.5f, godard_blue);
 
     s->spawn = (Vector3){0, 0, 2};
     s->has_exit = false;

@@ -910,12 +910,15 @@ void draw_zero_g_sparkles(Camera3D camera, float time) {
 
 // ============================================================
 // SHADOW PASS — render scene from light's perspective into depth buffer
-// Uses a dedicated depth-only shader. Temporarily swaps model shaders.
+// Self-contained: sets up its own FBO, matrices, draws, flushes, restores.
 // ============================================================
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
                       Model *sphere_model, Model *cone_model) {
     if (!lighting->shadowReady) return;
+
+    // Flush any pending rlgl work before we touch state
+    rlDrawRenderBatchActive();
 
     // Save original shaders
     Shader origCube = cube_model->materials[0].shader;
@@ -923,23 +926,46 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
     Shader origSph  = sphere_model->materials[0].shader;
     Shader origCone = cone_model->materials[0].shader;
 
-    // Assign shadow shader
+    // Assign shadow shader to all models
     cube_model->materials[0].shader   = lighting->shadowShader;
     cyl_model->materials[0].shader    = lighting->shadowShader;
     sphere_model->materials[0].shader = lighting->shadowShader;
     cone_model->materials[0].shader   = lighting->shadowShader;
 
-    // Bind shadow FBO and set viewport
+    // Bind shadow FBO
     rlEnableFramebuffer(lighting->shadowFBO);
     rlViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     rlClearScreenBuffers();
 
-    // Draw all walls using DrawMesh with the light space matrix as transform
+    // Set up orthographic projection from light's perspective
+    // All matrix work happens HERE, not in main.c
+    rlMatrixMode(RL_PROJECTION);
+    rlPushMatrix();
+    rlLoadIdentity();
+    float ls = 25.0f;
+    rlOrtho(-ls, ls, -ls, ls, 0.1f, ls * 4.0f);
+
+    rlMatrixMode(RL_MODELVIEW);
+    rlPushMatrix();
+    rlLoadIdentity();
+
+    // Light camera: position along negative key light direction, looking at scene center
+    // Use the stored lightSpaceMatrix direction
+    Vector3 lightPos = {
+        -lighting->lightSpaceMatrix.m12 * 0.5f,
+        30.0f,
+        -lighting->lightSpaceMatrix.m14 * 0.5f
+    };
+    // Fallback: use a generic overhead angle if matrix isn't set
+    if (lightPos.x == 0 && lightPos.z == 0) lightPos = (Vector3){-15, 30, -20};
+    Matrix lightView = MatrixLookAt(lightPos, (Vector3){0, 0, 0}, (Vector3){0, 1, 0});
+    rlMultMatrixf(MatrixToFloat(lightView));
+
+    // Draw all scene geometry
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
         if (!w->active) continue;
 
-        // Compute model transform
         Matrix matScale = MatrixScale(w->size.x, w->size.y, w->size.z);
         Matrix matRot = MatrixRotateY(w->rotation_y * DEG2RAD);
         Matrix matTrans = MatrixTranslate(w->pos.x, w->pos.y, w->pos.z);
@@ -953,14 +979,19 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
             default:             m = cube_model; break;
         }
 
-        // DrawMesh uses rlgl internally to compute MVP from transform + current proj/view
-        // We need to set the projection and view matrices to the light's matrices
-        // So we push the light VP onto rlgl's matrix stack
         DrawMesh(m->meshes[0], m->materials[0], matModel);
     }
 
-    rlDrawRenderBatchActive(); // flush
+    // CRITICAL: flush ALL draw calls BEFORE restoring any state
+    rlDrawRenderBatchActive();
 
+    // Restore matrices (projection first, then modelview)
+    rlMatrixMode(RL_PROJECTION);
+    rlPopMatrix();
+    rlMatrixMode(RL_MODELVIEW);
+    rlPopMatrix();
+
+    // Unbind shadow FBO and restore viewport
     rlDisableFramebuffer();
     rlViewport(0, 0, RENDER_W, RENDER_H);
 
@@ -973,32 +1004,85 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
 
 // ============================================================
 // PROCEDURAL EARTH — the emotional anchor of the game
-// Ocean blue sphere + atmosphere rim + slow rotation
+// Multi-layered: deep ocean, continent hints, cloud wisps,
+// atmosphere rim glow, city lights on the night side.
+// At 480x300, the sphere is ~100px across — every layer counts.
 // ============================================================
 void draw_earth(Camera3D camera, float time,
                 Model *sphere_model, EVLighting *lighting) {
-    (void)camera;
     if (!sphere_model) return;
 
-    // Earth position — large, distant, below the observation deck
-    float rot = time * 0.5f;  // slow rotation
     Vector3 earth_pos = {0, -40.0f, -60.0f};
     float earth_scale = 50.0f;
-
-    // Save current material state
+    float rot = time * 0.5f;  // slow rotation — ~12 min per revolution
+    Vector3 axis = {0.23f, 1, 0};  // tilted axis (Earth's 23.5°)
     Color saved_color = sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
 
-    // Main sphere — ocean blue
-    if (lighting && lighting->ready) SetMaterialId(lighting, 7); // GLASS material for sheen
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){30, 60, 140, 255};
-    DrawModelEx(*sphere_model, earth_pos, (Vector3){0.4f, 1, 0}, rot,
+    // Layer 1: Deep ocean — dark navy-blue base
+    if (lighting && lighting->ready) SetMaterialId(lighting, 0);  // concrete — matte ocean
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){18, 42, 110, 255};
+    DrawModelEx(*sphere_model, earth_pos, axis, rot,
                 (Vector3){earth_scale, earth_scale, earth_scale}, WHITE);
 
-    // Atmosphere rim — slightly larger, transparent blue-white
-    float atmo_scale = earth_scale * 1.04f;
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){100, 160, 230, 40};
-    DrawModelEx(*sphere_model, earth_pos, (Vector3){0.4f, 1, 0}, rot,
+    // Layer 2: Continent landmasses — slightly larger sphere, green-brown tint
+    // The overlap with the ocean sphere creates a layered, painterly look
+    if (lighting && lighting->ready) SetMaterialId(lighting, 3);  // carpet — matte land texture
+    float land_scale = earth_scale * 1.002f;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){55, 80, 45, 160};
+    DrawModelEx(*sphere_model, earth_pos, axis, rot + 15.0f,  // offset rotation = different "continents"
+                (Vector3){land_scale, land_scale * 0.97f, land_scale}, WHITE);
+
+    // Layer 3: Ice caps — poles slightly brighter
+    float ice_scale = earth_scale * 1.003f;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){200, 210, 220, 80};
+    DrawModelEx(*sphere_model, earth_pos, axis, rot,
+                (Vector3){ice_scale * 0.6f, ice_scale * 1.15f, ice_scale * 0.6f}, WHITE);
+
+    // Layer 4: Cloud layer — slightly larger, slowly drifting
+    if (lighting && lighting->ready) SetMaterialId(lighting, 4);  // wallpaper — swirling pattern
+    float cloud_scale = earth_scale * 1.012f;
+    float cloud_rot = rot + time * 0.3f;  // clouds drift faster than surface
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){220, 225, 235, 35};
+    DrawModelEx(*sphere_model, earth_pos, axis, cloud_rot,
+                (Vector3){cloud_scale, cloud_scale, cloud_scale}, WHITE);
+
+    // Layer 5: City lights on the night side — warm amber dots
+    // Slightly smaller sphere, bright warm color, only visible where unlit
+    if (lighting && lighting->ready) SetMaterialId(lighting, 0);  // concrete for flat rendering
+    float city_scale = earth_scale * 1.004f;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){255, 200, 80, 25};
+    DrawModelEx(*sphere_model, earth_pos, axis, rot + 8.0f,
+                (Vector3){city_scale, city_scale * 0.95f, city_scale}, WHITE);
+
+    // Layer 6: Atmosphere rim — Fresnel-like glow, blue-white edge
+    // Thin shell that catches the light shader's rim calculation
+    if (lighting && lighting->ready) SetMaterialId(lighting, 7);  // glass — reflective rim
+    float atmo_scale = earth_scale * 1.06f;
+    // Breathing: atmosphere subtly pulses — the planet is alive
+    float breath = 1.0f + sinf(time * 0.4f) * 0.008f;
+    atmo_scale *= breath;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){100, 160, 240, 30};
+    DrawModelEx(*sphere_model, earth_pos, axis, rot * 0.1f,
                 (Vector3){atmo_scale, atmo_scale, atmo_scale}, WHITE);
+
+    // Layer 7: Outer glow — largest, faintest, catches edge light
+    float glow_scale = earth_scale * 1.12f;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){80, 140, 220, 12};
+    DrawModelEx(*sphere_model, earth_pos, axis, 0,
+                (Vector3){glow_scale, glow_scale, glow_scale}, WHITE);
+
+    // Earth-shine on the observation deck — 2D glow on lower screen
+    // Subtle blue wash from the planet's reflected light
+    {
+        float glow_y = (float)RENDER_H * 0.7f;
+        float glow_h = (float)RENDER_H * 0.3f;
+        float pulse = 0.7f + 0.3f * sinf(time * 0.6f);
+        unsigned char ga = (unsigned char)(12.0f * pulse);
+        EndMode3D();  // switch to 2D for the glow overlay
+        DrawRectangle(0, (int)glow_y, RENDER_W, (int)glow_h,
+                      (Color){40, 100, 200, ga});
+        BeginMode3D(camera);  // return to 3D
+    }
 
     // Restore
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_color;
