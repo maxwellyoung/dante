@@ -50,6 +50,10 @@ static bool elevator_ding_played = false;
 
 static bool returning_to_room = false;
 
+// Rug pull — Gravity Bone flash on balcony
+static bool balcony_flash_triggered = false;
+static float balcony_flash_timer = 0;
+
 
 // Cigarette camera animation (Phase 5)
 static bool cigarette_anim = false;
@@ -160,7 +164,7 @@ static void load_state(GameState s) {
             init_player(&player, scene.spawn);
             StopAmbient(&audio);
             StopClockAmbient(&audio);
-            StopStairwellAmbient(&audio);
+
             PlayCityAmbient(&audio);
             PlayWindAmbient(&audio);
             break;
@@ -172,7 +176,7 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_LOBBY);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
-            StopStairwellAmbient(&audio);
+
             StopWindAmbient(&audio);
             break;
 
@@ -184,18 +188,8 @@ static void load_state(GameState s) {
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
-            StopStairwellAmbient(&audio);
-            PlayElevatorHum(&audio);
-            break;
 
-        case STATE_STAIRWELL:
-            build_stairwell(&scene);
-            init_player(&player, scene.spawn);
-            StopAmbient(&audio);
-            StopClockAmbient(&audio);
-            StopCityAmbient(&audio);
-            StopWindAmbient(&audio);
-            PlayStairwellAmbient(&audio);
+            PlayElevatorHum(&audio);
             break;
 
         case STATE_HALLWAY:
@@ -204,7 +198,7 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_HALLWAY);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
-            StopStairwellAmbient(&audio);
+
             StopWindAmbient(&audio);
             break;
 
@@ -223,7 +217,7 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_ROOM);
             PlayClockAmbient(&audio);
             StopCityAmbient(&audio);
-            StopStairwellAmbient(&audio);
+
             StopWindAmbient(&audio);
             break;
 
@@ -233,7 +227,7 @@ static void load_state(GameState s) {
             StartAmbient(&audio, DRONE_ROOM);
             StopClockAmbient(&audio);
             StopCityAmbient(&audio);
-            StopStairwellAmbient(&audio);
+
             StopWindAmbient(&audio);
             break;
 
@@ -244,26 +238,15 @@ static void load_state(GameState s) {
             cigarette_anim = false; cigarette_anim_timer = 0;
             StopAmbient(&audio);
             StopClockAmbient(&audio);
-            StopStairwellAmbient(&audio);
+
             PlayCityAmbient(&audio);
             SetCityAmbientVolume(&audio, 0.015f);  // pre-dawn quiet — half volume
             PlayWindAmbient(&audio);
             SetPostFXWarmth(&postfx, 1.0f);
             break;
 
-        case STATE_ROOF:
-            build_roof(&scene);
-            init_player(&player, scene.spawn);
-            StopAmbient(&audio);
-            StopClockAmbient(&audio);
-            StopStairwellAmbient(&audio);
-            PlayCityAmbient(&audio);
-            PlayWindAmbient(&audio);
-            SetPostFXWarmth(&postfx, 1.0f);
-            break;
-
-        case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopStairwellAmbient(&audio); StopWindAmbient(&audio); break;
-        case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopStairwellAmbient(&audio); StopWindAmbient(&audio); break;
+        case STATE_BED: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio); break;
+        case STATE_STARS: StopAmbient(&audio); StopClockAmbient(&audio); StopCityAmbient(&audio); StopWindAmbient(&audio); break;
     }
     fade_alpha = 1.0f;
     fade_target = 0.0f;
@@ -397,8 +380,7 @@ int main(void) {
                 // Vignette text
                 if (state_time > 1.5f && state_time < 2.0f) show_text("Paris. 2:47 AM.");
                 if (state_time > 5.0f && state_time < 5.5f) hide_text();
-                if (state_time > 7.0f && state_time < 7.5f) show_text("You arrived three hours early.");
-                if (state_time > 10.5f) hide_text();
+                // No text — the taxi meter shows 2:47, the player connects the dots
                 if (state_time > 13.5f) hard_cut_to(STATE_DRIVING);
                 if (IsKeyPressed(KEY_ENTER) && state_time > 3) hard_cut_to(STATE_DRIVING);
                 break;
@@ -421,9 +403,7 @@ int main(void) {
                 drv_fwd = Vector3Transform(drv_fwd, drv_pm);
                 player.camera.target = Vector3Add(player.camera.position, drv_fwd);
 
-                // Text
-                if (state_time > 1.5f && state_time < 2.0f) show_text("Nous sommes arrives, monsieur.");
-                if (state_time > 5.5f) hide_text();
+                // No text — the taxi stopping IS the communication
                 if (state_time > 7.0f) transition_to(STATE_HOTEL_EXT);
                 if (IsKeyPressed(KEY_ENTER) && state_time > 2) transition_to(STATE_HOTEL_EXT);
                 break;
@@ -449,14 +429,9 @@ int main(void) {
                             Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
                             Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
                             if (Vector3DotProduct(to, look) > 0.5f) {
-                                if (strcmp(obj->name, "elevator") == 0) {
-                                    transition_to(STATE_ELEVATOR);
-                                    break;
-                                }
                                 if (strcmp(obj->name, "newspaper") == 0) {
                                     obj->step++; obj->done = true;
                                     PlayInteract(&audio, INTERACT_CLICK);
-                                    // No text — it's just a newspaper
                                     break;
                                 }
                             }
@@ -465,7 +440,7 @@ int main(void) {
                 }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 1.5f) transition_to(STATE_STAIRWELL);
+                    if (dist < 1.5f) transition_to(STATE_HALLWAY);
                 }
                 break;
 
@@ -481,21 +456,6 @@ int main(void) {
                 }
                 // Auto-transition to hallway at 4 seconds
                 if (state_time > 4.0f) transition_to(STATE_HALLWAY);
-                break;
-
-            case STATE_STAIRWELL:
-                update_player(&player, &scene, dt);
-                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
-                if (scene.has_exit) {
-                    float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 1.5f) {
-                        // Upper landing (y > 5) goes to roof, lower goes to hallway
-                        if (player.camera.position.y > 5.0f)
-                            transition_to(STATE_ROOF);
-                        else
-                            transition_to(STATE_HALLWAY);
-                    }
-                }
                 break;
 
             case STATE_HALLWAY:
@@ -597,14 +557,33 @@ int main(void) {
                 // Phone lights up at 3 tasks — screen glow is enough
                 if (tasks_done >= 3 && !phone_triggered) {
                     phone_triggered = true;
-                    // Bright screen on phone — no text, the glow tells the story
-                    add_wall(&scene, 5.2f, 0.87f, 0.15f, 0.12f, 0.01f, 0.06f, (Color){120,180,230,180});
+                    // Bright screen on phone — bigger, brighter, the glow tells the story
+                    add_wall(&scene, 5.2f, 0.87f, 0.15f, 0.2f, 0.01f, 0.1f, (Color){100,180,240,220});
+                }
+                // Phone glow pulse — the screen breathes
+                if (phone_triggered) {
+                    float pulse = 0.6f + 0.4f * sinf((float)GetTime() * 3.0f);
+                    unsigned char pa = (unsigned char)(220 * pulse);
+                    // Find the phone glow wall (last added wall matching phone position)
+                    for (int i = scene.wall_count - 1; i >= 0; i--) {
+                        Wall *w = &scene.walls[i];
+                        if (w->active && fabsf(w->pos.x - 5.2f) < 0.01f &&
+                            fabsf(w->pos.y - 0.87f) < 0.01f &&
+                            fabsf(w->size.x - 0.2f) < 0.01f) {
+                            w->color.a = pa;
+                            break;
+                        }
+                    }
                 }
 
                 if (tasks_done >= total_tasks) {
                     done_pause += dt;
-                    // Two wine glasses on balcony tell the story — no text
-                    if (done_pause > 3.0f) hard_cut_to(STATE_BALCONY);
+                    // HARD CUT to balcony — Blendo-style, no gentle fade
+                    if (done_pause > 2.0f) {
+                        balcony_flash_triggered = false;
+                        balcony_flash_timer = 0;
+                        hard_cut_to(STATE_BALCONY);
+                    }
                 }
                 break;
 
@@ -645,15 +624,6 @@ int main(void) {
                             }
                         }
                     }
-                }
-                break;
-
-            case STATE_ROOF:
-                update_player(&player, &scene, dt);
-                UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
-                if (scene.has_exit) {
-                    float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 2.0f) transition_to(STATE_BALCONY);
                 }
                 break;
 
@@ -715,10 +685,16 @@ int main(void) {
                     PlaySparkleSound(&audio);
                 }
                 if (eiffel_sparkle) sparkle_timer += dt;
-                // Silence — then bed
-                if (state_time > 30.0f)
+                // Rug pull — at 8 seconds, a flash intrudes. Like a memory.
+                if (state_time > 8.0f && !balcony_flash_triggered) {
+                    balcony_flash_triggered = true;
+                    balcony_flash_timer = 0;
+                }
+                if (balcony_flash_triggered) balcony_flash_timer += dt;
+                // Silence — then bed (after the flash settles)
+                if (state_time > 14.0f)
                     transition_to_slow(STATE_BED, 0.7f);
-                if (state_time > 12 && IsKeyPressed(KEY_ENTER))
+                if (state_time > 10 && IsKeyPressed(KEY_ENTER))
                     transition_to_slow(STATE_BED, 0.7f);
                 break;
 
@@ -768,20 +744,18 @@ int main(void) {
             case STATE_HOTEL_EXT:
             case STATE_LOBBY:
             case STATE_ELEVATOR:
-            case STATE_STAIRWELL:
             case STATE_HALLWAY:
             case STATE_ROOM:
             case STATE_BATHROOM:
             case STATE_BALCONY:
-            case STATE_ROOF:
-                if (state == STATE_HOTEL_EXT || state == STATE_BALCONY || state == STATE_ROOF) {
+                if (state == STATE_HOTEL_EXT || state == STATE_BALCONY) {
                     ClearBackground((Color){8, 12, 28, 255});
                     draw_night_sky(state_time);
                 } else {
                     ClearBackground(scene.fog_color);
                 }
                 {
-                    bool indoor = !(state == STATE_HOTEL_EXT || state == STATE_BALCONY || state == STATE_ROOF);
+                    bool indoor = !(state == STATE_HOTEL_EXT || state == STATE_BALCONY);
                     draw_scene_3d(&player, &scene, &lighting, &cube_model, cube_model_loaded,
                                   &cyl_model, cyl_model_loaded, indoor, state_time);
                 }
@@ -795,6 +769,13 @@ int main(void) {
                         if (fl > 0.7f)
                             DrawPixel(sx, sy, (Color){255,240,180,(unsigned char)(200*(fl-0.7f)/0.3f)});
                     }
+                }
+                // Rug pull flash — 0.5s of stark white. A memory intruding.
+                // Like the Gravity Bone death photos. The void between what
+                // you saw and what it means.
+                if (state == STATE_BALCONY && balcony_flash_triggered &&
+                    balcony_flash_timer > 0 && balcony_flash_timer < 0.5f) {
+                    DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){240, 238, 235, 255});
                 }
                 break;
 
@@ -877,7 +858,7 @@ int main(void) {
         // HUD
         if (state == STATE_ROOM || state == STATE_BATHROOM ||
             state == STATE_LOBBY || state == STATE_ELEVATOR || state == STATE_BALCONY ||
-            state == STATE_HALLWAY || state == STATE_STAIRWELL || state == STATE_ROOF) {
+            state == STATE_HALLWAY) {
             draw_hud(&player, &scene);
             for (int i = 0; i < scene.object_count; i++) {
                 InteractObject *obj = &scene.objects[i];
@@ -899,8 +880,8 @@ int main(void) {
 
         // Crosshair — subtle dot, always visible in 3D scenes
         if (state == STATE_HOTEL_EXT || state == STATE_LOBBY || state == STATE_ELEVATOR ||
-            state == STATE_STAIRWELL || state == STATE_HALLWAY || state == STATE_ROOM ||
-            state == STATE_BATHROOM || state == STATE_BALCONY || state == STATE_ROOF ||
+            state == STATE_HALLWAY || state == STATE_ROOM ||
+            state == STATE_BATHROOM || state == STATE_BALCONY ||
             state == STATE_CAR || state == STATE_DRIVING) {
             DrawPixel(RENDER_W/2, RENDER_H/2, (Color){220, 215, 205, 60});
         }

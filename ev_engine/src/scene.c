@@ -275,8 +275,7 @@ void build_lobby(Scene *s) {
     add_wall(s, -3.55f, 1.5f, -9.76f, 0.1f, 3.0f, 0.08f, gold);  // left frame
     add_wall(s, -0.45f, 1.5f, -9.76f, 0.1f, 3.0f, 0.08f, gold);  // right frame
 
-    // Elevator interact object
-    add_object(s, -2.0f, 1.6f, -9.0f, "elevator", gold, 1);
+    // Elevator doors are architectural set dressing — not interactable
 
     // BLOCKING WALL — seal the front entrance gap to prevent escape into void
     // The entrance area (z=10) has gaps between wall segments; block at z=10
@@ -302,7 +301,7 @@ void build_hallway(Scene *s) {
 
     s->fog_color = (Color){175, 170, 165, 255};  // darker — more contrast with cream walls
     s->fog_density = 0.005f;
-    float L = 40, W = 4.5f, H = 4;
+    float L = 20, W = 4.5f, H = 4;
 
     int cols = 3, rows = (int)(L / 1.5f);
     for (int r = 0; r < rows; r++)
@@ -312,7 +311,7 @@ void build_hallway(Scene *s) {
         }
 
     add_wall(s, 0, H, -L/2, W, 0.2f, L, cream);
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 4; i++)
         add_light_panel(s, 0, H-0.1f, -3 - i*5, 1.5f, 0.05f, 0.5f, warm_amber);
 
     add_wall(s, -W/2, H/2, -L/2, 0.3f, H, L, cream);
@@ -323,7 +322,7 @@ void build_hallway(Scene *s) {
     add_wall(s, -W/2+0.05f, 1.0f, -L/2, 0.08f, 0.04f, L, gold);
     add_wall(s, W/2-0.05f, 1.0f, -L/2, 0.08f, 0.04f, L, gold);
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 4; i++) {
         float z = -3.5f - i*4.5f;
         Color door_c = (i%2==0) ? godard_red : godard_blue;
         float side = (i%2==0) ? -(W/2-0.1f) : (W/2-0.1f);
@@ -332,29 +331,29 @@ void build_hallway(Scene *s) {
         add_wall(s, side, 1.3f, z-0.7f, 0.12f, 2.6f, 0.06f, gold);
         add_wall(s, side, 1.3f, z+0.7f, 0.12f, 2.6f, 0.06f, gold);
         add_wall(s, side*0.95f, 2, z-0.9f, 0.06f, 0.25f, 0.18f, gold);
-        if (i != 5) add_light_panel(s, side, 0.03f, z, 0.06f, 0.05f, 1.1f, warm_amber);
+        add_light_panel(s, side, 0.03f, z, 0.06f, 0.05f, 1.1f, warm_amber);
     }
 
     add_wall(s, 0, 0.01f, -L/2, 1.6f, 0.02f, L, (Color){170, 65, 50, 255});
     add_light_panel(s, 0, 2.2f, -L+0.2f, 2.5f, 1.8f, 0.05f, (Color){230, 200, 120, 180});
 
-    // Flowers
-    add_wall(s, W/2-0.12f, 0.8f, -18, 0.35f, 0.04f, 0.22f, gold);
-    add_wall(s, W/2-0.12f, 0.92f, -18, 0.07f, 0.18f, 0.07f, (Color){200, 200, 210, 200});
-    add_wall(s, W/2-0.14f, 1.1f, -18, 0.09f, 0.06f, 0.09f, godard_red);
+    // Flowers — near the end window
+    add_wall(s, W/2-0.12f, 0.8f, -L+4, 0.35f, 0.04f, 0.22f, gold);
+    add_wall(s, W/2-0.12f, 0.92f, -L+4, 0.07f, 0.18f, 0.07f, (Color){200, 200, 210, 200});
+    add_wall(s, W/2-0.14f, 1.1f, -L+4, 0.09f, 0.06f, 0.09f, godard_red);
 
     // LIGHT SHAFT — light from end window, trapezoid approximation on floor
     add_wall(s, 0, 0.02f, -L+2, 1.5f, 0.02f, 2.0f, (Color){230,225,215,90});
     add_wall(s, 0, 0.02f, -L+4, 2.0f, 0.02f, 2.0f, (Color){230,225,215,70});
     add_wall(s, 0, 0.02f, -L+6, 2.5f, 0.02f, 2.0f, (Color){230,225,215,50});
 
-    // "Do Not Disturb" sign on door 3 (left side)
-    add_wall(s, -(W/2-0.1f)-0.02f, 1.1f, -3.5f - 2*4.5f, 0.3f, 0.15f, 0.04f, (Color){200,50,40,255});
+    // "Do Not Disturb" sign on door 2 (left side)
+    add_wall(s, -(W/2-0.1f)-0.02f, 1.1f, -3.5f - 1*4.5f, 0.3f, 0.15f, 0.04f, (Color){200,50,40,255});
 
-    // Room service tray outside door 4 (right side)
-    add_wall(s, (W/2-0.1f)*0.95f, 0.03f, -3.5f - 3*4.5f, 0.5f, 0.04f, 0.35f, (Color){200,198,195,255});
-    add_cylinder(s, (W/2-0.1f)*0.95f - 0.1f, 0.1f, -3.5f - 3*4.5f, 0.08f, 0.1f, (Color){240,238,234,255});
-    add_wall(s, (W/2-0.1f)*0.95f + 0.1f, 0.06f, -3.5f - 3*4.5f, 0.2f, 0.02f, 0.2f, (Color){240,238,234,255});
+    // Room service tray outside door 3 (right side)
+    add_wall(s, (W/2-0.1f)*0.95f, 0.03f, -3.5f - 2*4.5f, 0.5f, 0.04f, 0.35f, (Color){200,198,195,255});
+    add_cylinder(s, (W/2-0.1f)*0.95f - 0.1f, 0.1f, -3.5f - 2*4.5f, 0.08f, 0.1f, (Color){240,238,234,255});
+    add_wall(s, (W/2-0.1f)*0.95f + 0.1f, 0.06f, -3.5f - 2*4.5f, 0.2f, 0.02f, 0.2f, (Color){240,238,234,255});
 
     s->spawn = (Vector3){0, 1.6f, -1};
     s->exit_pos = (Vector3){0, 1.6f, -L+1};
@@ -502,6 +501,15 @@ void build_hotel_room(Scene *s) {
     // Phone on desk — mobile face-down
     add_wall(s, 5.2f, 0.85f, 0.15f, 0.12f, 0.02f, 0.06f, (Color){35,35,38,255});
 
+    // Wall clock — above desk, on the back wall. Tells time without words.
+    // Circle face (flat disc on wall)
+    add_wall(s, 5.0f, 2.4f, rd/2-0.12f, 0.5f, 0.5f, 0.04f, (Color){235,232,226,255});  // face
+    add_wall(s, 5.0f, 2.4f, rd/2-0.13f, 0.52f, 0.52f, 0.02f, gold);                      // rim
+    // Hour hand — short thick
+    add_wall(s, 5.0f, 2.52f, rd/2-0.14f, 0.04f, 0.16f, 0.02f, (Color){40,38,35,255});
+    // Minute hand — longer, thinner
+    add_wall(s, 5.08f, 2.48f, rd/2-0.14f, 0.12f, 0.025f, 0.02f, (Color){40,38,35,255});
+
     // Environmental story objects — visual only, not interactable
     // Boarding pass on desk — white rectangle + blue airline stripe (tells "06:00" departure)
     add_wall(s, 4.5f, 0.85f, -0.3f, 0.4f, 0.01f, 0.2f, (Color){245,242,235,255});  // paper
@@ -572,9 +580,9 @@ void build_balcony(Scene *s) {
     add_wall(s, -1.5f, 0.22f, 0.2f, 0.45f, 0.44f, 0.45f, (Color){120,100,70,255});
     add_wall(s, -1.5f, 0.58f, 0.42f, 0.45f, 0.4f, 0.06f, (Color){120,100,70,255});
 
-    // Second wine glass — she'll be here soon
-    add_wall(s, -1.2f, 0.49f, -0.7f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160}); // glass stem
-    add_wall(s, -1.2f, 0.52f, -0.7f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200}); // dark liquid
+    // Second wine glass — further offset so both glasses are clearly a pair
+    add_wall(s, -1.0f, 0.49f, -0.8f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160}); // glass stem
+    add_wall(s, -1.0f, 0.52f, -0.8f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200}); // dark liquid
 
     // Ashtray with cigarette on railing table
     add_cylinder(s, -1.5f, 0.49f, -0.3f, 0.12f, 0.04f, (Color){140,135,130,255});
