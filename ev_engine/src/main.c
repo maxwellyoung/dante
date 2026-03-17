@@ -403,8 +403,10 @@ static void write_state_file(GameState s) {
 }
 
 static void load_state(GameState s) {
+    // Kill ALL looping audio — each scene starts fresh. No overlap.
+    StopAllAudio(&audio);
     // Restore master volume — silence zones may have lowered it
-    SetMasterVolume(1.0f);
+    SetMasterVolume(setting_master_vol);
 
     // Save returning_to_room state before central reset
     int saved_tasks = returning_to_room ? tasks_done : 0;
@@ -838,11 +840,24 @@ static void load_state(GameState s) {
            scene.fog_color.r, scene.fog_color.g, scene.fog_color.b,
            player.camera.position.x, player.camera.position.y, player.camera.position.z);
 
-    // Update shadow matrix from the ACTUAL per-scene key light direction
+    // Update shadow matrix — per-scene key direction + radius
     if (lighting.shadowReady) {
+        float sr = 25.0f;  // default shadow radius
+        switch (s) {
+            case STATE_ELEVATOR:   sr = 5.0f;  break;  // tiny box
+            case STATE_BATHROOM:   sr = 8.0f;  break;  // small room
+            case STATE_ROOM:       sr = 12.0f; break;
+            case STATE_HALLWAY:    sr = 15.0f; break;
+            case STATE_SPACE_SUITE: sr = 15.0f; break;
+            case STATE_LOBBY:      sr = 20.0f; break;
+            case STATE_SPACE_CORRIDOR: sr = 20.0f; break;
+            case STATE_SPACE_LOBBY: sr = 30.0f; break;  // cavernous
+            case STATE_HOTEL_EXT:  sr = 30.0f; break;
+            default: break;
+        }
         UpdateShadowMatrix(&lighting,
             lighting.activePreset.keyDir,
-            (Vector3){0, 2, 0}, 25.0f);
+            (Vector3){0, 2, 0}, sr);
     }
 
     // Reset interaction ritual timers
@@ -2168,17 +2183,22 @@ int main(void) {
                 break;
 
             case STATE_STARS:
-                // P4: The Removal — ambient fade to silence over 2s
-                if (state_time < 2.0f) {
-                    ambient_fade = 1.0f - state_time / 2.0f;
-                    SetMasterVolume(ambient_fade * ambient_fade);
-                } else {
-                    SetMasterVolume(0.0f);
+                // The held chord plays. The void holds you.
+                // Volume: held chord fades in over 3s, then sustains
+                if (state_time < 3.0f) {
+                    SetMasterVolume(state_time / 3.0f);
                 }
                 if (IsKeyPressed(KEY_ESCAPE)) { CloseWindow(); return 0; }
-                // After the void settles — hard cut back to reality
+                // Waking up — warmth spikes, exposure blooms, then hard cut to dawn
+                if (state_time > 13.0f) {
+                    float wake = (state_time - 13.0f) / 2.0f;  // 0→1 over 2s
+                    SetPostFXWarmth(&postfx, wake * 0.5f);
+                    set_exposure(wake * 0.3f);
+                    SetMasterVolume(fmaxf(0, 1.0f - wake));
+                }
                 if (state_time > 15.0f || (state_time > 8.0f && IsKeyPressed(KEY_ENTER))) {
                     SetMasterVolume(1.0f);
+                    SetPostFXWarmth(&postfx, 0.0f);
                     hard_cut_to(STATE_RETURN_TAXI);
                 }
                 break;
@@ -2212,11 +2232,16 @@ int main(void) {
                         scene.walls[i].pos.z -= 220.0f;
                 }
 
-                // Dialogue — sparse, dawn
+                // Dialogue — sparse, dawn. The inverse of the opening.
                 if (state_time > 3.0f && state_time < 3.5f) show_text("Auckland. 5:52 AM.");
                 if (state_time > 6.0f && state_time < 6.5f) hide_text();
-                if (state_time > 9.0f && state_time < 9.5f) show_text("Where to?");
-                if (state_time > 12.0f && state_time < 12.5f) hide_text();
+                if (state_time > 8.0f && state_time < 8.5f) show_text("Good hotel?");
+                if (state_time > 11.0f && state_time < 11.5f) hide_text();
+                // Saturation slowly drains — reality is less vivid than the hotel
+                {
+                    float drain = fminf(1.0f, state_time / 14.0f);
+                    SetPostFXSaturation(&postfx, 1.05f - drain * 0.25f);
+                }
 
                 // Gentle fade to black — the game ends
                 if (state_time > 14.0f) {
@@ -2358,8 +2383,25 @@ int main(void) {
                         float ddz = player.camera.position.z - door_positions[di].z;
                         float ddist = sqrtf(ddx*ddx + ddz*ddz);
                         float dvol = 1.0f / (1.0f + ddist * ddist);
-                        // Scale by base volume and master silence
                         dvol *= silence * 0.03f;
+
+                        // Spatial panning — left/right based on player facing
+                        // Cross product of forward direction × door direction gives left/right
+                        Vector3 fwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                        Vector3 to_door = {-ddx, 0, -ddz};
+                        if (ddist > 0.01f) {
+                            to_door.x /= ddist; to_door.z /= ddist;
+                            // Cross product Y component: fwd.x*to.z - fwd.z*to.x
+                            // Positive = door is to the right, negative = left
+                            float pan_raw = fwd.x * to_door.z - fwd.z * to_door.x;
+                            float pan = 0.5f + pan_raw * 0.4f;  // 0.1 (full left) to 0.9 (full right)
+                            if (di == 0) SetSoundPan(audio.snd_muffled_piano, pan);
+                            else {
+                                SetSoundPan(audio.snd_running_water, pan);
+                                SetSoundPan(audio.snd_tv_murmur, pan);
+                            }
+                        }
+
                         if (di == 0) {
                             SetSoundVolume(audio.snd_muffled_piano, dvol);
                             // Door 0 light dims as you approach — someone turned it off
@@ -2917,7 +2959,14 @@ int main(void) {
             }
 
             case STATE_STARS: {
-                ClearBackground((Color){4, 5, 12, 255});
+                // Background warms slowly — the void isn't cold, it's tender
+                {
+                    float bgw = fminf(1.0f, state_time / 12.0f);
+                    ClearBackground((Color){
+                        (unsigned char)(4 + bgw * 8),
+                        (unsigned char)(5 + bgw * 4),
+                        (unsigned char)(12 + bgw * 2), 255});
+                }
                 float zoom = fminf(1, state_time / 4.0f);
 
                 // Sprint 1B: BED stars persist — same seed (99), continuous transition

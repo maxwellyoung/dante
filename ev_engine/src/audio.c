@@ -29,72 +29,95 @@ static float ev_randf(unsigned int *seed) {
 // --- FOOTSTEPS ---
 
 static Sound gen_step_marble(int seed) {
-    int len = SAMPLE_RATE / 10;
-    // Extra samples for reverb tail
+    int len = SAMPLE_RATE / 8;  // longer for richer tail
     int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
-    int total = len + reverb_delay;
+    int reverb2_delay = (int)(SAMPLE_RATE * 0.14f);  // second tap — marble hall
+    int total = len + reverb2_delay;
     Wave w = gen_wave(total);
     short *d = (short *)w.data;
     unsigned int rng = (unsigned int)seed;
     float pitch = 0.9f + ev_randf(&rng) * 0.2f;
     for (int i = 0; i < len; i++) {
-        float t = (float)i / len;
-        float env = (t < 0.02f) ? t / 0.02f : expf(-12.0f * (t - 0.02f));
-        float click = sinf(2 * PI * 2200 * pitch * t) * expf(-30.0f * t);
-        float body = sinf(2 * PI * 180 * pitch * t) * expf(-10.0f * t);
-        float noise = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-20.0f * t);
-        d[i] = (short)((click * 0.3f + body * 0.4f + noise * 0.3f) * env * 10000);
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float env = (lt < 0.02f) ? lt / 0.02f : expf(-12.0f * (lt - 0.02f));
+        // CONTACT — sharp heel click, high freq transient
+        float click = sinf(2 * PI * 2200 * pitch * t) * expf(-30.0f * lt);
+        click += sinf(2 * PI * 3800 * pitch * t) * expf(-50.0f * lt) * 0.15f;  // upper harmonic
+        // BODY — material resonance, marble has warm mid tone
+        float body = sinf(2 * PI * 180 * pitch * t) * expf(-10.0f * lt);
+        body += sinf(2 * PI * 360 * pitch * t) * expf(-14.0f * lt) * 0.2f;  // 2nd harmonic
+        // DEBRIS — tiny grit particles scattering on smooth surface
+        float debris = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-25.0f * lt) * 0.15f;
+        // TAIL — room reflection character (marble is reflective)
+        float tail = sinf(2 * PI * 140 * pitch * t) * expf(-6.0f * lt) * 0.1f;
+        d[i] = (short)((click * 0.25f + body * 0.35f + debris + tail) * env * 10000);
     }
-    // Indoor reverb tail
-    for (int i = reverb_delay; i < total; i++) {
-        d[i] += (short)(d[i - reverb_delay] * 0.1f);
-    }
+    // Two-tap reverb — marble halls have early + late reflections
+    for (int i = reverb_delay; i < total; i++)
+        d[i] += (short)(d[i - reverb_delay] * 0.12f);
+    for (int i = reverb2_delay; i < total; i++)
+        d[i] += (short)(d[i - reverb2_delay] * 0.06f);
     w.frameCount = total;
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
 static Sound gen_step_carpet(int seed) {
-    int len = SAMPLE_RATE / 8;
-    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    int len = SAMPLE_RATE / 6;  // longer — carpet absorbs, slow decay
+    int reverb_delay = (int)(SAMPLE_RATE * 0.06f);  // short reverb — carpet deadens room
     int total = len + reverb_delay;
     Wave w = gen_wave(total);
     short *d = (short *)w.data;
     unsigned int rng = (unsigned int)seed;
     float pitch = 0.85f + ev_randf(&rng) * 0.3f;
     for (int i = 0; i < len; i++) {
-        float t = (float)i / len;
-        float env = (t < 0.08f) ? t / 0.08f : expf(-6.0f * (t - 0.08f));
-        float thud = sinf(2 * PI * 45 * pitch * t) * expf(-8.0f * t);
-        float noise = (ev_randf(&rng) * 2.0f - 1.0f);
-        float lp = noise * 0.15f + thud * 0.85f;
-        d[i] = (short)(lp * env * 7000);
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float env = (lt < 0.08f) ? lt / 0.08f : expf(-6.0f * (lt - 0.08f));
+        // CONTACT — muffled thud, no sharp transient (carpet absorbs)
+        float thud = sinf(2 * PI * 45 * pitch * t) * expf(-8.0f * lt);
+        thud += sinf(2 * PI * 90 * pitch * t) * expf(-12.0f * lt) * 0.15f;
+        // BODY — fabric compression
+        float fabric = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-10.0f * lt) * 0.12f;
+        // FIBER RUSTLE — very quiet high-frequency scatter (carpet fibers)
+        float rustle = (ev_randf(&rng) * 2.0f - 1.0f) * expf(-30.0f * lt) * 0.05f;
+        d[i] = (short)((thud * 0.7f + fabric + rustle) * env * 7000);
     }
-    // Indoor reverb tail
-    for (int i = reverb_delay; i < total; i++) {
-        d[i] += (short)(d[i - reverb_delay] * 0.1f);
-    }
+    // Minimal reverb — carpet rooms are dead
+    for (int i = reverb_delay; i < total; i++)
+        d[i] += (short)(d[i - reverb_delay] * 0.05f);
     w.frameCount = total;
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
 static Sound gen_step_wood(int seed) {
-    int len = SAMPLE_RATE / 10;
-    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
-    int total = len + reverb_delay;
+    int len = SAMPLE_RATE / 8;  // medium length
+    int reverb_delay = (int)(SAMPLE_RATE * 0.10f);
+    int reverb2_delay = (int)(SAMPLE_RATE * 0.18f);  // wood rooms ring
+    int total = len + reverb2_delay;
     Wave w = gen_wave(total);
     short *d = (short *)w.data;
     unsigned int rng = (unsigned int)seed;
     float pitch = 0.85f + ev_randf(&rng) * 0.3f;
     for (int i = 0; i < len; i++) {
-        float t = (float)i / len;
-        float env = (t < 0.03f) ? t / 0.03f : expf(-10.0f * (t - 0.03f));
-        float tap = sinf(2 * PI * 400 * pitch * t) * expf(-20.0f * t);
-        float body = sinf(2 * PI * 80 * pitch * t) * expf(-8.0f * t);
-        d[i] = (short)((tap * 0.5f + body * 0.5f) * env * 9000);
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float env = (lt < 0.03f) ? lt / 0.03f : expf(-10.0f * (lt - 0.03f));
+        // CONTACT — sharp wooden tap, prominent
+        float tap = sinf(2 * PI * 400 * pitch * t) * expf(-20.0f * lt);
+        tap += sinf(2 * PI * 800 * pitch * t) * expf(-35.0f * lt) * 0.12f;  // knock overtone
+        // BODY — wood panel resonance, warm low
+        float body = sinf(2 * PI * 80 * pitch * t) * expf(-8.0f * lt);
+        body += sinf(2 * PI * 160 * pitch * t) * expf(-12.0f * lt) * 0.15f;
+        // CREAK — very subtle, occasional board flex
+        float creak = sinf(2 * PI * 1200 * pitch * t * (1.0f + lt * 0.5f)) * expf(-40.0f * lt) * 0.04f;
+        d[i] = (short)((tap * 0.4f + body * 0.4f + creak) * env * 9000);
     }
-    // Indoor reverb tail
-    for (int i = reverb_delay; i < total; i++) {
+    // Two-tap reverb — wood rooms ring nicely
+    for (int i = reverb_delay; i < total; i++)
         d[i] += (short)(d[i - reverb_delay] * 0.1f);
+    for (int i = reverb2_delay; i < total; i++) {
+        d[i] += (short)(d[i - reverb2_delay] * 0.05f);
     }
     w.frameCount = total;
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
@@ -2060,4 +2083,24 @@ void SetFileMusicVolume(EVAudio *audio, float vol) {
     if (audio->balcony_music_playing) SetMusicVolume(audio->music_balcony, vol * 0.3f);
     if (audio->corridor_music_playing) SetMusicVolume(audio->music_corridor, vol * 0.15f);
     if (audio->title_music_playing) SetMusicVolume(audio->music_title, vol * 0.2f);
+}
+
+void StopAllAudio(EVAudio *audio) {
+    StopAmbient(audio);
+    StopCityAmbient(audio);
+    StopClockAmbient(audio);
+    StopWindAmbient(audio);
+    StopMuffledPiano(audio);
+    StopDistantVoices(audio);
+    StopFootstepsAbove(audio);
+    StopBedDrone(audio);
+    StopHeldChord(audio);
+    StopHyperspaceTone(audio);
+    StopHyperspaceRiser(audio);
+    StopElevatorWhoosh(audio);
+    StopEarthPresence(audio);
+    StopSuiteMusic(audio);
+    StopBalconyMusic(audio);
+    StopCorridorMusic(audio);
+    StopTitleMusic(audio);
 }

@@ -621,17 +621,28 @@ void update_player(Player *p, Scene *scene, float dt) {
             p->vy -= phys.gravity * dt;
         }
 
-        // ── Head bob calculation ────────────────────────────────────
+        // ── Head bob — figure-8 (vertical + horizontal sway) ────────
+        // Real walking: up/down at step freq, side-to-side at half freq.
         float bob = 0;
+        float bob_x = 0;
         if (p->grounded && p->speed_current > 0.3f) {
             float amp = p->sliding ? phys.bob_slide_amp :
                        (p->sprinting ? phys.bob_sprint_amp : phys.bob_walk_amp);
-            bob = sinf(p->bob_timer) * amp *
-                  fminf(1.0f, p->speed_current / phys.walk_speed);
+            float speed_t = fminf(1.0f, p->speed_current / phys.walk_speed);
+            bob = sinf(p->bob_timer) * amp * speed_t;
+            bob_x = sinf(p->bob_timer * 0.5f) * amp * 0.35f * speed_t;
+        } else if (p->grounded && p->speed_current < 0.3f) {
+            // Idle breathing — the player is alive, not a tripod
+            float bt = (float)GetTime();
+            bob = sinf(bt * 1.2f) * 0.006f;
+            bob_x = sinf(bt * 0.7f) * 0.003f;
         }
 
+        // Landing — spring-like: quick dip + overshoot recovery
         if (p->land_timer > 0) {
-            bob -= p->land_timer * phys.land_dip_strength;
+            float phase = p->land_timer;
+            float spring = sinf(phase * 8.0f) * expf(-3.0f * (1.0f - phase));
+            bob -= (phase * phys.land_dip_strength + spring * 0.02f);
             p->land_timer -= dt * phys.land_dip_decay;
             if (p->land_timer < 0) p->land_timer = 0;
         }
@@ -642,6 +653,13 @@ void update_player(Player *p, Scene *scene, float dt) {
                      fmaxf(1.0f, phys.bhop_speed_cap - phys.speed_shake_threshold);
             if (t > 1.0f) t = 1.0f;
             bob += sinf(p->bob_timer * 23.7f) * phys.speed_shake_intensity * t;
+        }
+
+        // Horizontal sway → camera target (subtler than position shift)
+        if (fabsf(bob_x) > 0.0001f) {
+            Vector3 cr = Vector3Normalize(Vector3CrossProduct(
+                Vector3Subtract(p->camera.target, p->camera.position), p->camera.up));
+            p->camera.target = Vector3Add(p->camera.target, Vector3Scale(cr, bob_x));
         }
 
         new_pos.y = p->camera.position.y + p->vy * dt;

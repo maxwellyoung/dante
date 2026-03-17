@@ -203,4 +203,7 @@ void PlayTitleMusic(EVAudio *audio);
 void StopTitleMusic(EVAudio *audio);
 void SetFileMusicVolume(EVAudio *audio, float vol);
 
+// Nuclear stop — kills every looping sound. Call at top of load_state.
+void StopAllAudio(EVAudio *audio);
+
 #endif

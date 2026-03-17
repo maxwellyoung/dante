@@ -595,7 +595,7 @@ SceneLighting LightingPreset_Room(void) {
         .keyColor = {1.2f, 1.05f, 0.82f},       // golden — Hotel Chevalier
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
         .fillColor = {0.30f, 0.35f, 0.45f},     // cool blue contrast
-        .ambient = {0.22f, 0.21f, 0.20f},        // Ando low ambient
+        .ambient = {0.10f, 0.09f, 0.08f},        // LOW — 2AM hotel room, shadows must read
         // Ceiling light panel — center of room
         .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {0, 0.5f, 3.5f}},
         .pointColor = {{0.9f, 0.7f, 0.45f}, {0.8f, 0.6f, 0.35f}, {0.5f, 0.4f, 0.2f}},
@@ -638,50 +638,53 @@ SceneLighting LightingPreset_Balcony(void) {
 }
 
 SceneLighting LightingPreset_SpaceLobby(void) {
-    // Glass cathedral — Earth glow floods FROM the observation window
-    // Light enters horizontally, not from overhead. You're in a greenhouse in space.
+    // Grand station lobby — chandelier + elevator shaft glow
+    // Cold starlight from observation window, warm brass interior
+    // Key comes DOWN at an angle — overhead chandelier casts long shadows
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, 0.4f, -0.8f}),   // FROM Earth through window — uplighting
-        .keyColor = {0.55f, 0.65f, 0.85f},        // Earth blue — dominant
-        .fillDir = Vector3Normalize((Vector3){-0.5f, 0.3f, 0.3f}),  // side windows
-        .fillColor = {0.20f, 0.28f, 0.40f},       // blue side bounce
-        .ambient = {0.20f, 0.21f, 0.26f},          // glass house — brighter
-        // Earth glow on floor + blue side windows + chandelier warm
-        .pointPos = {{0, 0.1f, -6.0f}, {-10, 3, 0}, {10, 3, 0}, {0, 8.0f, -3.0f}},
-        .pointColor = {{0.4f, 0.6f, 0.9f}, {0.3f, 0.45f, 0.65f}, {0.3f, 0.45f, 0.65f}, {0.7f, 0.55f, 0.35f}},
-        .pointRadius = {16.0f, 12.0f, 12.0f, 10.0f},
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),   // steep overhead — drama
+        .keyColor = {0.55f, 0.65f, 0.85f},        // Earth blue tint
+        .fillDir = Vector3Normalize((Vector3){0.2f, 0.5f, 0.3f}),
+        .fillColor = {0.12f, 0.18f, 0.28f},       // cool blue bounce — dim
+        .ambient = {0.08f, 0.09f, 0.12f},          // LOW — dramatic pools of light
+        // Chandelier above observation area + Earth glow on floor
+        .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}, {0, 0.5f, -6.0f}},
+        .pointColor = {{0.85f, 0.65f, 0.40f}, {0.3f, 0.45f, 0.65f}, {0.3f, 0.45f, 0.65f}, {0.4f, 0.6f, 0.9f}},
+        .pointRadius = {14.0f, 10.0f, 10.0f, 12.0f},
     };
 }
 
 SceneLighting LightingPreset_SpaceCorridor(void) {
-    // Glass walkway between stars — light FROM the windows, not overhead
-    // Horizontal starlight through tall glass panels, warm door-leak fill
+    // Narrow corridor — overhead amber strips, porthole starlight
+    // Kubrick hallway but cold and blue-shifted
+    // Strong overhead key for shadow drama along the walkway
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.5f, 0.2f, -0.3f}),   // FROM side windows
-        .keyColor = {0.60f, 0.72f, 0.90f},          // starlight through glass
-        .fillDir = Vector3Normalize((Vector3){-0.3f, -0.4f, 0.2f}),
-        .fillColor = {0.30f, 0.25f, 0.18f},         // warm door-leak bounce
-        .ambient = {0.28f, 0.28f, 0.34f},
-        // Blue window glow at floor level + subtle warm cove strip
-        .pointPos = {{-2, 1.5f, -4}, {2, 1.5f, 4}, {-2, 1.5f, 12}, {0, 4.5f, 0}},
-        .pointColor = {{0.4f, 0.55f, 0.8f}, {0.4f, 0.55f, 0.8f}, {0.4f, 0.55f, 0.8f}, {0.5f, 0.42f, 0.28f}},
+        .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),   // steep overhead
+        .keyColor = {1.2f, 1.0f, 0.70f},           // warm overhead amber — BRIGHT
+        .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
+        .fillColor = {0.20f, 0.28f, 0.40f},        // porthole starlight — cool blue
+        .ambient = {0.10f, 0.10f, 0.14f},           // LOW — corridor must have drama
+        // Ceiling panels spread along corridor + one blue porthole
+        .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {0, 3.2f, 16}},
+        .pointColor = {{1.0f, 0.80f, 0.55f}, {0.9f, 0.75f, 0.50f}, {0.8f, 0.70f, 0.45f}, {0.5f, 0.6f, 0.8f}},
         .pointRadius = {10.0f, 10.0f, 10.0f, 8.0f},
     };
 }
 
 SceneLighting LightingPreset_SpaceSuite(void) {
-    // Space suite — horizontal Earth glow from left window, warm lamps
-    // Glass house: light enters from infinity, not from ceiling
+    // Space suite — Earth glow from window, warm lamps by bed
+    // Key angled down from window — casts shadows across furniture
+    // Intimate room: tight pools, dark corners, Earth as backdrop
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.7f, 0.2f, -0.1f}),  // horizontal from window
-        .keyColor = {0.70f, 0.82f, 1.0f},         // stronger Earth blue — dominant
+        .keyDir = Vector3Normalize((Vector3){-0.5f, -0.5f, -0.2f}),  // diagonal from window — shadows!
+        .keyColor = {0.65f, 0.78f, 0.95f},        // Earth blue — strong but not overwhelming
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.4f, 0.2f}),
-        .fillColor = {0.28f, 0.24f, 0.18f},       // warm floor bounce
-        .ambient = {0.24f, 0.24f, 0.28f},
-        // Earth glow flood from window + bedside warm lamps + ceiling warm
-        .pointPos = {{-7, 2.5f, -1.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {0, 4.8f, -4.0f}},
-        .pointColor = {{0.45f, 0.65f, 0.95f}, {0.9f, 0.7f, 0.4f}, {0.9f, 0.7f, 0.4f}, {0.8f, 0.65f, 0.40f}},
-        .pointRadius = {18.0f, 5.0f, 5.0f, 10.0f},
+        .fillColor = {0.20f, 0.16f, 0.10f},       // warm floor bounce — dim
+        .ambient = {0.08f, 0.08f, 0.10f},          // LOW — luxury suite at night
+        // Ceiling light above bed + bedside lamps + Earth glow from window
+        .pointPos = {{0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0}},
+        .pointColor = {{1.0f, 0.80f, 0.50f}, {0.9f, 0.7f, 0.4f}, {0.9f, 0.7f, 0.4f}, {0.3f, 0.5f, 0.8f}},
+        .pointRadius = {10.0f, 5.0f, 5.0f, 8.0f},
     };
 }
 
