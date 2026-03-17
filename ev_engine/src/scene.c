@@ -1,6 +1,7 @@
 // scene.c — Scene construction
 // Material palette. Clean volumes. Dramatic light.
 #include "scene.h"
+#include "scale.h"
 #include "palette.h"
 #include <math.h>
 #include <stdio.h>
@@ -91,6 +92,11 @@ void set_last_material(Scene *s, MaterialType mat) {
 
 void set_last_rotation(Scene *s, float degrees) {
     if (s->wall_count > 0) s->walls[s->wall_count - 1].rotation_y = degrees;
+}
+
+// Mark most recent wall as decal — rendered with polygon offset to prevent z-fighting
+void set_last_decal(Scene *s) {
+    if (s->wall_count > 0) s->walls[s->wall_count - 1].is_decal = true;
 }
 
 // Auto-assign materials by color matching after scene is built
@@ -361,6 +367,9 @@ void build_hotel_exterior(Scene *s) {
     add_wall(s, -10, 5, 22, 8, 10, 3, (Color){22, 24, 40, 255});
     add_wall(s, 22, 7, 16, 4, 14, 3, (Color){16, 18, 32, 255});
 
+    // Interactive entrance door — diegetic. Walk up, press E, enter.
+    add_object(s, 0, 1.8f, 0.5f, "door", (Color){230, 200, 110, 255}, 1);
+
     s->spawn = (Vector3){0, 1.6f, -4};
     s->exit_pos = (Vector3){0, 1.6f, 0.5f};
     s->has_exit = true;
@@ -411,7 +420,9 @@ void build_lobby(Scene *s) {
     set_last_material(s, MAT_WALLPAPER);
     // Green wainscoting on side walls — lower third
     add_wall(s, -14.8f, 1.0f, 0, 0.1f, 2.0f, 20, emerald);
+    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 14.8f, 1.0f, 0, 0.1f, 2.0f, 20, emerald);
+    set_last_material(s, MAT_WALLPAPER);
 
     add_wall(s, 0, 1.0f, -9.85f, 30, 0.06f, 0.1f, gold);
     set_last_material(s, MAT_BRASS);
@@ -422,7 +433,9 @@ void build_lobby(Scene *s) {
 
     // Concrete reveal panel — architectural, not pop art
     add_wall(s, 0, 3.5f, -9.8f, 8, 3.5f, 0.08f, concrete_a);
+    set_last_material(s, MAT_CONCRETE);  // intentional raw concrete
     add_wall(s, 0, 3.5f, -9.75f, 7.8f, 3.3f, 0.04f, concrete_b);
+    set_last_material(s, MAT_MARBLE);
 
     add_column(s, -8, -4, 0.5f, 7, cream);
     add_column(s, -3, 1, 0.45f, 7, cream);
@@ -430,7 +443,9 @@ void build_lobby(Scene *s) {
     add_column(s, 7, 2, 0.4f, 7, cream);
 
     add_wall(s, -11, 1.5f, -8, 2, 3, 0.4f, plant);
+    set_last_material(s, MAT_FABRIC);
     add_wall(s, 10, 1, -8, 1.5f, 2, 0.4f, plant);
+    set_last_material(s, MAT_FABRIC);
 
     add_wall(s, 0, 0.5f, -7, 6, 1.0f, 1.5f, gold);
     set_last_material(s, MAT_WOOD);
@@ -454,10 +469,13 @@ void build_lobby(Scene *s) {
     add_wall(s, -0.3f, 1.05f, -6.5f, 0.5f, 0.03f, 0.35f, (Color){180,170,150,255});
 
     add_wall(s, -7, 0.3f, 5, 2.5f, 0.6f, 0.7f, (Color){165, 130, 85, 255});
+    set_last_material(s, MAT_LEATHER);
     add_wall(s, -7, 0.3f, -1, 2.5f, 0.6f, 0.7f, (Color){165, 130, 85, 255});
+    set_last_material(s, MAT_LEATHER);
 
     // Terracotta bench — ONE accent
     add_wall(s, 5, 0.25f, -8, 2.5f, 0.5f, 0.7f, terracotta);
+    set_last_material(s, MAT_FABRIC);
 
     // Newspaper on bench — environmental storytelling
     add_wall(s, 5.1f, 0.52f, -8, 0.6f, 0.02f, 0.4f, (Color){235,232,228,255});
@@ -516,16 +534,17 @@ void build_lobby(Scene *s) {
         float sy = (i + 1) * step_h - step_h / 2;  // center of step
         float sz = stair_base_z + i * step_d;
         add_wall(s, 0, sy, sz, stair_w, step_h, step_d, concrete_a);
+        set_last_material(s, MAT_MARBLE);
     }
 
     // Brass banister railings along staircase sides
     for (int i = 0; i < num_steps; i++) {
         float sy = (i + 1) * step_h + 0.45f;  // railing height above step
         float sz = stair_base_z + i * step_d;
-        // Left railing post
         add_wall(s, -stair_w / 2 - 0.05f, sy, sz, 0.06f, 0.9f, 0.06f, gold);
-        // Right railing post
+        set_last_material(s, MAT_BRASS);
         add_wall(s, stair_w / 2 + 0.05f, sy, sz, 0.06f, 0.9f, 0.06f, gold);
+        set_last_material(s, MAT_BRASS);
     }
     // Railing top rail — angled, approximated with one long bar
     float rail_y_bot = step_h + 0.9f;
@@ -534,23 +553,29 @@ void build_lobby(Scene *s) {
     float rail_z_mid = stair_base_z + (num_steps - 1) * step_d / 2;
     float rail_len = num_steps * step_d;
     add_wall(s, -stair_w / 2 - 0.05f, rail_y_mid, rail_z_mid, 0.04f, 0.04f, rail_len, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, stair_w / 2 + 0.05f, rail_y_mid, rail_z_mid, 0.04f, 0.04f, rail_len, gold);
+    set_last_material(s, MAT_BRASS);
 
     // MEZZANINE PLATFORM — 4m x 6m at the top of the stairs
     float mezz_y = num_steps * step_h;  // 2.4m
     float mezz_z = stair_base_z + num_steps * step_d + 3.0f;  // extends back from top step
     // Platform floor
     add_wall(s, 0, mezz_y - 0.05f, mezz_z - 3.0f + step_d, stair_w + 2, 0.1f, 6.0f, concrete_b);
+    set_last_material(s, MAT_MARBLE);
 
     // Mezzanine railing — overlooking the lobby floor
     float railing_h = 0.9f;
     // Front railing (facing lobby)
     add_wall(s, 0, mezz_y + railing_h / 2, mezz_z - 6.0f + step_d, stair_w + 2, railing_h, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
     // Side railings
     add_wall(s, -(stair_w / 2 + 1), mezz_y + railing_h / 2, mezz_z - 3.0f + step_d,
              0.06f, railing_h, 6.0f, gold);
+    set_last_material(s, MAT_BRASS);
     add_wall(s, (stair_w / 2 + 1), mezz_y + railing_h / 2, mezz_z - 3.0f + step_d,
              0.06f, railing_h, 6.0f, gold);
+    set_last_material(s, MAT_BRASS);
 
     // Mezzanine light panel — warm glow above
     add_light_panel(s, 0, 6.8f, mezz_z - 2.0f, 3.0f, 0.05f, 2.0f, gold);
@@ -1411,6 +1436,20 @@ void build_elevator(Scene *s) {
     // Brass door seam on front wall
     add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
 
+    // Floor indicator above door — glowing number panel
+    add_wall(s, 0, eh - 0.3f, ed/2 - 0.06f, 0.5f, 0.25f, 0.02f, (Color){60, 55, 45, 255});
+    set_last_material(s, MAT_BRASS);
+    // Indicator glow — warm amber "G" (ground floor lit)
+    add_light_panel(s, 0, eh - 0.3f, ed/2 - 0.04f, 0.35f, 0.15f, 0.01f, (Color){240, 200, 120, 180});
+
+    // Safety notice on right wall — reads at 480x300 as a cream rectangle
+    add_wall(s, ew/2 - 0.06f, 1.8f, -0.3f, 0.02f, 0.4f, 0.3f, (Color){235, 232, 228, 255});
+    set_last_material(s, MAT_WALLPAPER);
+
+    // Handrail on back wall — brass bar
+    add_wall(s, 0, 0.9f, -ed/2 + 0.08f, 1.4f, 0.03f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+
     // ============================================================
     // EXTERIOR — Auckland visible through the glass, dropping away
     // These walls are STATIC; the camera rises, they stay put.
@@ -1504,13 +1543,41 @@ void build_taxi_ride(Scene *s) {
     // Steering column
     add_cylinder(s, -0.35f, 0.65f, -1.35f, 0.04f, 0.2f, (Color){40, 38, 35, 255});
 
-    // Driver — simple figure in front-left seat
-    // Body (dark coat)
-    add_wall(s, -0.4f, 0.75f, -0.9f, 0.4f, 0.5f, 0.3f, driver_coat);
-    // Head
-    add_wall(s, -0.4f, 1.12f, -0.85f, 0.18f, 0.2f, 0.18f, driver_head);
-    // Shoulders
-    add_wall(s, -0.4f, 0.95f, -0.9f, 0.5f, 0.1f, 0.3f, driver_coat);
+    // Driver — Bolaño character, silhouette in sodium light
+    // "The driver didn't turn around. He didn't need to."
+    Color driver_collar = {35, 32, 28, 255};
+    Color driver_cap = {15, 14, 12, 255};
+    Color driver_skin = {165, 142, 110, 255};
+    // Body — dark coat, broad
+    add_wall(s, -0.4f, 0.75f, -0.9f, 0.38f, 0.48f, 0.28f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Shoulders — wider than body
+    add_wall(s, -0.4f, 0.96f, -0.9f, 0.50f, 0.10f, 0.28f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Collar — white shirt visible at neck
+    add_wall(s, -0.4f, 1.02f, -0.88f, 0.18f, 0.06f, 0.12f, driver_collar);
+    // Neck
+    add_wall(s, -0.4f, 1.06f, -0.87f, 0.10f, 0.08f, 0.10f, driver_skin);
+    // Head — slightly turned, looking at road
+    add_wall(s, -0.4f, 1.16f, -0.85f, 0.18f, 0.20f, 0.18f, driver_head);
+    // Flat cap — dark, sits on head
+    add_wall(s, -0.4f, 1.28f, -0.85f, 0.22f, 0.05f, 0.22f, driver_cap);
+    set_last_material(s, MAT_FABRIC);
+    // Cap brim — extends forward
+    add_wall(s, -0.4f, 1.26f, -0.96f, 0.20f, 0.02f, 0.10f, driver_cap);
+    set_last_material(s, MAT_FABRIC);
+    // Left arm — on steering wheel
+    add_wall(s, -0.56f, 0.82f, -1.1f, 0.08f, 0.30f, 0.08f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Left hand on wheel — skin-colored
+    add_wall(s, -0.52f, 0.76f, -1.28f, 0.06f, 0.06f, 0.06f, driver_skin);
+    // Right arm — resting on center console
+    add_wall(s, -0.24f, 0.82f, -0.8f, 0.08f, 0.30f, 0.08f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Right hand — on gear shift area
+    add_wall(s, -0.18f, 0.68f, -0.7f, 0.06f, 0.06f, 0.06f, driver_skin);
+    // Ear — tiny cube on side of head (Gravity Bone style detail)
+    add_wall(s, -0.50f, 1.14f, -0.85f, 0.03f, 0.05f, 0.04f, driver_skin);
 
     // Rear-view mirror — small rectangle above dashboard center
     add_wall(s, 0, 1.15f, -1.1f, 0.2f, 0.1f, 0.04f, mirror_c);
@@ -2096,6 +2163,10 @@ void build_space_corridor(Scene *s) {
         add_picture_frame(s, cx5+(W/2-0.08f), 2.0f, cz5, 0.5f, 0.4f, brass, (Color){40,65,160,255});
     }
 
+    // Interactive objects — diegetic details
+    // Floating newspaper (zero-g) — read the headlines, learn about the station
+    add_object(s, mid_x + 0.5f, 2.2f, mid_z, "newspaper", (Color){235,232,228,200}, 1);
+
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){end0_x, 1.6f, end0_z};
@@ -2192,6 +2263,7 @@ void build_space_suite(Scene *s) {
 
     // Earth glow on floor from window
     add_wall(s, -rw/2+3, 0.02f, -1, 4, 0.02f, 4, earth_glow);
+    set_last_decal(s);
 
     // Stars outside the window
     for (int i = 0; i < 12; i++) {
@@ -2291,6 +2363,27 @@ void build_space_suite(Scene *s) {
     add_wall(s, -2.05f, 1.53f, 3, 0.55f, 0.02f, 0.38f, (Color){30,30,35,255});
 
     // ============================================================
+    // STORYTELLING OBJECTS — non-interactive, just present
+    // ============================================================
+
+    // Half-packed suitcase by the door — someone was here before you
+    add_wall(s, 5, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);   // suitcase body
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 5, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);     // brass clasp line
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    add_wall(s, 5, 0.34f, 4.72f, 0.68f, 0.15f, 0.02f, dark_wood); // lid propped open
+    set_last_material(s, MAT_LEATHER);
+
+    // Shoes by the bed — placed neatly, toes facing out
+    add_wall(s, -1.8f, 0.06f, -3.5f, 0.12f, 0.12f, 0.28f, (Color){35,30,28,255});
+    add_wall(s, -1.55f, 0.06f, -3.5f, 0.12f, 0.12f, 0.28f, (Color){35,30,28,255});
+
+    // Postcard face-down on nightstand — you can't read it
+    add_wall(s, 2.5f, 0.64f, -4.6f, 0.16f, 0.005f, 0.11f, cream);
+    set_last_decal(s);
+
+    // ============================================================
     // RECESSED PANELS — depth on hull walls
     // ============================================================
     add_recessed_panel(s, -3, rh*0.6f, -rd/2+0.2f, 2.5f, 1.5f, 0.08f, hull);
@@ -2299,8 +2392,10 @@ void build_space_suite(Scene *s) {
 
     // Light shaft from window across floor
     add_wall(s, -rw/2+4, 0.02f, -1, 5, 0.02f, 3, (Color){60,130,200,100});
+    set_last_decal(s);
     // Secondary earth glow — warm band on ceiling reflected
     add_wall(s, -rw/2+2, rh-0.1f, -1, 3, 0.02f, 3, (Color){45,100,180,30});
+    set_last_decal(s);
 
     // DROPPED CEILING with warm light — above bed area
     add_dropped_ceiling(s, 0, rh, -4, 5, 4, 0.2f, hull, warm_light);
@@ -2337,7 +2432,7 @@ void build_space_suite(Scene *s) {
     // Interactive objects
     add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);
     add_object(s, 5.5f, 1.0f, -2, "desk", (Color){200,155,90,255}, 2);
-    add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 1);
+    add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 2);
     add_object(s, 0, 0.8f, -4.5f, "bed", white, 2);
 
     tag_materials_by_color(s);
@@ -2351,56 +2446,49 @@ void build_space_suite(Scene *s) {
 // ============================================================
 
 void add_dining_table(Scene *s, float x, float y, float z, float w, float d, float angle, Color wood) {
-    // Tabletop
-    add_wall(s, x, y + 0.75f, z, w, 0.06f, d, wood);
+    add_wall(s, x, y + S_TABLE_H, z, w, S_TABLE_TOP_T, d, wood);
     set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
-    // Four legs
-    float lx = w/2 - 0.08f, lz = d/2 - 0.08f;
+    float lx = w/2 - S_TABLE_LEG_INS, lz = d/2 - S_TABLE_LEG_INS;
     float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
     for (int i = 0; i < 4; i++) {
         float ox = (i & 1) ? lx : -lx;
         float oz = (i & 2) ? lz : -lz;
         float rx = ox * ca - oz * sa, rz = ox * sa + oz * ca;
-        add_cylinder(s, x + rx, y + 0.375f, z + rz, 0.06f, 0.75f, wood);
-        set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
+        add_cylinder(s, x + rx, y + S_TABLE_H/2, z + rz, S_TABLE_LEG_D, S_TABLE_H, wood);
+        set_last_material(s, MAT_WOOD);
     }
 }
 
 void add_chair(Scene *s, float x, float y, float z, float angle, Color wood, Color seat) {
-    // Seat
-    add_wall(s, x, y + 0.45f, z, 0.4f, 0.04f, 0.4f, seat);
+    add_wall(s, x, y + S_CHAIR_SEAT_H, z, S_CHAIR_SEAT_W, S_CHAIR_SEAT_T, S_CHAIR_SEAT_D, seat);
     set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
-    // Backrest
     float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
-    float bx = x - 0.18f * sa, bz = z - 0.18f * ca;
-    add_wall(s, bx, y + 0.7f, bz, 0.38f, 0.5f, 0.04f, wood);
+    float boff = S_CHAIR_SEAT_D/2 - S_CHAIR_BACK_T/2;
+    float bx = x - boff * sa, bz = z - boff * ca;
+    add_wall(s, bx, y + S_CHAIR_SEAT_H + S_CHAIR_BACK_H/2, bz,
+             S_CHAIR_SEAT_W - 0.04f, S_CHAIR_BACK_H, S_CHAIR_BACK_T, wood);
     set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
-    // Four legs
     for (int i = 0; i < 4; i++) {
-        float ox = (i & 1) ? 0.16f : -0.16f;
-        float oz = (i & 2) ? 0.16f : -0.16f;
+        float ox = (i & 1) ? S_CHAIR_LEG_INS : -S_CHAIR_LEG_INS;
+        float oz = (i & 2) ? S_CHAIR_LEG_INS : -S_CHAIR_LEG_INS;
         float rx = ox * ca - oz * sa, rz = ox * sa + oz * ca;
-        add_cylinder(s, x + rx, y + 0.225f, z + rz, 0.03f, 0.45f, wood);
+        add_cylinder(s, x + rx, y + S_CHAIR_SEAT_H/2, z + rz, S_CHAIR_LEG_D, S_CHAIR_SEAT_H, wood);
         set_last_material(s, MAT_WOOD);
     }
 }
 
 void add_chandelier(Scene *s, float x, float y, float z, int arms, float radius, Color metal, Color light) {
-    // Central rod
-    add_cylinder(s, x, y + 0.3f, z, 0.04f, 0.6f, metal);
+    add_cylinder(s, x, y + 0.3f, z, S_CHAN_ROD_D, 0.6f, metal);
     set_last_material(s, MAT_BRASS);
-    // Ring
     for (int i = 0; i < arms; i++) {
         float angle = (float)i / arms * 6.2832f;
         float ax = x + cosf(angle) * radius;
         float az = z + sinf(angle) * radius;
-        // Arm
-        add_wall(s, (x + ax)/2, y, (z + az)/2, 0.03f, 0.03f, radius, metal);
+        add_wall(s, (x + ax)/2, y, (z + az)/2, S_CHAN_ARM_T, S_CHAN_ARM_T, radius, metal);
         set_last_material(s, MAT_BRASS);
         set_last_rotation(s, angle * 57.2958f);
-        // Light globe
-        add_sphere(s, ax, y - 0.1f, az, 0.12f, light);
-        add_light_panel(s, ax, y - 0.1f, az, 0.15f, 0.15f, 0.15f, light);
+        add_sphere(s, ax, y - 0.1f, az, S_CHAN_GLOBE_D, light);
+        add_light_panel(s, ax, y - 0.1f, az, S_CHAN_GLOBE_D+0.05f, S_CHAN_GLOBE_D+0.05f, S_CHAN_GLOBE_D+0.05f, light);
     }
 }
 
@@ -2409,113 +2497,105 @@ void add_column_row(Scene *s, float x_start, float z, float spacing, int count, 
         float x = x_start + i * spacing;
         add_cylinder(s, x, height/2, z, radius * 2, height, c);
         set_last_material(s, MAT_MARBLE);
-        // Capital (wider top)
-        add_cylinder(s, x, height - 0.1f, z, radius * 2.5f, 0.2f, c);
+        add_cylinder(s, x, height - S_COL_CAP_H/2, z, radius * 2 * S_COL_CAP_MULT, S_COL_CAP_H, c);
         set_last_material(s, MAT_MARBLE);
-        // Base
-        add_cylinder(s, x, 0.1f, z, radius * 2.2f, 0.2f, c);
+        add_cylinder(s, x, S_COL_BASE_H/2, z, radius * 2 * S_COL_BASE_MULT, S_COL_BASE_H, c);
         set_last_material(s, MAT_MARBLE);
     }
 }
 
 void add_wainscoting(Scene *s, float x, float y, float z, float length, float height, bool along_z, Color panel, Color trim) {
-    float depth = 0.04f;
     if (along_z) {
-        add_wall(s, x, y + height/2, z, depth, height, length, panel);
+        add_wall(s, x, y + height/2, z, S_WAINSCOT_D, height, length, panel);
         set_last_material(s, MAT_WOOD);
-        // Top rail
-        add_wall(s, x, y + height, z, depth + 0.02f, 0.04f, length, trim);
+        add_wall(s, x, y + height, z, S_WAINSCOT_D + 0.03f, S_WAINSCOT_RAIL, length, trim);
         set_last_material(s, MAT_WOOD);
-        // Chair rail (mid-point)
-        add_wall(s, x, y + height * 0.6f, z, depth + 0.01f, 0.03f, length, trim);
+        add_wall(s, x, y + height * 0.6f, z, S_WAINSCOT_D + 0.02f, S_WAINSCOT_RAIL, length, trim);
         set_last_material(s, MAT_WOOD);
     } else {
-        add_wall(s, x, y + height/2, z, length, height, depth, panel);
+        add_wall(s, x, y + height/2, z, length, height, S_WAINSCOT_D, panel);
         set_last_material(s, MAT_WOOD);
-        add_wall(s, x, y + height, z, length, 0.04f, depth + 0.02f, trim);
+        add_wall(s, x, y + height, z, length, S_WAINSCOT_RAIL, S_WAINSCOT_D + 0.03f, trim);
         set_last_material(s, MAT_WOOD);
-        add_wall(s, x, y + height * 0.6f, z, length, 0.03f, depth + 0.01f, trim);
+        add_wall(s, x, y + height * 0.6f, z, length, S_WAINSCOT_RAIL, S_WAINSCOT_D + 0.02f, trim);
         set_last_material(s, MAT_WOOD);
     }
 }
 
 void add_fireplace(Scene *s, float x, float y, float z, Color stone, Color glow) {
-    // Mantel
-    add_wall(s, x, y + 1.2f, z, 1.6f, 0.1f, 0.5f, stone);
+    add_wall(s, x, y + S_FIRE_MANTEL_H, z, S_FIRE_W, 0.12f, 0.5f, stone);
     set_last_material(s, MAT_MARBLE);
-    // Left pillar
-    add_wall(s, x - 0.65f, y + 0.6f, z, 0.2f, 1.2f, 0.4f, stone);
+    float px = S_FIRE_W/2 - S_FIRE_PILLAR_W/2;
+    add_wall(s, x - px, y + S_FIRE_MANTEL_H/2, z, S_FIRE_PILLAR_W, S_FIRE_MANTEL_H, 0.45f, stone);
     set_last_material(s, MAT_MARBLE);
-    // Right pillar
-    add_wall(s, x + 0.65f, y + 0.6f, z, 0.2f, 1.2f, 0.4f, stone);
+    add_wall(s, x + px, y + S_FIRE_MANTEL_H/2, z, S_FIRE_PILLAR_W, S_FIRE_MANTEL_H, 0.45f, stone);
     set_last_material(s, MAT_MARBLE);
-    // Firebox (dark interior)
-    add_wall(s, x, y + 0.45f, z + 0.05f, 1.0f, 0.9f, 0.3f, (Color){20,18,15,255});
-    // Fire glow
-    add_light_panel(s, x, y + 0.2f, z + 0.1f, 0.6f, 0.3f, 0.15f, glow);
+    add_wall(s, x, y + 0.5f, z + 0.05f, S_FIRE_W - S_FIRE_PILLAR_W*2, 1.0f, 0.35f, (Color){20,18,15,255});
+    add_light_panel(s, x, y + 0.25f, z + 0.1f, 0.7f, 0.35f, 0.2f, glow);
 }
 
 void add_bar_counter(Scene *s, float x, float y, float z, float length, bool along_z, Color counter, Color front) {
-    float bar_h = 1.1f, bar_d = 0.6f;
     if (along_z) {
-        add_wall(s, x, y + bar_h, z, bar_d + 0.1f, 0.06f, length, counter);
+        add_wall(s, x, y + S_BAR_H, z, S_BAR_D + 0.12f, S_BAR_TOP_T, length, counter);
         set_last_material(s, MAT_MARBLE);
-        add_wall(s, x, y + bar_h/2, z, bar_d, bar_h, length, front);
+        add_wall(s, x, y + S_BAR_H/2, z, S_BAR_D, S_BAR_H, length, front);
         set_last_material(s, MAT_WOOD);
     } else {
-        add_wall(s, x, y + bar_h, z, length, 0.06f, bar_d + 0.1f, counter);
+        add_wall(s, x, y + S_BAR_H, z, length, S_BAR_TOP_T, S_BAR_D + 0.12f, counter);
         set_last_material(s, MAT_MARBLE);
-        add_wall(s, x, y + bar_h/2, z, length, bar_h, bar_d, front);
+        add_wall(s, x, y + S_BAR_H/2, z, length, S_BAR_H, S_BAR_D, front);
         set_last_material(s, MAT_WOOD);
     }
 }
 
 void add_rug(Scene *s, float x, float y, float z, float w, float d, Color primary, Color border) {
-    // Main rug body
-    add_wall(s, x, y + 0.01f, z, w, 0.01f, d, primary);
+    add_wall(s, x, y + S_RUG_T, z, w, S_RUG_T, d, primary);
     set_last_material(s, MAT_CARPET);
-    // Border — 4 thin strips
-    float bw = 0.08f;
-    add_wall(s, x, y + 0.015f, z - d/2 + bw/2, w, 0.005f, bw, border);
-    add_wall(s, x, y + 0.015f, z + d/2 - bw/2, w, 0.005f, bw, border);
-    add_wall(s, x - w/2 + bw/2, y + 0.015f, z, bw, 0.005f, d, border);
-    add_wall(s, x + w/2 - bw/2, y + 0.015f, z, bw, 0.005f, d, border);
+    float bw = S_RUG_BORDER;
+    add_wall(s, x, y + S_RUG_T + 0.005f, z - d/2 + bw/2, w, 0.01f, bw, border);
+    set_last_decal(s);
+    add_wall(s, x, y + S_RUG_T + 0.005f, z + d/2 - bw/2, w, 0.01f, bw, border);
+    set_last_decal(s);
+    add_wall(s, x - w/2 + bw/2, y + S_RUG_T + 0.005f, z, bw, 0.01f, d, border);
+    set_last_decal(s);
+    add_wall(s, x + w/2 - bw/2, y + S_RUG_T + 0.005f, z, bw, 0.01f, d, border);
+    set_last_decal(s);
 }
 
 void add_desk(Scene *s, float x, float y, float z, float angle, Color wood) {
     float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
-    // Desktop
-    add_wall(s, x, y + 0.78f, z, 1.2f, 0.04f, 0.6f, wood);
+    add_wall(s, x, y + S_DESK_H, z, S_DESK_W, S_DESK_TOP_T, S_DESK_D, wood);
     set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
-    // Front panel
-    float fx = x + 0.25f * sa, fz = z + 0.25f * ca;
-    add_wall(s, fx, y + 0.39f, fz, 1.1f, 0.72f, 0.03f, wood);
+    float foff = S_DESK_D/2 - S_DESK_PANEL_T/2;
+    float fx = x + foff * sa, fz = z + foff * ca;
+    add_wall(s, fx, y + S_DESK_H/2, fz, S_DESK_W - 0.06f, S_DESK_H, S_DESK_PANEL_T, wood);
     set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
-    // Two side supports
     for (int side = -1; side <= 1; side += 2) {
-        float sx = x + side * 0.55f * ca, sz = z - side * 0.55f * sa;
-        add_wall(s, sx, y + 0.39f, sz, 0.03f, 0.72f, 0.55f, wood);
+        float sx = x + side * (S_DESK_W/2 - S_DESK_PANEL_T/2) * ca;
+        float sz = z - side * (S_DESK_W/2 - S_DESK_PANEL_T/2) * sa;
+        add_wall(s, sx, y + S_DESK_H/2, sz, S_DESK_PANEL_T, S_DESK_H, S_DESK_D - 0.06f, wood);
         set_last_material(s, MAT_WOOD); set_last_rotation(s, angle);
     }
 }
 
 void add_sofa(Scene *s, float x, float y, float z, float angle, Color fabric) {
     float ca = cosf(angle * DEG2RAD), sa = sinf(angle * DEG2RAD);
-    Color dark = {(unsigned char)(fabric.r*0.8f), (unsigned char)(fabric.g*0.8f),
-                  (unsigned char)(fabric.b*0.8f), fabric.a};
-    // Seat cushion
-    add_wall(s, x, y + 0.38f, z, 1.8f, 0.15f, 0.7f, fabric);
+    Color dark = {(unsigned char)(fabric.r*0.75f), (unsigned char)(fabric.g*0.75f),
+                  (unsigned char)(fabric.b*0.75f), fabric.a};
+    add_wall(s, x, y + S_SOFA_SEAT_H, z, S_SOFA_W, S_SOFA_SEAT_T, S_SOFA_D, fabric);
     set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
-    // Backrest
-    float bx = x - 0.3f * sa, bz = z - 0.3f * ca;
-    add_wall(s, bx, y + 0.6f, bz, 1.8f, 0.45f, 0.15f, dark);
+    float boff = S_SOFA_D/2 + S_SOFA_BACK_T/2 - 0.05f;
+    float bx = x - boff * sa, bz = z - boff * ca;
+    add_wall(s, bx, y + S_SOFA_SEAT_H + S_SOFA_BACK_H/2, bz,
+             S_SOFA_W, S_SOFA_BACK_H, S_SOFA_BACK_T, dark);
     set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
-    // Left arm
-    float lx = x - 0.85f * ca, lz = z + 0.85f * sa;
-    add_wall(s, lx, y + 0.45f, lz, 0.1f, 0.35f, 0.7f, dark);
+    float arm_off = S_SOFA_W/2 + S_SOFA_ARM_W/2 - 0.03f;
+    float lx = x - arm_off * ca, lz = z + arm_off * sa;
+    add_wall(s, lx, y + S_SOFA_SEAT_H + S_SOFA_ARM_H/2 - 0.05f, lz,
+             S_SOFA_ARM_W, S_SOFA_ARM_H, S_SOFA_D + S_SOFA_BACK_T, dark);
     set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
-    // Right arm
-    float rx = x + 0.85f * ca, rz = z - 0.85f * sa;
-    add_wall(s, rx, y + 0.45f, rz, 0.1f, 0.35f, 0.7f, dark);
+    float rx = x + arm_off * ca, rz = z - arm_off * sa;
+    add_wall(s, rx, y + S_SOFA_SEAT_H + S_SOFA_ARM_H/2 - 0.05f, rz,
+             S_SOFA_ARM_W, S_SOFA_ARM_H, S_SOFA_D + S_SOFA_BACK_T, dark);
     set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
 }

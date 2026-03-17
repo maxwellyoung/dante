@@ -98,6 +98,11 @@ typedef struct {
     float speed_fov_max;        // cap on speed-reactive FOV
     float speed_shake_threshold; // speed above which camera shakes
     float speed_shake_intensity; // shake amplitude at max speed
+
+    // Dash
+    float dash_speed;           // impulse speed of dash
+    float dash_duration;        // how long the dash lasts
+    float dash_cooldown;        // cooldown between dashes
 } PhysicsConfig;
 
 // Default physics — the "feel" of the game
@@ -172,6 +177,10 @@ static inline PhysicsConfig physics_default(void) {
         .speed_fov_max      = 100.0f,
         .speed_shake_threshold = 12.0f,
         .speed_shake_intensity = 0.02f,
+
+        .dash_speed     = 18.0f,
+        .dash_duration  = 0.15f,
+        .dash_cooldown  = 0.6f,
     };
 }
 
@@ -233,6 +242,7 @@ typedef struct {
     ShapeType shape;
     MaterialType material;  // default 0 = MAT_CONCRETE (C zero-init)
     float rotation_y;
+    bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
 } Wall;
 
 typedef struct {
@@ -287,6 +297,11 @@ typedef struct {
     float mantle_timer;     // progress through mantle
     // Bunny hop
     float bhop_timer;       // time since landing (for friction skip)
+    // Dash
+    bool dashing;
+    float dash_timer;       // time remaining in dash
+    float dash_cooldown_timer;
+    Vector3 dash_dir;       // locked direction during dash
     // Speed tracking
     float peak_speed;       // highest speed reached (for feedback scaling)
     // Debug
@@ -326,11 +341,28 @@ typedef struct {
     Vector3 waypoints[MAX_NPC_WAYPOINTS];
     int waypoint_count;
     int current_waypoint;
+    // Physics (toggle: ghost vs grounded)
+    bool use_physics;
+    float vy;
+    float ground_y;
+    bool grounded;
+    float collision_radius;
+    float idle_timer;       // time spent waiting (drives quirks)
+    float yaw_target;       // smoothed facing
     // Appearance
     Color body_color;
     Color head_color;
     Color cap_color;
     Color leg_color;
+    Color tie_color;
+    Color briefcase_color;
+    // Dialogue — lines spoken at waypoints
+    const char **lines;     // array of string pointers (NULL-terminated or count-bounded)
+    int line_count;
+    int current_line;
+    float line_timer;       // time current line has been showing
+    float line_duration;    // seconds per line (default 3.0)
+    bool line_showing;
 } NPC;
 
 #endif
