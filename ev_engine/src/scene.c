@@ -103,7 +103,7 @@ void build_hotel_exterior(Scene *s) {
     // BOUNDS: open exterior — no enclosure needed (player walks to entrance)
     s->surface = SURFACE_MARBLE;
 
-    Color gold_facade = {205, 198, 185, 255};  // sandstone
+    Color gold_facade = {195, 170, 120, 255};  // DOMINANT — warm sandstone facade
     Color dark_gold = {170, 140, 80, 255};
     Color gold = {178, 155, 107, 255};         // brass
     Color window_lit = {240, 210, 130, 180};
@@ -176,18 +176,19 @@ void build_lobby(Scene *s) {
     // BOUNDS: 30m x 20m, partially enclosed (front wall has gaps for entrance)
     s->surface = SURFACE_MARBLE;
 
-    Color cream = {238, 236, 232, 255};       // white plaster
+    Color cream = {235, 230, 222, 255};       // cream accents
     Color gold = {178, 155, 107, 255};        // brass
-    Color warm_white = {235, 232, 226, 255};
+    Color warm_white = {230, 225, 218, 255};
+    Color emerald = {45, 95, 65, 255};        // DOMINANT — deep emerald green
     Color concrete_a = {190, 187, 183, 255};  // concrete reveal panel
     Color concrete_b = {180, 177, 173, 255};  // slightly darker concrete
-    Color marble_a = {210, 207, 202, 255};    // lighter marble
-    Color marble_b = {198, 195, 190, 255};
+    Color marble_a = {60, 58, 55, 255};       // dark marble floor
+    Color marble_b = {70, 68, 65, 255};
     Color plant = {60, 130, 65, 255};
     Color terracotta = {175, 85, 65, 255};    // accent
 
-    s->fog_color = (Color){180, 175, 168, 255};  // darker — more contrast with cream walls
-    s->fog_density = 0.006f;
+    s->fog_color = (Color){55, 75, 60, 255};  // green-tinted fog
+    s->fog_density = 0.008f;
 
     int cols = 15, rows = 10;
     for (int r = 0; r < rows; r++)
@@ -203,13 +204,16 @@ void build_lobby(Scene *s) {
     add_cylinder(s, 4, 6.4f, -3, 0.4f, 0.6f, warm_white);
     add_cylinder(s, 2, 6.4f, 1, 0.35f, 0.5f, warm_white);
 
-    add_wall(s, 0, 3.5f, -10, 30, 7, 0.3f, cream);
+    add_wall(s, 0, 3.5f, -10, 30, 7, 0.3f, emerald);   // back wall — entirely deep green
     add_wall(s, -12, 3.5f, 10, 10, 7, 0.3f, cream);
     add_wall(s, 10, 3.5f, 10, 8, 7, 0.3f, cream);
     add_wall(s, -2, 5.5f, 10, 6, 3, 0.3f, cream);
-    add_wall(s, -15, 3.5f, 0, 0.3f, 7, 20, cream);
+    add_wall(s, -15, 3.5f, 0, 0.3f, 7, 20, cream);     // side walls cream
     add_wall(s, 15, 3.5f, -5, 0.3f, 7, 10, cream);
     add_wall(s, 15, 3.5f, 6, 0.3f, 7, 8, cream);
+    // Green wainscoting on side walls — lower third
+    add_wall(s, -14.8f, 1.0f, 0, 0.1f, 2.0f, 20, emerald);
+    add_wall(s, 14.8f, 1.0f, 0, 0.1f, 2.0f, 20, emerald);
 
     add_wall(s, 0, 1.0f, -9.85f, 30, 0.06f, 0.1f, gold);
     add_wall(s, -14.85f, 1.0f, 0, 0.1f, 0.06f, 20, gold);
@@ -291,16 +295,17 @@ void build_hallway(Scene *s) {
     // BOUNDS: 4.5m x 40m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_CARPET;
 
-    Color cream = {238, 236, 232, 255};       // white plaster
+    Color cream = {232, 228, 220, 255};       // warm cream walls
     Color gold = {178, 155, 107, 255};        // brass
-    Color godard_red = {210, 55, 50, 255};    // door accent — stays
-    Color godard_blue = {50, 80, 180, 255};   // door accent — stays
-    Color carpet_a = {155, 75, 60, 255};      // muted carpet
-    Color carpet_b = {165, 82, 65, 255};
+    Color godard_red = {200, 50, 45, 255};    // door accent — stays bold
+    Color godard_blue = {45, 70, 165, 255};   // door accent — stays bold
+    Color carpet_a = {160, 55, 45, 255};      // DOMINANT — warm terracotta/red carpet
+    Color carpet_b = {170, 62, 50, 255};
     Color warm_amber = {240, 200, 100, 255};
+    Color ceiling_dark = {40, 38, 35, 255};   // dark ceiling
 
-    s->fog_color = (Color){175, 170, 165, 255};  // darker — more contrast with cream walls
-    s->fog_density = 0.005f;
+    s->fog_color = (Color){140, 80, 65, 255};  // warm red-tinted fog
+    s->fog_density = 0.010f;
     float L = 20, W = 4.5f, H = 4;
 
     int cols = 3, rows = (int)(L / 1.5f);
@@ -310,7 +315,7 @@ void build_hallway(Scene *s) {
             add_wall(s, tx, -0.05f, tz, 1.48f, 0.1f, 1.48f, ((r+c)%2==0) ? carpet_a : carpet_b);
         }
 
-    add_wall(s, 0, H, -L/2, W, 0.2f, L, cream);
+    add_wall(s, 0, H, -L/2, W, 0.2f, L, ceiling_dark);
     for (int i = 0; i < 4; i++)
         add_light_panel(s, 0, H-0.1f, -3 - i*5, 1.5f, 0.05f, 0.5f, warm_amber);
 
@@ -365,18 +370,18 @@ void build_hotel_room(Scene *s) {
     // BOUNDS: 12m x 10m, fully enclosed (4 walls + floor + ceiling + corner blocks)
     s->surface = SURFACE_WOOD;
 
-    Color wall_gold = {235, 232, 226, 255};    // white plaster
+    Color wall_gold = {210, 180, 120, 255};    // DOMINANT — golden amber walls
     Color gold = {178, 155, 107, 255};        // brass
-    Color cream = {238, 236, 232, 255};
-    Color godard_red = {200, 50, 45, 255};    // THE accent — stays
-    Color wood = {165, 130, 85, 255};         // warm wood
-    Color dark_wood = {120, 85, 50, 255};
+    Color cream = {228, 222, 210, 255};       // warm cream ceiling
+    Color godard_red = {170, 35, 35, 255};    // deep crimson accent — headboard
+    Color wood = {95, 70, 42, 255};           // rich dark wood floor
+    Color dark_wood = {105, 78, 48, 255};
     Color white = {240, 238, 230, 255};
-    Color warm_gray = {165, 160, 152, 255};   // replaces godard_blue sofa
+    Color warm_gray = {35, 45, 85, 255};      // navy blue sofa — spy-film palette
     Color warm_light = {235, 220, 190, 150};  // softer, less saturated
 
-    s->fog_color = (Color){185, 180, 172, 255};  // darker — more contrast with wall gold
-    s->fog_density = 0.004f;
+    s->fog_color = (Color){175, 155, 110, 255};  // golden fog
+    s->fog_density = 0.006f;
     float rw = 12, rd = 10, rh = 3.8f;
 
     int cols = (int)(rw/0.8f), rows = (int)(rd/0.8f);
@@ -638,18 +643,18 @@ void build_bathroom(Scene *s) {
     // BOUNDS: 5m x 4m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
-    Color concrete = {185,182,178,255};        // concrete walls
+    Color concrete = {155,152,148,255};        // DOMINANT — darker concrete walls
     Color ceiling = {238,236,232,255};         // white plaster ceiling
-    Color porcelain = {240,238,234,255};       // white porcelain
+    Color porcelain = {245,242,238,255};       // pure white porcelain
     Color brass = {178,155,107,255};           // brass taps
-    Color floor_concrete = {155,152,148,255};  // darker floor
+    Color floor_concrete = {100,98,95,255};    // dark concrete floor
     Color mirror = {210,215,222,180};          // bluer, translucent
     Color terracotta = {175,85,65,255};        // ONE accent — towel
 
     float bw = 5, bd = 4, bh = 3;
 
-    s->fog_color = (Color){170,168,164,255};   // darker — more contrast with concrete
-    s->fog_density = 0.003f;
+    s->fog_color = (Color){135,133,130,255};   // concrete fog
+    s->fog_density = 0.005f;
 
     // Floor — darker concrete
     add_wall(s, 0, -0.05f, 0, bw, 0.1f, bd, floor_concrete);
@@ -910,8 +915,8 @@ void build_elevator(Scene *s) {
     // BOUNDS: 2m x 2m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
-    Color brass = {178, 155, 107, 255};
-    Color floor_marble = {155, 152, 148, 255};
+    Color brass = {178, 155, 107, 255};         // DOMINANT — all brass, golden box
+    Color floor_marble = {55, 52, 48, 255};      // dark marble floor
     Color mirror = {210, 215, 220, 180};
     Color warm_panel = {235, 230, 220, 200};
     Color btn_dark = {140, 125, 90, 255};

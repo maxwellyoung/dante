@@ -202,17 +202,31 @@ static void load_state(GameState s) {
             StopWindAmbient(&audio);
             break;
 
-        case STATE_ROOM:
-            if (!returning_to_room) {
-                build_hotel_room(&scene);
+        case STATE_ROOM: {
+            int saved_tasks = returning_to_room ? tasks_done : 0;
+            bool saved_phone = returning_to_room ? phone_triggered : false;
+            float saved_warmth = returning_to_room ? (float)tasks_done / total_tasks : 0.0f;
+
+            build_hotel_room(&scene);
+
+            if (returning_to_room) {
+                // Spawn near bathroom door, restore task progress
+                init_player(&player, (Vector3){4.5f, 1.6f, -2.5f});
+                tasks_done = saved_tasks;
+                phone_triggered = saved_phone;
+                SetPostFXWarmth(&postfx, saved_warmth);
+                scene.fog_density = 0.004f - (saved_warmth * 0.003f);
+                // Mark completed objects as done
+                for (int i = 0; i < scene.object_count && i < saved_tasks; i++) {
+                    scene.objects[i].done = true;
+                    scene.objects[i].step = scene.objects[i].max_steps;
+                }
+                returning_to_room = false;
+            } else {
                 init_player(&player, scene.spawn);
                 tasks_done = 0;
                 phone_triggered = false;
                 SetPostFXWarmth(&postfx, 0.0f);
-            } else {
-                // Returning from bathroom — preserve room state
-                init_player(&player, (Vector3){5.0f, 1.6f, -3.0f});
-                returning_to_room = false;
             }
             StartAmbient(&audio, DRONE_ROOM);
             PlayClockAmbient(&audio);
@@ -220,6 +234,7 @@ static void load_state(GameState s) {
 
             StopWindAmbient(&audio);
             break;
+        }
 
         case STATE_BATHROOM:
             build_bathroom(&scene);
@@ -770,12 +785,17 @@ int main(void) {
                             DrawPixel(sx, sy, (Color){255,240,180,(unsigned char)(200*(fl-0.7f)/0.3f)});
                     }
                 }
-                // Rug pull flash — 0.5s of stark white. A memory intruding.
+                // Rug pull flash — Dadaist Rothko rectangles. Meaningless. Absurd.
                 // Like the Gravity Bone death photos. The void between what
-                // you saw and what it means.
+                // you saw and what it means. The game never explains.
                 if (state == STATE_BALCONY && balcony_flash_triggered &&
-                    balcony_flash_timer > 0 && balcony_flash_timer < 0.5f) {
-                    DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){240, 238, 235, 255});
+                    balcony_flash_timer > 0 && balcony_flash_timer < 0.3f) {
+                    // Warm background
+                    DrawRectangle(0, 0, RENDER_W, RENDER_H, (Color){245, 235, 215, 255});
+                    // Large red rectangle — center, Rothko
+                    DrawRectangle(RENDER_W/2 - 120, RENDER_H/2 - 60, 240, 100, (Color){200, 45, 40, 255});
+                    // Blue rectangle — overlapping slightly, offset
+                    DrawRectangle(RENDER_W/2 - 90, RENDER_H/2 - 30, 180, 80, (Color){40, 60, 160, 220});
                 }
                 break;
 

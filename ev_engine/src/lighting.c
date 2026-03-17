@@ -70,7 +70,10 @@ static const char *fs_source =
     "    float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);\n"
     "    vec3 specColor = lightColor * spec * 0.15;\n"
     "\n"
-    "    vec3 lit = baseColor * (ambient + keyDiffuse + fillDiffuse) + rimColor + specColor;\n"
+    "    // Normal-based AO: floors and upward faces brighter, undersides darker\n"
+    "    float ao = 0.5 + 0.5 * max(dot(norm, vec3(0.0, 1.0, 0.0)), 0.0);\n"
+    "    ao = mix(0.65, 1.0, ao);\n"
+    "    vec3 lit = baseColor * (ambient * ao + keyDiffuse + fillDiffuse) + rimColor + specColor;\n"
     "\n"
     "    // Fog — warm, not black\n"
     "    float dist = length(viewPos - fragPosition);\n"
@@ -106,18 +109,18 @@ EVLighting LoadEVLighting(void) {
         Vector3 lightDir = Vector3Normalize((Vector3){-0.2f, -0.7f, -0.3f});
         float lightDirArr[3] = {lightDir.x, lightDir.y, lightDir.z};
         SetShaderValue(lighting.shader, lighting.lightDirLoc, lightDirArr, SHADER_UNIFORM_VEC3);
-        float lightColor[3] = {1.1f, 1.0f, 0.85f};
+        float lightColor[3] = {1.2f, 1.05f, 0.82f};
         SetShaderValue(lighting.shader, lighting.lightColorLoc, lightColor, SHADER_UNIFORM_VEC3);
 
         // Fill — warm from below-side
         Vector3 fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f});
         float fillDirArr[3] = {fillDir.x, fillDir.y, fillDir.z};
         SetShaderValue(lighting.shader, lighting.fillDirLoc, fillDirArr, SHADER_UNIFORM_VEC3);
-        float fillColor[3] = {0.35f, 0.38f, 0.45f};  // cool fill — warm/cool contrast
+        float fillColor[3] = {0.30f, 0.35f, 0.45f};  // cooler blue fill — more contrast
         SetShaderValue(lighting.shader, lighting.fillColorLoc, fillColor, SHADER_UNIFORM_VEC3);
 
-        // Ambient — warm enough to see, dramatic but not dark
-        float ambient[3] = {0.32f, 0.30f, 0.28f};
+        // Ambient — lower for dramatic Ando shadows
+        float ambient[3] = {0.22f, 0.21f, 0.20f};
         SetShaderValue(lighting.shader, lighting.ambientLoc, ambient, SHADER_UNIFORM_VEC3);
 
         lighting.ready = true;
