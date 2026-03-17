@@ -61,7 +61,11 @@ void add_cone(Scene *s, float x, float y, float z, float diameter, float height,
 }
 
 void add_object(Scene *s, float x, float y, float z, const char *name, Color c, int max_steps) {
-    if (s->object_count >= MAX_OBJECTS) return;
+    if (s->object_count >= MAX_OBJECTS) {
+        fprintf(stderr, "[EV] WARNING: object overflow (%d/%d) — '%s' at (%.1f,%.1f,%.1f) dropped\n",
+                s->object_count, MAX_OBJECTS, name, x, y, z);
+        return;
+    }
     s->objects[s->object_count++] = (InteractObject){
         .pos = {x, y, z}, .color = c, .name = name,
         .done = false, .active = true, .radius = 2.0f,
@@ -505,6 +509,29 @@ void build_lobby(Scene *s) {
 
     // Door frame around elevator doors
     add_door_frame(s, -2.0f, 1.5f, -9.76f, 2.2f, 3.0f, 0.1f, gold);
+
+    // ============================================================
+    // EVIDENCE OF DEPARTURE — someone was just here
+    // The lobby is populated by absence. Gravity Bone: objects tell stories.
+    // ============================================================
+    // Forgotten coat on column hook — dark wool, draped
+    add_wall(s, -7.8f, 1.4f, -4, 0.04f, 0.8f, 0.3f, (Color){35,32,28,255});
+    set_last_material(s, MAT_FABRIC);
+    // Hook on column
+    add_wall(s, -7.85f, 1.85f, -4, 0.06f, 0.06f, 0.04f, gold);
+    set_last_material(s, MAT_BRASS);
+    // Abandoned suitcase — near entrance, someone left without it
+    add_wall(s, 3.5f, 0.15f, 6, 0.6f, 0.3f, 0.4f, (Color){95,60,30,255});
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 3.5f, 0.32f, 6, 0.62f, 0.02f, 0.42f, gold);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Key left on desk — small brass rectangle
+    add_wall(s, 1.2f, 1.05f, -6.8f, 0.08f, 0.02f, 0.04f, gold);
+    set_last_material(s, MAT_BRASS);
+    // Spilled coffee — dark ring stain near the bench
+    add_wall(s, 5.5f, 0.01f, -7.5f, 0.35f, 0.01f, 0.35f, (Color){60,45,30,60});
+    set_last_decal(s);
 
     // Picture frames flanking concrete reveal panel on back wall
     add_picture_frame(s, -6.0f, 3.5f, -9.72f, 1.0f, 0.7f, gold, (Color){195,45,40,255});
@@ -1545,39 +1572,42 @@ void build_taxi_ride(Scene *s) {
 
     // Driver — Bolaño character, silhouette in sodium light
     // "The driver didn't turn around. He didn't need to."
-    Color driver_collar = {35, 32, 28, 255};
-    Color driver_cap = {15, 14, 12, 255};
-    Color driver_skin = {165, 142, 110, 255};
-    // Body — dark coat, broad
-    add_wall(s, -0.4f, 0.75f, -0.9f, 0.38f, 0.48f, 0.28f, driver_coat);
+    // BOLD READABILITY — viewed from backseat at ~1m distance
+    // Every piece must be ≥5px on screen. High contrast against dark interior.
+    Color driver_collar = {220, 215, 205, 255};    // WHITE collar — pops against dark
+    Color driver_cap = {45, 42, 38, 255};           // dark but not invisible
+    Color driver_skin = {200, 175, 140, 255};       // WARM, bright — catches streetlight
+    // Body — dark coat, BROAD, the dominant shape
+    add_wall(s, -0.4f, 0.72f, -0.88f, 0.44f, 0.52f, 0.32f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Shoulders — wider than body
-    add_wall(s, -0.4f, 0.96f, -0.9f, 0.50f, 0.10f, 0.28f, driver_coat);
+    // Shoulders — much wider, reads as "person" not "box"
+    add_wall(s, -0.4f, 0.96f, -0.88f, 0.58f, 0.12f, 0.30f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Collar — white shirt visible at neck
-    add_wall(s, -0.4f, 1.02f, -0.88f, 0.18f, 0.06f, 0.12f, driver_collar);
-    // Neck
-    add_wall(s, -0.4f, 1.06f, -0.87f, 0.10f, 0.08f, 0.10f, driver_skin);
-    // Head — slightly turned, looking at road
-    add_wall(s, -0.4f, 1.16f, -0.85f, 0.18f, 0.20f, 0.18f, driver_head);
-    // Flat cap — dark, sits on head
-    add_wall(s, -0.4f, 1.28f, -0.85f, 0.22f, 0.05f, 0.22f, driver_cap);
+    // Collar — BRIGHT WHITE, the key readability element from behind
+    add_wall(s, -0.4f, 1.03f, -0.86f, 0.24f, 0.08f, 0.16f, driver_collar);
     set_last_material(s, MAT_FABRIC);
-    // Cap brim — extends forward
-    add_wall(s, -0.4f, 1.26f, -0.96f, 0.20f, 0.02f, 0.10f, driver_cap);
+    // Neck — visible between collar and head
+    add_wall(s, -0.4f, 1.08f, -0.86f, 0.14f, 0.10f, 0.14f, driver_skin);
+    // Head — BIGGER, the shape you recognize
+    add_wall(s, -0.4f, 1.20f, -0.84f, 0.22f, 0.24f, 0.22f, driver_head);
+    // Flat cap — sits on head, darker, wider brim
+    add_wall(s, -0.4f, 1.34f, -0.84f, 0.28f, 0.07f, 0.28f, driver_cap);
     set_last_material(s, MAT_FABRIC);
-    // Left arm — on steering wheel
-    add_wall(s, -0.56f, 0.82f, -1.1f, 0.08f, 0.30f, 0.08f, driver_coat);
+    // Cap brim — extends forward, casts shadow feel
+    add_wall(s, -0.4f, 1.32f, -0.98f, 0.26f, 0.03f, 0.14f, driver_cap);
     set_last_material(s, MAT_FABRIC);
-    // Left hand on wheel — skin-colored
-    add_wall(s, -0.52f, 0.76f, -1.28f, 0.06f, 0.06f, 0.06f, driver_skin);
+    // Left arm — on steering wheel, CHUNKY
+    add_wall(s, -0.60f, 0.80f, -1.08f, 0.12f, 0.38f, 0.12f, driver_coat);
+    set_last_material(s, MAT_FABRIC);
+    // Left hand on wheel — skin, VISIBLE
+    add_wall(s, -0.55f, 0.74f, -1.26f, 0.10f, 0.08f, 0.10f, driver_skin);
     // Right arm — resting on center console
-    add_wall(s, -0.24f, 0.82f, -0.8f, 0.08f, 0.30f, 0.08f, driver_coat);
+    add_wall(s, -0.22f, 0.80f, -0.78f, 0.12f, 0.38f, 0.12f, driver_coat);
     set_last_material(s, MAT_FABRIC);
-    // Right hand — on gear shift area
-    add_wall(s, -0.18f, 0.68f, -0.7f, 0.06f, 0.06f, 0.06f, driver_skin);
-    // Ear — tiny cube on side of head (Gravity Bone style detail)
-    add_wall(s, -0.50f, 1.14f, -0.85f, 0.03f, 0.05f, 0.04f, driver_skin);
+    // Right hand — visible on armrest area
+    add_wall(s, -0.16f, 0.66f, -0.68f, 0.10f, 0.08f, 0.10f, driver_skin);
+    // Ear — on side of head, gives silhouette character
+    add_wall(s, -0.52f, 1.18f, -0.84f, 0.04f, 0.08f, 0.06f, driver_skin);
 
     // Rear-view mirror — small rectangle above dashboard center
     add_wall(s, 0, 1.15f, -1.1f, 0.2f, 0.1f, 0.04f, mirror_c);
@@ -2129,18 +2159,107 @@ void build_space_corridor(Scene *s) {
     add_wall(s, end0_x, H/2, end0_z - seg_len/2, W, H, 0.25f, hull);
     add_wall(s, end1_x, H/2, end1_z + seg_len/2, W, H, 0.25f, hull);
 
-    // FLOATING OBJECTS in corridor
-    // Fire extinguisher — floating off the wall
+    // ============================================================
+    // LIGHT UNDER DOORS — each door leaks a different life
+    // ============================================================
+    for (int i = 0; i < segs; i++) {
+        if (i >= 2 && i <= 6 && i % 2 == 0) {
+            float a_m = start_angle + (i + 0.5f) * (total_angle / segs);
+            float door_cx = sinf(a_m) * curve_radius;
+            float door_cz = -cosf(a_m) * curve_radius + curve_radius;
+            float side = (i % 4 == 0) ? -(W/2-0.1f) : (W/2-0.1f);
+            int door_idx = (i - 2) / 2;
+            Color door_light;
+            switch (door_idx) {
+                case 0: door_light = (Color){240,210,120,140}; break;  // warm reading lamp
+                case 1: door_light = (Color){80,120,200,100};  break;  // TV flicker blue
+                default: door_light = (Color){0,0,0,0};        break;  // darkness — empty
+            }
+            if (door_light.a > 0) {
+                add_wall(s, door_cx+side*0.85f, 0.02f, door_cz,
+                         0.06f, 0.02f, 0.9f, door_light);
+                set_last_decal(s);
+            }
+        }
+    }
+
+    // ============================================================
+    // THE IMPOSSIBLE DOOR — opens to raw hull. Not a room.
+    // ============================================================
+    {
+        float a_imp = start_angle + 6.5f * (total_angle / segs);
+        float imp_cx = sinf(a_imp) * curve_radius;
+        float imp_cz = -cosf(a_imp) * curve_radius + curve_radius;
+        float imp_side = (W/2-0.1f);
+        add_wall(s, imp_cx+imp_side-0.02f, 1.3f, imp_cz, 0.06f, 2.6f, 0.95f,
+                 (Color){8,8,12,255});
+        set_last_material(s, MAT_CONCRETE);
+        add_wall(s, imp_cx+imp_side+0.04f, 1.3f, imp_cz-0.45f, 0.08f, 2.6f, 0.08f,
+                 door_colors[0]);
+        add_wall(s, imp_cx+imp_side, 2.75f, imp_cz, 0.12f, 0.12f, 1.1f, brass);
+        add_wall(s, imp_cx+imp_side, 1.3f, imp_cz-0.55f, 0.12f, 2.6f, 0.05f, brass);
+        add_wall(s, imp_cx+imp_side, 1.3f, imp_cz+0.55f, 0.12f, 2.6f, 0.05f, brass);
+        add_wall(s, imp_cx+imp_side*0.95f, 2, imp_cz-0.7f, 0.06f, 0.2f, 0.15f, brass);
+    }
+
+    // ============================================================
+    // STRATEGIC EMPTINESS — missing hull panels, exposed ribs
+    // ============================================================
+    {
+        float a_empty = start_angle + 4.5f * (total_angle / segs);
+        float empty_cx = sinf(a_empty) * curve_radius;
+        float empty_cz = -cosf(a_empty) * curve_radius + curve_radius;
+        for (int r = 0; r < 3; r++) {
+            add_wall(s, empty_cx+W/2-0.08f, 0.5f + r*1.2f, empty_cz,
+                     0.04f, 0.06f, 3.0f, hull_lt);
+            set_last_material(s, MAT_CONCRETE);
+        }
+        add_cylinder(s, empty_cx+W/2-0.06f, H/2, empty_cz+0.8f,
+                     0.04f, H-0.5f, (Color){120,110,95,255});
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, empty_cx+W/2+0.05f, H/2, empty_cz,
+                 0.1f, H-0.5f, 3.0f, (Color){15,15,20,255});
+    }
+
+    // ============================================================
+    // WINDOW-INTO-WINDOW — porthole into someone else's room
+    // Through it: their porthole, looking out at Earth.
+    // ============================================================
+    {
+        float a_win = start_angle + 3.5f * (total_angle / segs);
+        float win_cx = sinf(a_win) * curve_radius;
+        float win_cz = -cosf(a_win) * curve_radius + curve_radius;
+        float win_side = -(W/2-0.1f);
+        add_sphere(s, win_cx+win_side, H*0.55f, win_cz, 0.9f, void_black);
+        add_cylinder(s, win_cx+win_side, H*0.55f, win_cz, 1.1f, 0.06f, brass);
+        float room_x = win_cx+win_side - 2.5f;
+        add_wall(s, room_x, H*0.55f, win_cz, 0.3f, 0.5f, 0.3f,
+                 (Color){200,170,120,120});
+        add_sphere(s, room_x-0.3f, H*0.55f, win_cz, 0.3f, void_black);
+        add_cylinder(s, room_x-0.3f, H*0.55f, win_cz, 0.35f, 0.03f, brass);
+        add_wall(s, room_x-1.5f, H*0.55f, win_cz,
+                 0.06f, 0.06f, 0.06f, (Color){240,238,232,200});
+    }
+
+    // FLOATING OBJECTS — life's detritus in zero-g
     add_wall(s, end0_x - W/2+0.3f, 1.8f, end0_z, 0.2f, 0.5f, 0.15f, door_colors[0]);
-    // Newspaper drifting mid-corridor
     float mid_x = sinf(0) * curve_radius;
     float mid_z = -cosf(0) * curve_radius + curve_radius;
     add_wall(s, mid_x+0.5f, 2.2f, mid_z, 0.5f, 0.01f, 0.35f, (Color){235,232,228,200});
+    // Playing card tumbling
+    add_wall(s, mid_x-0.8f, 1.4f, mid_z+3, 0.12f, 0.18f, 0.01f, (Color){245,242,238,220});
+    // Sock — escaped laundry
+    add_wall(s, end1_x+0.3f, 2.8f, end1_z-2, 0.06f, 0.15f, 0.04f, (Color){40,38,42,200});
+    // Pen cap
+    add_cylinder(s, mid_x-1.2f, 3.0f, mid_z-2, 0.02f, 0.06f, brass);
+    // Toothbrush
+    add_wall(s, end0_x+1.0f, 2.5f, end0_z+5, 0.02f, 0.02f, 0.18f, (Color){240,238,234,220});
+    add_wall(s, end0_x+1.0f, 2.5f, end0_z+5.09f, 0.03f, 0.02f, 0.03f, (Color){60,140,180,255});
 
-    // Light shaft effect near first porthole
+    // Light shaft near first porthole
     add_wall(s, end0_x, 0.02f, end0_z+3, 1.0f, 0.02f, 1.5f, (Color){60,130,200,40});
 
-    // Runner strip down center — brass inlay in floor
+    // Runner strip — brass inlay in floor
     add_wall(s, 0, 0.01f, mid_z, 0.3f, 0.02f, segs*seg_len*0.8f, brass);
     set_last_material(s, MAT_BRASS);
 
@@ -2363,17 +2482,21 @@ void build_space_suite(Scene *s) {
     add_wall(s, -2.05f, 1.53f, 3, 0.55f, 0.02f, 0.38f, (Color){30,30,35,255});
 
     // ============================================================
-    // STORYTELLING OBJECTS — non-interactive, just present
+    // STORYTELLING OBJECTS — the previous guest's traces
+    // Someone was here. They left in a hurry. Or they didn't.
     // ============================================================
 
-    // Half-packed suitcase by the door — someone was here before you
-    add_wall(s, 5, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);   // suitcase body
+    // Half-packed suitcase by the door — lid propped open, clothes spilling
+    add_wall(s, 5, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
     set_last_material(s, MAT_LEATHER);
-    add_wall(s, 5, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);     // brass clasp line
+    add_wall(s, 5, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
     set_last_material(s, MAT_BRASS);
     set_last_decal(s);
-    add_wall(s, 5, 0.34f, 4.72f, 0.68f, 0.15f, 0.02f, dark_wood); // lid propped open
+    add_wall(s, 5, 0.34f, 4.72f, 0.68f, 0.15f, 0.02f, dark_wood);
     set_last_material(s, MAT_LEATHER);
+    // Shirt spilling out of suitcase — blue fabric draped over edge
+    add_wall(s, 5.3f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
+    set_last_material(s, MAT_FABRIC);
 
     // Shoes by the bed — placed neatly, toes facing out
     add_wall(s, -1.8f, 0.06f, -3.5f, 0.12f, 0.12f, 0.28f, (Color){35,30,28,255});
@@ -2382,6 +2505,28 @@ void build_space_suite(Scene *s) {
     // Postcard face-down on nightstand — you can't read it
     add_wall(s, 2.5f, 0.64f, -4.6f, 0.16f, 0.005f, 0.11f, cream);
     set_last_decal(s);
+
+    // HALF-WRITTEN LETTER on desk — pen left mid-sentence
+    add_wall(s, 5.3f, 0.85f, -2.2f, 0.3f, 0.005f, 0.22f, (Color){245,242,235,255});
+    set_last_decal(s);
+    // Pen — resting at an angle across the letter
+    add_cylinder(s, 5.45f, 0.86f, -2.1f, 0.015f, 0.16f, (Color){30,28,25,255});
+    set_last_rotation(s, 35.0f);
+
+    // Wine glass with lipstick mark on coffee table
+    // Stem
+    add_cylinder(s, -3.2f, 0.4f, 3.3f, 0.02f, 0.12f, (Color){210,210,215,160});
+    // Bowl
+    add_wall(s, -3.2f, 0.49f, 3.3f, 0.05f, 0.06f, 0.05f, (Color){210,210,215,160});
+    // Lipstick mark — tiny red crescent on the rim
+    add_wall(s, -3.18f, 0.52f, 3.28f, 0.02f, 0.02f, 0.01f, (Color){180,45,55,220});
+
+    // Photo turned face-down — you cannot see who's in it
+    add_wall(s, -2.5f, 0.64f, -4.5f, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
+
+    // Scarf draped over sofa arm — someone sat here
+    add_wall(s, -4.2f, 0.7f, 2.0f, 0.08f, 0.4f, 0.3f, (Color){200,50,45,200});
+    set_last_material(s, MAT_FABRIC);
 
     // ============================================================
     // RECESSED PANELS — depth on hull walls

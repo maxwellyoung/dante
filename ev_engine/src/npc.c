@@ -29,13 +29,13 @@ static void init_common(NPC *npc, Vector3 start, Vector3 *waypoints, int count,
     if (count > 0) npc->target_pos = waypoints[0];
 
     // Gibbons — Bolaño bellboy
-    // Dark navy uniform, cream skin, red cap, burgundy tie, leather briefcase
-    npc->body_color      = (Color){28, 32, 52, 255};    // deep navy
-    npc->head_color      = (Color){215, 195, 165, 255}; // warm skin
-    npc->cap_color       = (Color){175, 40, 38, 255};   // Godard red cap
-    npc->leg_color       = (Color){22, 25, 42, 255};    // darker navy
-    npc->tie_color       = (Color){140, 30, 35, 255};   // burgundy
-    npc->briefcase_color = (Color){95, 60, 30, 255};    // worn leather
+    // HIGH CONTRAST for 480x300: bright cap, visible skin, navy body pops against marble
+    npc->body_color      = (Color){35, 40, 65, 255};    // navy — lighter than before
+    npc->head_color      = (Color){230, 210, 175, 255}; // BRIGHT warm skin — must read
+    npc->cap_color       = (Color){200, 50, 42, 255};   // VIVID Godard red — the beacon
+    npc->leg_color       = (Color){30, 34, 55, 255};    // navy
+    npc->tie_color       = (Color){195, 45, 40, 255};   // red — matches cap, visible
+    npc->briefcase_color = (Color){160, 110, 50, 255};  // GOLDEN brown — catches light
 }
 
 void init_npc(NPC *npc, Vector3 start, Vector3 *waypoints, int count,
@@ -198,7 +198,7 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
 
         // Player proximity → advance (only after dialogue finishes or no dialogue)
         float player_dist = Vector3Length(to_player);
-        bool dialogue_done = !npc->lines || npc->current_line >= npc->line_count || !npc->line_showing;
+        bool dialogue_done = !npc->lines || npc->current_line >= npc->line_count;
         if (player_dist < npc->wait_radius && dialogue_done) {
             npc->current_waypoint++;
             npc->waiting = false;
@@ -257,20 +257,22 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model __attribute__((unuse
     float cy = cosf(yaw), sy = sinf(yaw);
 
     // Walk bob — body rises and falls with stride
-    float walk_bob = walking ? sinf(t) * 0.04f : 0;
+    float walk_bob = walking ? sinf(t) * 0.05f : 0;
     // Idle fidget — Bolaño: he shifts his weight, adjusts his tie
-    float idle_sway = sinf(idle * 0.8f) * 0.01f;
-    float idle_tilt = sinf(idle * 1.3f) * 1.5f;  // degrees — head tilt
+    float idle_sway = sinf(idle * 0.8f) * 0.015f;
+    float idle_tilt = sinf(idle * 1.3f) * 2.5f;  // degrees — head tilt
 
-    // ── Proportions (Gravity Bone scale — blocky, readable at 480x300) ──
-    float leg_h = 0.42f, leg_w = 0.10f;
-    float body_w = 0.34f, body_h = 0.48f, body_d = 0.20f;
-    float head_s = 0.22f;
-    float cap_w = 0.26f, cap_h = 0.07f;
-    float shoulder_w = 0.42f, shoulder_h = 0.08f;
-    float arm_w = 0.08f, arm_h = 0.36f;
-    float tie_w = 0.06f, tie_h = 0.22f;
-    float case_w = 0.20f, case_h = 0.14f, case_d = 0.06f;
+    // ── Proportions — CHUNKY, BOLD, reads at 480x300 ──
+    // Rodkin rule: every part must be ≥3px on screen at 3m distance
+    // Total height: ~1.7m (not small — he's YOUR HEIGHT)
+    float leg_h = 0.55f, leg_w = 0.16f;
+    float body_w = 0.46f, body_h = 0.55f, body_d = 0.28f;
+    float head_s = 0.28f;
+    float cap_w = 0.34f, cap_h = 0.09f;
+    float shoulder_w = 0.56f, shoulder_h = 0.10f;
+    float arm_w = 0.13f, arm_h = 0.45f;
+    float tie_w = 0.10f, tie_h = 0.28f;
+    float case_w = 0.28f, case_h = 0.20f, case_d = 0.10f;
 
     // ── Derived positions ──
     float foot_y = base_y;
@@ -364,13 +366,13 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model __attribute__((unuse
         NPC_POS(-arm_x - 0.02f, case_y, 0),
         (Vector3){0,1,0}, yaw * RAD2DEG,
         (Vector3){case_d, case_h, case_w}, WHITE);
-    // Brass latch on briefcase
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){178, 155, 107, 255};
+    // Brass latch on briefcase — BIG, visible
+    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){210, 180, 100, 255};
     SetMaterialId(lighting, 6);  // MAT_BRASS
     DrawModelEx(*cube_model,
-        NPC_POS(-arm_x - 0.02f, case_y + case_h * 0.3f, -case_w/2 - 0.005f),
+        NPC_POS(-arm_x - 0.02f, case_y + case_h * 0.3f, -case_w/2 - 0.01f),
         (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){0.02f, 0.03f, 0.02f}, WHITE);
+        (Vector3){0.04f, 0.05f, 0.03f}, WHITE);
 
     // ── HEAD ──
     cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = npc->head_color;
@@ -394,17 +396,17 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model __attribute__((unuse
         (Vector3){0,1,0}, (yaw * RAD2DEG) + idle_tilt,
         (Vector3){cap_w + 0.04f, 0.02f, cap_w * 0.6f}, WHITE);
 
-    // ── BUTTONS — two brass dots on chest ──
-    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){178, 155, 107, 255};
+    // ── BUTTONS — two bright brass squares on chest — BIG ──
+    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){210, 180, 100, 255};
     SetMaterialId(lighting, 6);  // MAT_BRASS
     DrawModelEx(*cube_model,
-        NPC_POS(0.06f, torso_y + 0.10f, -body_d/2 - 0.005f),
+        NPC_POS(0.09f, torso_y + 0.12f, -body_d/2 - 0.01f),
         (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){0.03f, 0.03f, 0.01f}, WHITE);
+        (Vector3){0.05f, 0.05f, 0.02f}, WHITE);
     DrawModelEx(*cube_model,
-        NPC_POS(0.06f, torso_y - 0.06f, -body_d/2 - 0.005f),
+        NPC_POS(0.09f, torso_y - 0.08f, -body_d/2 - 0.01f),
         (Vector3){0,1,0}, yaw * RAD2DEG,
-        (Vector3){0.03f, 0.03f, 0.01f}, WHITE);
+        (Vector3){0.05f, 0.05f, 0.02f}, WHITE);
 
     #undef NPC_POS
 }
