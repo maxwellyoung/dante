@@ -125,9 +125,11 @@ static void rotate_xz(float *x, float *z, float angle) {
     *x = rx; *z = rz;
 }
 
-// ── Collision — shape-aware, two-pass for corners ────────────────────
-// Handles cubes (with rotation), cylinders, spheres, cones.
-// Returns info about the most significant wall hit (tallest side wall).
+// ── Collision — shape-aware, multi-pass with proper slide ────────────
+// Handles cubes (AABB + rotated OBB), cylinders, spheres, cones.
+// Skips no_collide, decals, and tiny decorative geometry.
+// Uses closest-point AABB for smooth corner sliding (no jitter).
+// Returns info about the most significant wall hit (for wall-running).
 static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
                                        Scene *scene, float ground_y, float pr,
                                        float eye_y) {
@@ -137,6 +139,10 @@ static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
             if (!w->active) continue;
+            // Skip decorative/non-collidable geometry
+            if (w->no_collide || w->is_decal) continue;
+            // Skip tiny objects (cigarettes, pens, ash, dots) — too small to block
+            if (w->size.x < 0.1f && w->size.y < 0.1f && w->size.z < 0.1f) continue;
 
             float wt = w->pos.y + w->size.y / 2;
             float wb = w->pos.y - w->size.y / 2;
@@ -145,26 +151,29 @@ static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
             if (wt <= ground_y + phys.step_height && wt > ground_y - 0.1f)
                 continue;
 
-            // Vertical overlap check (shared by all shapes)
+            // Vertical overlap check
             if (new_pos->y <= wb || new_pos->y >= wt) continue;
+
+            // Broad-phase: bounding sphere reject
+            float max_dim = w->size.x > w->size.z ? w->size.x : w->size.z;
+            float broad_r = max_dim * 0.71f + pr + 0.5f;  // sqrt(2)/2 * max + margin
+            float bdx = new_pos->x - w->pos.x;
+            float bdz = new_pos->z - w->pos.z;
+            if (bdx*bdx + bdz*bdz > broad_r * broad_r) continue;
 
             float nx = 0, nz = 0;
             bool hit = false;
 
             if (w->shape == SHAPE_CYLINDER || w->shape == SHAPE_CONE) {
-                // ── Circle collision (XZ plane) ──
-                // Cylinder: size.x = diameter. Cone: tapers, use base diameter.
                 float r = w->size.x / 2 + pr;
                 float px = new_pos->x, pz = new_pos->z;
                 if (circle_push(w->pos.x, w->pos.z, r, &px, &pz, &nx, &nz)) {
                     new_pos->x = px; new_pos->z = pz;
-                    // Cancel velocity into wall
                     float vdot = vel->x * nx + vel->z * nz;
                     if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
                     hit = true;
                 }
             } else if (w->shape == SHAPE_SPHERE) {
-                // ── Sphere: full 3D push ──
                 float r = w->size.x / 2 + pr;
                 float dx = new_pos->x - w->pos.x;
                 float dy = new_pos->y - w->pos.y;
@@ -180,76 +189,101 @@ static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
                     new_pos->z = w->pos.z + dz * inv * r;
                     float vdot = vel->x * nx + vel->z * nz;
                     if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
-                    if (ny < 0) vel->z = 0; // Don't count sphere top collisions as wall hits
-                    hit = (fabsf(ny) < 0.7f); // Only count as wall if not mostly vertical
+                    hit = (fabsf(ny) < 0.7f);
+                }
+            } else if (w->shape == SHAPE_SKYTOWER || w->shape == SHAPE_TORUS) {
+                // External models / torus — use bounding cylinder approximation
+                float r = max_dim / 2 + pr;
+                float px = new_pos->x, pz = new_pos->z;
+                if (circle_push(w->pos.x, w->pos.z, r, &px, &pz, &nx, &nz)) {
+                    new_pos->x = px; new_pos->z = pz;
+                    float vdot = vel->x * nx + vel->z * nz;
+                    if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
+                    hit = true;
                 }
             } else {
-                // ── Cube (AABB or rotated OBB) ──
+                // ── Cube: closest-point method for smooth corner sliding ──
                 float hx = w->size.x / 2;
                 float hz = w->size.z / 2;
 
                 if (w->rotation_y != 0.0f) {
-                    // Rotated cube: transform player into wall's local space
+                    // Rotated: transform to local space, solve, transform back
                     float angle = -w->rotation_y * (3.14159265f / 180.0f);
                     float lx = new_pos->x - w->pos.x;
                     float lz = new_pos->z - w->pos.z;
                     rotate_xz(&lx, &lz, angle);
 
-                    // AABB test in local space
-                    if (lx > -hx - pr && lx < hx + pr &&
-                        lz > -hz - pr && lz < hz + pr) {
-                        float pen_l = (-hx - pr) - lx;
-                        float pen_r = lx - (hx + pr);
-                        float pen_f = (-hz - pr) - lz;
-                        float pen_b = lz - (hz + pr);
-                        float lpx = (fabsf(pen_l) < fabsf(pen_r)) ? pen_l : -pen_r;
-                        float lpz = (fabsf(pen_f) < fabsf(pen_b)) ? pen_f : -pen_b;
+                    // Closest point on AABB to player (in local space)
+                    float cx = lx < -hx ? -hx : (lx > hx ? hx : lx);
+                    float cz = lz < -hz ? -hz : (lz > hz ? hz : lz);
+                    float dx = lx - cx, dz = lz - cz;
+                    float d2 = dx*dx + dz*dz;
 
-                        // Push in local space
-                        if (fabsf(lpx) < fabsf(lpz)) {
-                            lx += lpx;
-                            nx = (lpx > 0) ? -1.0f : 1.0f; nz = 0;
-                        } else {
-                            lz += lpz;
-                            nx = 0; nz = (lpz > 0) ? -1.0f : 1.0f;
-                        }
-
-                        // Rotate push back to world space
-                        float inv_angle = -angle;
-                        rotate_xz(&lx, &lz, inv_angle);
-                        rotate_xz(&nx, &nz, inv_angle);
+                    if (d2 < pr * pr && d2 > 0.0001f) {
+                        float d = sqrtf(d2);
+                        float lnx = dx / d, lnz = dz / d;
+                        lx = cx + lnx * pr;
+                        lz = cz + lnz * pr;
+                        nx = lnx; nz = lnz;
+                        // Rotate back to world space
+                        rotate_xz(&lx, &lz, -angle);
+                        rotate_xz(&nx, &nz, -angle);
                         new_pos->x = w->pos.x + lx;
                         new_pos->z = w->pos.z + lz;
-
-                        // Cancel velocity into wall normal
+                        float vdot = vel->x * nx + vel->z * nz;
+                        if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
+                        hit = true;
+                    } else if (d2 < 0.0001f && lx > -hx && lx < hx && lz > -hz && lz < hz) {
+                        // Player center inside box — push out via nearest face
+                        float pen_l = lx + hx + pr, pen_r = hx - lx + pr;
+                        float pen_f = lz + hz + pr, pen_b = hz - lz + pr;
+                        float min_pen = pen_l;
+                        nx = -1; nz = 0;
+                        if (pen_r < min_pen) { min_pen = pen_r; nx = 1; nz = 0; }
+                        if (pen_f < min_pen) { min_pen = pen_f; nx = 0; nz = -1; }
+                        if (pen_b < min_pen) { min_pen = pen_b; nx = 0; nz = 1; }
+                        lx += nx * min_pen; lz += nz * min_pen;
+                        rotate_xz(&lx, &lz, -angle);
+                        rotate_xz(&nx, &nz, -angle);
+                        new_pos->x = w->pos.x + lx;
+                        new_pos->z = w->pos.z + lz;
                         float vdot = vel->x * nx + vel->z * nz;
                         if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
                         hit = true;
                     }
                 } else {
-                    // Axis-aligned cube (fast path — most walls)
-                    if (new_pos->x > w->pos.x - hx - pr &&
-                        new_pos->x < w->pos.x + hx + pr &&
-                        new_pos->z > w->pos.z - hz - pr &&
-                        new_pos->z < w->pos.z + hz + pr) {
+                    // ── Axis-aligned: closest-point AABB (smooth corners) ──
+                    float cx = new_pos->x < w->pos.x - hx ? w->pos.x - hx :
+                              (new_pos->x > w->pos.x + hx ? w->pos.x + hx : new_pos->x);
+                    float cz = new_pos->z < w->pos.z - hz ? w->pos.z - hz :
+                              (new_pos->z > w->pos.z + hz ? w->pos.z + hz : new_pos->z);
+                    float dx = new_pos->x - cx, dz = new_pos->z - cz;
+                    float d2 = dx*dx + dz*dz;
 
-                        float pen_l = (w->pos.x - hx - pr) - new_pos->x;
-                        float pen_r = new_pos->x - (w->pos.x + hx + pr);
-                        float pen_f = (w->pos.z - hz - pr) - new_pos->z;
-                        float pen_b = new_pos->z - (w->pos.z + hz + pr);
-
-                        float px = (fabsf(pen_l) < fabsf(pen_r)) ? pen_l : -pen_r;
-                        float pz = (fabsf(pen_f) < fabsf(pen_b)) ? pen_f : -pen_b;
-
-                        if (fabsf(px) < fabsf(pz)) {
-                            nx = (px > 0) ? 1.0f : -1.0f;
-                            new_pos->x += px;
-                            if (vel->x * nx < 0) vel->x = 0;
-                        } else {
-                            nz = (pz > 0) ? 1.0f : -1.0f;
-                            new_pos->z += pz;
-                            if (vel->z * nz < 0) vel->z = 0;
-                        }
+                    if (d2 < pr * pr && d2 > 0.0001f) {
+                        // Outside box but within player radius — push out radially
+                        float d = sqrtf(d2);
+                        nx = dx / d; nz = dz / d;
+                        new_pos->x = cx + nx * pr;
+                        new_pos->z = cz + nz * pr;
+                        float vdot = vel->x * nx + vel->z * nz;
+                        if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
+                        hit = true;
+                    } else if (d2 < 0.0001f) {
+                        // Player center inside box — push out nearest face
+                        float pen_l = new_pos->x - (w->pos.x - hx - pr);
+                        float pen_r = (w->pos.x + hx + pr) - new_pos->x;
+                        float pen_f = new_pos->z - (w->pos.z - hz - pr);
+                        float pen_b = (w->pos.z + hz + pr) - new_pos->z;
+                        float min_pen = pen_l;
+                        nx = -1; nz = 0;
+                        if (pen_r < min_pen) { min_pen = pen_r; nx = 1; nz = 0; }
+                        if (pen_f < min_pen) { min_pen = pen_f; nx = 0; nz = -1; }
+                        if (pen_b < min_pen) { min_pen = pen_b; nx = 0; nz = 1; }
+                        new_pos->x += nx * min_pen;
+                        new_pos->z += nz * min_pen;
+                        float vdot = vel->x * nx + vel->z * nz;
+                        if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
                         hit = true;
                     }
                 }
@@ -276,7 +310,7 @@ static bool touching_wall(Player *p, Scene *scene) {
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
         float wt = w->pos.y + w->size.y / 2;
         float wb = w->pos.y - w->size.y / 2;
         if (wt < p->ground_y + 1.0f) continue;  // too short
@@ -615,7 +649,9 @@ void update_player(Player *p, Scene *scene, float dt) {
         float eye_height = p->sliding ? phys.slide_eye_height : phys.eye_height;
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
-            if (!w->active) continue;
+            if (!w->active || w->no_collide || w->is_decal) continue;
+            // Skip tiny decorative objects for ground detection too
+            if (w->size.x < 0.1f && w->size.y < 0.1f && w->size.z < 0.1f) continue;
             float top, hx, hz;
             switch (w->shape) {
                 case SHAPE_CUBE: {

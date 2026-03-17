@@ -9,6 +9,7 @@
 #include "npc.h"
 #include "raymath.h"
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 // ── Initialization ──────────────────────────────────────────────────
@@ -185,19 +186,26 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
             npc->behavior = NPC_WAITING;
         }
 
-        // Dialogue — deliver a line after arriving at waypoint
+        // Dialogue — deliver ONE line per waypoint stop
+        // Line index tracks with waypoint: waypoint 0 → line 0, etc.
+        bool line_delivered = false;
         if (npc->lines && npc->current_line < npc->line_count) {
             if (!npc->line_showing && npc->idle_timer > 0.5f) {
                 npc->line_showing = true;
                 npc->line_timer = 0;
+                printf("[NPC] showing line %d: \"%s\"\n", npc->current_line,
+                       npc->lines[npc->current_line]);
             }
             if (npc->line_showing) {
                 npc->line_timer += dt;
                 if (npc->line_timer > npc->line_duration) {
                     npc->line_showing = false;
                     npc->current_line++;
+                    line_delivered = true;  // this waypoint's line is done
                 }
             }
+        } else {
+            line_delivered = true;  // no lines left — free to advance
         }
 
         // Face toward the player — smoothly (unless reading)
@@ -209,9 +217,8 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
         while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
         npc->yaw += yaw_diff * fminf(1.0f, 5.0f * dt);
 
-        // Player proximity → advance (only after dialogue finishes or no dialogue)
-        bool dialogue_done = !npc->lines || npc->current_line >= npc->line_count;
-        if (player_dist < npc->wait_radius && dialogue_done) {
+        // Player proximity → advance (after this waypoint's line is delivered)
+        if (player_dist < npc->wait_radius && line_delivered) {
             npc->current_waypoint++;
             npc->waiting = false;
             npc->idle_timer = 0;

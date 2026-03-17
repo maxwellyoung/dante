@@ -246,6 +246,7 @@ typedef struct {
     MaterialType material;  // default 0 = MAT_CONCRETE (C zero-init)
     float rotation_y;
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
+    bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
 } Wall;
 
 typedef struct {
