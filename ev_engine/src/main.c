@@ -486,12 +486,12 @@ static void load_state(GameState s) {
             // Gibbons — leads past observation window to glass elevator
             {
                 Vector3 lobby_wps[] = {
-                    {3, 0, 2},          // meets you near spawn
-                    {6, 0, -3},         // past observation window
-                    {0, 0, -4},         // toward elevator shaft
-                    {0, 0, 0},          // AT the glass elevator — get in
+                    {3, 1.6f, 2},       // meets you near spawn
+                    {6, 1.6f, -3},      // past observation window
+                    {0, 1.6f, -4},      // toward elevator shaft
+                    {0, 1.6f, 0},       // AT the glass elevator — get in
                 };
-                init_npc(&gibbons, (Vector3){2, 0, 4}, lobby_wps, 4, 2.5f, 3.5f);
+                init_npc(&gibbons, (Vector3){2, 1.6f, 4}, lobby_wps, 4, 2.5f, 3.5f);
                 static const char *lobby_lines[] = {
                     "Welcome. You're expected.",
                     "The observation window. Worth a look.",
@@ -769,6 +769,14 @@ int main(void) {
             .hero  = {{0, 0, 0}, {0, 0, -20}},             // tunnel convergence
             .spawn = {{0, 0, 0}, {0, 0, -20}},
             .dark_by_design = true, .outdoor = false},
+        {STATE_PARIS_DREAM, "paris_dream",
+            .hero  = {{0, 1.6f, 4}, {0, 1.2f, -3.5f}},      // toward bed + photograph
+            .spawn = {{0, 1.6f, 4}, {0, 1.6f, 0}},
+            .dark_by_design = false, .outdoor = false},
+        {STATE_RETURN_TAXI, "return_taxi",
+            .hero  = {{0, 1.0f, 0}, {-0.3f, 0.9f, -1.2f}},  // driver + dashboard
+            .spawn = {{0, 1.0f, 0}, {0.5f, 0.8f, -0.5f}},
+            .dark_by_design = false, .outdoor = false},
     };
     int qa_count = (int)(sizeof(qa_scenes)/sizeof(qa_scenes[0]));
 
