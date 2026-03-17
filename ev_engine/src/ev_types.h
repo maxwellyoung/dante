@@ -207,6 +207,8 @@ typedef enum {
     STATE_SPACE_LOBBY,
     STATE_SPACE_CORRIDOR,
     STATE_SPACE_SUITE,
+    STATE_PARIS_DREAM,
+    STATE_RETURN_TAXI,
 } GameState;
 
 typedef enum {

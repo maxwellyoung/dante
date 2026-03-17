@@ -89,5 +89,7 @@ SceneLighting LightingPreset_SpaceLobby(void);
 SceneLighting LightingPreset_SpaceCorridor(void);
 SceneLighting LightingPreset_SpaceSuite(void);
 SceneLighting LightingPreset_Hyperspace(void);
+SceneLighting LightingPreset_ParisDream(void);
+SceneLighting LightingPreset_ReturnTaxi(void);
 
 #endif

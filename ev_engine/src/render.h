@@ -82,6 +82,7 @@ void draw_hud(Player *player, Scene *scene);
 void draw_title(void);
 void reset_title_state(void);
 void draw_night_sky(float time);
+void draw_dawn_sky(float time);
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target);
 void draw_dust_motes(Camera3D camera, float time);
 void draw_zero_g_sparkles(Camera3D camera, float time);

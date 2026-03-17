@@ -504,10 +504,10 @@ SceneLighting LightingPreset_Taxi(void) {
     // Michael Mann night: dark but EVERY element reads
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.5f, -0.3f, -0.6f}),
-        .keyColor = {1.4f, 1.0f, 0.65f},        // sodium streetlight — HOT orange
+        .keyColor = {1.8f, 1.3f, 0.85f},        // sodium streetlight — HOT orange, boosted
         .fillDir = Vector3Normalize((Vector3){0.2f, -0.4f, 0.5f}),
-        .fillColor = {0.35f, 0.38f, 0.55f},      // dashboard blue — visible
-        .ambient = {0.28f, 0.25f, 0.30f},         // see the leather, see the driver
+        .fillColor = {0.5f, 0.52f, 0.7f},        // dashboard blue — boosted
+        .ambient = {0.4f, 0.36f, 0.42f},          // see the leather, see the driver — boosted
         // Taxi meter glow — green-teal dashboard
         .pointPos = {{0.45f, 0.72f, -1.06f}},
         .pointColor = {{0.6f, 1.0f, 0.8f}},
@@ -691,5 +691,33 @@ SceneLighting LightingPreset_Hyperspace(void) {
         .pointPos = {{0, 0, -20.0f}},
         .pointColor = {{1.0f, 0.85f, 0.55f}},
         .pointRadius = {30.0f},
+    };
+}
+
+SceneLighting LightingPreset_ParisDream(void) {
+    // Hotel Chevalier golden hour — the OPPOSITE of space blue
+    return (SceneLighting){
+        .keyDir = Vector3Normalize((Vector3){-0.5f, -0.4f, -0.3f}),
+        .keyColor = {1.8f, 1.3f, 0.70f},
+        .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
+        .fillColor = {0.35f, 0.28f, 0.18f},
+        .ambient = {0.22f, 0.18f, 0.12f},
+        .pointPos = {{0, 3.6f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
+        .pointColor = {{1.4f, 1.0f, 0.55f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
+        .pointRadius = {10.0f, 5.0f, 5.0f},
+    };
+}
+
+SceneLighting LightingPreset_ReturnTaxi(void) {
+    // Dawn Auckland — soft pink-gold, NOT sodium orange
+    return (SceneLighting){
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.5f, -0.4f}),
+        .keyColor = {1.2f, 0.85f, 0.65f},
+        .fillDir = Vector3Normalize((Vector3){0.2f, -0.3f, 0.5f}),
+        .fillColor = {0.25f, 0.22f, 0.35f},
+        .ambient = {0.30f, 0.28f, 0.32f},
+        .pointPos = {{0.45f, 0.72f, -1.06f}},
+        .pointColor = {{0.3f, 0.5f, 0.4f}},
+        .pointRadius = {3.0f},
     };
 }

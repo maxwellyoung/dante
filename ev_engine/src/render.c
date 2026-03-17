@@ -798,6 +798,40 @@ void draw_night_sky(float time) {
                   (Color){60, 45, 30, 15});
 }
 
+void draw_dawn_sky(float time) {
+    (void)time;
+    // Gradient: deep blue (top) → pink → gold (horizon)
+    for (int y = 0; y < RENDER_H; y++) {
+        float t = (float)y / RENDER_H;
+        unsigned char r, g, b;
+        if (t < 0.4f) {
+            // Upper sky — deep blue to purple
+            float u = t / 0.4f;
+            r = (unsigned char)(18 + u * 30);
+            g = (unsigned char)(22 + u * 20);
+            b = (unsigned char)(55 + u * 15);
+        } else if (t < 0.7f) {
+            // Mid sky — purple to pink
+            float u = (t - 0.4f) / 0.3f;
+            r = (unsigned char)(48 + u * 120);
+            g = (unsigned char)(42 + u * 50);
+            b = (unsigned char)(70 - u * 20);
+        } else {
+            // Horizon — pink to warm gold
+            float u = (t - 0.7f) / 0.3f;
+            r = (unsigned char)(168 + u * 62);
+            g = (unsigned char)(92 + u * 68);
+            b = (unsigned char)(50 + u * 30);
+        }
+        DrawRectangle(0, y, RENDER_W, 1, (Color){r, g, b, 255});
+    }
+    // Faint cloud band near horizon
+    DrawRectangle(0, (int)(RENDER_H * 0.72f), RENDER_W, 6,
+                  (Color){220, 170, 120, 30});
+    DrawRectangle(0, (int)(RENDER_H * 0.75f), RENDER_W, 4,
+                  (Color){200, 150, 100, 20});
+}
+
 void draw_dust_motes(Camera3D camera, float time) {
     // ~20 small bright dots drifting near the camera in lit areas
     // Deterministic positions seeded from index, slow upward drift

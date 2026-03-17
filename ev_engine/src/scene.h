@@ -62,5 +62,6 @@ void build_hyperspace(Scene *s);
 void build_space_lobby(Scene *s);
 void build_space_corridor(Scene *s);
 void build_space_suite(Scene *s);
+void build_return_taxi(Scene *s);
 
 #endif

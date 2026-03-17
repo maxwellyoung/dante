@@ -174,12 +174,15 @@ static void transition_to_slow(GameState s, float spd) {
 static float cut_flash_timer = 0;
 
 static void hard_cut_to(GameState s) {
+    printf("[DBG] hard_cut_to(%d), transition_hold was %.2f, MasterVolume restore\n", s, transition_hold);
     StopClockAmbient(&audio);
     load_state(s);
     fade_alpha = 0.0f;  fade_target = 0.0f;
     transitioning = false;  hold_timer = 0;
-    cut_flash_timer = 0.12f;  // ~3 frames at 60fps
-    SetPostFXFlash(&postfx, 1.0f, 1.0f, 0.95f, 0.85f);  // warm white flash
+    transition_hold = 0.3f;  // reset to default after each hard cut
+    cut_flash_timer = 0.12f;
+    SetPostFXFlash(&postfx, 1.0f, 1.0f, 0.95f, 0.85f);
+    SetMasterVolume(1.0f);  // always restore audio after hard cut
 }
 
 static void load_state(GameState s) {
@@ -214,8 +217,24 @@ static void load_state(GameState s) {
     text_scale_vel = 0.0f;
     text_scale_target = 0.0f;
 
+    // Reset PostFX to current visual style baseline before per-scene overrides
+    // This ensures CA, contrast, vignette, saturation are always restored
+    ApplyVisualStyle(&postfx, current_style);
+
     switch (s) {
-        case STATE_TITLE: DisableCursor(); StopAmbient(&audio); reset_title_state(); break;
+        case STATE_TITLE:
+            DisableCursor();
+            StopAmbient(&audio);
+            reset_title_state();
+            // Clean PostFX — no CA, no grain, no warmth on title
+            SetPostFXCA(&postfx, 0.0f);
+            SetPostFXGrain(&postfx, 0.0f);
+            SetPostFXWarmth(&postfx, 0.0f);
+            SetPostFXSaturation(&postfx, 1.0f);
+            SetPostFXContrast(&postfx, 0.0f);
+            SetPostFXVignette(&postfx, 0.0f);
+            set_exposure(0.0f);
+            break;
 
         case STATE_CAR:
             build_taxi_ride(&scene);
@@ -233,8 +252,11 @@ static void load_state(GameState s) {
             PlayCityAmbient(&audio);
             SetCityAmbientVolume(&audio, 0.04f);
             SetSceneLighting(&lighting, LightingPreset_Taxi());
-            set_exposure(0.0f);   // let lighting do the work
-            SetPostFXGrain(&postfx, 0.5f);       // grainy night footage
+            set_exposure(0.05f);  // slight lift — see the interior
+            SetPostFXGrain(&postfx, 0.45f);      // grainy night footage
+            SetPostFXCA(&postfx, 1.5f);           // subtle CA — night feeling
+            SetPostFXVignette(&postfx, 1.0f);     // intimate interior
+            SetPostFXWarmth(&postfx, 0.1f);       // sodium warmth
             break;
 
         case STATE_DRIVING:
@@ -382,6 +404,48 @@ static void load_state(GameState s) {
             PlayHeldChord(&audio);  // stacked fifths — credits as elegy
             break;
 
+        case STATE_PARIS_DREAM:
+            build_hotel_room(&scene);
+            init_player(&player, scene.spawn);
+            player.control_mult = 0.5f;  // dream movement — slow, deliberate
+            // The photograph is now interactable
+            add_object(&scene, -2.5f, 0.62f, -3.5f, "photograph", (Color){240,238,230,255}, 1);
+            StopAmbient(&audio);
+            StopClockAmbient(&audio);  // NO clock in the dream
+            StopWindAmbient(&audio);
+            StartAmbient(&audio, DRONE_ROOM);
+            SetSceneLighting(&lighting, LightingPreset_ParisDream());
+            set_exposure(0.1f);                     // bright golden
+            SetPostFXWarmth(&postfx, 0.8f);         // HOT warm
+            SetPostFXGrain(&postfx, 0.7f);          // dreamy grain
+            SetPostFXSaturation(&postfx, 1.15f);    // oversaturated
+            SetPostFXCA(&postfx, 3.5f);             // dream shimmer
+            SetPostFXVignette(&postfx, 1.8f);       // heavy vignette
+            SetPostFXContrast(&postfx, 1.2f);       // punchy
+            scene.fog_color = (Color){35, 28, 15, 255};  // golden fog
+            scene.fog_density = 0.008f;              // thick, intimate
+            break;
+
+        case STATE_RETURN_TAXI:
+            build_return_taxi(&scene);
+            init_player(&player, scene.spawn);
+            player.camera.target = (Vector3){0, 0.9f, -1.0f};
+            player.control_mult = 1.0f;
+            StopAmbient(&audio);
+            StopClockAmbient(&audio);
+            StopWindAmbient(&audio);
+            PlayCityAmbient(&audio);
+            SetCityAmbientVolume(&audio, 0.02f);  // quiet dawn
+            SetSceneLighting(&lighting, LightingPreset_ReturnTaxi());
+            set_exposure(0.05f);                    // slight lift
+            SetPostFXWarmth(&postfx, 0.4f);         // warm but gentle
+            SetPostFXGrain(&postfx, 0.3f);          // clean dawn
+            SetPostFXSaturation(&postfx, 1.05f);    // natural
+            SetPostFXCA(&postfx, 1.5f);             // minimal
+            SetPostFXVignette(&postfx, 1.0f);       // default
+            SetPostFXContrast(&postfx, 1.0f);       // default
+            break;
+
         case STATE_HYPERSPACE:
             build_hyperspace(&scene);
             init_player(&player, scene.spawn);
@@ -512,11 +576,8 @@ static void load_state(GameState s) {
     fade_alpha = 1.0f;
     fade_target = 0.0f;
 
-    // Reapply visual style after scene change (style persists across scenes)
-    if (current_style > 0) {
-        ApplyVisualStyle(&postfx, current_style);
-        SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
-    }
+    // Re-apply scene exposure with style bias
+    SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
 
     // Update shadow matrix for current scene's key light
     if (lighting.shadowReady) {
@@ -534,6 +595,8 @@ static void load_state(GameState s) {
             case STATE_SPACE_CORRIDOR: curPreset = LightingPreset_SpaceCorridor(); break;
             case STATE_SPACE_SUITE: curPreset = LightingPreset_SpaceSuite(); break;
             case STATE_HYPERSPACE: curPreset = LightingPreset_Hyperspace(); break;
+            case STATE_PARIS_DREAM: curPreset = LightingPreset_ParisDream(); break;
+            case STATE_RETURN_TAXI: curPreset = LightingPreset_ReturnTaxi(); break;
             default: break;
         }
         UpdateShadowMatrix(&lighting, curPreset.keyDir, (Vector3){0, 2, 0}, 25.0f);
@@ -1658,11 +1721,57 @@ int main(void) {
                     balcony_flash_timer = 0;
                 }
                 if (balcony_flash_triggered) balcony_flash_timer += dt;
-                // Silence — then bed (after the flash settles)
+                // Silence — then the dream (Paris, golden, a memory)
                 if (state_time > 14.0f)
-                    transition_to_slow(STATE_BED, 0.7f);
+                    hard_cut_to(STATE_PARIS_DREAM);
                 if (state_time > 10 && IsKeyPressed(KEY_ENTER))
-                    transition_to_slow(STATE_BED, 0.7f);
+                    hard_cut_to(STATE_PARIS_DREAM);
+                break;
+
+            case STATE_PARIS_DREAM:
+                // The dream — Paris hotel room, golden light, 60-90 seconds
+                update_player(&player, &scene, dt);
+                // Photograph interaction
+                if (IsKeyPressed(KEY_E)) {
+                    for (int i = 0; i < scene.object_count; i++) {
+                        InteractObject *obj = &scene.objects[i];
+                        if (!obj->active || obj->done) continue;
+                        float dist = Vector3Distance(player.camera.position, obj->pos);
+                        if (dist < obj->radius) {
+                            if (strcmp(obj->name, "photograph") == 0) {
+                                obj->step++; obj->done = true;
+                                kick_camera(&player, -0.04f, 0.02f);
+                                show_text("It's blank.");
+                                // Exit dream after brief pause
+                                done_pause = -2.0f;  // will count up to 0 then trigger
+                            }
+                            break;
+                        }
+                    }
+                }
+                // Dream exit — after photo flip or timeout
+                if (done_pause < 0) {
+                    done_pause += dt;
+                    if (done_pause >= 0) {
+                        hide_text();
+                        // Reset post-FX before hard cut to BED
+                        SetPostFXWarmth(&postfx, 0.0f);
+                        SetPostFXSaturation(&postfx, 0.92f);
+                        SetPostFXCA(&postfx, 2.5f);
+                        SetPostFXVignette(&postfx, 1.0f);
+                        SetPostFXContrast(&postfx, 1.0f);
+                        hard_cut_to(STATE_BED);
+                    }
+                }
+                // Auto-exit after 90 seconds if no interaction
+                if (state_time > 90.0f) {
+                    SetPostFXWarmth(&postfx, 0.0f);
+                    SetPostFXSaturation(&postfx, 0.92f);
+                    SetPostFXCA(&postfx, 2.5f);
+                    SetPostFXVignette(&postfx, 1.0f);
+                    SetPostFXContrast(&postfx, 1.0f);
+                    hard_cut_to(STATE_BED);
+                }
                 break;
 
             case STATE_BED:
@@ -1699,11 +1808,61 @@ int main(void) {
                 } else {
                     SetMasterVolume(0.0f);
                 }
-                // No early skip for first 30 seconds — let it breathe
-                if (IsKeyPressed(KEY_ESCAPE) || (state_time > 30 && IsKeyPressed(KEY_ENTER))) {
-                    CloseWindow(); return 0;
+                if (IsKeyPressed(KEY_ESCAPE)) { CloseWindow(); return 0; }
+                // After the void settles — hard cut back to reality
+                if (state_time > 15.0f || (state_time > 8.0f && IsKeyPressed(KEY_ENTER))) {
+                    SetMasterVolume(1.0f);
+                    hard_cut_to(STATE_RETURN_TAXI);
                 }
                 break;
+
+            case STATE_RETURN_TAXI: {
+                // Dawn Auckland — the same ride, inverted.
+                // Mouse look only (same as STATE_CAR)
+                Vector2 md_r = GetMouseDelta();
+                float ry = -md_r.x * MOUSE_SENS;
+                float rp = -md_r.y * MOUSE_SENS;
+                Vector3 rfwd = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                Vector3 rright = Vector3Normalize(Vector3CrossProduct(rfwd, player.camera.up));
+                rfwd = Vector3Transform(rfwd, MatrixRotateY(ry));
+                float rcp = asinf(rfwd.y);
+                float rnp = rcp + rp;
+                if (rnp > 0.8f) rp = 0.8f - rcp;
+                if (rnp < -0.6f) rp = -0.6f - rcp;
+                rfwd = Vector3Transform(rfwd, MatrixRotate(rright, rp));
+                player.camera.target = Vector3Add(player.camera.position, rfwd);
+
+                // City scrolls — DECELERATING (opposite of opening)
+                float rtaxi_speed = 6.0f;
+                if (state_time > 8.0f) {
+                    float t2 = state_time - 8.0f;
+                    rtaxi_speed = 6.0f - t2 * t2 * 0.3f;
+                    if (rtaxi_speed < 0.5f) rtaxi_speed = 0.5f;
+                }
+                for (int i = scene.static_wall_count; i < scene.wall_count; i++) {
+                    scene.walls[i].pos.z += rtaxi_speed * dt;
+                    if (scene.walls[i].pos.z > 10.0f)
+                        scene.walls[i].pos.z -= 220.0f;
+                }
+
+                // Dialogue — sparse, dawn
+                if (state_time > 3.0f && state_time < 3.5f) show_text("Auckland. 5:52 AM.");
+                if (state_time > 6.0f && state_time < 6.5f) hide_text();
+                if (state_time > 9.0f && state_time < 9.5f) show_text("Where to?");
+                if (state_time > 12.0f && state_time < 12.5f) hide_text();
+
+                // Gentle fade to black — the game ends
+                if (state_time > 14.0f) {
+                    float fo = (state_time - 14.0f) / 3.0f;
+                    SetMasterVolume(fmaxf(0, 1.0f - fo));
+                    fade_alpha = fminf(1.0f, fo);
+                    fade_target = 1.0f;
+                    if (state_time > 17.0f) {
+                        CloseWindow(); return 0;
+                    }
+                }
+                break;
+            }
 
             case STATE_SPACE_LOBBY:
                 update_player(&player, &scene, dt);
@@ -2014,20 +2173,20 @@ int main(void) {
         }
 
         // ---- SHADOW PASS ----
-        if (lighting.shadowReady && state != STATE_TITLE && state != STATE_BED && state != STATE_STARS) {
+        // DEBUG: DISABLED to confirm shadow pass is the rendering corruption source
+        if (0 && lighting.shadowReady && state != STATE_TITLE && state != STATE_BED && state != STATE_STARS) {
+            if (state_time < 0.05f) printf("[DBG] Shadow pass running for state %d, shadowReady=%d, shadowFBO=%u, shadowDepthTex=%u\n",
+                state, lighting.shadowReady, lighting.shadowFBO, lighting.shadowDepthTex);
             // Set up light camera matrices on rlgl stack
             rlMatrixMode(RL_PROJECTION);
             rlPushMatrix();
             rlLoadIdentity();
-            // Extract light direction from current scene preset
-            float ls = 25.0f; // scene radius
+            float ls = 25.0f;
             rlOrtho(-ls, ls, -ls, ls, 0.1f, ls * 4.0f);
             rlMatrixMode(RL_MODELVIEW);
             rlPushMatrix();
             rlLoadIdentity();
-            // Light view from lightSpaceMatrix is already set
-            // We use a simplified approach: just render with the light camera
-            SceneLighting curPreset = LightingPreset_Room(); // default
+            SceneLighting curPreset = LightingPreset_Room();
             Vector3 lightPos = Vector3Scale(Vector3Negate(curPreset.keyDir), 50.0f);
             Matrix lightView = MatrixLookAt(lightPos, (Vector3){0,0,0}, (Vector3){0,1,0});
             rlMultMatrixf(MatrixToFloat(lightView));
@@ -2039,7 +2198,12 @@ int main(void) {
             rlPopMatrix();
             rlMatrixMode(RL_MODELVIEW);
             rlPopMatrix();
+            if (state_time < 0.05f) printf("[DBG] Shadow pass complete, restoring viewport %dx%d\n", RENDER_W, RENDER_H);
         }
+
+        // DEBUG: log render state
+        if (state_time < 0.05f) printf("[DBG] Main render: state=%d walls=%d fade_alpha=%.2f transition_hold=%.2f\n",
+            state, scene.wall_count, fade_alpha, transition_hold);
 
         // ---- RENDER ----
         BeginTextureMode(render_target);
@@ -2089,7 +2253,16 @@ int main(void) {
             case STATE_SPACE_CORRIDOR:
             case STATE_SPACE_SUITE:
             case STATE_HYPERSPACE:
-                if (state == STATE_HOTEL_EXT) {
+            case STATE_PARIS_DREAM:
+            case STATE_RETURN_TAXI:
+                if (state == STATE_RETURN_TAXI) {
+                    // Dawn sky behind the taxi
+                    ClearBackground((Color){45, 38, 32, 255});
+                    draw_dawn_sky(state_time);
+                } else if (state == STATE_PARIS_DREAM) {
+                    // Golden fog — no sky, just warm haze
+                    ClearBackground((Color){35, 28, 15, 255});
+                } else if (state == STATE_HOTEL_EXT) {
                     ClearBackground((Color){8, 12, 28, 255});
                     draw_night_sky(state_time);
                 } else if (state == STATE_ELEVATOR) {
@@ -2322,9 +2495,10 @@ int main(void) {
             const char *state_names[] = {
                 "TITLE", "CAR", "DRIVING", "EXTERIOR", "LOBBY",
                 "ELEVATOR", "HALLWAY", "ROOM", "BATHROOM", "BALCONY",
-                "BED", "STARS", "HYPERSPACE", "SP_LOBBY", "SP_CORRIDOR", "SP_SUITE"
+                "BED", "STARS", "HYPERSPACE", "SP_LOBBY", "SP_CORRIDOR", "SP_SUITE",
+                "PARIS_DREAM", "RETURN_TAXI"
             };
-            const char *sn = (state >= 0 && state < 16) ? state_names[state] : "???";
+            const char *sn = (state >= 0 && state < 18) ? state_names[state] : "???";
             DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 20, GREEN);
             DrawText(TextFormat("Walls: %d  %s", scene.wall_count, sn), 10, 35, 20, GREEN);
             DrawText(TextFormat("Pos: %.1f %.1f %.1f",

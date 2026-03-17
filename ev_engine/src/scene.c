@@ -1586,27 +1586,27 @@ void build_taxi_ride(Scene *s) {
     // BOUNDS: taxi interior — no player movement, mouse-look only
     s->surface = SURFACE_MARBLE;
 
-    // Michael Mann night palette
+    // Michael Mann night palette — boosted for 480x300 readability
     Color fog_teal = {12, 18, 28, 255};
-    Color dash_dark = {25, 22, 18, 255};
-    Color leather = {45, 35, 25, 255};
-    Color driver_coat = {20, 18, 15, 255};
-    Color driver_head = {150, 130, 100, 255};
-    Color window_frame = {20, 18, 15, 255};
-    Color meter_bg = {30, 35, 28, 255};
-    Color meter_glow = {80, 200, 100, 180};
-    Color mirror_c = {60, 65, 70, 180};
+    Color dash_dark = {50, 44, 36, 255};
+    Color leather = {75, 58, 40, 255};
+    Color driver_coat = {40, 36, 30, 255};
+    Color driver_head = {180, 155, 120, 255};
+    Color window_frame = {35, 32, 28, 255};
+    Color meter_bg = {40, 48, 38, 255};
+    Color meter_glow = {100, 220, 120, 200};
+    Color mirror_c = {80, 85, 90, 200};
 
-    // City palette
-    Color road = {25, 28, 32, 255};
-    Color bldg_a = {18, 22, 30, 255};
-    Color bldg_b = {22, 26, 35, 255};
-    Color bldg_c = {15, 18, 25, 255};
-    Color window_amber = {230, 180, 80, 100};
-    Color streetlight_glow = {240, 190, 90, 180};
-    Color streetlight_pole = {50, 48, 45, 255};
-    Color road_marking = {180, 175, 165, 80};
-    Color wet_reflect = {240, 190, 90, 30};
+    // City palette — boosted for readability
+    Color road = {35, 38, 45, 255};
+    Color bldg_a = {28, 34, 48, 255};
+    Color bldg_b = {35, 40, 55, 255};
+    Color bldg_c = {22, 28, 40, 255};
+    Color window_amber = {240, 190, 90, 140};
+    Color streetlight_glow = {250, 200, 100, 220};
+    Color streetlight_pole = {65, 60, 55, 255};
+    Color road_marking = {200, 195, 185, 100};
+    Color wet_reflect = {240, 190, 90, 50};
 
     s->fog_color = fog_teal;
     s->fog_density = 0.004f;
@@ -1855,6 +1855,39 @@ void build_taxi_ride(Scene *s) {
 // A luxury hotel that has no business being in orbit.
 // Parisian warmth inside, infinite void outside.
 // ============================================================
+
+void build_return_taxi(Scene *s) {
+    // RETURN TAXI — dawn Auckland. Same interior, different world.
+    build_taxi_ride(s);
+
+    // Override fog — dawn pink-gold instead of teal
+    s->fog_color = (Color){45, 38, 32, 255};
+    s->fog_density = 0.003f;
+
+    // Recolor exterior walls (indices >= static_wall_count) to dawn palette
+    for (int i = s->static_wall_count; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        unsigned char r = w->color.r, g = w->color.g, b = w->color.b;
+        // Road surfaces — lighten from near-black to warm grey
+        if (r < 35 && g < 35 && b < 40 && w->size.y < 0.2f)
+            w->color = (Color){55, 52, 48, 255};
+        // Buildings — dark blue → warm ochre silhouettes
+        else if (r < 30 && b > r && w->size.y > 2.0f)
+            w->color = (Color){60 + (r*2)%20, 52 + (g*2)%15, 42 + (b)%10, 255};
+        // Windows — sodium amber → pale dawn reflections
+        else if (r > 200 && g > 150 && b < 120 && w->color.a < 200)
+            w->color = (Color){140, 160, 180, 50};
+        // Streetlight glow — nearly off at dawn
+        else if (r > 220 && g > 160 && w->size.y < 0.2f && w->size.x < 0.5f)
+            w->color = (Color){80, 75, 70, 30};
+        // Wet road reflections — pink-gold sky
+        else if (w->color.a < 50 && r > 200)
+            w->color = (Color){180, 140, 110, 15};
+    }
+
+    // Add Sky Tower — just a building drifting past, no wormhole
+    add_skytower(s, 6, 0, -180, 5.0f, (Color){55, 58, 70, 255});
+}
 
 void build_hyperspace(Scene *s) {
     memset(s, 0, sizeof(Scene));
