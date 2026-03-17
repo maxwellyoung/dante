@@ -383,33 +383,37 @@ SceneLighting LightingPreset_Taxi(void) {
 }
 
 SceneLighting LightingPreset_Exterior(void) {
-    // Auckland at 2AM — moonlight blue-white, warm hotel entrance spill
+    // Auckland at 2AM — moonlight gradient, not a directional sun
+    // Easy Delivery Co. insight: ambient gradient > orbiting light.
+    // Overcast night: everything lit by a single blue-grey gradient.
+    // The hotel entrance warm spill is the CONTRAST that draws you in.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, 0.2f}),
-        .keyColor = {0.65f, 0.70f, 0.85f},       // moonlight — strong enough to see
-        .fillDir = Vector3Normalize((Vector3){0.0f, 0.3f, -0.8f}),
-        .fillColor = {0.20f, 0.18f, 0.15f},      // ground bounce
-        .ambient = {0.18f, 0.19f, 0.25f},         // night but you can SEE the Sky Tower
-        // Left lamppost — warm spill near entrance
-        .pointPos = {{-6.0f, 3.8f, -1.0f}},
-        .pointColor = {{1.2f, 0.95f, 0.6f}},
-        .pointRadius = {18.0f},
+        .keyDir = Vector3Normalize((Vector3){-0.2f, -0.7f, 0.3f}),
+        .keyColor = {0.45f, 0.50f, 0.65f},       // moonlight — ambient gradient, not spotlight
+        .fillDir = Vector3Normalize((Vector3){0.0f, 0.4f, -0.6f}),
+        .fillColor = {0.18f, 0.16f, 0.14f},      // ground bounce — subtle
+        .ambient = {0.22f, 0.23f, 0.30f},         // higher ambient — overcast gradient feeling
+        // Two practicals: lamppost + warm hotel entrance spill (safety vs night)
+        .pointPos = {{-6.0f, 3.8f, -1.0f}, {0.0f, 2.0f, -4.0f}},
+        .pointColor = {{1.0f, 0.80f, 0.50f}, {1.2f, 0.90f, 0.55f}},
+        .pointRadius = {14.0f, 8.0f},
     };
 }
 
 SceneLighting LightingPreset_Lobby(void) {
     // Grand lobby — overhead chandeliers, warm marble reflection
     // Think: Wes Anderson hotel interior, symmetrical, golden
+    // Strong directional key for shadows + drama, green fill from emerald walls
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.2f, -0.8f, -0.3f}),
-        .keyColor = {1.4f, 1.2f, 0.85f},        // warm chandelier — strong directional
-        .fillDir = Vector3Normalize((Vector3){0.3f, 0.6f, 0.2f}),
-        .fillColor = {0.20f, 0.25f, 0.18f},     // green wall bounce — adds color
-        .ambient = {0.22f, 0.21f, 0.19f},        // lower than before — more contrast
-        // Hanging sphere light cluster — lobby ceiling
-        .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}},
-        .pointColor = {{1.2f, 0.95f, 0.60f}, {0.8f, 0.65f, 0.4f}, {0.8f, 0.65f, 0.4f}},
-        .pointRadius = {20.0f, 12.0f, 12.0f},
+        .keyDir = Vector3Normalize((Vector3){-0.4f, -0.8f, -0.5f}),
+        .keyColor = {2.0f, 1.5f, 0.9f},          // hot chandelier — strong shadows
+        .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.4f}),
+        .fillColor = {0.08f, 0.12f, 0.06f},     // green wall bounce — very dim
+        .ambient = {0.06f, 0.05f, 0.04f},        // VERY LOW — deep shadows outside light pools
+        // 4 point lights: main chandelier tight, others accent
+        .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}, {0, 3.5f, -5}},
+        .pointColor = {{1.8f, 1.3f, 0.75f}, {0.7f, 0.50f, 0.30f}, {0.7f, 0.50f, 0.30f}, {0.9f, 0.65f, 0.40f}},
+        .pointRadius = {12.0f, 8.0f, 8.0f, 6.0f},
     };
 }
 
@@ -464,31 +468,33 @@ SceneLighting LightingPreset_Bathroom(void) {
     // Harsh overhead, clinical white, slight blue-green tinge
     // Mirror's Edge bathroom energy
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.1f}),
-        .keyColor = {0.95f, 0.98f, 1.0f},       // clinical white
-        .fillDir = Vector3Normalize((Vector3){0.0f, 0.8f, -0.3f}),
-        .fillColor = {0.20f, 0.22f, 0.25f},     // tile reflection — cool
-        .ambient = {0.25f, 0.26f, 0.28f},        // brighter ambient — tiles reflect
-        // Ando slot window — bright diffuse light
+        .keyDir = Vector3Normalize((Vector3){0.3f, -0.9f, -0.2f}),
+        .keyColor = {1.6f, 1.5f, 1.4f},        // harsh angled — casts side shadows on fixtures
+        .fillDir = Vector3Normalize((Vector3){-0.3f, 0.5f, 0.2f}),
+        .fillColor = {0.06f, 0.08f, 0.10f},     // minimal cool bounce
+        .ambient = {0.05f, 0.06f, 0.07f},        // VERY LOW — stark shadows under basin, tub edge
+        // Ando slot window — tight bright pool
         .pointPos = {{0, 2.6f, -1.88f}},
-        .pointColor = {{0.9f, 0.92f, 0.95f}},
-        .pointRadius = {4.5f},
+        .pointColor = {{1.2f, 1.15f, 1.1f}},
+        .pointRadius = {3.0f},
     };
 }
 
 SceneLighting LightingPreset_Balcony(void) {
     // Orbital observation deck — Earth glow from below, starfield above
-    // You MUST see: railing, chair, wine glass, Earth atmosphere
+    // Easy Delivery Co. insight: no directional sun in space. Just gradients.
+    // Earth glow (cool blue uplighting) vs. interior warmth (golden back wall).
+    // The contrast IS the emotion — cold void, warm chair.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, 0.5f, -0.8f}),   // from Earth below
-        .keyColor = {0.60f, 0.80f, 1.0f},       // Earth glow — strong blue uplight
+        .keyDir = Vector3Normalize((Vector3){0.0f, 0.6f, -0.8f}),   // from Earth — uplighting
+        .keyColor = {0.50f, 0.70f, 0.95f},       // cooler blue — Earth is vast, cold
         .fillDir = Vector3Normalize((Vector3){0.0f, -0.5f, 0.5f}),
-        .fillColor = {0.35f, 0.28f, 0.18f},     // warm back wall bounce
-        .ambient = {0.30f, 0.32f, 0.40f},        // HIGH ambient — furniture must read
-        // Earth atmosphere — bright band below
-        .pointPos = {{0.0f, 0.0f, -8.0f}},
-        .pointColor = {{0.6f, 0.85f, 1.1f}},
-        .pointRadius = {25.0f},
+        .fillColor = {0.40f, 0.30f, 0.18f},     // warm back wall — safety behind you
+        .ambient = {0.22f, 0.24f, 0.34f},        // lowered — stronger contrast lit vs dark
+        // Earth glow: massive reach. Interior lamp: intimate, warm, close.
+        .pointPos = {{0.0f, -0.5f, -8.0f}, {0.0f, 1.5f, 3.0f}},
+        .pointColor = {{0.5f, 0.75f, 1.0f}, {0.8f, 0.55f, 0.30f}},
+        .pointRadius = {30.0f, 5.0f},
     };
 }
 
@@ -511,16 +517,17 @@ SceneLighting LightingPreset_SpaceLobby(void) {
 SceneLighting LightingPreset_SpaceCorridor(void) {
     // Narrow corridor — overhead amber strips, porthole starlight
     // Kubrick hallway energy but cold and blue-shifted
+    // 4 point lights spread along the curved corridor
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),
-        .keyColor = {1.0f, 0.85f, 0.60f},        // warm overhead amber — BRIGHT
+        .keyColor = {1.2f, 1.0f, 0.70f},          // warm overhead amber — BRIGHTER
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.22f, 0.28f, 0.40f},      // porthole starlight — cool blue
-        .ambient = {0.25f, 0.25f, 0.30f},         // corridor reads, doors visible
-        // Ceiling light panel
-        .pointPos = {{0, 3.4f, 0}},
-        .pointColor = {{1.0f, 0.80f, 0.55f}},
-        .pointRadius = {14.0f},
+        .fillColor = {0.25f, 0.32f, 0.45f},       // porthole starlight — cool blue
+        .ambient = {0.30f, 0.30f, 0.35f},          // higher ambient — corridor must read
+        // Ceiling light panels spread along corridor length
+        .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {0, 3.2f, 16}},
+        .pointColor = {{1.0f, 0.80f, 0.55f}, {0.9f, 0.75f, 0.50f}, {0.8f, 0.70f, 0.45f}, {0.5f, 0.6f, 0.8f}},
+        .pointRadius = {12.0f, 12.0f, 12.0f, 10.0f},
     };
 }
 

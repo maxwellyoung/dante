@@ -4,6 +4,11 @@
 #include "render.h"
 #include "palette.h"
 #include "raymath.h"
+#include "rlgl.h"
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>     // glPolygonOffset, glEnable — decal z-fighting fix
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -40,26 +45,53 @@ static const char *postfx_fs =
     "uniform float grain;\n"
     "uniform float flash;\n"
     "uniform vec3 flashColor;\n"
-    "uniform float saturation;\n"   // 0=mono, 1=full (default 0.92)
-    "uniform float caAmount;\n"     // chromatic aberration multiplier (default 2.5)
-    "uniform float contrast;\n"     // S-curve intensity: 0=flat, 1=default, 2=heavy
-    "uniform float vignetteAmt;\n"  // vignette strength: 0=off, 1=default
-    "uniform vec3 tint;\n"          // RGB color grade (default 1,1,1)
+    "uniform float saturation;\n"
+    "uniform float caAmount;\n"
+    "uniform float contrast;\n"
+    "uniform float vignetteAmt;\n"
+    "uniform vec3 tint;\n"
+    "uniform float ditherAmt;\n"
+    "uniform float scanlineAmt;\n"
+    "uniform float bloomAmt;\n"
+    "uniform float posterizeAmt;\n"
+    "uniform float pixelateAmt;\n"
+    "uniform float sharpenAmt;\n"
+    "uniform float speedNorm;\n"    // 0-1 normalized player speed
     "out vec4 finalColor;\n"
     "\n"
-    // Film grain — hash-based noise, no textures
     "float grainHash(vec2 p) {\n"
     "    vec3 p3 = fract(vec3(p.xyx) * 0.1031);\n"
     "    p3 += dot(p3, p3.yzx + 33.33);\n"
     "    return fract((p3.x + p3.y) * p3.z);\n"
     "}\n"
     "\n"
+    // 4x4 Bayer matrix for ordered dithering
+    "float bayer4(vec2 p) {\n"
+    "    int x = int(mod(p.x, 4.0));\n"
+    "    int y = int(mod(p.y, 4.0));\n"
+    "    int idx = x + y * 4;\n"
+    "    float m[16] = float[16](\n"
+    "         0.0/16.0,  8.0/16.0,  2.0/16.0, 10.0/16.0,\n"
+    "        12.0/16.0,  4.0/16.0, 14.0/16.0,  6.0/16.0,\n"
+    "         3.0/16.0, 11.0/16.0,  1.0/16.0,  9.0/16.0,\n"
+    "        15.0/16.0,  7.0/16.0, 13.0/16.0,  5.0/16.0\n"
+    "    );\n"
+    "    return m[idx];\n"
+    "}\n"
+    "\n"
     "void main() {\n"
     "    vec2 uv = fragTexCoord;\n"
     "    vec2 px = 1.0 / resolution;\n"
+    "\n"
+    "    // --- Pixelation — chunky pixels ---\n"
+    "    if (pixelateAmt > 1.0) {\n"
+    "        vec2 pixSize = px * pixelateAmt;\n"
+    "        uv = floor(uv / pixSize) * pixSize + pixSize * 0.5;\n"
+    "    }\n"
+    "\n"
     "    vec2 fromCenter = uv - 0.5;\n"
     "\n"
-    "    // --- Chromatic aberration — subtle RGB split at edges ---\n"
+    "    // --- Chromatic aberration — RGB split at edges ---\n"
     "    float caStrength = dot(fromCenter, fromCenter) * caAmount;\n"
     "    vec2 caOffset = fromCenter * caStrength * px * 3.0;\n"
     "    float r = texture(texture0, uv + caOffset).r;\n"
@@ -67,21 +99,33 @@ static const char *postfx_fs =
     "    float b = texture(texture0, uv - caOffset).b;\n"
     "    vec3 col = vec3(r, g, b);\n"
     "\n"
-    "    // --- Fake depth-of-field — blur toward edges for low-luminance pixels ---\n"
-    "    float edgeDist = length(fromCenter);\n"
-    "    float lumaCenter = dot(col, vec3(0.299, 0.587, 0.114));\n"
-    "    float dofRadius = edgeDist * (1.0 - lumaCenter) * 2.0;\n"
-    "    dofRadius = clamp(dofRadius, 0.0, 2.0);\n"
-    "    if (dofRadius > 0.1) {\n"
-    "        vec3 sum = col;\n"
-    "        sum += texture(texture0, uv + vec2( dofRadius,  0.0) * px).rgb;\n"
-    "        sum += texture(texture0, uv + vec2(-dofRadius,  0.0) * px).rgb;\n"
-    "        sum += texture(texture0, uv + vec2( 0.0,  dofRadius) * px).rgb;\n"
-    "        sum += texture(texture0, uv + vec2( 0.0, -dofRadius) * px).rgb;\n"
-    "        col = sum / 5.0;\n"
+    "    // --- Sharpening — unsharp mask ---\n"
+    "    if (sharpenAmt > 0.0) {\n"
+    "        vec3 blur = vec3(0.0);\n"
+    "        blur += texture(texture0, uv + vec2(-1, 0) * px).rgb;\n"
+    "        blur += texture(texture0, uv + vec2( 1, 0) * px).rgb;\n"
+    "        blur += texture(texture0, uv + vec2( 0,-1) * px).rgb;\n"
+    "        blur += texture(texture0, uv + vec2( 0, 1) * px).rgb;\n"
+    "        blur *= 0.25;\n"
+    "        col += (col - blur) * sharpenAmt * 2.0;\n"
     "    }\n"
     "\n"
-    "    // --- Screen-space edge darkening (SSAO approximation) ---\n"
+    "    // --- Bloom — bright areas bleed light ---\n"
+    "    if (bloomAmt > 0.0) {\n"
+    "        vec3 bloomCol = vec3(0.0);\n"
+    "        float bw = 3.0; // bloom kernel width\n"
+    "        for (int bx = -2; bx <= 2; bx++) {\n"
+    "            for (int by = -2; by <= 2; by++) {\n"
+    "                vec3 s = texture(texture0, uv + vec2(float(bx), float(by)) * px * bw).rgb;\n"
+    "                float sl = dot(s, vec3(0.299, 0.587, 0.114));\n"
+    "                bloomCol += s * smoothstep(0.5, 1.0, sl);\n"
+    "            }\n"
+    "        }\n"
+    "        bloomCol /= 25.0;\n"
+    "        col += bloomCol * bloomAmt * 1.5;\n"
+    "    }\n"
+    "\n"
+    "    // --- SSAO — screen-space edge darkening ---\n"
     "    float center_luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
     "    float ao_accum = 0.0;\n"
     "    for (int i = 0; i < 8; i++) {\n"
@@ -90,40 +134,92 @@ static const char *postfx_fs =
     "        float neighbor_luma = dot(texture(texture0, uv + offset).rgb, vec3(0.299, 0.587, 0.114));\n"
     "        ao_accum += max(0.0, center_luma - neighbor_luma);\n"
     "    }\n"
-    "    float ssao = 1.0 - ao_accum * 0.35;\n"
-    "    col *= max(ssao, 0.5);\n"
+    "    float ssao = 1.0 - ao_accum * 0.45;\n"  // stronger AO
+    "    col *= max(ssao, 0.4);\n"
     "\n"
-    "    // --- Exposure — global brightness ---\n"
+    "    // --- Exposure ---\n"
     "    col *= exp2(exposure);\n"
     "\n"
-    "    // --- Saturation — controlled by style preset ---\n"
+    "    // --- Saturation ---\n"
     "    float luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
     "    col = mix(vec3(luma), col, saturation + warmth * 0.08);\n"
     "\n"
-    "    // --- Color grading — warmth shift ---\n"
+    "    // --- Color grading — warmth shift + tint ---\n"
     "    col = pow(max(col, vec3(0.0)), vec3(0.97 + warmth*0.03, 1.0, 1.02 - warmth*0.05));\n"
     "    col = col * 0.97 + vec3(0.02, 0.018, 0.015);\n"
     "    col *= tint;\n"
     "\n"
-    "    // --- Contrast curve — photograph S-curve, intensity controlled ---\n"
+    "    // --- Contrast S-curve ---\n"
     "    vec3 curved = smoothstep(0.0, 1.0, col * 1.05 - 0.02);\n"
     "    col = mix(col, curved, contrast);\n"
     "\n"
-    "    // --- Film grain — 16mm Godard stock ---\n"
-    "    if (grain > 0.0) {\n"
-    "        float n = grainHash(uv * resolution + fract(time * 7.3) * 100.0);\n"
-    "        n = (n - 0.5) * grain * 0.12;\n"
-    "        float shadow = 1.0 - smoothstep(0.0, 0.4, luma);\n"
-    "        col += n * (0.5 + shadow * 0.5);\n"
+    "    // --- Posterization — color quantization ---\n"
+    "    if (posterizeAmt > 1.0) {\n"
+    "        col = floor(col * posterizeAmt + 0.5) / posterizeAmt;\n"
     "    }\n"
     "\n"
-    "    // --- Vignette — edge darkening, intensity controlled ---\n"
+    "    // --- Ordered dithering — Bayer 4x4 ---\n"
+    "    if (ditherAmt > 0.0) {\n"
+    "        vec2 ditherCoord = gl_FragCoord.xy;\n"
+    "        float d = bayer4(ditherCoord) - 0.5;\n"
+    "        col += d * ditherAmt * 0.15;\n"
+    "        // Dither-based color reduction for retro look\n"
+    "        if (ditherAmt > 0.5) {\n"
+    "            float levels = mix(32.0, 6.0, (ditherAmt - 0.5) * 2.0);\n"
+    "            col = floor(col * levels + d * 0.8) / levels;\n"
+    "        }\n"
+    "    }\n"
+    "\n"
+    "    // --- Film grain ---\n"
+    "    if (grain > 0.0) {\n"
+    "        float n = grainHash(uv * resolution + fract(time * 7.3) * 100.0);\n"
+    "        n = (n - 0.5) * grain * 0.15;\n"  // stronger grain
+    "        float shadow = 1.0 - smoothstep(0.0, 0.4, luma);\n"
+    "        col += n * (0.6 + shadow * 0.6);\n"
+    "    }\n"
+    "\n"
+    "    // --- CRT Scanlines ---\n"
+    "    if (scanlineAmt > 0.0) {\n"
+    "        float scanline = sin(gl_FragCoord.y * 3.14159) * 0.5 + 0.5;\n"
+    "        scanline = pow(scanline, 1.5);\n"
+    "        col *= mix(1.0, scanline, scanlineAmt * 0.4);\n"
+    "        // Slight horizontal blur for CRT phosphor bleed\n"
+    "        if (scanlineAmt > 0.5) {\n"
+    "            vec3 left = texture(texture0, uv - vec2(px.x, 0)).rgb;\n"
+    "            vec3 right = texture(texture0, uv + vec2(px.x, 0)).rgb;\n"
+    "            col = mix(col, (col + left + right) / 3.0, (scanlineAmt - 0.5) * 0.4);\n"
+    "        }\n"
+    "    }\n"
+    "\n"
+    "    // --- Vignette ---\n"
     "    float vig = 1.0 - dot((uv - 0.5) * 0.9, (uv - 0.5) * 0.9);\n"
-    "    vig = clamp(pow(vig, 0.8), 0.0, 1.0);\n"
-    "    float vigDark = mix(0.88, 1.0, vig);\n"
+    "    vig = clamp(pow(vig, 0.7), 0.0, 1.0);\n"
+    "    float vigDark = mix(0.75, 1.0, vig);\n"  // darker vignette
     "    col *= mix(1.0, vigDark, vignetteAmt);\n"
     "\n"
-    "    // --- Scene-cut flash — Blendo smash cut ---\n"
+    "    // --- Speed lines — radial blur from center at high speed ---\n"
+    "    if (speedNorm > 0.0) {\n"
+    "        float edgeDist = length(fromCenter) * 2.0;\n"  // 0 at center, ~1 at edges
+    "        float speedBlur = speedNorm * edgeDist * edgeDist;\n"  // stronger at edges
+    "        if (speedBlur > 0.01 && edgeDist > 0.001) {\n"
+    "            vec2 blurDir = (fromCenter / edgeDist) * speedBlur * 0.04;\n"
+    "            vec3 blur = vec3(0.0);\n"
+    "            for (int s = 1; s <= 4; s++) {\n"
+    "                blur += texture(texture0, uv - blurDir * float(s)).rgb;\n"
+    "            }\n"
+    "            blur *= 0.25;\n"
+    "            col = mix(col, blur, speedBlur * 0.5);\n"
+    "        }\n"
+    "        // Speed-reactive CA boost — edges split more at speed\n"
+    "        float speedCA = speedNorm * edgeDist * 3.0;\n"
+    "        if (speedCA > 0.1) {\n"
+    "            vec2 scaOff = fromCenter * speedCA * px * 2.0;\n"
+    "            col.r = mix(col.r, texture(texture0, uv + scaOff).r, speedNorm * 0.3);\n"
+    "            col.b = mix(col.b, texture(texture0, uv - scaOff).b, speedNorm * 0.3);\n"
+    "        }\n"
+    "    }\n"
+    "\n"
+    "    // --- Scene-cut flash ---\n"
     "    if (flash > 0.0) {\n"
     "        col = mix(col, flashColor, flash);\n"
     "    }\n"
@@ -147,12 +243,20 @@ EVPostFX LoadEVPostFX(void) {
         pfx.contrastLoc = GetShaderLocation(pfx.postfx, "contrast");
         pfx.vignetteLoc = GetShaderLocation(pfx.postfx, "vignetteAmt");
         pfx.tintLoc = GetShaderLocation(pfx.postfx, "tint");
+        pfx.ditherLoc = GetShaderLocation(pfx.postfx, "ditherAmt");
+        pfx.scanlineLoc = GetShaderLocation(pfx.postfx, "scanlineAmt");
+        pfx.bloomLoc = GetShaderLocation(pfx.postfx, "bloomAmt");
+        pfx.posterizeLoc = GetShaderLocation(pfx.postfx, "posterizeAmt");
+        pfx.pixelateLoc = GetShaderLocation(pfx.postfx, "pixelateAmt");
+        pfx.sharpenLoc = GetShaderLocation(pfx.postfx, "sharpenAmt");
+        pfx.speedLoc = GetShaderLocation(pfx.postfx, "speedNorm");
 
         float res[2] = {(float)RENDER_W, (float)RENDER_H};
         SetShaderValue(pfx.postfx, pfx.resolutionLoc, res, SHADER_UNIFORM_VEC2);
 
         // Defaults
         float zero = 0.0f;
+        float one = 1.0f;
         SetShaderValue(pfx.postfx, pfx.warmthLoc, &zero, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.exposureLoc, &zero, SHADER_UNIFORM_FLOAT);
         float defaultGrain = 0.5f;
@@ -164,13 +268,18 @@ EVPostFX LoadEVPostFX(void) {
         SetShaderValue(pfx.postfx, pfx.saturationLoc, &defaultSat, SHADER_UNIFORM_FLOAT);
         float defaultCA = 2.5f;
         SetShaderValue(pfx.postfx, pfx.caAmountLoc, &defaultCA, SHADER_UNIFORM_FLOAT);
-        float one = 1.0f;
         SetShaderValue(pfx.postfx, pfx.contrastLoc, &one, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.vignetteLoc, &one, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.tintLoc, white, SHADER_UNIFORM_VEC3);
+        SetShaderValue(pfx.postfx, pfx.ditherLoc, &zero, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.scanlineLoc, &zero, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.bloomLoc, &zero, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.posterizeLoc, &zero, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.pixelateLoc, &one, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.sharpenLoc, &zero, SHADER_UNIFORM_FLOAT);
 
         pfx.ready = true;
-        printf("[EV] Post-FX loaded — grain, CA, exposure, styles\n");
+        printf("[EV] Post-FX loaded — dither, scanlines, bloom, posterize, pixelate\n");
     } else {
         printf("[EV] WARNING: Post-processing shader failed\n");
         pfx.ready = false;
@@ -234,39 +343,48 @@ void SetPostFXTint(EVPostFX *pfx, float r, float g, float b) {
     }
 }
 
+void SetPostFXSpeed(EVPostFX *pfx, float speed) {
+    if (pfx->ready)
+        SetShaderValue(pfx->postfx, pfx->speedLoc, &speed, SHADER_UNIFORM_FLOAT);
+}
+
 // ============================================================
 // VISUAL STYLE PRESETS
-// Shift+1 through Shift+9 — different film stocks / grades
+// Shift+1 through Shift+9 — each is a DRAMATICALLY different look
 // ============================================================
-
+//                                  sat    ca   con  vig  grn  exp   tint_r/g/b        dith scan blm  post pix  shrp
 const VisualStyle visual_styles[STYLE_COUNT] = {
-    // 0: Default — the EV look. 16mm Godard, warm neutral, architectural.
-    {"Default",       0.92f, 2.5f, 1.0f, 1.0f, 0.5f,  0.0f, {1.0f, 1.0f, 1.0f}},
+    // 1: Default — 16mm Godard. Warm, grainy, slight bloom.
+    {"16mm Film",     0.92f, 2.5f, 1.0f, 1.2f, 0.6f,  0.0f, {1.0f,1.0f,1.0f},       0.0f,0.0f,0.3f, 0,  1,  0.0f},
 
-    // 1: Noir — desaturated, heavy contrast, deep shadows, strong vignette
-    {"Noir",          0.35f, 1.5f, 1.6f, 2.0f, 0.7f, -0.15f, {0.95f, 0.95f, 1.0f}},
+    // 2: PS1 — ordered dithering, color quantization, chunky pixels
+    {"PS1",           0.85f, 1.0f, 0.8f, 0.5f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},
 
-    // 2: Godard — Contempt/Pierrot: saturated, warm reds, cool blues, contrasty
-    {"Godard",        1.1f,  3.0f, 1.2f, 1.2f, 0.6f,  0.05f, {1.08f, 0.98f, 0.92f}},
+    // 3: Noir — crushed blacks, nearly mono, heavy vignette, sharp
+    {"Noir",          0.15f, 1.5f, 1.8f, 2.5f, 0.8f, -0.2f, {0.92f,0.92f,1.0f},      0.0f,0.0f,0.0f, 0,  1,  1.5f},
 
-    // 3: Polaroid — faded, warm, low contrast, soft grain, lifted blacks
-    {"Polaroid",      0.78f, 1.0f, 0.5f, 0.6f, 0.3f,  0.1f,  {1.05f, 1.02f, 0.95f}},
+    // 4: CRT — scanlines, bloom, phosphor glow, slight curve
+    {"CRT",           0.95f, 4.0f, 1.1f, 1.5f, 0.3f,  0.05f,{1.0f,0.95f,0.9f},       0.0f,1.0f,0.6f, 0,  1,  0.0f},
 
-    // 4: Kubrick — cold, clinical, sharp, high saturation, low grain
-    {"Kubrick",       1.0f,  2.0f, 1.3f, 0.8f, 0.15f, 0.0f,  {0.95f, 0.98f, 1.05f}},
+    // 5: Godard — SATURATED, contrasty, red push, French New Wave
+    {"Godard",        1.3f,  4.0f, 1.4f, 1.3f, 0.7f,  0.1f, {1.15f,0.95f,0.85f},     0.0f,0.0f,0.4f, 0,  1,  0.5f},
 
-    // 5: VHS — heavy grain, heavy CA, warm/muddy, soft contrast
-    {"VHS",           0.75f, 6.0f, 0.7f, 1.5f, 1.0f, -0.05f, {1.05f, 0.98f, 0.90f}},
+    // 6: VHS — heavy grain, CA blowout, warm mud, scanlines
+    {"VHS",           0.7f,  8.0f, 0.6f, 1.8f, 1.2f, -0.1f, {1.1f,0.95f,0.85f},      0.2f,0.6f,0.2f, 0,  1,  0.0f},
 
-    // 6: Moonlight — blue-shifted, low saturation, gentle, dreamlike
-    {"Moonlight",     0.6f,  2.0f, 0.8f, 1.0f, 0.4f, -0.1f,  {0.88f, 0.95f, 1.12f}},
+    // 7: Neon — oversaturated, bloom heavy, high exposure, teal-orange
+    {"Neon",          1.4f,  3.0f, 1.2f, 0.8f, 0.2f,  0.15f,{1.1f,0.9f,1.15f},       0.0f,0.0f,1.0f, 0,  1,  0.3f},
 
-    // 7: Bleach Bypass — desaturated but high contrast, gritty (Se7en, Saving Private Ryan)
-    {"Bleach Bypass", 0.5f,  2.5f, 1.5f, 1.3f, 0.55f, 0.0f,  {1.0f, 0.98f, 0.96f}},
+    // 8: Woodcut — extreme dithering, near-mono, posterized, high contrast
+    {"Woodcut",       0.1f,  0.5f, 2.0f, 1.5f, 0.0f,  0.0f, {1.0f,0.98f,0.95f},      1.5f,0.0f,0.0f, 4,  1,  2.0f},
 
-    // 8: Raw — no post-FX. See the geometry and lighting as-is.
-    {"Raw",           1.0f,  0.0f, 0.0f, 0.0f, 0.0f,  0.0f,  {1.0f, 1.0f, 1.0f}},
+    // 9: Raw — nothing. Naked geometry and lighting.
+    {"Raw",           1.0f,  0.0f, 0.0f, 0.0f, 0.0f,  0.0f, {1.0f,1.0f,1.0f},        0.0f,0.0f,0.0f, 0,  1,  0.0f},
 };
+
+static void set_pfx_float(EVPostFX *pfx, int loc, float val) {
+    if (pfx->ready) SetShaderValue(pfx->postfx, loc, &val, SHADER_UNIFORM_FLOAT);
+}
 
 void ApplyVisualStyle(EVPostFX *pfx, int style_index) {
     if (style_index < 0 || style_index >= STYLE_COUNT) return;
@@ -277,7 +395,12 @@ void ApplyVisualStyle(EVPostFX *pfx, int style_index) {
     SetPostFXVignette(pfx, s->vignette);
     SetPostFXGrain(pfx, s->grain);
     SetPostFXTint(pfx, s->tint[0], s->tint[1], s->tint[2]);
-    // exposure_bias is applied in main.c on top of scene exposure
+    set_pfx_float(pfx, pfx->ditherLoc, s->dither);
+    set_pfx_float(pfx, pfx->scanlineLoc, s->scanline);
+    set_pfx_float(pfx, pfx->bloomLoc, s->bloom);
+    set_pfx_float(pfx, pfx->posterizeLoc, s->posterize);
+    set_pfx_float(pfx, pfx->pixelateLoc, s->pixelate);
+    set_pfx_float(pfx, pfx->sharpenLoc, s->sharpen);
 }
 
 void draw_text_box(const char *text, int y, int font_size, Color text_color) {
@@ -308,70 +431,101 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
 
     BeginMode3D(player->camera);
 
-    // Draw walls
-    for (int i = 0; i < scene->wall_count; i++) {
-        Wall *w = &scene->walls[i];
-        if (!w->active) continue;
+    // Draw walls — two passes: solids first, then decals with polygon offset
+    // This prevents z-fighting on overlay geometry (rugs, floor details, trim)
+    bool has_decals = false;
+    for (int pass = 0; pass < 2; pass++) {
+        if (pass == 1) {
+            if (!has_decals) break;
+            // Enable polygon offset for decal pass — biases depth to prevent z-fighting
+            rlDrawRenderBatchActive();  // flush before GL state change
+            glEnable(GL_POLYGON_OFFSET_FILL);
+            glPolygonOffset(-1.0f, -1.0f);
+        }
+        for (int i = 0; i < scene->wall_count; i++) {
+            Wall *w = &scene->walls[i];
+            if (!w->active) continue;
+            // Pass 0: skip decals. Pass 1: only decals.
+            if (pass == 0 && w->is_decal) { has_decals = true; continue; }
+            if (pass == 1 && !w->is_decal) continue;
 
-        if (lighting->ready) {
-            SetMaterialId(lighting, (int)w->material);
-            switch (w->shape) {
-                case SHAPE_CYLINDER:
-                    if (cyl_model_loaded) {
-                        cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
-                                   (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
-                    }
-                    break;
-                case SHAPE_SPHERE:
-                    if (sphere_model_loaded) {
-                        sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, 0,
-                                   (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
-                    }
-                    break;
-                case SHAPE_CONE:
-                    if (cone_model_loaded) {
-                        cone_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*cone_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
-                                   (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
-                    }
-                    break;
-                case SHAPE_SKYTOWER:
-                    if (skytower_model_loaded) {
-                        skytower_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        // Model is Z-up from Blender — rotate -90° on X to stand upright
-                        DrawModelEx(*skytower_model, w->pos, (Vector3){1,0,0}, -90,
-                                   (Vector3){w->size.x, w->size.x, w->size.x}, WHITE);
-                    }
-                    break;
-                case SHAPE_TORUS:
-                    // Uses sphere model as placeholder — torus needs GenMeshTorus in main.c
-                    if (sphere_model_loaded) {
-                        sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
-                                   (Vector3){w->size.x, w->size.y * 0.3f, w->size.z}, WHITE);
-                    }
-                    break;
-                default: // SHAPE_CUBE
-                    if (cube_model_loaded) {
-                        cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                        DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
-                                   w->size, WHITE);
-                    }
-                    break;
+            if (lighting->ready) {
+                SetMaterialId(lighting, (int)w->material);
+                switch (w->shape) {
+                    case SHAPE_CYLINDER:
+                        if (cyl_model_loaded) {
+                            cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                                       (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
+                        }
+                        break;
+                    case SHAPE_SPHERE:
+                        if (sphere_model_loaded) {
+                            sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, 0,
+                                       (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
+                        }
+                        break;
+                    case SHAPE_CONE:
+                        if (cone_model_loaded) {
+                            cone_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            DrawModelEx(*cone_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                                       (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
+                        }
+                        break;
+                    case SHAPE_SKYTOWER:
+                        if (skytower_model_loaded) {
+                            skytower_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            // Model is Z-up from Blender — rotate -90° on X to stand upright
+                            DrawModelEx(*skytower_model, w->pos, (Vector3){1,0,0}, -90,
+                                       (Vector3){w->size.x, w->size.x, w->size.x}, WHITE);
+                        }
+                        break;
+                    case SHAPE_TORUS:
+                        // Uses sphere model as placeholder — torus needs GenMeshTorus in main.c
+                        if (sphere_model_loaded) {
+                            sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                                       (Vector3){w->size.x, w->size.y * 0.3f, w->size.z}, WHITE);
+                        }
+                        break;
+                    default: // SHAPE_CUBE
+                        if (cube_model_loaded) {
+                            cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                                       w->size, WHITE);
+                        }
+                        break;
+                }
+            } else {
+                Vector3 cam = player->camera.position;
+                float dx = w->pos.x - cam.x;
+                float dz = w->pos.z - cam.z;
+                float dist = sqrtf(dx*dx + dz*dz);
+                float fog = fminf(1.0f, dist * scene->fog_density);
+                Color c = w->color;
+                c.r = (unsigned char)(c.r * (1 - fog) + scene->fog_color.r * fog);
+                c.g = (unsigned char)(c.g * (1 - fog) + scene->fog_color.g * fog);
+                c.b = (unsigned char)(c.b * (1 - fog) + scene->fog_color.b * fog);
+                switch (w->shape) {
+                    case SHAPE_CYLINDER:
+                        DrawCylinder(w->pos, w->size.x/2, w->size.x/2, w->size.y, 16, c);
+                        break;
+                    case SHAPE_SPHERE:
+                        DrawSphere(w->pos, w->size.x/2, c);
+                        break;
+                    case SHAPE_CONE:
+                        DrawCylinder(w->pos, 0, w->size.x/2, w->size.y, 12, c);
+                        break;
+                    default:
+                        DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
+                        break;
+                }
             }
-        } else {
-            Vector3 cam = player->camera.position;
-            float dx = w->pos.x - cam.x;
-            float dz = w->pos.z - cam.z;
-            float dist = sqrtf(dx*dx + dz*dz);
-            float fog = fminf(1.0f, dist * scene->fog_density);
-            Color c = w->color;
-            c.r = (unsigned char)(c.r * (1 - fog) + scene->fog_color.r * fog);
-            c.g = (unsigned char)(c.g * (1 - fog) + scene->fog_color.g * fog);
-            c.b = (unsigned char)(c.b * (1 - fog) + scene->fog_color.b * fog);
-            DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
+        }
+        if (pass == 1) {
+            rlDrawRenderBatchActive();  // flush before GL state change
+            glDisable(GL_POLYGON_OFFSET_FILL);
         }
     }
 
@@ -380,27 +534,21 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         draw_dust_motes(player->camera, time);
     }
 
-    // Interactive objects — warm inviting glow, golden bloom on reward
+    // Interactive objects — diegetic, not game-y
+    // "No hand-holding" — the architecture guides, not glowing beacons.
+    // Only reward bloom remains: every interaction has VISIBLE PHYSICAL CONSEQUENCE.
     for (int i = 0; i < scene->object_count; i++) {
         InteractObject *obj = &scene->objects[i];
         if (!obj->active) continue;
 
-        if (obj->done) {
-            // Reward bloom — expanding golden ring that fades
-            if (obj->reward_timer > 0) {
-                float t = 1.0f - obj->reward_timer;
-                float radius = 0.3f + t * 1.5f;
-                unsigned char a = (unsigned char)(150 * obj->reward_timer);
-                DrawSphere(obj->pos, radius, (Color){255, 220, 120, a});
-            }
-            continue;
+        if (obj->done && obj->reward_timer > 0) {
+            float t = 1.0f - obj->reward_timer;
+            float radius = 0.3f + t * 1.5f;
+            unsigned char a = (unsigned char)(150 * obj->reward_timer);
+            DrawSphere(obj->pos, radius, (Color){255, 220, 120, a});
         }
-
-        float pulse = 0.6f + 0.3f * sinf(GetTime() * 1.8f + i * 1.7f);
-        Color c = obj->color;
-        c.a = (unsigned char)(100 * pulse);
-        DrawSphere(obj->pos, 0.25f, c);
-        DrawSphere(obj->pos, 0.6f, (Color){c.r, c.g, c.b, (unsigned char)(12 * pulse)});
+        // Undone objects: no pulsing glow. No sphere marker. The lamp IS the lamp.
+        // The crosshair grows when you look at something — that's enough.
     }
 
     EndMode3D();
@@ -530,6 +678,17 @@ static float title_enter_y_vel = 0.0f;
 static float title_enter_scale = 0.0f;
 static float title_enter_scale_vel = 0.0f;
 static bool title_enter_triggered = false;
+
+void reset_title_state(void) {
+    title_enter_y_offset = 20.0f;
+    title_enter_y_vel = 0.0f;
+    title_enter_scale = 0.0f;
+    title_enter_scale_vel = 0.0f;
+    title_enter_triggered = false;
+    // Also reset crosshair spring
+    crosshair_scale = 1.0f;
+    crosshair_scale_vel = 0.0f;
+}
 
 void draw_title(void) {
     ClearBackground((Color){5, 5, 8, 255});

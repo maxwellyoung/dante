@@ -11,6 +11,10 @@ Research and analysis documents for game development reference.
 - [BLENDO_TECHNIQUES_FOR_EV.md](BLENDO_TECHNIQUES_FOR_EV.md) — Synthesis: how to apply Blendo techniques to EV specifically
 - [CINEMATIC_GRAMMAR_IN_GAMES.md](CINEMATIC_GRAMMAR_IN_GAMES.md) — Film editing → game design translation guide
 
+### The Beginner's Guide (Davey Wreden)
+- [THE_BEGINNERS_GUIDE.md](THE_BEGINNERS_GUIDE.md) — Full analysis: unreliable narration, environmental storytelling, player agency, visual design, themes of creation/interpretation, lessons for EV
+- [BEGINNERS_GUIDE_TECHNIQUES_FOR_EV.md](BEGINNERS_GUIDE_TECHNIQUES_FOR_EV.md) — Synthesis: how to apply Beginner's Guide techniques to EV specifically
+
 ## Key External Resources
 
 ### Watch / Listen

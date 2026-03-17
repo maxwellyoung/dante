@@ -7,5 +7,6 @@
 void init_player(Player *p, Vector3 pos);
 void update_player(Player *p, Scene *scene, float dt);
 void kick_camera(Player *p, float pitch, float yaw);
+float player_speed_normalized(Player *p);  // 0-1 for shader effects
 
 #endif

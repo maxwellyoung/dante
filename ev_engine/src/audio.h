@@ -18,6 +18,8 @@ typedef enum {
     INTERACT_CLICK,
     INTERACT_FABRIC,
     INTERACT_FLAME,
+    INTERACT_CORK_POP,
+    INTERACT_GLASS_CLINK,
 } InteractSoundType;
 
 typedef struct {
@@ -28,6 +30,8 @@ typedef struct {
     Sound snd_click;
     Sound snd_fabric;
     Sound snd_flame;
+    Sound snd_cork_pop;
+    Sound snd_glass_clink;
     Sound snd_reward;    // warm chime — task complete, the room opens up
     Sound snd_sparkle;   // Eiffel Tower sparkle
 
@@ -52,6 +56,14 @@ typedef struct {
     bool clock_playing;
     bool stairwell_playing;
     bool wind_playing;
+
+    // Through-wall sounds — inaccessible spaces communicate
+    Sound snd_muffled_piano;     // someone else's room — piano through wall
+    Sound snd_distant_voices;    // conversation you'll never hear clearly
+    Sound snd_footsteps_above;   // someone walking upstairs
+    bool muffled_piano_playing;
+    bool distant_voices_playing;
+    bool footsteps_above_playing;
 
     float step_timer;
     float step_interval;
@@ -79,5 +91,13 @@ void StopWindAmbient(EVAudio *audio);
 void PlayElevatorHum(EVAudio *audio);
 void PlayElevatorDing(EVAudio *audio);
 void SetCityAmbientVolume(EVAudio *audio, float vol);
+
+// Through-wall sounds — inaccessible spaces communicate
+void PlayMuffledPiano(EVAudio *audio);
+void StopMuffledPiano(EVAudio *audio);
+void PlayDistantVoices(EVAudio *audio);
+void StopDistantVoices(EVAudio *audio);
+void PlayFootstepsAbove(EVAudio *audio);
+void StopFootstepsAbove(EVAudio *audio);
 
 #endif

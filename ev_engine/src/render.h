@@ -26,6 +26,7 @@ typedef struct {
     int posterizeLoc;    // color quantization levels (0=off, 4-32)
     int pixelateLoc;     // pixel size multiplier (1=off, 2-4=chunky)
     int sharpenLoc;      // edge sharpening intensity
+    int speedLoc;        // player speed (0-1 normalized for effects)
     bool ready;
 } EVPostFX;
 
@@ -63,6 +64,7 @@ void SetPostFXContrast(EVPostFX *pfx, float contrast);
 void SetPostFXVignette(EVPostFX *pfx, float vignette);
 void SetPostFXTint(EVPostFX *pfx, float r, float g, float b);
 void ApplyVisualStyle(EVPostFX *pfx, int style_index);
+void SetPostFXSpeed(EVPostFX *pfx, float speed);
 
 void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *cube_model, bool cube_model_loaded,
@@ -73,6 +75,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    bool indoor, float time);
 void draw_hud(Player *player, Scene *scene);
 void draw_title(void);
+void reset_title_state(void);
 void draw_night_sky(float time);
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target);
 void draw_dust_motes(Camera3D camera, float time);

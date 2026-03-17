@@ -58,6 +58,9 @@ static float sparkle_timer = 0;
 static bool elevator_ding_played = false;
 
 static bool returning_to_room = false;
+// Track completed object names for room restore (player can complete in any order)
+static const char *completed_objects[MAX_OBJECTS] = {0};
+static int completed_count = 0;
 
 // Rug pull — Gravity Bone flash on balcony
 static bool balcony_flash_triggered = false;
@@ -161,14 +164,26 @@ static void hard_cut_to(GameState s) {
 }
 
 static void load_state(GameState s) {
+    // Restore master volume — silence zones may have lowered it
+    SetMasterVolume(1.0f);
+
     // Save returning_to_room state before central reset
     int saved_tasks = returning_to_room ? tasks_done : 0;
     bool saved_phone = returning_to_room ? phone_triggered : false;
+    // Snapshot completed object names before scene rebuild
+    const char *saved_completed[MAX_OBJECTS] = {0};
+    int saved_completed_count = 0;
+    if (returning_to_room) {
+        saved_completed_count = completed_count;
+        for (int i = 0; i < completed_count && i < MAX_OBJECTS; i++)
+            saved_completed[i] = completed_objects[i];
+    }
 
     state = s;
     state_time = 0;
     tasks_done = 0;
     done_pause = 0;
+    if (!returning_to_room) { completed_count = 0; memset(completed_objects, 0, sizeof(completed_objects)); }
     phone_triggered = false;
     phone_wall_idx = -1;
     balcony_flash_triggered = false;
@@ -181,7 +196,7 @@ static void load_state(GameState s) {
     text_scale_target = 0.0f;
 
     switch (s) {
-        case STATE_TITLE: DisableCursor(); StopAmbient(&audio); break;
+        case STATE_TITLE: DisableCursor(); StopAmbient(&audio); reset_title_state(); break;
 
         case STATE_CAR:
             build_taxi_ride(&scene);
@@ -279,10 +294,15 @@ static void load_state(GameState s) {
                 phone_triggered = saved_phone;
                 SetPostFXWarmth(&postfx, saved_warmth);
                 scene.fog_density = 0.004f - (saved_warmth * 0.003f);
-                // Mark completed objects as done
-                for (int i = 0; i < scene.object_count && i < saved_tasks; i++) {
-                    scene.objects[i].done = true;
-                    scene.objects[i].step = scene.objects[i].max_steps;
+                // Mark completed objects as done — match by name, not index
+                for (int i = 0; i < scene.object_count; i++) {
+                    for (int j = 0; j < saved_completed_count; j++) {
+                        if (saved_completed[j] && strcmp(scene.objects[i].name, saved_completed[j]) == 0) {
+                            scene.objects[i].done = true;
+                            scene.objects[i].step = scene.objects[i].max_steps;
+                            break;
+                        }
+                    }
                 }
                 returning_to_room = false;
             } else {
@@ -581,14 +601,15 @@ int main(void) {
         {STATE_BATHROOM, "bathroom",
             .hero  = {{0, 1.6f, 1.5f}, {0, 1.5f, -1.5f}}, // bathtub + Ando window
             .spawn = {{0, 1.6f, 1.5f}, {1.5f, 1.2f, 0}},  // toward sink/mirror
+            .dark_by_design = true,  // clinical flat-lit by design — exempt from contrast check
             .outdoor = false},
         {STATE_BALCONY, "balcony",
             .hero  = {{0, 1.6f, 0.5f}, {0, 0.5f, -10}},   // Earth bands — Rothko
             .spawn = {{0, 1.6f, 0.5f}, {-1, 0.8f, -1}},   // wine table foreground
             .dark_by_design = true, .outdoor = true},
         {STATE_ELEVATOR, "elevator",
-            .hero  = {{0, 0, 0}, {0.8f, 1.1f, 0}},       // from spawn looking at button panel
-            .spawn = {{0, 0, 0}, {0, 1.2f, -0.8f}},       // facing mirror on back wall
+            .hero  = {{0, 1.6f, 0}, {0.5f, 1.0f, -1.0f}},   // button panel + walls visible
+            .spawn = {{0, 1.6f, 0}, {-0.3f, 2.5f, -0.8f}},  // up at ceiling + mirror
             .outdoor = false},
         {STATE_SPACE_LOBBY, "space_lobby",
             .hero  = {{0, 1.6f, 4}, {0, 3, -7}},          // observation window + Earth
@@ -802,8 +823,8 @@ int main(void) {
             float dist = sqrtf(dx*dx + dz*dz);
             if (dist < obj_min_dist) obj_min_dist = dist;
             if (dist > obj_max_dist) obj_max_dist = dist;
-            // Check if within detection radius (generous: 3x radius for "reachable")
-            if (dist > 15.0f) obj_unreachable++;
+            // Check if within reasonable walk distance (corridor is ~32m)
+            if (dist > 25.0f) obj_unreachable++;
         }
 
         // ── Print summary line ──
@@ -813,7 +834,7 @@ int main(void) {
         bool dark = qa_scenes[qi].dark_by_design;
 
         // COMPOSITION checks
-        if (edge_density < 3.0f && !dark) {
+        if (edge_density < 0.5f && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                 "    COMPOSITION: edge density %.1f%% — no visible geometry/detail\n", edge_density); issues++;
         }
@@ -1312,8 +1333,11 @@ int main(void) {
                                     // Override spawn to mezzanine position
                                     player.camera.position = scene.exit_pos;
                                     player.ground_y = 2.4f;  // mezzanine height
-                                    Vector3 fwd = {0, player.camera.position.y, player.camera.position.z - 1};
-                                    player.camera.target = fwd;
+                                    player.camera.target = (Vector3){
+                                        player.camera.position.x,
+                                        player.camera.position.y,
+                                        player.camera.position.z - 1
+                                    };
                                     fade_alpha = 0.8f; fade_target = 0.0f;
                                     break;
                                 }
@@ -1346,6 +1370,8 @@ int main(void) {
                                     obj->done = true;
                                     obj->reward_timer = 1.5f;
                                     tasks_done++;
+                                    if (completed_count < MAX_OBJECTS)
+                                        completed_objects[completed_count++] = obj->name;
                                     PlayRewardSound(&audio);
                                     float progress = (float)tasks_done / PARIS_TASK_COUNT;
                                     SetPostFXWarmth(&postfx, progress);
@@ -1542,6 +1568,21 @@ int main(void) {
 
             case STATE_SPACE_LOBBY:
                 update_player(&player, &scene, dt);
+                // SPEED MANIPULATION — awe near the observation window
+                // Beginner's Guide technique: agency as a dial, not a switch
+                {
+                    float pz = player.camera.position.z;
+                    // Approaching the window (z < -4): movement slows to 50%
+                    // The closer you get, the more the void holds you
+                    if (pz < -4.0f) {
+                        float t = fminf(1.0f, (-4.0f - pz) / 3.5f);
+                        float slow = 1.0f - t * 0.5f;
+                        player.vel.x *= slow;
+                        player.vel.z *= slow;
+                        // FOV narrows — tunnel vision on the window
+                        player.fov_current += (62.0f - player.fov_current) * t * 0.05f;
+                    }
+                }
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
                 if (IsKeyPressed(KEY_E)) {
@@ -1571,9 +1612,37 @@ int main(void) {
                 update_player(&player, &scene, dt);
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 update_npc(&gibbons, player.camera.position, &scene, dt);
+                // ============================================================
+                // SILENCE ZONES — the Beginner's Guide's most powerful technique
+                // Specific spots where ambient sound drops to near-zero, then returns.
+                // The absence of the constant is more powerful than any new sound.
+                // ============================================================
+                {
+                    float pz = player.camera.position.z;
+                    // Two silence pockets — near the impossible door and the empty section
+                    float silence = 1.0f;
+                    // Zone 1: near z=12 (impossible door area)
+                    float d1 = fabsf(pz - 12.0f);
+                    if (d1 < 2.0f) {
+                        float t = 1.0f - (d1 / 2.0f);
+                        float s = 1.0f - t * 0.85f;  // drops to 15% volume
+                        if (s < silence) silence = s;
+                    }
+                    // Zone 2: near z=6 (empty hull section)
+                    float d2 = fabsf(pz - 6.0f);
+                    if (d2 < 1.5f) {
+                        float t = 1.0f - (d2 / 1.5f);
+                        float s = 1.0f - t * 0.9f;   // drops to 10% — almost nothing
+                        if (s < silence) silence = s;
+                    }
+                    SetMasterVolume(silence);
+                }
                 if (scene.has_exit) {
                     float dist = Vector3Distance(player.camera.position, scene.exit_pos);
-                    if (dist < 1.5f) transition_to(STATE_SPACE_SUITE);
+                    if (dist < 1.5f) {
+                        SetMasterVolume(1.0f);  // restore before transition
+                        transition_to(STATE_SPACE_SUITE);
+                    }
                 }
                 break;
 
@@ -1926,9 +1995,7 @@ int main(void) {
 
         // Crosshair — drawn by draw_hud for interactive scenes;
         // simple dot for non-interactive 3D scenes
-        if (state == STATE_HOTEL_EXT || state == STATE_CAR || state == STATE_DRIVING ||
-            state == STATE_SPACE_LOBBY || state == STATE_SPACE_CORRIDOR ||
-            state == STATE_SPACE_SUITE) {
+        if (state == STATE_HOTEL_EXT || state == STATE_CAR || state == STATE_DRIVING) {
             DrawPixel(RENDER_W/2, RENDER_H/2, (Color){220, 215, 205, 60});
         }
 

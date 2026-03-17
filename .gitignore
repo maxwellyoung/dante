@@ -12,3 +12,5 @@ ev_engine/qa/screenshots/
 ev_engine/qa/baseline/
 ev_engine/qa/history/
 ev_engine/qa/report.json
+ev_engine/qa/grades.json
+ev_engine/endearing_void_*

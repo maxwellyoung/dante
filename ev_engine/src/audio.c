@@ -542,6 +542,58 @@ static Sound gen_flame(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Cork pop — sharp percussive burst with gas release hiss
+static Sound gen_cork_pop(void) {
+    int len = SAMPLE_RATE / 3;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 42;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        // Initial pop — very short, percussive (< 5ms)
+        float pop = 0;
+        if (t < 0.005f) {
+            float pt = t / 0.005f;
+            pop = sinf(2 * PI * 800 * t) * (1.0f - pt) * 0.8f;
+            pop += (ev_randf(&rng) * 2.0f - 1.0f) * (1.0f - pt) * 0.6f;
+        }
+        // Gas release hiss — filtered noise, 30ms-200ms
+        float hiss = 0;
+        if (t > 0.003f && t < 0.2f) {
+            float ht = (t - 0.003f) / 0.197f;
+            float henv = (ht < 0.1f) ? ht / 0.1f : expf(-8.0f * (ht - 0.1f));
+            float noise = ev_randf(&rng) * 2.0f - 1.0f;
+            // Band-pass for fizzy character
+            hiss = noise * henv * 0.35f;
+        }
+        // Low thunk — the cork body resonance
+        float thunk = sinf(2 * PI * 180 * t) * expf(-25.0f * t) * 0.4f;
+        d[i] = (short)((pop + hiss + thunk) * 12000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Glass clink — crystal resonance, high bell with beating harmonics
+static Sound gen_glass_clink(void) {
+    int len = SAMPLE_RATE;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        // Sharp initial contact
+        float contact = sinf(2 * PI * 4200 * t) * expf(-60.0f * t) * 0.3f;
+        // Primary crystal resonance — two close frequencies beat
+        float ring1 = sinf(2 * PI * 2800 * t) * expf(-3.0f * t) * 0.35f;
+        float ring2 = sinf(2 * PI * 2820 * t) * expf(-3.0f * t) * 0.25f;
+        // Upper harmonic shimmer
+        float shimmer = sinf(2 * PI * 5600 * t) * expf(-5.0f * t) * 0.1f;
+        // Low body
+        float body = sinf(2 * PI * 900 * t) * expf(-4.0f * t) * 0.15f;
+        d[i] = (short)((contact + ring1 + ring2 + shimmer + body) * 8000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // Reward: bright ascending chime
 static Sound gen_reward(void) {
     int len = SAMPLE_RATE;
@@ -750,6 +802,145 @@ static Sound gen_elevator_ding(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// --- THROUGH-WALL SOUNDS — inaccessible spaces communicate ---
+// "Rooms the player hears but never enters. Music through a wall.
+//  A light under a door that goes out." — Commandment #6
+
+// Muffled piano through hotel wall — you hear someone else's room
+// Low-pass filtered version of the room melody with heavy reverb
+// 16 seconds — long enough to feel like eavesdropping
+static Sound gen_muffled_piano(void) {
+    float beat = 0.6f;
+    float loop_len = 16.0f * beat * 2;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay1 = (int)(SAMPLE_RATE * 0.12f);
+    int reverb_delay2 = (int)(SAMPLE_RATE * 0.23f);  // second tap — room behind room
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    // Same melody as room but transposed down a 5th — heard through wall
+    float melody[][3] = {
+        {220.0f, 0, 2}, {196.0f, 2, 1}, {174.6f, 3, 1},
+        {146.8f, 4, 4},
+        {220.0f, 8, 2}, {233.1f, 10, 1}, {220.0f, 11, 1},
+        {196.0f, 12, 4},
+        {261.6f, 16, 2}, {233.1f, 18, 1}, {220.0f, 19, 1},
+        {174.6f, 20, 4},
+        {220.0f, 24, 2}, {196.0f, 26, 2},
+    };
+    int note_count = 14;
+
+    // Heavy low-pass state — wall absorbs highs
+    float lp1 = 0, lp2 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float sample = 0;
+        for (int n = 0; n < note_count; n++) {
+            float freq = melody[n][0];
+            unsigned int seed = (unsigned int)(n * 997 + 31);
+            float offset = (ev_randf(&seed) - 0.5f) * 0.06f;  // more sloppy timing
+            float start = melody[n][1] * beat + offset;
+            float dur = melody[n][2] * beat;
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 3.0f) continue;
+            float attack = (nt < 0.08f) ? nt / 0.08f : 1.0f;
+            float env = attack * expf(-1.0f * nt);  // longer decay — wall reverb
+            // Only fundamental and 2nd harmonic — wall eats the rest
+            float tone = sinf(2 * PI * freq * t) +
+                         0.2f * sinf(2 * PI * freq * 2.0f * t);
+            sample += tone * env * 0.5f;
+        }
+        // Two-pole low-pass — simulates wall absorption
+        lp1 = lp1 * 0.92f + sample * 0.08f;
+        lp2 = lp2 * 0.90f + lp1 * 0.10f;
+        float lt = (float)i / len;
+        if (lt > 0.95f) lp2 *= (1.0f - lt) / 0.05f;
+        if (lt < 0.02f) lp2 *= lt / 0.02f;
+        d[i] = (short)(lp2 * 2200);
+    }
+    // Double reverb — two delay taps, wall + room
+    for (int i = reverb_delay1; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay1] * 0.18f);
+    for (int i = reverb_delay2; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay2] * 0.10f);
+
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Distant conversation murmur — filtered noise shaped like speech rhythm
+// You hear voices but never words. Other lives happening in parallel.
+static Sound gen_distant_voices(void) {
+    float loop_len = 12.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 1337;
+    float lp1 = 0, lp2 = 0, lp3 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Noise source
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Speech rhythm — amplitude modulation at ~3-5Hz (syllable rate)
+        float syllable = 0.3f + 0.7f * fabsf(sinf(2 * PI * 3.8f * t + sinf(t * 1.2f) * 2.0f));
+        // Phrase pauses — drops to near-zero every 2-4 seconds
+        float phrase = 0.5f + 0.5f * sinf(2 * PI * t / 3.2f);
+        phrase *= 0.6f + 0.4f * sinf(2 * PI * t / 5.7f);
+        // Band-pass for voice character (200-600Hz)
+        lp1 = lp1 * 0.85f + noise * 0.15f;
+        lp2 = lp2 * 0.92f + lp1 * 0.08f;
+        lp3 = lp3 * 0.95f + lp2 * 0.05f;
+        float voice = (lp2 - lp3) * 3.0f;  // band-pass via subtraction
+        float sample = voice * syllable * phrase;
+        // Loop crossfade
+        if (lt < 0.03f) sample *= lt / 0.03f;
+        if (lt > 0.97f) sample *= (1.0f - lt) / 0.03f;
+        d[i] = (short)(sample * 1200);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Footsteps above — someone walking in the room upstairs
+// Muffled thuds with slow, irregular rhythm
+static Sound gen_footsteps_above(void) {
+    float loop_len = 10.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 2718;
+
+    // 8-12 steps at irregular intervals
+    int step_count = 8 + (int)(ev_randf(&rng) * 4);
+    float step_times[16];
+    float t_acc = 0.5f;
+    for (int s = 0; s < step_count && s < 16; s++) {
+        step_times[s] = t_acc;
+        t_acc += 0.5f + ev_randf(&rng) * 0.4f;  // irregular spacing
+        if (t_acc > loop_len - 0.5f) { step_count = s + 1; break; }
+    }
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float sample = 0;
+        for (int s = 0; s < step_count; s++) {
+            float st = t - step_times[s];
+            if (st < 0 || st > 0.15f) continue;
+            // Low thud — ceiling absorbs all highs
+            float env = expf(-25.0f * st);
+            float thud = sinf(2 * PI * 50.0f * st) * env * 0.6f;
+            thud += sinf(2 * PI * 90.0f * st) * env * 0.3f;
+            sample += thud;
+        }
+        if (lt < 0.02f) sample *= lt / 0.02f;
+        if (lt > 0.98f) sample *= (1.0f - lt) / 0.02f;
+        d[i] = (short)(sample * 4000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // --- ENGINE ---
 
 void InitEVAudio(EVAudio *audio) {
@@ -763,6 +954,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_click = gen_click();
     audio->snd_fabric = gen_fabric();
     audio->snd_flame = gen_flame();
+    audio->snd_cork_pop = gen_cork_pop();
+    audio->snd_glass_clink = gen_glass_clink();
     audio->snd_reward = gen_reward();
     audio->snd_sparkle = gen_sparkle();
     audio->door = gen_door_sound();
@@ -778,10 +971,16 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_clock = gen_clock_ambient();
     audio->snd_stairwell = gen_stairwell_ambient();
     audio->snd_wind = gen_wind();
+    audio->snd_muffled_piano = gen_muffled_piano();
+    audio->snd_distant_voices = gen_distant_voices();
+    audio->snd_footsteps_above = gen_footsteps_above();
     audio->city_playing = false;
     audio->clock_playing = false;
     audio->stairwell_playing = false;
     audio->wind_playing = false;
+    audio->muffled_piano_playing = false;
+    audio->distant_voices_playing = false;
+    audio->footsteps_above_playing = false;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
     audio->step_index = 0;
@@ -796,6 +995,8 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_click, 0.4f);
     SetSoundVolume(audio->snd_fabric, 0.3f);
     SetSoundVolume(audio->snd_flame, 0.35f);
+    SetSoundVolume(audio->snd_cork_pop, 0.45f);
+    SetSoundVolume(audio->snd_glass_clink, 0.35f);
     SetSoundVolume(audio->snd_reward, 0.4f);
     SetSoundVolume(audio->snd_sparkle, 0.2f);
     SetSoundVolume(audio->door, 0.25f);
@@ -811,6 +1012,9 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_clock, 0.025f);      // clock — barely there
     SetSoundVolume(audio->snd_stairwell, 0.025f);  // distant door thuds — ambient
     SetSoundVolume(audio->snd_wind, 0.04f);        // wind — gentle
+    SetSoundVolume(audio->snd_muffled_piano, 0.02f);     // barely there — someone else's room
+    SetSoundVolume(audio->snd_distant_voices, 0.015f);   // murmur — other lives
+    SetSoundVolume(audio->snd_footsteps_above, 0.02f);   // thuds — felt more than heard
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -821,7 +1025,8 @@ void UnloadEVAudio(EVAudio *audio) {
         UnloadSound(audio->step_wood[i]);
     }
     UnloadSound(audio->snd_click); UnloadSound(audio->snd_fabric);
-    UnloadSound(audio->snd_flame); UnloadSound(audio->snd_reward);
+    UnloadSound(audio->snd_flame); UnloadSound(audio->snd_cork_pop);
+    UnloadSound(audio->snd_glass_clink); UnloadSound(audio->snd_reward);
     UnloadSound(audio->snd_sparkle); UnloadSound(audio->door);
     UnloadSound(audio->elevator_hum); UnloadSound(audio->elevator_ding);
     UnloadSound(audio->drone_lobby); UnloadSound(audio->drone_hallway);
@@ -830,6 +1035,8 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->drone_space_suite);
     UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
     UnloadSound(audio->snd_stairwell); UnloadSound(audio->snd_wind);
+    UnloadSound(audio->snd_muffled_piano); UnloadSound(audio->snd_distant_voices);
+    UnloadSound(audio->snd_footsteps_above);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -860,6 +1067,10 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
     if (audio->clock_playing && !IsSoundPlaying(audio->snd_clock)) PlaySound(audio->snd_clock);
     if (audio->stairwell_playing && !IsSoundPlaying(audio->snd_stairwell)) PlaySound(audio->snd_stairwell);
     if (audio->wind_playing && !IsSoundPlaying(audio->snd_wind)) PlaySound(audio->snd_wind);
+    // Through-wall sounds — loop when playing
+    if (audio->muffled_piano_playing && !IsSoundPlaying(audio->snd_muffled_piano)) PlaySound(audio->snd_muffled_piano);
+    if (audio->distant_voices_playing && !IsSoundPlaying(audio->snd_distant_voices)) PlaySound(audio->snd_distant_voices);
+    if (audio->footsteps_above_playing && !IsSoundPlaying(audio->snd_footsteps_above)) PlaySound(audio->snd_footsteps_above);
     Sound *steps = get_steps(audio, surface);
     audio->step_interval = sprinting ? 0.32f : 0.50f;
     if (moving) {
@@ -878,7 +1089,9 @@ void PlayInteract(EVAudio *audio, InteractSoundType type) {
     if (!audio->initialized) return;
     switch(type) { case INTERACT_CLICK: PlaySound(audio->snd_click); break;
                    case INTERACT_FABRIC: PlaySound(audio->snd_fabric); break;
-                   case INTERACT_FLAME: PlaySound(audio->snd_flame); break; }
+                   case INTERACT_FLAME: PlaySound(audio->snd_flame); break;
+                   case INTERACT_CORK_POP: PlaySound(audio->snd_cork_pop); break;
+                   case INTERACT_GLASS_CLINK: PlaySound(audio->snd_glass_clink); break; }
 }
 void PlayRewardSound(EVAudio *audio) { if(audio->initialized) PlaySound(audio->snd_reward); }
 void PlaySparkleSound(EVAudio *audio) { if(audio->initialized) PlaySound(audio->snd_sparkle); }
@@ -954,4 +1167,42 @@ void PlayElevatorDing(EVAudio *audio) {
 }
 void SetCityAmbientVolume(EVAudio *audio, float vol) {
     if (audio->initialized) SetSoundVolume(audio->snd_city, vol);
+}
+
+// Through-wall sounds — Commandment #6: inaccessible spaces communicate
+void PlayMuffledPiano(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->muffled_piano_playing) {
+        PlaySound(audio->snd_muffled_piano);
+        audio->muffled_piano_playing = true;
+    }
+}
+void StopMuffledPiano(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_muffled_piano);
+    audio->muffled_piano_playing = false;
+}
+void PlayDistantVoices(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->distant_voices_playing) {
+        PlaySound(audio->snd_distant_voices);
+        audio->distant_voices_playing = true;
+    }
+}
+void StopDistantVoices(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_distant_voices);
+    audio->distant_voices_playing = false;
+}
+void PlayFootstepsAbove(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->footsteps_above_playing) {
+        PlaySound(audio->snd_footsteps_above);
+        audio->footsteps_above_playing = true;
+    }
+}
+void StopFootstepsAbove(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_footsteps_above);
+    audio->footsteps_above_playing = false;
 }

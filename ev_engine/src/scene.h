@@ -18,6 +18,9 @@ void set_last_material(Scene *s, MaterialType mat);
 // Rotation assignment (set on most recently added wall)
 void set_last_rotation(Scene *s, float degrees);
 
+// Mark as decal — polygon offset prevents z-fighting on overlay geometry
+void set_last_decal(Scene *s);
+
 // Composition helpers — rich furniture from simple primitives
 void add_dining_table(Scene *s, float x, float y, float z, float w, float d, float angle, Color wood);
 void add_chair(Scene *s, float x, float y, float z, float angle, Color wood, Color seat);
