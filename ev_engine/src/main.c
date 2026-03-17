@@ -2799,6 +2799,10 @@ int main(void) {
                                 obj->step++;
                                 PlayInteract(&audio, get_interact_sound(obj->name));
                                 kick_camera(&player, -0.01f, 0.005f);
+                                // Micro-freeze + lean — a moment of attention
+                                interact_freeze = 0.05f;
+                                interact_lean = 0.5f;
+                                interact_lean_vel = 0;
 
                                 // Per-step visual feedback — world accumulates changes
                                 if (strcmp(obj->name, "lamp") == 0 && obj->step == 1) {

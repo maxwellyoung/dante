@@ -1219,14 +1219,22 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
     if (audio->distant_voices_playing && !IsSoundPlaying(audio->snd_distant_voices)) PlaySound(audio->snd_distant_voices);
     if (audio->footsteps_above_playing && !IsSoundPlaying(audio->snd_footsteps_above)) PlaySound(audio->snd_footsteps_above);
 
-    // Footsteps — pitch variation per step
+    // Footsteps — pitch + timing variation (not metronomic)
     Sound *steps = get_steps(audio, surface);
-    audio->step_interval = sprinting ? 0.32f : 0.50f;
+    float base_interval = sprinting ? 0.32f : 0.50f;
+    // ±8% timing jitter — human gait is never perfectly regular
+    audio->step_interval = base_interval * (0.92f + (float)(GetRandomValue(0, 160)) / 1000.0f);
     if (moving) {
         audio->step_timer += dt;
         if (audio->step_timer >= audio->step_interval) {
             audio->step_timer = 0;
+            // Pitch variation ±5%
             SetSoundPitch(steps[audio->step_index], 0.95f + (float)(GetRandomValue(0, 100)) / 1000.0f);
+            // Volume varies slightly per step (±10%) — weight distribution shifts
+            float vol_base = (surface == SURFACE_CARPET) ? 0.18f :
+                            (surface == SURFACE_WOOD) ? 0.25f : 0.25f;
+            float vol_jitter = vol_base * (0.9f + (float)(GetRandomValue(0, 200)) / 1000.0f);
+            SetSoundVolume(steps[audio->step_index], vol_jitter);
             PlaySound(steps[audio->step_index]);
             audio->step_index = (audio->step_index + 1) % 4;
         }
