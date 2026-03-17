@@ -607,6 +607,15 @@ void build_lobby(Scene *s) {
     // Door frame around elevator doors
     add_door_frame(s, -2.0f, 1.5f, -9.76f, 2.2f, 3.0f, 0.1f, gold);
 
+    // Hotel bell on reception desk — ring it (foreshadows elevator ding)
+    add_sphere(s, -4.5f, 0.82f, -7.0f, 0.08f, gold);
+    add_cylinder(s, -4.5f, 0.78f, -7.0f, 0.1f, 0.02f, gold);
+    add_object(s, -4.5f, 0.85f, -7.0f, "bell", gold, 1);
+
+    // ── THE MOTIF: cigarette ──
+    // Left on a lobby bench. Someone was here before you.
+    add_cylinder(s, 5.3f, 0.53f, -7.8f, 0.008f, 0.035f, (Color){230,225,215,200});
+
     // ============================================================
     // EVIDENCE OF DEPARTURE — someone was just here
     // The lobby is populated by absence. Gravity Bone: objects tell stories.

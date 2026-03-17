@@ -101,14 +101,38 @@ static float hspeed(Player *p) {
     return sqrtf(p->vel.x * p->vel.x + p->vel.z * p->vel.z);
 }
 
-// ── Collision — two-pass for corners ────────────────────────────────
-// Returns info about the most significant wall hit (tallest side wall)
+// ── Collision helpers ─────────────────────────────────────────────────
+
+// Circle vs point: push point outside circle, return push normal
+static bool circle_push(float cx, float cz, float r, float *px, float *pz,
+                        float *out_nx, float *out_nz) {
+    float dx = *px - cx, dz = *pz - cz;
+    float d2 = dx * dx + dz * dz;
+    if (d2 >= r * r || d2 < 0.0001f) return false;
+    float d = sqrtf(d2);
+    float nx = dx / d, nz = dz / d;
+    *px = cx + nx * r;
+    *pz = cz + nz * r;
+    *out_nx = nx; *out_nz = nz;
+    return true;
+}
+
+// Rotate a point around origin by angle (radians)
+static void rotate_xz(float *x, float *z, float angle) {
+    float c = cosf(angle), s = sinf(angle);
+    float rx = *x * c - *z * s;
+    float rz = *x * s + *z * c;
+    *x = rx; *z = rz;
+}
+
+// ── Collision — shape-aware, two-pass for corners ────────────────────
+// Handles cubes (with rotation), cylinders, spheres, cones.
+// Returns info about the most significant wall hit (tallest side wall).
 static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
                                        Scene *scene, float ground_y, float pr,
                                        float eye_y) {
     CollisionInfo best = {false, {0,0,0}, NULL, 0, 0};
 
-    // Two passes: first pass resolves, second catches corners
     for (int pass = 0; pass < 2; pass++) {
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
@@ -121,47 +145,123 @@ static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
             if (wt <= ground_y + phys.step_height && wt > ground_y - 0.1f)
                 continue;
 
-            if (new_pos->x > w->pos.x - w->size.x/2 - pr &&
-                new_pos->x < w->pos.x + w->size.x/2 + pr &&
-                new_pos->z > w->pos.z - w->size.z/2 - pr &&
-                new_pos->z < w->pos.z + w->size.z/2 + pr &&
-                new_pos->y > wb && new_pos->y < wt) {
+            // Vertical overlap check (shared by all shapes)
+            if (new_pos->y <= wb || new_pos->y >= wt) continue;
 
-                // Penetration depth on each axis
-                float pen_l = (w->pos.x - w->size.x/2 - pr) - new_pos->x;
-                float pen_r = new_pos->x - (w->pos.x + w->size.x/2 + pr);
-                float pen_f = (w->pos.z - w->size.z/2 - pr) - new_pos->z;
-                float pen_b = new_pos->z - (w->pos.z + w->size.z/2 + pr);
+            float nx = 0, nz = 0;
+            bool hit = false;
 
-                // Smallest penetration per axis
-                float px = (fabsf(pen_l) < fabsf(pen_r)) ? pen_l : -pen_r;
-                float pz = (fabsf(pen_f) < fabsf(pen_b)) ? pen_f : -pen_b;
+            if (w->shape == SHAPE_CYLINDER || w->shape == SHAPE_CONE) {
+                // ── Circle collision (XZ plane) ──
+                // Cylinder: size.x = diameter. Cone: tapers, use base diameter.
+                float r = w->size.x / 2 + pr;
+                float px = new_pos->x, pz = new_pos->z;
+                if (circle_push(w->pos.x, w->pos.z, r, &px, &pz, &nx, &nz)) {
+                    new_pos->x = px; new_pos->z = pz;
+                    // Cancel velocity into wall
+                    float vdot = vel->x * nx + vel->z * nz;
+                    if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
+                    hit = true;
+                }
+            } else if (w->shape == SHAPE_SPHERE) {
+                // ── Sphere: full 3D push ──
+                float r = w->size.x / 2 + pr;
+                float dx = new_pos->x - w->pos.x;
+                float dy = new_pos->y - w->pos.y;
+                float dz = new_pos->z - w->pos.z;
+                float d2 = dx*dx + dy*dy + dz*dz;
+                if (d2 < r * r && d2 > 0.0001f) {
+                    float d = sqrtf(d2);
+                    float inv = 1.0f / d;
+                    nx = dx * inv; nz = dz * inv;
+                    float ny = dy * inv;
+                    new_pos->x = w->pos.x + dx * inv * r;
+                    new_pos->y = w->pos.y + dy * inv * r;
+                    new_pos->z = w->pos.z + dz * inv * r;
+                    float vdot = vel->x * nx + vel->z * nz;
+                    if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
+                    if (ny < 0) vel->z = 0; // Don't count sphere top collisions as wall hits
+                    hit = (fabsf(ny) < 0.7f); // Only count as wall if not mostly vertical
+                }
+            } else {
+                // ── Cube (AABB or rotated OBB) ──
+                float hx = w->size.x / 2;
+                float hz = w->size.z / 2;
 
-                if (fabsf(px) < fabsf(pz)) {
-                    float nx = (px > 0) ? 1.0f : -1.0f;
-                    new_pos->x += px;
-                    if (vel->x * nx < 0) vel->x = 0;
-                    // Track as best if it's a side wall at body height
-                    // (wall extends above feet and below eyes — body-height contact)
-                    if (wt > ground_y + 1.0f && wb < eye_y) {
-                        best.hit = true;
-                        best.normal = (Vector3){nx, 0, 0};
-                        best.wall = w;
-                        best.wall_top = wt;
-                        best.wall_bot = wb;
+                if (w->rotation_y != 0.0f) {
+                    // Rotated cube: transform player into wall's local space
+                    float angle = -w->rotation_y * (3.14159265f / 180.0f);
+                    float lx = new_pos->x - w->pos.x;
+                    float lz = new_pos->z - w->pos.z;
+                    rotate_xz(&lx, &lz, angle);
+
+                    // AABB test in local space
+                    if (lx > -hx - pr && lx < hx + pr &&
+                        lz > -hz - pr && lz < hz + pr) {
+                        float pen_l = (-hx - pr) - lx;
+                        float pen_r = lx - (hx + pr);
+                        float pen_f = (-hz - pr) - lz;
+                        float pen_b = lz - (hz + pr);
+                        float lpx = (fabsf(pen_l) < fabsf(pen_r)) ? pen_l : -pen_r;
+                        float lpz = (fabsf(pen_f) < fabsf(pen_b)) ? pen_f : -pen_b;
+
+                        // Push in local space
+                        if (fabsf(lpx) < fabsf(lpz)) {
+                            lx += lpx;
+                            nx = (lpx > 0) ? -1.0f : 1.0f; nz = 0;
+                        } else {
+                            lz += lpz;
+                            nx = 0; nz = (lpz > 0) ? -1.0f : 1.0f;
+                        }
+
+                        // Rotate push back to world space
+                        float inv_angle = -angle;
+                        rotate_xz(&lx, &lz, inv_angle);
+                        rotate_xz(&nx, &nz, inv_angle);
+                        new_pos->x = w->pos.x + lx;
+                        new_pos->z = w->pos.z + lz;
+
+                        // Cancel velocity into wall normal
+                        float vdot = vel->x * nx + vel->z * nz;
+                        if (vdot < 0) { vel->x -= vdot * nx; vel->z -= vdot * nz; }
+                        hit = true;
                     }
                 } else {
-                    float nz = (pz > 0) ? 1.0f : -1.0f;
-                    new_pos->z += pz;
-                    if (vel->z * nz < 0) vel->z = 0;
-                    if (wt > ground_y + 1.0f && wb < eye_y) {
-                        best.hit = true;
-                        best.normal = (Vector3){0, 0, nz};
-                        best.wall = w;
-                        best.wall_top = wt;
-                        best.wall_bot = wb;
+                    // Axis-aligned cube (fast path — most walls)
+                    if (new_pos->x > w->pos.x - hx - pr &&
+                        new_pos->x < w->pos.x + hx + pr &&
+                        new_pos->z > w->pos.z - hz - pr &&
+                        new_pos->z < w->pos.z + hz + pr) {
+
+                        float pen_l = (w->pos.x - hx - pr) - new_pos->x;
+                        float pen_r = new_pos->x - (w->pos.x + hx + pr);
+                        float pen_f = (w->pos.z - hz - pr) - new_pos->z;
+                        float pen_b = new_pos->z - (w->pos.z + hz + pr);
+
+                        float px = (fabsf(pen_l) < fabsf(pen_r)) ? pen_l : -pen_r;
+                        float pz = (fabsf(pen_f) < fabsf(pen_b)) ? pen_f : -pen_b;
+
+                        if (fabsf(px) < fabsf(pz)) {
+                            nx = (px > 0) ? 1.0f : -1.0f;
+                            new_pos->x += px;
+                            if (vel->x * nx < 0) vel->x = 0;
+                        } else {
+                            nz = (pz > 0) ? 1.0f : -1.0f;
+                            new_pos->z += pz;
+                            if (vel->z * nz < 0) vel->z = 0;
+                        }
+                        hit = true;
                     }
                 }
+            }
+
+            // Track best wall hit for wall-running
+            if (hit && wt > ground_y + 1.0f && wb < eye_y) {
+                best.hit = true;
+                best.normal = (Vector3){nx, 0, nz};
+                best.wall = w;
+                best.wall_top = wt;
+                best.wall_bot = wb;
             }
         }
     }
@@ -518,17 +618,27 @@ void update_player(Player *p, Scene *scene, float dt) {
             if (!w->active) continue;
             float top, hx, hz;
             switch (w->shape) {
-                case SHAPE_CUBE:
+                case SHAPE_CUBE: {
                     top = w->pos.y + w->size.y / 2;
+                    if (top >= new_pos.y || top <= ground_y || top > p->ground_y + 0.6f)
+                        break;
                     hx = w->size.x / 2 + 0.3f;
                     hz = w->size.z / 2 + 0.3f;
-                    if (top < new_pos.y && top > ground_y &&
-                        top <= p->ground_y + 0.6f &&
-                        new_pos.x > w->pos.x - hx && new_pos.x < w->pos.x + hx &&
-                        new_pos.z > w->pos.z - hz && new_pos.z < w->pos.z + hz) {
-                        ground_y = top;
+                    if (w->rotation_y != 0.0f) {
+                        // Rotated ground: test in local space
+                        float angle = -w->rotation_y * (3.14159265f / 180.0f);
+                        float lx = new_pos.x - w->pos.x;
+                        float lz = new_pos.z - w->pos.z;
+                        rotate_xz(&lx, &lz, angle);
+                        if (lx > -hx && lx < hx && lz > -hz && lz < hz)
+                            ground_y = top;
+                    } else {
+                        if (new_pos.x > w->pos.x - hx && new_pos.x < w->pos.x + hx &&
+                            new_pos.z > w->pos.z - hz && new_pos.z < w->pos.z + hz)
+                            ground_y = top;
                     }
                     break;
+                }
                 case SHAPE_CYLINDER: {
                     // Cylinder: size.x = diameter, size.y = height
                     top = w->pos.y + w->size.y / 2;
@@ -668,6 +778,30 @@ void update_player(Player *p, Scene *scene, float dt) {
         }
 
         new_pos.y = p->camera.position.y + p->vy * dt;
+
+        // ── Ceiling check — prevent clipping through ceilings ────
+        // Find lowest ceiling above the player and clamp Y
+        if (p->vy > 0) {
+            for (int ci = 0; ci < scene->wall_count; ci++) {
+                Wall *cw = &scene->walls[ci];
+                if (!cw->active || cw->shape != SHAPE_CUBE) continue;
+                float cwb = cw->pos.y - cw->size.y / 2;  // ceiling bottom
+                // Only check walls above current position
+                if (cwb < p->camera.position.y + 0.1f) continue;
+                // Check XZ overlap (player inside wall footprint)
+                float chx = cw->size.x / 2 + phys.player_radius;
+                float chz = cw->size.z / 2 + phys.player_radius;
+                if (new_pos.x > cw->pos.x - chx && new_pos.x < cw->pos.x + chx &&
+                    new_pos.z > cw->pos.z - chz && new_pos.z < cw->pos.z + chz) {
+                    // Would we clip through?
+                    if (new_pos.y > cwb - 0.05f) {
+                        new_pos.y = cwb - 0.05f;
+                        p->vy = 0;  // bonk
+                        p->wall_running = false;
+                    }
+                }
+            }
+        }
 
         // ── Ground check ────────────────────────────────────────────
         if (new_pos.y <= base_y + bob) {
