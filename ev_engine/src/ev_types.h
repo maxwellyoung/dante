@@ -206,6 +206,7 @@ typedef enum {
     STATE_STARS,
     STATE_HYPERSPACE,
     STATE_SPACE_LOBBY,
+    STATE_SPACE_HOTEL,
     STATE_SPACE_CORRIDOR,
     STATE_SPACE_SUITE,
     STATE_PARIS_DREAM,
@@ -236,6 +237,7 @@ typedef enum {
     MAT_HERRINGBONE,  // 11 — interlocking plank pattern
     MAT_PARQUET,      // 12 — alternating wood grain direction
     MAT_VELVET,       // 13 — directional sheen, view-dependent nap
+    MAT_EMISSIVE,     // 14 — light panels, screens, self-lit fixtures
 } MaterialType;
 
 typedef struct {
@@ -335,6 +337,8 @@ typedef struct {
     float fog_density;
     SurfaceType surface;
     int static_wall_count;  // walls below this index move with camera (taxi interior)
+    int driver_wall_start;  // taxi driver geometry range (for return taxi empty seat)
+    int driver_wall_end;
 } Scene;
 
 // NPC behavior states — what Gibbons is doing right now
@@ -386,5 +390,30 @@ typedef struct {
     float line_duration;    // seconds per line (default 3.0)
     bool line_showing;
 } NPC;
+
+// ── Rapid-cut montage system (Thirty Flights of Loving ending) ──
+#define MAX_MONTAGE_BEATS 32
+
+typedef struct {
+    GameState scene;        // which scene to load
+    float duration;         // seconds to hold this beat (0.05 = single-frame flash)
+    Vector3 cam_pos;        // camera position in the scene
+    Vector3 cam_target;     // camera look-at target
+    float exposure;         // post-FX exposure override
+    float warmth;           // post-FX warmth override
+    float saturation;       // post-FX saturation (0 = B&W)
+    float grain;            // post-FX grain
+    float contrast;         // post-FX contrast
+    const char *text;       // optional vignette text (NULL = none)
+} MontageBeat;
+
+typedef struct {
+    MontageBeat beats[MAX_MONTAGE_BEATS];
+    int beat_count;
+    int current_beat;
+    float beat_timer;       // countdown for current beat
+    bool active;            // is montage playing?
+    bool flash_between;     // warm white flash between cuts (like hard_cut_to)
+} Montage;
 
 #endif

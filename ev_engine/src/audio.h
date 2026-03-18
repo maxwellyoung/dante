@@ -12,6 +12,7 @@ typedef enum {
     DRONE_SPACE_LOBBY,
     DRONE_SPACE_CORRIDOR,
     DRONE_SPACE_SUITE,
+    DRONE_PARIS_DREAM,
 } DroneType;
 
 typedef enum {
@@ -45,6 +46,7 @@ typedef struct {
     Sound drone_space_lobby;
     Sound drone_space_corridor;
     Sound drone_space_suite;
+    Sound drone_paris_dream;
     DroneType current_drone;
     bool ambient_playing;
 
@@ -64,6 +66,12 @@ typedef struct {
     bool muffled_piano_playing;
     bool distant_voices_playing;
     bool footsteps_above_playing;
+
+    // Space corridor through-wall replacements (not Paris audio)
+    Sound snd_muffled_machinery;  // life support hum — replaces piano in space
+    Sound snd_comms_chatter;      // radio voice — replaces distant voices in space
+    bool muffled_machinery_playing;
+    bool comms_chatter_playing;
 
     // Sprint 1: Bed drone + held chord for ending
     Sound snd_bed_drone;         // low ~50Hz, 20s loop — surrender
@@ -153,6 +161,12 @@ void PlayDistantVoices(EVAudio *audio);
 void StopDistantVoices(EVAudio *audio);
 void PlayFootstepsAbove(EVAudio *audio);
 void StopFootstepsAbove(EVAudio *audio);
+
+// Space corridor through-wall sounds
+void PlayMuffledMachinery(EVAudio *audio);
+void StopMuffledMachinery(EVAudio *audio);
+void PlayCommsChatter(EVAudio *audio);
+void StopCommsChatter(EVAudio *audio);
 
 // Sprint 1: Ending sounds
 void PlayBedDrone(EVAudio *audio);

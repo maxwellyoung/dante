@@ -57,6 +57,15 @@ static const char *postfx_fs =
     "uniform float pixelateAmt;\n"
     "uniform float sharpenAmt;\n"
     "uniform float speedNorm;\n"    // 0-1 normalized player speed
+    "uniform sampler2D bloomTex;\n"  // multi-resolution bloom chain result
+    "uniform sampler2D depthShadow;\n"  // shadow map depth for volumetric fog
+    "uniform mat4 invViewProj;\n"       // inverse view-projection for world reconstruction
+    "uniform mat4 lightSpaceMat;\n"     // light space matrix for shadow sampling
+    "uniform vec3 volLightDir;\n"       // key light direction for volumetric fog
+    "uniform vec3 volLightColor;\n"     // key light color for volumetric fog
+    "uniform float volFogDensity;\n"    // volumetric fog density (0 = off)
+    "uniform float nearPlane;\n"
+    "uniform float farPlane;\n"
     "out vec4 finalColor;\n"
     "\n"
     "float grainHash(vec2 p) {\n"
@@ -100,6 +109,7 @@ static const char *postfx_fs =
     "        uv = 0.5 + fromCenter * distort;\n"
     "        fromCenter = uv - 0.5;\n"
     "    }\n"
+    "    uv = clamp(uv, vec2(0.0), vec2(1.0));\n"
     "\n"
     "    // --- Chromatic aberration — RGB split at edges ---\n"
     "    float caStrength = dot(fromCenter, fromCenter) * caAmount;\n"
@@ -120,32 +130,33 @@ static const char *postfx_fs =
     "        col += (col - blur) * sharpenAmt * 2.0;\n"
     "    }\n"
     "\n"
-    "    // --- Bloom — bright areas bleed light ---\n"
+    "    // --- Bloom — multi-resolution downsample chain ---\n"
     "    if (bloomAmt > 0.0) {\n"
-    "        vec3 bloomCol = vec3(0.0);\n"
-    "        float bw = 3.0; // bloom kernel width\n"
-    "        for (int bx = -2; bx <= 2; bx++) {\n"
-    "            for (int by = -2; by <= 2; by++) {\n"
-    "                vec3 s = texture(texture0, uv + vec2(float(bx), float(by)) * px * bw).rgb;\n"
-    "                float sl = dot(s, vec3(0.299, 0.587, 0.114));\n"
-    "                bloomCol += s * smoothstep(0.5, 1.0, sl);\n"
-    "            }\n"
-    "        }\n"
-    "        bloomCol /= 25.0;\n"
-    "        col += bloomCol * bloomAmt * 1.5;\n"
+    "        vec3 bloomCol = texture(bloomTex, uv).rgb;\n"
+    "        col += bloomCol * bloomAmt * 2.0;\n"
     "    }\n"
     "\n"
-    "    // --- SSAO — screen-space edge darkening ---\n"
-    "    float center_luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
-    "    float ao_accum = 0.0;\n"
-    "    for (int i = 0; i < 8; i++) {\n"
-    "        float angle = float(i) * 0.785398;\n"
-    "        vec2 offset = vec2(cos(angle), sin(angle)) * px * 2.5;\n"
-    "        float neighbor_luma = dot(texture(texture0, uv + offset).rgb, vec3(0.299, 0.587, 0.114));\n"
-    "        ao_accum += max(0.0, center_luma - neighbor_luma);\n"
+    "    // --- SSAO — multi-scale edge darkening with noise rotation ---\n"
+    "    {\n"
+    "        float center_luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
+    "        float ao_accum = 0.0;\n"
+    "        // Rotate samples per-pixel using noise to break banding\n"
+    "        float rotAngle = grainHash(floor(gl_FragCoord.xy / 2.0)) * 6.283;\n"
+    "        float cr = cos(rotAngle), sr = sin(rotAngle);\n"
+    "        // 16 samples at two radii for contact shadows + wider AO\n"
+    "        for (int i = 0; i < 16; i++) {\n"
+    "            float angle = float(i) * 0.3927 + rotAngle;\n"
+    "            float radius = (i < 8) ? 2.0 : 5.0;\n"  // inner + outer ring
+    "            vec2 offset = vec2(cos(angle), sin(angle)) * px * radius;\n"
+    "            float neighbor_luma = dot(texture(texture0, uv + offset).rgb, vec3(0.299, 0.587, 0.114));\n"
+    "            float diff = max(0.0, center_luma - neighbor_luma);\n"
+    "            // Weight inner ring more strongly (contact shadows)\n"
+    "            float weight = (i < 8) ? 1.0 : 0.5;\n"
+    "            ao_accum += diff * weight;\n"
+    "        }\n"
+    "        float ssao = 1.0 - ao_accum * 0.30;\n"
+    "        col *= max(ssao, 0.35);\n"
     "    }\n"
-    "    float ssao = 1.0 - ao_accum * 0.45;\n"  // stronger AO
-    "    col *= max(ssao, 0.4);\n"
     "\n"
     "    // --- Exposure ---\n"
     "    col *= exp2(exposure);\n"
@@ -262,12 +273,108 @@ static const char *postfx_fs =
     "        }\n"
     "    }\n"
     "\n"
+    "    // --- Volumetric fog / light shafts ---\n"
+    "    if (volFogDensity > 0.0) {\n"
+    "        // Screen-space raymarching through shadow map\n"
+    "        // Accumulates brightness where the ray is in light\n"
+    "        float volAccum = 0.0;\n"
+    "        int volSteps = 16;\n"
+    "        // Reconstruct approximate world position from screen UV\n"
+    "        // Use inverse view-proj to get ray direction\n"
+    "        vec4 clipPos = vec4(uv * 2.0 - 1.0, 0.5, 1.0);\n"
+    "        vec4 worldPos4 = invViewProj * clipPos;\n"
+    "        vec3 rayEnd = worldPos4.xyz / worldPos4.w;\n"
+    "        vec4 nearClip = invViewProj * vec4(uv * 2.0 - 1.0, -1.0, 1.0);\n"
+    "        vec3 rayStart = nearClip.xyz / nearClip.w;\n"
+    "        // March along the ray\n"
+    "        for (int s = 0; s < volSteps; s++) {\n"
+    "            float t = (float(s) + 0.5) / float(volSteps);\n"
+    "            vec3 samplePos = mix(rayStart, rayEnd, t);\n"
+    "            // Transform to light space\n"
+    "            vec4 lsPos = lightSpaceMat * vec4(samplePos, 1.0);\n"
+    "            vec3 lsProj = lsPos.xyz / lsPos.w * 0.5 + 0.5;\n"
+    "            if (lsProj.x >= 0.0 && lsProj.x <= 1.0 && lsProj.y >= 0.0 && lsProj.y <= 1.0) {\n"
+    "                float shadowDepth = texture(depthShadow, lsProj.xy).r;\n"
+    "                float inLight = (lsProj.z - 0.003 < shadowDepth) ? 1.0 : 0.0;\n"
+    "                // Exponential fog falloff with distance from camera\n"
+    "                float fogFalloff = exp(-t * 3.0);\n"
+    "                volAccum += inLight * fogFalloff;\n"
+    "            }\n"
+    "        }\n"
+    "        volAccum /= float(volSteps);\n"
+    "        // Apply volumetric light — warm-tinted shafts\n"
+    "        vec3 volColor = volLightColor * volAccum * volFogDensity * 0.4;\n"
+    "        col += volColor;\n"
+    "    }\n"
+    "\n"
     "    // --- Scene-cut flash ---\n"
     "    if (flash > 0.0) {\n"
     "        col = mix(col, flashColor, flash);\n"
     "    }\n"
     "\n"
     "    finalColor = vec4(clamp(col, 0.0, 1.0), 1.0);\n"
+    "}\n";
+
+// ============================================================
+// BLOOM SHADERS — downsample chain for wide, soft light bleed
+// ============================================================
+static const char *bloom_down_fs =
+    "#version 330\n"
+    "in vec2 fragTexCoord;\n"
+    "uniform sampler2D texture0;\n"
+    "uniform vec2 resolution;\n"
+    "uniform float threshold;\n"
+    "out vec4 finalColor;\n"
+    "void main() {\n"
+    "    vec2 px = 1.0 / resolution;\n"
+    "    // 13-tap downsample (Jorge Jimenez, Call of Duty)\n"
+    "    vec3 a = texture(texture0, fragTexCoord + vec2(-2, -2) * px).rgb;\n"
+    "    vec3 b = texture(texture0, fragTexCoord + vec2( 0, -2) * px).rgb;\n"
+    "    vec3 c = texture(texture0, fragTexCoord + vec2( 2, -2) * px).rgb;\n"
+    "    vec3 d = texture(texture0, fragTexCoord + vec2(-2,  0) * px).rgb;\n"
+    "    vec3 e = texture(texture0, fragTexCoord).rgb;\n"
+    "    vec3 f = texture(texture0, fragTexCoord + vec2( 2,  0) * px).rgb;\n"
+    "    vec3 g = texture(texture0, fragTexCoord + vec2(-2,  2) * px).rgb;\n"
+    "    vec3 h = texture(texture0, fragTexCoord + vec2( 0,  2) * px).rgb;\n"
+    "    vec3 ii = texture(texture0, fragTexCoord + vec2( 2,  2) * px).rgb;\n"
+    "    vec3 j = texture(texture0, fragTexCoord + vec2(-1, -1) * px).rgb;\n"
+    "    vec3 k = texture(texture0, fragTexCoord + vec2( 1, -1) * px).rgb;\n"
+    "    vec3 l = texture(texture0, fragTexCoord + vec2(-1,  1) * px).rgb;\n"
+    "    vec3 m = texture(texture0, fragTexCoord + vec2( 1,  1) * px).rgb;\n"
+    "    vec3 col = (a+c+g+ii)*0.03125 + (b+d+f+h)*0.0625 + (j+k+l+m)*0.125 + e*0.125;\n"
+    "    // Threshold — only keep bright values\n"
+    "    if (threshold > 0.0) {\n"
+    "        float luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
+    "        float soft = smoothstep(threshold - 0.1, threshold + 0.3, luma);\n"
+    "        col *= soft;\n"
+    "    }\n"
+    "    finalColor = vec4(col, 1.0);\n"
+    "}\n";
+
+static const char *bloom_up_fs =
+    "#version 330\n"
+    "in vec2 fragTexCoord;\n"
+    "uniform sampler2D texture0;\n"  // current mip (smaller)
+    "uniform sampler2D bloomMip;\n"  // next larger mip to blend with
+    "uniform vec2 resolution;\n"
+    "out vec4 finalColor;\n"
+    "void main() {\n"
+    "    vec2 px = 1.0 / resolution;\n"
+    "    // 9-tap tent filter upsample\n"
+    "    vec3 col = vec3(0.0);\n"
+    "    col += texture(texture0, fragTexCoord + vec2(-1, -1) * px).rgb;\n"
+    "    col += texture(texture0, fragTexCoord + vec2( 0, -1) * px).rgb * 2.0;\n"
+    "    col += texture(texture0, fragTexCoord + vec2( 1, -1) * px).rgb;\n"
+    "    col += texture(texture0, fragTexCoord + vec2(-1,  0) * px).rgb * 2.0;\n"
+    "    col += texture(texture0, fragTexCoord).rgb * 4.0;\n"
+    "    col += texture(texture0, fragTexCoord + vec2( 1,  0) * px).rgb * 2.0;\n"
+    "    col += texture(texture0, fragTexCoord + vec2(-1,  1) * px).rgb;\n"
+    "    col += texture(texture0, fragTexCoord + vec2( 0,  1) * px).rgb * 2.0;\n"
+    "    col += texture(texture0, fragTexCoord + vec2( 1,  1) * px).rgb;\n"
+    "    col /= 16.0;\n"
+    "    // Blend with larger mip\n"
+    "    vec3 larger = texture(bloomMip, fragTexCoord).rgb;\n"
+    "    finalColor = vec4(mix(larger, col, 0.5), 1.0);\n"
     "}\n";
 
 EVPostFX LoadEVPostFX(void) {
@@ -293,6 +400,15 @@ EVPostFX LoadEVPostFX(void) {
         pfx.pixelateLoc = GetShaderLocation(pfx.postfx, "pixelateAmt");
         pfx.sharpenLoc = GetShaderLocation(pfx.postfx, "sharpenAmt");
         pfx.speedLoc = GetShaderLocation(pfx.postfx, "speedNorm");
+        pfx.postfx_bloomTexLoc = GetShaderLocation(pfx.postfx, "bloomTex");
+        pfx.volDepthShadowLoc = GetShaderLocation(pfx.postfx, "depthShadow");
+        pfx.volInvViewProjLoc = GetShaderLocation(pfx.postfx, "invViewProj");
+        pfx.volLightSpaceMatLoc = GetShaderLocation(pfx.postfx, "lightSpaceMat");
+        pfx.volLightDirLoc = GetShaderLocation(pfx.postfx, "volLightDir");
+        pfx.volLightColorLoc = GetShaderLocation(pfx.postfx, "volLightColor");
+        pfx.volFogDensityLoc = GetShaderLocation(pfx.postfx, "volFogDensity");
+        pfx.volNearPlaneLoc = GetShaderLocation(pfx.postfx, "nearPlane");
+        pfx.volFarPlaneLoc = GetShaderLocation(pfx.postfx, "farPlane");
 
         float res[2] = {(float)RENDER_W, (float)RENDER_H};
         SetShaderValue(pfx.postfx, pfx.resolutionLoc, res, SHADER_UNIFORM_VEC2);
@@ -323,6 +439,32 @@ EVPostFX LoadEVPostFX(void) {
 
         pfx.ready = true;
         printf("[EV] Post-FX loaded — dither, scanlines, bloom, posterize, pixelate\n");
+
+        // --- Multi-resolution bloom chain ---
+        pfx.bloomDownShader = LoadShaderFromMemory(postfx_vs, bloom_down_fs);
+        pfx.bloomUpShader = LoadShaderFromMemory(postfx_vs, bloom_up_fs);
+        if (pfx.bloomDownShader.id > 0 && pfx.bloomUpShader.id > 0) {
+            pfx.bloomDown_resLoc = GetShaderLocation(pfx.bloomDownShader, "resolution");
+            pfx.bloomDown_thresholdLoc = GetShaderLocation(pfx.bloomDownShader, "threshold");
+            pfx.bloomUp_resLoc = GetShaderLocation(pfx.bloomUpShader, "resolution");
+            pfx.bloomUp_bloomTexLoc = GetShaderLocation(pfx.bloomUpShader, "bloomMip");
+
+            int w = RENDER_W / 2;
+            int h = RENDER_H / 2;
+            for (int i = 0; i < BLOOM_LEVELS; i++) {
+                pfx.bloomMips[i] = LoadRenderTexture(w, h);
+                SetTextureFilter(pfx.bloomMips[i].texture, TEXTURE_FILTER_BILINEAR);
+                w /= 2;
+                h /= 2;
+                if (w < 1) w = 1;
+                if (h < 1) h = 1;
+            }
+            pfx.bloomReady = true;
+            printf("[EV] Bloom chain ready — %d levels\n", BLOOM_LEVELS);
+        } else {
+            pfx.bloomReady = false;
+            printf("[EV] WARNING: Bloom shaders failed, falling back to simple bloom\n");
+        }
     } else {
         printf("[EV] WARNING: Post-processing shader failed\n");
         pfx.ready = false;
@@ -334,6 +476,14 @@ void UnloadEVPostFX(EVPostFX *pfx) {
     if (pfx->ready) {
         UnloadShader(pfx->postfx);
         pfx->ready = false;
+    }
+    if (pfx->bloomReady) {
+        UnloadShader(pfx->bloomDownShader);
+        UnloadShader(pfx->bloomUpShader);
+        for (int i = 0; i < BLOOM_LEVELS; i++) {
+            UnloadRenderTexture(pfx->bloomMips[i]);
+        }
+        pfx->bloomReady = false;
     }
 }
 
@@ -404,7 +554,7 @@ const VisualStyle visual_styles[STYLE_COUNT] = {
     {"PS1",           0.85f, 1.0f, 0.8f, 0.5f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},
 
     // 3: Noir — crushed blacks, nearly mono, heavy vignette, sharp
-    {"Noir",          0.15f, 1.5f, 1.8f, 2.5f, 0.8f, -0.2f, {0.92f,0.92f,1.0f},      0.0f,0.0f,0.0f, 0,  1,  1.5f},
+    {"Noir",          0.20f, 1.5f, 1.8f, 2.0f, 0.8f, -0.1f, {0.92f,0.92f,1.0f},      0.0f,0.0f,0.0f, 0,  1,  1.5f},
 
     // 4: CRT — scanlines, bloom, phosphor glow, slight curve
     {"CRT",           0.95f, 4.0f, 1.1f, 1.5f, 0.3f,  0.05f,{1.0f,0.95f,0.9f},       0.0f,1.0f,0.6f, 0,  1,  0.0f},
@@ -986,20 +1136,18 @@ void draw_dawn_sky(float time) {
 }
 
 void draw_dust_motes(Camera3D camera, float time) {
-    // ~20 small bright dots drifting near the camera in lit areas
-    // Deterministic positions seeded from index, slow upward drift
-    for (int i = 0; i < 20; i++) {
-        // Deterministic base position relative to camera, spread out in a volume
-        float seed_x = sinf((float)i * 3.7f + 0.5f) * 5.0f;
-        float seed_y = fmodf((float)i * 0.37f + 0.2f, 2.5f) + 0.2f;
-        float seed_z = cosf((float)i * 2.3f + 1.1f) * 5.0f;
+    // ~30 motes drifting near the camera — figure-8 paths, occasional bright flash
+    for (int i = 0; i < 30; i++) {
+        float seed_x = sinf((float)i * 3.7f + 0.5f) * 6.0f;
+        float seed_y = fmodf((float)i * 0.37f + 0.2f, 2.8f) + 0.2f;
+        float seed_z = cosf((float)i * 2.3f + 1.1f) * 6.0f;
 
-        // Slow drift
-        float drift_y = sinf(time * 0.4f + (float)i * 1.1f) * 0.3f;
-        float drift_x = sinf(time * 0.25f + (float)i * 0.7f) * 0.15f;
-        float drift_z = cosf(time * 0.3f + (float)i * 0.9f) * 0.15f;
+        // Figure-8 drift for more organic movement
+        float phase = (float)i * 1.1f;
+        float drift_y = sinf(time * 0.4f + phase) * 0.3f + sinf(time * 0.15f + phase * 0.7f) * 0.1f;
+        float drift_x = sinf(time * 0.25f + phase * 0.7f) * 0.2f;
+        float drift_z = cosf(time * 0.3f + phase * 0.9f) * 0.2f;
 
-        // Anchor near camera but with some spatial stability
         float anchor_x = floorf(camera.position.x / 4.0f) * 4.0f;
         float anchor_z = floorf(camera.position.z / 4.0f) * 4.0f;
 
@@ -1007,35 +1155,43 @@ void draw_dust_motes(Camera3D camera, float time) {
         float py = seed_y + drift_y;
         float pz = anchor_z + seed_z + drift_z;
 
-        // Only visible in lit areas: y < 3 and within 8m of camera
         if (py > 3.0f) continue;
         float dx = px - camera.position.x;
         float dz = pz - camera.position.z;
         float dist = sqrtf(dx * dx + dz * dz);
         if (dist > 8.0f) continue;
 
-        // Slight size variation
-        float radius = 0.015f + fmodf((float)i * 0.13f, 0.015f);
+        float radius = 0.012f + fmodf((float)i * 0.13f, 0.020f);
 
-        // Fade with distance
-        float alpha_f = 1.0f - (dist / 8.0f);
-        unsigned char a = (unsigned char)(60.0f * alpha_f);
+        // Occasional bright flash — catching a light beam
+        float flash = sinf(time * 3.5f + (float)i * 5.3f);
+        float brightness = (flash > 0.92f) ? 2.0f : 1.0f;
 
-        DrawSphere((Vector3){px, py, pz}, radius, (Color){240, 235, 225, a});
+        float alpha_f = (1.0f - (dist / 8.0f)) * brightness;
+        float pulse = 0.7f + 0.3f * sinf(time * 1.8f + phase * 2.0f);
+        unsigned char a = (unsigned char)(70.0f * alpha_f * pulse);
+
+        // Warm white with slight per-mote variation
+        unsigned char cr = (unsigned char)(235 + (i % 3) * 5);
+        unsigned char cg = (unsigned char)(228 + (i % 5) * 3);
+        unsigned char cb = (unsigned char)(215 + (i % 7) * 4);
+
+        DrawSphere((Vector3){px, py, pz}, radius, (Color){cr, cg, cb, a});
     }
 }
 
-// ── Zero-G sparkles — larger, brighter than dust motes, near portholes ──
+// ── Zero-G sparkles — larger, more varied than dust motes ──
 void draw_zero_g_sparkles(Camera3D camera, float time) {
-    for (int i = 0; i < 15; i++) {
-        float seed_x = sinf((float)i * 5.1f + 2.3f) * 6.0f;
-        float seed_y = fmodf((float)i * 0.53f + 0.4f, 3.0f) + 0.5f;
-        float seed_z = cosf((float)i * 3.7f + 0.8f) * 6.0f;
+    for (int i = 0; i < 25; i++) {
+        float seed_x = sinf((float)i * 5.1f + 2.3f) * 7.0f;
+        float seed_y = fmodf((float)i * 0.53f + 0.4f, 4.0f) + 0.3f;
+        float seed_z = cosf((float)i * 3.7f + 0.8f) * 7.0f;
 
-        // Slower, wider drift than dust motes
-        float drift_y = sinf(time * 0.2f + (float)i * 1.3f) * 0.5f;
-        float drift_x = sinf(time * 0.15f + (float)i * 0.9f) * 0.3f;
-        float drift_z = cosf(time * 0.18f + (float)i * 1.1f) * 0.3f;
+        // Wider, slower drift — zero-G floating
+        float phase = (float)i * 1.3f;
+        float drift_y = sinf(time * 0.2f + phase) * 0.5f;
+        float drift_x = sinf(time * 0.15f + phase * 0.9f) * 0.35f;
+        float drift_z = cosf(time * 0.18f + phase * 1.1f) * 0.35f;
 
         float anchor_x = floorf(camera.position.x / 5.0f) * 5.0f;
         float anchor_z = floorf(camera.position.z / 5.0f) * 5.0f;
@@ -1047,17 +1203,30 @@ void draw_zero_g_sparkles(Camera3D camera, float time) {
         float dx = px - camera.position.x;
         float dz = pz - camera.position.z;
         float dist = sqrtf(dx * dx + dz * dz);
-        if (dist > 10.0f) continue;
+        if (dist > 12.0f) continue;
 
-        // Occasional bright flash — shimmer
-        float flash = sinf(time * 2.5f + (float)i * 4.7f);
-        float brightness = (flash > 0.85f) ? 1.0f : 0.3f;
+        // Multi-frequency shimmer — more varied than single sine
+        float shimmer1 = sinf(time * 2.5f + (float)i * 4.7f);
+        float shimmer2 = sinf(time * 1.3f + (float)i * 3.1f);
+        float brightness = 0.2f;
+        if (shimmer1 > 0.85f) brightness = 1.5f;          // bright flash
+        else if (shimmer2 > 0.7f) brightness = 0.6f;       // medium glow
 
-        float radius = 0.02f + fmodf((float)i * 0.17f, 0.02f);
-        float alpha_f = (1.0f - dist / 10.0f) * brightness;
-        unsigned char a = (unsigned char)(80.0f * alpha_f);
+        float radius = 0.018f + fmodf((float)i * 0.17f, 0.025f);
+        float alpha_f = (1.0f - dist / 12.0f) * brightness;
+        unsigned char a = (unsigned char)(90.0f * alpha_f);
 
-        DrawSphere((Vector3){px, py, pz}, radius, (Color){220, 230, 255, a});
+        // Color varies: mostly blue-white, some warmer
+        unsigned char cr, cg, cb;
+        if (i % 5 == 0) {
+            cr = 255; cg = 230; cb = 180;  // warm gold — reflected Earth light
+        } else {
+            cr = (unsigned char)(210 + (i % 4) * 8);
+            cg = (unsigned char)(220 + (i % 3) * 10);
+            cb = 255;
+        }
+
+        DrawSphere((Vector3){px, py, pz}, radius, (Color){cr, cg, cb, a});
     }
 }
 
@@ -1167,20 +1336,20 @@ void draw_earth(Camera3D camera, float time,
     // Layer 2: Continent landmasses — slightly larger sphere, green-brown tint
     // The overlap with the ocean sphere creates a layered, painterly look
     if (lighting && lighting->ready) SetMaterialId(lighting, 3);  // carpet — matte land texture
-    float land_scale = earth_scale * 1.002f;
+    float land_scale = earth_scale * 1.015f;
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){55, 80, 45, 160};
     DrawModelEx(*sphere_model, earth_pos, axis, rot + 15.0f,  // offset rotation = different "continents"
                 (Vector3){land_scale, land_scale * 0.97f, land_scale}, WHITE);
 
     // Layer 3: Ice caps — poles slightly brighter
-    float ice_scale = earth_scale * 1.003f;
+    float ice_scale = earth_scale * 1.030f;
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){200, 210, 220, 80};
     DrawModelEx(*sphere_model, earth_pos, axis, rot,
                 (Vector3){ice_scale * 0.6f, ice_scale * 1.15f, ice_scale * 0.6f}, WHITE);
 
     // Layer 4: Cloud layer — slightly larger, slowly drifting
     if (lighting && lighting->ready) SetMaterialId(lighting, 4);  // wallpaper — swirling pattern
-    float cloud_scale = earth_scale * 1.012f;
+    float cloud_scale = earth_scale * 1.060f;
     float cloud_rot = rot + time * 0.3f;  // clouds drift faster than surface
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){220, 225, 235, 35};
     DrawModelEx(*sphere_model, earth_pos, axis, cloud_rot,
@@ -1189,7 +1358,7 @@ void draw_earth(Camera3D camera, float time,
     // Layer 5: City lights on the night side — warm amber dots
     // Slightly smaller sphere, bright warm color, only visible where unlit
     if (lighting && lighting->ready) SetMaterialId(lighting, 0);  // concrete for flat rendering
-    float city_scale = earth_scale * 1.004f;
+    float city_scale = earth_scale * 1.045f;
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){255, 200, 80, 25};
     DrawModelEx(*sphere_model, earth_pos, axis, rot + 8.0f,
                 (Vector3){city_scale, city_scale * 0.95f, city_scale}, WHITE);
@@ -1197,7 +1366,7 @@ void draw_earth(Camera3D camera, float time,
     // Layer 6: Atmosphere rim — Fresnel-like glow, blue-white edge
     // Thin shell that catches the light shader's rim calculation
     if (lighting && lighting->ready) SetMaterialId(lighting, 7);  // glass — reflective rim
-    float atmo_scale = earth_scale * 1.06f;
+    float atmo_scale = earth_scale * 1.08f;
     // Breathing: atmosphere subtly pulses — the planet is alive
     float breath = 1.0f + sinf(time * 0.4f) * 0.008f;
     atmo_scale *= breath;
@@ -1228,14 +1397,121 @@ void draw_earth(Camera3D camera, float time,
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_color;
 }
 
+void update_volumetric_fog(EVPostFX *pfx, EVLighting *lighting, Camera3D camera, float density) {
+    if (!pfx->ready) return;
+
+    // Upload fog density
+    SetShaderValue(pfx->postfx, pfx->volFogDensityLoc, &density, SHADER_UNIFORM_FLOAT);
+
+    if (density <= 0.0f || !lighting->shadowReady) return;
+
+    // Upload light direction and color
+    float ld[3] = {lighting->activePreset.keyDir.x, lighting->activePreset.keyDir.y, lighting->activePreset.keyDir.z};
+    SetShaderValue(pfx->postfx, pfx->volLightDirLoc, ld, SHADER_UNIFORM_VEC3);
+    SetShaderValue(pfx->postfx, pfx->volLightColorLoc, lighting->activePreset.keyColor, SHADER_UNIFORM_VEC3);
+
+    // Upload light space matrix
+    SetShaderValueMatrix(pfx->postfx, pfx->volLightSpaceMatLoc, lighting->lightSpaceMatrix);
+
+    // Compute and upload inverse view-projection
+    float aspect = (float)RENDER_W / (float)RENDER_H;
+    Matrix proj = MatrixPerspective(camera.fovy * DEG2RAD, aspect, 0.1, 100.0);
+    Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
+    Matrix viewProj = MatrixMultiply(view, proj);
+    Matrix invViewProj = MatrixInvert(viewProj);
+    SetShaderValueMatrix(pfx->postfx, pfx->volInvViewProjLoc, invViewProj);
+
+    float near = 0.1f, far = 100.0f;
+    SetShaderValue(pfx->postfx, pfx->volNearPlaneLoc, &near, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(pfx->postfx, pfx->volFarPlaneLoc, &far, SHADER_UNIFORM_FLOAT);
+
+    // Bind shadow depth to texture unit 2
+    rlActiveTextureSlot(2);
+    rlEnableTexture(lighting->shadowDepthTex);
+    int slot = 2;
+    SetShaderValue(pfx->postfx, pfx->volDepthShadowLoc, &slot, SHADER_UNIFORM_INT);
+}
+
+void process_bloom(EVPostFX *pfx, RenderTexture2D render_target) {
+    if (!pfx->bloomReady) return;
+
+    // Downsample chain: render_target → mip0 → mip1 → mip2 → mip3
+    // First pass applies threshold, subsequent passes just downsample
+    for (int i = 0; i < BLOOM_LEVELS; i++) {
+        int w = pfx->bloomMips[i].texture.width;
+        int h = pfx->bloomMips[i].texture.height;
+        float res[2] = {(float)w, (float)h};
+        SetShaderValue(pfx->bloomDownShader, pfx->bloomDown_resLoc, res, SHADER_UNIFORM_VEC2);
+
+        float threshold = (i == 0) ? 0.45f : 0.0f;  // only threshold on first pass
+        SetShaderValue(pfx->bloomDownShader, pfx->bloomDown_thresholdLoc, &threshold, SHADER_UNIFORM_FLOAT);
+
+        BeginTextureMode(pfx->bloomMips[i]);
+        ClearBackground(BLACK);
+        BeginShaderMode(pfx->bloomDownShader);
+        Texture2D src = (i == 0) ? render_target.texture : pfx->bloomMips[i-1].texture;
+        DrawTexturePro(src,
+            (Rectangle){0, 0, (float)src.width, -(float)src.height},
+            (Rectangle){0, 0, (float)w, (float)h},
+            (Vector2){0, 0}, 0, WHITE);
+        EndShaderMode();
+        EndTextureMode();
+    }
+
+    // Upsample chain: mip3 → mip2 → mip1 → mip0 (progressive blend)
+    for (int i = BLOOM_LEVELS - 1; i > 0; i--) {
+        int tw = pfx->bloomMips[i-1].texture.width;
+        int th = pfx->bloomMips[i-1].texture.height;
+        float res[2] = {(float)tw, (float)th};
+        SetShaderValue(pfx->bloomUpShader, pfx->bloomUp_resLoc, res, SHADER_UNIFORM_VEC2);
+
+        // Bind current smaller mip as texture0, larger target mip as bloomMip
+        rlActiveTextureSlot(1);
+        rlEnableTexture(pfx->bloomMips[i-1].texture.id);
+        int slot = 1;
+        SetShaderValue(pfx->bloomUpShader, pfx->bloomUp_bloomTexLoc, &slot, SHADER_UNIFORM_INT);
+
+        BeginTextureMode(pfx->bloomMips[i-1]);
+        BeginShaderMode(pfx->bloomUpShader);
+        DrawTexturePro(pfx->bloomMips[i].texture,
+            (Rectangle){0, 0, (float)pfx->bloomMips[i].texture.width, -(float)pfx->bloomMips[i].texture.height},
+            (Rectangle){0, 0, (float)tw, (float)th},
+            (Vector2){0, 0}, 0, WHITE);
+        EndShaderMode();
+        EndTextureMode();
+
+        rlActiveTextureSlot(1);
+        rlDisableTexture();
+        rlActiveTextureSlot(0);
+    }
+}
+
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target) {
     if (!pfx->ready) return;
     float t = (float)GetTime();
     SetShaderValue(pfx->postfx, pfx->timeLoc, &t, SHADER_UNIFORM_FLOAT);
+
+    // Bind bloom chain result to texture unit 1
+    if (pfx->bloomReady) {
+        rlActiveTextureSlot(1);
+        rlEnableTexture(pfx->bloomMips[0].texture.id);
+        int slot = 1;
+        SetShaderValue(pfx->postfx, pfx->postfx_bloomTexLoc, &slot, SHADER_UNIFORM_INT);
+    }
+
     BeginShaderMode(pfx->postfx);
     DrawTexturePro(render_target.texture,
         (Rectangle){0, 0, RENDER_W, -RENDER_H},
         (Rectangle){0, 0, RENDER_W, RENDER_H},
         (Vector2){0, 0}, 0, WHITE);
     EndShaderMode();
+
+    if (pfx->bloomReady) {
+        rlActiveTextureSlot(1);
+        rlDisableTexture();
+    }
+    // Unbind volumetric fog shadow texture (slot 2)
+    rlActiveTextureSlot(2);
+    rlDisableTexture();
+    rlActiveTextureSlot(0);
 }

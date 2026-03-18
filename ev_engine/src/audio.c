@@ -401,6 +401,106 @@ static Sound gen_ambient_room(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// --- PARIS DREAM DRONE — the room drone's ghost ---
+// Same melodic DNA as DRONE_ROOM but pitched down a semitone, heavily filtered,
+// with tape warble and compressed dynamics. Uncanny, not scary.
+// "Genuinely strange. Not nightmarish — dreamlike." (Master Plan)
+static Sound gen_ambient_paris_dream(void) {
+    float beat = 0.65f;  // slightly slower than room (~92 BPM vs 100)
+    float loop_len = 32.0f * beat * 2;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.25f);  // longer reverb — dreamspace
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    // Same melody as the room, pitched down ~1 semitone (×0.9439)
+    // The dream remembers the room but gets it slightly wrong
+    float detune = 0.9439f;  // one semitone down
+    float melody[][3] = {
+        {329.63f * detune, 0, 2}, {293.66f * detune, 2, 1}, {261.63f * detune, 3, 1},
+        {220.00f * detune, 4, 4},
+        {329.63f * detune, 8, 2}, {349.23f * detune, 10, 1}, {329.63f * detune, 11, 1},
+        {293.66f * detune, 12, 4},
+        // B section — dream gets confused here, repeats A instead
+        {329.63f * detune, 16, 2}, {293.66f * detune, 18, 1}, {261.63f * detune, 19, 1},
+        {220.00f * detune, 20, 4},
+        // Silence — longer gap than the room, the dream pauses
+        {329.63f * detune, 32, 3},
+        // Second half — only fragments survive
+        {329.63f * detune, 48, 2}, {261.63f * detune, 51, 1},
+        {220.00f * detune, 52, 4},
+    };
+    int note_count = 15;
+
+    // Bass — lower, muddier, fewer notes
+    float bass[][3] = {
+        {103.83f, 4, 6},   // Ab2 — wrong root, not A2
+        {103.83f, 16, 6},
+        {103.83f, 32, 4},
+        {103.83f, 52, 4},
+    };
+    int bass_count = 4;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float sample = 0;
+
+        // Tape warble — pitch wobbles ±8 cents at ~3Hz
+        float warble = sinf(2 * PI * 3.1f * t) * 0.005f;
+
+        // Melody — heavily filtered (only fundamental + 2nd harmonic)
+        for (int n = 0; n < note_count; n++) {
+            float freq = melody[n][0] * (1.0f + warble);
+            unsigned int ns = (unsigned int)(n * 997 + 13);
+            float time_offset = (ev_randf(&ns) - 0.5f) * 0.06f;  // more timing drift
+            float start = melody[n][1] * beat + time_offset;
+            float dur = melody[n][2] * beat;
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 3.0f) continue;
+            float attack = (nt < 0.08f) ? nt / 0.08f : 1.0f;
+            float env = attack * expf(-2.0f * nt);  // faster decay — compressed
+            // Only fundamental + weak 2nd harmonic — muffled, through-wall feel
+            float tone = sinf(2 * PI * freq * t) +
+                         0.15f * sinf(2 * PI * freq * 2.0f * t);
+            sample += tone * env * 0.5f;
+        }
+
+        // Bass — sub-bass only, felt not heard
+        for (int n = 0; n < bass_count; n++) {
+            float freq = bass[n][0] * (1.0f + warble * 0.5f);
+            float start = bass[n][1] * beat;
+            float dur = bass[n][2] * beat;
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 2.0f) continue;
+            float attack = (nt < 0.15f) ? nt / 0.15f : 1.0f;
+            float env = attack * expf(-0.8f * nt);
+            sample += sinf(2 * PI * freq * t) * env * 0.25f;
+        }
+
+        // Gentle noise floor — tape hiss
+        unsigned int hiss_seed = (unsigned int)(i * 31 + 7);
+        sample += (ev_randf(&hiss_seed) * 2.0f - 1.0f) * 0.02f;
+
+        // Crossfade loop
+        float lt = (float)i / len;
+        if (lt > 0.95f) sample *= (1.0f - lt) / 0.05f;
+        if (lt < 0.02f) sample *= lt / 0.02f;
+        d[i] = (short)(sample * 2000);  // quieter than room
+    }
+
+    // Heavy reverb — dream spaces are cavernous
+    for (int i = reverb_delay; i < len; i++) {
+        d[i] += (short)(d[i - reverb_delay] * 0.25f);
+    }
+    // Second reverb tap — longer, creates smeared echoes
+    int rev2 = (int)(SAMPLE_RATE * 0.42f);
+    for (int i = rev2; i < len; i++) {
+        d[i] += (short)(d[i - rev2] * 0.12f);
+    }
+
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // --- SPACE AMBIENTS — hull resonance, not Earth ambience ---
 
 // Space Lobby: vast pressurized hull. Deep sub-bass hum (40Hz) with slow filter sweep.
@@ -931,6 +1031,85 @@ static Sound gen_distant_voices(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Muffled machinery — life support hum behind space corridor bulkheads
+// The station breathes. Not music — infrastructure.
+static Sound gen_muffled_machinery(void) {
+    float loop_len = 16.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay1 = (int)(SAMPLE_RATE * 0.15f);
+    int reverb_delay2 = (int)(SAMPLE_RATE * 0.28f);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xF00D;
+    float lp1 = 0, lp2 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Low-frequency hum — 80Hz fundamental
+        float hum = sinf(2 * PI * 80.0f * t) * 0.6f;
+        // Rhythmic mechanical pulse — 0.5Hz AM
+        float pulse = 0.5f + 0.5f * sinf(2 * PI * 0.5f * t);
+        // Metallic resonance — 320Hz with slow pitch drift
+        float drift = sinf(t * 0.3f) * 8.0f;
+        float metal = sinf(2 * PI * (320.0f + drift) * t) * 0.15f;
+        // Noise texture — air circulation
+        float air = (ev_randf(&rng) * 2.0f - 1.0f) * 0.05f;
+        float sample = (hum * pulse + metal + air);
+        // Two-pole low-pass — wall absorption
+        lp1 = lp1 * 0.90f + sample * 0.10f;
+        lp2 = lp2 * 0.88f + lp1 * 0.12f;
+        // Loop crossfade
+        if (lt < 0.02f) lp2 *= lt / 0.02f;
+        if (lt > 0.98f) lp2 *= (1.0f - lt) / 0.02f;
+        d[i] = (short)(lp2 * 2400);
+    }
+    // Double reverb taps — bulkhead resonance
+    for (int i = reverb_delay1; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay1] * 0.15f);
+    for (int i = reverb_delay2; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay2] * 0.08f);
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Comms chatter — someone on a call behind a bulkhead door
+// Band-passed noise with syllable-rate modulation + radio chirps
+static Sound gen_comms_chatter(void) {
+    float loop_len = 14.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xC0FF;
+    float lp1 = 0, lp2 = 0, lp3 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Noise source
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Faster syllable rate (5Hz) — one side of a conversation
+        float syllable = 0.2f + 0.8f * fabsf(sinf(2 * PI * 5.0f * t + sinf(t * 1.8f) * 2.5f));
+        // Phrase pauses — longer gaps between sentences
+        float phrase = 0.5f + 0.5f * sinf(2 * PI * t / 2.8f);
+        phrase *= 0.7f + 0.3f * sinf(2 * PI * t / 6.0f);
+        // Band-pass (400-800Hz) — radio voice character
+        lp1 = lp1 * 0.80f + noise * 0.20f;
+        lp2 = lp2 * 0.90f + lp1 * 0.10f;
+        lp3 = lp3 * 0.95f + lp2 * 0.05f;
+        float voice = (lp1 - lp2) * 3.0f;
+        // Radio chirp — occasional high-frequency artifact
+        float chirp_env = expf(-80.0f * fabsf(t - 3.2f)) + expf(-80.0f * fabsf(t - 7.8f))
+                        + expf(-80.0f * fabsf(t - 11.5f));
+        float chirp = sinf(2 * PI * 1800.0f * t) * chirp_env * 0.3f;
+        float sample = voice * syllable * phrase + chirp;
+        // Loop crossfade
+        if (lt < 0.03f) sample *= lt / 0.03f;
+        if (lt > 0.97f) sample *= (1.0f - lt) / 0.03f;
+        d[i] = (short)(sample * 1400);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // Footsteps above — someone walking in the room upstairs
 // Muffled thuds with slow, irregular rhythm
 static Sound gen_footsteps_above(void) {
@@ -1014,6 +1193,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->drone_space_lobby = gen_ambient_space_lobby();
     audio->drone_space_corridor = gen_ambient_space_corridor();
     audio->drone_space_suite = gen_ambient_space_suite();
+    audio->drone_paris_dream = gen_ambient_paris_dream();
     audio->snd_city = gen_city_ambient();
     audio->snd_clock = gen_clock_ambient();
     audio->snd_stairwell = gen_stairwell_ambient();
@@ -1021,6 +1201,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_muffled_piano = gen_muffled_piano();
     audio->snd_distant_voices = gen_distant_voices();
     audio->snd_footsteps_above = gen_footsteps_above();
+    audio->snd_muffled_machinery = gen_muffled_machinery();
+    audio->snd_comms_chatter = gen_comms_chatter();
     audio->snd_bed_drone = gen_bed_drone();
     audio->snd_held_chord = gen_held_chord();
     audio->snd_running_water = gen_running_water();
@@ -1044,6 +1226,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->muffled_piano_playing = false;
     audio->distant_voices_playing = false;
     audio->footsteps_above_playing = false;
+    audio->muffled_machinery_playing = false;
+    audio->comms_chatter_playing = false;
     audio->bed_drone_playing = false;
     audio->held_chord_playing = false;
     audio->hyperspace_tone_playing = false;
@@ -1078,6 +1262,7 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->drone_space_lobby, 0.05f);     // hull presence — felt
     SetSoundVolume(audio->drone_space_corridor, 0.04f);  // air circulation — tighter
     SetSoundVolume(audio->drone_space_suite, 0.03f);     // near-silence — luxury
+    SetSoundVolume(audio->drone_paris_dream, 0.04f);    // dream — muffled, uncanny
     SetSoundVolume(audio->snd_city, 0.03f);        // distant city
     SetSoundVolume(audio->snd_clock, 0.025f);      // clock — barely there
     SetSoundVolume(audio->snd_stairwell, 0.025f);  // distant door thuds — ambient
@@ -1085,6 +1270,8 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_muffled_piano, 0.02f);     // barely there — someone else's room
     SetSoundVolume(audio->snd_distant_voices, 0.015f);   // murmur — other lives
     SetSoundVolume(audio->snd_footsteps_above, 0.02f);   // thuds — felt more than heard
+    SetSoundVolume(audio->snd_muffled_machinery, 0.02f);  // life support hum — behind bulkhead
+    SetSoundVolume(audio->snd_comms_chatter, 0.015f);     // radio voice — behind door
     SetSoundVolume(audio->snd_bed_drone, 0.04f);         // low hum — felt, not heard
     SetSoundVolume(audio->snd_held_chord, 0.05f);        // credits chord — present but gentle
     SetSoundVolume(audio->snd_running_water, 0.015f);    // behind door — muffled
@@ -1119,9 +1306,11 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->drone_room);
     UnloadSound(audio->drone_space_lobby); UnloadSound(audio->drone_space_corridor);
     UnloadSound(audio->drone_space_suite);
+    UnloadSound(audio->drone_paris_dream);
     UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
     UnloadSound(audio->snd_stairwell); UnloadSound(audio->snd_wind);
     UnloadSound(audio->snd_muffled_piano); UnloadSound(audio->snd_distant_voices);
+    UnloadSound(audio->snd_muffled_machinery); UnloadSound(audio->snd_comms_chatter);
     UnloadSound(audio->snd_footsteps_above);
     UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
     UnloadSound(audio->snd_running_water); UnloadSound(audio->snd_tv_murmur);
@@ -1153,7 +1342,8 @@ static Sound *get_drone(EVAudio *audio, DroneType t) {
                 case DRONE_ROOM: return &audio->drone_room;
                 case DRONE_SPACE_LOBBY: return &audio->drone_space_lobby;
                 case DRONE_SPACE_CORRIDOR: return &audio->drone_space_corridor;
-                case DRONE_SPACE_SUITE: return &audio->drone_space_suite; }
+                case DRONE_SPACE_SUITE: return &audio->drone_space_suite;
+                case DRONE_PARIS_DREAM: return &audio->drone_paris_dream; }
     return &audio->drone_room;
 }
 
@@ -1165,7 +1355,8 @@ static float get_drone_base_vol(EVAudio *audio, DroneType t) {
                 case DRONE_ROOM: return 0.06f;
                 case DRONE_SPACE_LOBBY: return 0.05f;
                 case DRONE_SPACE_CORRIDOR: return 0.04f;
-                case DRONE_SPACE_SUITE: return 0.03f; }
+                case DRONE_SPACE_SUITE: return 0.03f;
+                case DRONE_PARIS_DREAM: return 0.04f; }
     return 0.04f;
 }
 
@@ -1218,6 +1409,8 @@ void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surf
     if (audio->muffled_piano_playing && !IsSoundPlaying(audio->snd_muffled_piano)) PlaySound(audio->snd_muffled_piano);
     if (audio->distant_voices_playing && !IsSoundPlaying(audio->snd_distant_voices)) PlaySound(audio->snd_distant_voices);
     if (audio->footsteps_above_playing && !IsSoundPlaying(audio->snd_footsteps_above)) PlaySound(audio->snd_footsteps_above);
+    if (audio->muffled_machinery_playing && !IsSoundPlaying(audio->snd_muffled_machinery)) PlaySound(audio->snd_muffled_machinery);
+    if (audio->comms_chatter_playing && !IsSoundPlaying(audio->snd_comms_chatter)) PlaySound(audio->snd_comms_chatter);
 
     // Footsteps — pitch + timing variation (not metronomic)
     Sound *steps = get_steps(audio, surface);
@@ -1392,6 +1585,32 @@ void StopFootstepsAbove(EVAudio *audio) {
     audio->footsteps_above_playing = false;
 }
 
+// Space corridor through-wall sounds — not Paris audio
+void PlayMuffledMachinery(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->muffled_machinery_playing) {
+        PlaySound(audio->snd_muffled_machinery);
+        audio->muffled_machinery_playing = true;
+    }
+}
+void StopMuffledMachinery(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_muffled_machinery);
+    audio->muffled_machinery_playing = false;
+}
+void PlayCommsChatter(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->comms_chatter_playing) {
+        PlaySound(audio->snd_comms_chatter);
+        audio->comms_chatter_playing = true;
+    }
+}
+void StopCommsChatter(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_comms_chatter);
+    audio->comms_chatter_playing = false;
+}
+
 // ── Sprint 1: Bed drone — low ~50Hz, 20-second loop ────────────────
 // The sound of surrender. Fades in with the ceiling.
 static Sound gen_bed_drone(void) {
@@ -1539,8 +1758,12 @@ static Sound gen_tv_murmur(void) {
 
 void SetDoorSoundVolume(EVAudio *audio, int door_index, float volume) {
     if (!audio->initialized) return;
-    if (door_index == 0) SetSoundVolume(audio->snd_muffled_piano, volume);
-    else if (door_index == 1) SetSoundVolume(audio->snd_running_water, volume);
+    // Door 0: machinery in space corridor (or piano in terrestrial hallway)
+    if (door_index == 0) {
+        SetSoundVolume(audio->snd_muffled_machinery, volume);
+        SetSoundVolume(audio->snd_muffled_piano, volume);
+    }
+    else if (door_index == 1) SetSoundVolume(audio->snd_tv_murmur, volume);
 }
 
 // ── Sprint 3: Hyperspace rising tone — 80Hz→400Hz over 6s ─────────
@@ -1790,7 +2013,7 @@ void PlayAirlockHiss(EVAudio *audio) {
     PlaySound(audio->snd_airlock_hiss);
 }
 
-// ── Gravity settle — hull creak/groan, ship acknowledging weight ───
+// ── Gravity settle — architectural acknowledgment, hull singing ──────
 static Sound gen_gravity_settle(void) {
     int len = SAMPLE_RATE * 2;  // 2 seconds — slow structural sound
     Wave w = gen_wave(len);
@@ -1799,21 +2022,23 @@ static Sound gen_gravity_settle(void) {
     for (int i = 0; i < len; i++) {
         float t = (float)i / SAMPLE_RATE;
         float lt = (float)i / len;
-        // Low metallic groan — two detuned sines beating against each other
-        float f1 = 55.0f + sinf(t * 0.5f) * 5.0f;  // wandering pitch
-        float f2 = 58.0f + sinf(t * 0.7f) * 3.0f;
+        // Low metallic hum — two sines, tighter detuning (less dissonant)
+        float f1 = 55.0f + sinf(t * 0.5f) * 3.0f;
+        float f2 = 56.5f + sinf(t * 0.7f) * 2.0f;
         float groan = sinf(2 * PI * f1 * t) * 0.5f + sinf(2 * PI * f2 * t) * 0.5f;
-        // Creak — short mid-frequency chirps
-        float creak_env = expf(-8.0f * fabsf(t - 0.4f));  // peaks at 0.4s
-        creak_env += expf(-10.0f * fabsf(t - 1.0f)) * 0.6f;  // second creak
-        float creak = sinf(2 * PI * (300.0f + sinf(t * 50.0f) * 100.0f) * t) * creak_env;
-        // Noise texture — stress
-        float stress = (ev_randf(&rng) * 2.0f - 1.0f) * 0.1f;
+        // Warm harmonic — hull singing, not groaning
+        float harmonic = sinf(2 * PI * 110.0f * t) * 0.25f;
+        // Creak — reduced chirp amplitude
+        float creak_env = expf(-8.0f * fabsf(t - 0.4f));
+        creak_env += expf(-10.0f * fabsf(t - 1.0f)) * 0.3f;  // quieter second
+        float creak = sinf(2 * PI * (300.0f + sinf(t * 50.0f) * 100.0f) * t) * creak_env * 0.5f;
+        // Noise texture — minimal
+        float stress = (ev_randf(&rng) * 2.0f - 1.0f) * 0.06f;
         // Envelope: fade in, sustain, fade out
         float env = 1.0f;
         if (lt < 0.15f) env = lt / 0.15f;
         if (lt > 0.7f) env = (1.0f - lt) / 0.3f;
-        float mix = groan * 0.5f + creak * 0.35f + stress * 0.15f;
+        float mix = groan * 0.4f + harmonic * 0.3f + creak * 0.2f + stress * 0.1f;
         d[i] = (short)(mix * env * 8000);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
@@ -2101,6 +2326,8 @@ void StopAllAudio(EVAudio *audio) {
     StopMuffledPiano(audio);
     StopDistantVoices(audio);
     StopFootstepsAbove(audio);
+    StopMuffledMachinery(audio);
+    StopCommsChatter(audio);
     StopBedDrone(audio);
     StopHeldChord(audio);
     StopHyperspaceTone(audio);

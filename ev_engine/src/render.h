@@ -5,6 +5,8 @@
 #include "ev_types.h"
 #include "lighting.h"
 
+#define BLOOM_LEVELS 4
+
 typedef struct {
     Shader postfx;
     int timeLoc;
@@ -27,6 +29,25 @@ typedef struct {
     int pixelateLoc;     // pixel size multiplier (1=off, 2-4=chunky)
     int sharpenLoc;      // edge sharpening intensity
     int speedLoc;        // player speed (0-1 normalized for effects)
+    // Multi-resolution bloom chain
+    Shader bloomDownShader;    // threshold + downsample
+    Shader bloomUpShader;      // upsample + blend
+    RenderTexture2D bloomMips[BLOOM_LEVELS];  // 480x300, 240x150, 120x75, 60x37
+    int bloomDown_resLoc;
+    int bloomDown_thresholdLoc;
+    int bloomUp_resLoc;
+    int bloomUp_bloomTexLoc;
+    int postfx_bloomTexLoc;    // bloom texture sampler in main postfx
+    // Volumetric fog uniforms
+    int volDepthShadowLoc;
+    int volInvViewProjLoc;
+    int volLightSpaceMatLoc;
+    int volLightDirLoc;
+    int volLightColorLoc;
+    int volFogDensityLoc;
+    int volNearPlaneLoc;
+    int volFarPlaneLoc;
+    bool bloomReady;
     bool ready;
 } EVPostFX;
 
@@ -85,6 +106,8 @@ void reset_title_state(void);
 void draw_night_sky(float time);
 void draw_dawn_sky(float time);
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target);
+void process_bloom(EVPostFX *pfx, RenderTexture2D render_target);
+void update_volumetric_fog(EVPostFX *pfx, EVLighting *lighting, Camera3D camera, float density);
 void draw_dust_motes(Camera3D camera, float time);
 void draw_zero_g_sparkles(Camera3D camera, float time);
 void draw_text_box(const char *text, int y, int font_size, Color text_color);

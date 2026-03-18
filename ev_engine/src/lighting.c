@@ -55,6 +55,9 @@ static const char *fs_source =
     "uniform vec3 pointColor[4];\n"
     "uniform float pointRadius[4];\n"
     "uniform int materialId;\n"
+    "uniform vec3 reflectionColor;\n"  // per-scene environment reflection tint
+    "uniform vec3 bouncePos[3];\n"     // indirect light probe positions
+    "uniform vec3 bounceColor[3];\n"   // indirect light probe colors
     "uniform sampler2D texture0;\n"
     "uniform vec4 colDiffuse;\n"
     "out vec4 finalColor;\n"
@@ -99,20 +102,20 @@ static const char *fs_source =
     "}\n"
     "\n"
     // Shadow calculation — PCF 3x3 for soft edges at 480x300
-    "float ShadowCalc(vec4 lsPos) {\n"
+    "float ShadowCalc(vec4 lsPos, float bias) {\n"
     "    vec3 proj = lsPos.xyz / lsPos.w;\n"
     "    proj = proj * 0.5 + 0.5;\n"
     "    if (proj.z > 1.0) return 0.0;\n"
-    "    float bias = 0.005;\n"
     "    float shadow = 0.0;\n"
-    "    vec2 texelSize = 1.0 / vec2(512.0);\n"
-    "    for (int x = -1; x <= 1; x++) {\n"
-    "        for (int y = -1; y <= 1; y++) {\n"
+    "    vec2 texelSize = 1.0 / vec2(2048.0);\n"
+    "    // PCF 5x5 — soft architectural shadows\n"
+    "    for (int x = -2; x <= 2; x++) {\n"
+    "        for (int y = -2; y <= 2; y++) {\n"
     "            float d = texture(shadowMap, proj.xy + vec2(x,y)*texelSize).r;\n"
     "            shadow += proj.z - bias > d ? 1.0 : 0.0;\n"
     "        }\n"
     "    }\n"
-    "    return shadow / 9.0;\n"
+    "    return shadow / 25.0;\n"
     "}\n"
     "\n"
     "void main() {\n"
@@ -129,25 +132,33 @@ static const char *fs_source =
     "    else if (an.x > an.z) surfUV = wp.yz;\n"              // X-facing wall
     "    else surfUV = wp.xy;\n"                                // Z-facing wall
     "\n"
-    // Per-material specular multiplier (overridden below)
+    // Per-material specular multiplier and normal bump (overridden below)
     "    float specMult = 0.15;\n"
+    "    float bumpHeight = 0.0;\n"  // for procedural normal mapping
+    "    float isEmissive = 0.0;\n"  // emissive surfaces skip shadow/AO
+    "\n"
+    // === Procedural normal perturbation helper ===
+    // Compute tangent-space normal bump from noise gradient using dFdx/dFdy
+    "    vec2 eps = vec2(0.01, 0.0);\n"
     "\n"
     "    if (materialId == 0) {\n"
     "        // CONCRETE — subtle pitting and surface variation\n"
     "        float n = fbm(surfUV * 3.0);\n"
     "        baseColor *= 0.92 + n * 0.16;\n"
     "        specMult = 0.08;\n"
+    "        bumpHeight = n * 0.20;\n"
     "    }\n"
     "    else if (materialId == 1) {\n"
     "        // MARBLE — veined with Voronoi cellular structure\n"
     "        float vein = sin(surfUV.x * 4.0 + surfUV.y * 2.0 + sin(wp.z * 3.0) * 2.0);\n"
     "        vein = smoothstep(0.0, 0.15, abs(vein));\n"
     "        float n = fbm(surfUV * 5.0);\n"
-    "        // Voronoi adds organic cellular veining — natural stone character\n"
     "        float cell = voronoi(surfUV * 3.0);\n"
     "        float vein2 = smoothstep(0.02, 0.08, cell) * 0.15;\n"
     "        baseColor *= mix(0.80, 1.0, vein) + n * 0.06 + vein2;\n"
-    "        specMult = 0.35;\n"  // polished
+    "        specMult = 0.35;\n"
+    "        // Polished marble: gentle bumps from veins\n"
+    "        bumpHeight = (1.0 - vein) * 0.15 + n * 0.08;\n"
     "    }\n"
     "    else if (materialId == 2) {\n"
     "        // WOOD — grain lines along one axis\n"
@@ -156,12 +167,14 @@ static const char *fs_source =
     "        float ring = noise(vec2(surfUV.x * 1.5, surfUV.y * 8.0));\n"
     "        baseColor *= 0.85 + grain * 0.12 + ring * 0.06;\n"
     "        specMult = 0.12;\n"
+    "        bumpHeight = grain * 0.25 + ring * 0.10;\n"
     "    }\n"
     "    else if (materialId == 3) {\n"
     "        // CARPET — dense fuzzy noise, matte\n"
     "        float n = fbm(surfUV * 8.0);\n"
     "        baseColor *= 0.88 + n * 0.18;\n"
-    "        specMult = 0.0;\n"  // fully matte
+    "        specMult = 0.0;\n"
+    "        bumpHeight = n * 0.12;\n"  // carpet pile
     "    }\n"
     "    else if (materialId == 4) {\n"
     "        // WALLPAPER — damask: repeating pattern + subtle color shift\n"
@@ -171,30 +184,32 @@ static const char *fs_source =
     "        float n = noise(surfUV * 6.0);\n"
     "        baseColor *= 0.92 + pattern * 0.08 + n * 0.04;\n"
     "        specMult = 0.05;\n"
+    "        bumpHeight = pattern * 0.18;\n"  // raised damask pattern
     "    }\n"
     "    else if (materialId == 5) {\n"
     "        // TILE — grid with grout lines\n"
     "        vec2 tileUV = fract(surfUV * 3.0);\n"
     "        float grout = step(0.06, tileUV.x) * step(0.06, tileUV.y);\n"
     "        baseColor *= mix(0.65, 1.0, grout);\n"
-    "        specMult = 0.25;\n"  // glazed tile
+    "        specMult = 0.25;\n"
+    "        bumpHeight = grout * 0.35;\n"  // recessed grout lines — strong
     "    }\n"
     "    else if (materialId == 6) {\n"
     "        // BRASS — metallic shimmer with subtle patina tarnish\n"
     "        float n = noise(surfUV * 20.0);\n"
-    "        // Patina: Voronoi-based tarnish in crevices — aged luxury\n"
     "        float patina = voronoi(surfUV * 8.0);\n"
     "        float tarnish = smoothstep(0.0, 0.3, patina) * 0.12;\n"
     "        baseColor *= 0.93 + n * 0.08 + tarnish;\n"
-    "        // Patina shifts hue slightly green in dark areas\n"
     "        baseColor.g += (1.0 - patina) * 0.015;\n"
-    "        specMult = 0.55 + patina * 0.15;\n"  // shinier where not tarnished
+    "        specMult = 0.55 + patina * 0.15;\n"
+    "        bumpHeight = n * 0.15 + (1.0 - patina) * 0.10;\n"  // tooling marks + patina texture
     "    }\n"
     "    else if (materialId == 7) {\n"
-    "        // GLASS — subtle reflection, slight transparency feel\n"
+    "        // GLASS — subtle surface distortion\n"
     "        float n = noise(surfUV * 30.0);\n"
     "        baseColor *= 0.98 + n * 0.04;\n"
     "        specMult = 0.5;\n"
+    "        bumpHeight = n * 0.05;\n"  // very subtle — glass is smooth
     "    }\n"
     "    else if (materialId == 8) {\n"
     "        // LEATHER — subtle grain, warm\n"
@@ -202,6 +217,7 @@ static const char *fs_source =
     "        float grain = noise(surfUV * 25.0);\n"
     "        baseColor *= 0.90 + n * 0.08 + grain * 0.04;\n"
     "        specMult = 0.18;\n"
+    "        bumpHeight = n * 0.22 + grain * 0.12;\n"  // leather grain catches light
     "    }\n"
     "    else if (materialId == 9) {\n"
     "        // FABRIC — soft weave pattern\n"
@@ -212,16 +228,17 @@ static const char *fs_source =
     "        float n = noise(surfUV * 12.0);\n"
     "        baseColor *= 0.92 + pattern + n * 0.06;\n"
     "        specMult = 0.02;\n"
+    "        bumpHeight = pattern * 2.0 + n * 0.10;\n"  // weave texture
     "    }\n"
     "    else if (materialId == 10) {\n"
-    "        // CHECKERBOARD — two-tone floor from a single plane\n"
+    "        // CHECKERBOARD — two-tone floor\n"
     "        vec2 checker = floor(surfUV * 2.0);\n"
     "        float check = mod(checker.x + checker.y, 2.0);\n"
     "        baseColor *= mix(0.78, 1.0, check);\n"
-    "        // Per-tile noise variation\n"
     "        float tileNoise = noise(checker * 7.3) * 0.04;\n"
     "        baseColor += tileNoise;\n"
     "        specMult = 0.3;\n"
+    "        bumpHeight = tileNoise * 3.0;\n"
     "    }\n"
     "    else if (materialId == 11) {\n"
     "        // HERRINGBONE — interlocking plank pattern\n"
@@ -229,16 +246,15 @@ static const char *fs_source =
     "        float row = floor(uv.y);\n"
     "        float shifted = uv.x + mod(row, 2.0) * 0.5;\n"
     "        float plank = mod(floor(shifted), 2.0);\n"
-    "        // Grain runs along plank length, alternating direction\n"
     "        float grainDir = (plank > 0.5) ? uv.x : uv.y;\n"
     "        float grain = sin(grainDir * 20.0 + noise(surfUV * 5.0) * 3.0) * 0.5 + 0.5;\n"
     "        grain = smoothstep(0.3, 0.7, grain);\n"
     "        baseColor *= mix(0.82, 1.0, plank) + grain * 0.06;\n"
-    "        // Grout between planks\n"
     "        vec2 plankUV = fract(vec2(shifted, uv.y));\n"
     "        float grout = step(0.04, plankUV.x) * step(0.04, plankUV.y);\n"
     "        baseColor *= mix(0.7, 1.0, grout);\n"
     "        specMult = 0.15;\n"
+    "        bumpHeight = grain * 0.20 + (1.0 - grout) * 0.30;\n"  // plank edges + grain
     "    }\n"
     "    else if (materialId == 12) {\n"
     "        // PARQUET — alternating grain direction in tiles\n"
@@ -248,30 +264,53 @@ static const char *fs_source =
     "        float grainCoord = (dir > 0.5) ? localUV.x : localUV.y;\n"
     "        float grain = sin(grainCoord * 25.0 + noise(surfUV * 6.0) * 2.0) * 0.5 + 0.5;\n"
     "        baseColor *= 0.9 + grain * 0.1;\n"
-    "        // Tile border\n"
     "        float border = step(0.03, localUV.x) * step(0.03, localUV.y)\n"
     "                      * step(0.03, 1.0-localUV.x) * step(0.03, 1.0-localUV.y);\n"
     "        baseColor *= mix(0.75, 1.0, border);\n"
     "        specMult = 0.14;\n"
+    "        bumpHeight = grain * 0.18 + (1.0 - border) * 0.25;\n"
     "    }\n"
     "    else if (materialId == 13) {\n"
     "        // VELVET — directional sheen, view-dependent luminance\n"
-    "        // Velvet appears lighter at grazing angles (Fresnel-like nap)\n"
     "        float NdotV = max(dot(norm, normalize(viewPos - fragPosition)), 0.0);\n"
     "        float sheen = pow(1.0 - NdotV, 2.0) * 0.25;\n"
     "        float nap = noise(surfUV * 15.0) * 0.06;\n"
     "        baseColor *= 0.88 + sheen + nap;\n"
-    "        specMult = 0.03;\n"  // nearly matte, except at edges
+    "        specMult = 0.03;\n"
+    "        bumpHeight = nap * 2.5;\n"  // velvet nap
+    "    }\n"
+    "    else if (materialId == 14) {\n"
+    "        // EMISSIVE — light panels, screens, fixtures\n"
+    "        float n = noise(surfUV * 10.0);\n"
+    "        baseColor *= 1.0 + n * 0.05;\n"
+    "        specMult = 0.0;\n"
+    "        isEmissive = 1.0;\n"
     "    }\n"
     "\n"
-    "    // Shadow\n"
-    "    float shadow = ShadowCalc(fragPosLightSpace);\n"
+    "    // === Procedural normal mapping ===\n"
+    "    // Perturb the interpolated normal using noise gradient (bump mapping)\n"
+    "    // dFdx/dFdy of bumpHeight give us the screen-space height gradient\n"
+    "    if (bumpHeight > 0.001) {\n"
+    "        vec3 dpdx = dFdx(fragPosition);\n"
+    "        vec3 dpdy = dFdy(fragPosition);\n"
+    "        float dhdx = dFdx(bumpHeight);\n"
+    "        float dhdy = dFdy(bumpHeight);\n"
+    "        // Perturb normal using the height gradient — screen-space bump mapping\n"
+    "        vec3 bumpNorm = normalize(norm - (dhdx * cross(norm, dpdy) + dhdy * cross(dpdx, norm))"
+    "                                        / max(dot(dpdx, cross(norm, dpdy)), 0.001));\n"
+    "        norm = bumpNorm;\n"
+    "    }\n"
+    "\n"
+    "    // Shadow — slope-scaled bias: less on lit floors, more on glancing walls\n"
+    "    float shadowBias = max(0.005, 0.02 * (1.0 - max(dot(norm, -lightDir), 0.0)));\n"
+    "    float shadow = ShadowCalc(fragPosLightSpace, shadowBias);\n"
+    "    shadow *= (1.0 - isEmissive);\n"  // emissive surfaces ignore shadow
     "\n"
     "    // Key light — warm, generous, attenuated by shadow\n"
     "    float NdotL = dot(norm, -lightDir);\n"
     "    float halfLambert = NdotL * 0.5 + 0.5;\n"
     "    halfLambert = halfLambert * halfLambert;\n"
-    "    vec3 keyDiffuse = lightColor * halfLambert * (1.0 - shadow * 0.7);\n"
+    "    vec3 keyDiffuse = lightColor * halfLambert * (1.0 - shadow * 0.85);\n"  // deeper shadows — KRZ pools of darkness
     "\n"
     "    // Fill light — soft counter\n"
     "    float NdotF = dot(norm, -fillDir);\n"
@@ -299,37 +338,91 @@ static const char *fs_source =
     "        }\n"
     "    }\n"
     "\n"
-    "    // Rim — subtle warm edge\n"
     "    vec3 viewDir = normalize(viewPos - fragPosition);\n"
-    "    float rim = 1.0 - max(dot(viewDir, norm), 0.0);\n"
-    "    rim = pow(rim, 3.0) * 0.18;\n"
-    "    vec3 rimColor = lightColor * rim;\n"
     "\n"
-    "    // Specular — per-material intensity\n"
+    "    // Rim — KRZ theatrical silhouette edge\n"
+    "    float rim = 1.0 - max(dot(viewDir, norm), 0.0);\n"
+    "    rim = pow(rim, 2.5) * 0.45;\n"  // tighter, brighter — shapes read in darkness
+    "    vec3 rimColor = (lightColor * 0.5 + vec3(0.12)) * rim;\n"  // tinted by key + lifted
+    "\n"
+    "    // Specular — per-material intensity + point light specular\n"
     "    vec3 halfDir = normalize(-lightDir + viewDir);\n"
     "    float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);\n"
     "    vec3 specColor = lightColor * spec * specMult;\n"
+    "    // Point light specular — practicals create specular highlights on shiny surfaces\n"
+    "    for (int i = 0; i < 4; i++) {\n"
+    "        if (pointRadius[i] > 0.0 && specMult > 0.1) {\n"
+    "            vec3 toLight = pointPos[i] - fragPosition;\n"
+    "            float pDist = length(toLight);\n"
+    "            vec3 pDir = toLight / max(pDist, 0.001);\n"
+    "            vec3 pH = normalize(pDir + viewDir);\n"
+    "            float pSpec = pow(max(dot(norm, pH), 0.0), 48.0);\n"
+    "            float pAtten = 1.0 / (1.0 + pDist * pDist / (pointRadius[i] * pointRadius[i] * 0.25));\n"
+    "            specColor += pointColor[i] * pSpec * specMult * pAtten * 0.6;\n"
+    "        }\n"
+    "    }\n"
+    "\n"
+    "    // Environment reflection — per-scene color for metallic/glass surfaces\n"
+    "    vec3 envReflect = vec3(0.0);\n"
+    "    if (specMult > 0.15) {\n"
+    "        float fresnel_env = pow(1.0 - max(dot(viewDir, norm), 0.0), 4.0);\n"
+    "        envReflect = reflectionColor * fresnel_env * specMult * 0.5;\n"
+    "    }\n"
     "\n"
     "    // Normal-based AO\n"
     "    float ao = 0.5 + 0.5 * max(dot(norm, vec3(0.0, 1.0, 0.0)), 0.0);\n"
     "    ao = mix(0.65, 1.0, ao);\n"
+    "    ao = mix(ao, 1.0, isEmissive);\n"  // emissive surfaces ignore AO
     "\n"
     "    // Self-lit — bright surfaces glow softly\n"
     "    float brightness = dot(baseColor, vec3(0.299, 0.587, 0.114));\n"
     "    float selfLit = smoothstep(0.7, 0.9, brightness) * 0.5;\n"
+    "    selfLit = max(selfLit, isEmissive * 0.8);\n"  // emissive surfaces glow strongly
     "\n"
     "    // Fresnel — edges catch more light\n"
     "    float fresnel = pow(1.0 - max(dot(viewDir, norm), 0.0), 3.0) * 0.08;\n"
     "\n"
-    "    vec3 lit = baseColor * (ambient * ao * (1.0 - selfLit) + keyDiffuse + fillDiffuse + pointLit + selfLit)"
-    "              + rimColor + specColor + vec3(fresnel);\n"
+    "    // Bounce light — indirect illumination from nearby surfaces\n"
+    "    vec3 bounce = vec3(0.0);\n"
+    "    for (int i = 0; i < 3; i++) {\n"
+    "        if (length(bouncePos[i]) > 0.001) {\n"
+    "            float bDist = length(bouncePos[i] - fragPosition);\n"
+    "            float bAtten = 1.0 / (1.0 + bDist * bDist * 0.05);\n"
+    "            // Bounce primarily affects surfaces facing away from the source\n"
+    "            vec3 bDir = normalize(bouncePos[i] - fragPosition);\n"
+    "            float bNdot = max(dot(norm, bDir), 0.0) * 0.5 + 0.3;\n"
+    "            bounce += bounceColor[i] * bAtten * bNdot;\n"
+    "        }\n"
+    "    }\n"
     "\n"
-    "    // Fog — warm, not black\n"
+    "    // Split ambient — sky bounce (cool) vs floor bounce (warm)\n"
+    "    float skyFace = max(norm.y, 0.0);\n"
+    "    float groundFace = max(-norm.y, 0.0);\n"
+    "    vec3 ambientFinal = ambient\n"
+    "        + vec3(0.04, 0.06, 0.12) * skyFace\n"     // cool sky bounce on upward faces
+    "        + vec3(0.07, 0.04, 0.02) * groundFace;\n"  // warm floor bounce on downward faces
+    "    vec3 lit = baseColor * (ambientFinal * ao * (1.0 - selfLit) + keyDiffuse + fillDiffuse + pointLit + bounce + selfLit)"
+    "              + rimColor + specColor + envReflect + vec3(fresnel);\n"
+    "\n"
+    "    // Fog — Firewatch height fog + depth color banding\n"
     "    float fogDist = length(viewPos - fragPosition);\n"
-    "    float fog = 1.0 - exp(-fogDensity * fogDist * fogDist);\n"
-    "    fog = clamp(fog, 0.0, 1.0);\n"
-    "    lit = mix(lit, fogColor, fog);\n"
-    "    lit += fog * vec3(-0.01, 0.0, 0.02);\n"
+    "    float distFog = 1.0 - exp(-fogDensity * fogDist * fogDist);\n"
+    "    // Height fog: denser near floor, thins at ceiling\n"
+    "    float heightFog = exp(-max(fragPosition.y - 0.3, 0.0) * 1.2);\n"
+    "    float fog = clamp(distFog * mix(0.3, 1.0, heightFog), 0.0, 1.0);\n"
+    "    fog *= (1.0 - isEmissive * 0.5);\n"  // emissive surfaces resist fog
+    "    // Fog color shifts: warm amber at floor, cool blue at ceiling\n"
+    "    vec3 fogLow  = fogColor * vec3(1.08, 1.0, 0.88);\n"   // warm floor haze
+    "    vec3 fogHigh = fogColor * vec3(0.88, 0.92, 1.08);\n"   // cool ceiling air
+    "    vec3 finalFog = mix(fogHigh, fogLow, heightFog);\n"
+    "    lit = mix(lit, finalFog, fog);\n"
+    "    // Depth color banding — Firewatch layered silhouettes\n"
+    "    // Near: full color. Mid: warm push. Far: cool desaturation.\n"
+    "    float midW = smoothstep(0.0, 0.4, distFog) * (1.0 - smoothstep(0.4, 0.8, distFog));\n"
+    "    float farW = smoothstep(0.5, 1.0, distFog);\n"
+    "    lit *= mix(vec3(1.0), vec3(1.04, 0.97, 0.88), midW);\n"         // mid-ground warm push
+    "    float litLuma = dot(lit, vec3(0.299, 0.587, 0.114));\n"
+    "    lit = mix(lit, vec3(litLuma) * vec3(0.78, 0.82, 0.95), farW * 0.4);\n"  // far desaturate + cool
     "\n"
     "    finalColor = vec4(lit, texColor.a * colDiffuse.a * fragColor.a);\n"
     "}\n";
@@ -360,6 +453,14 @@ EVLighting LoadEVLighting(void) {
             lighting.pointRadiusLoc[i] = GetShaderLocation(lighting.shader, name);
         }
         lighting.materialIdLoc = GetShaderLocation(lighting.shader, "materialId");
+        lighting.reflectionColorLoc = GetShaderLocation(lighting.shader, "reflectionColor");
+        for (int i = 0; i < 3; i++) {
+            char name[32];
+            snprintf(name, sizeof(name), "bouncePos[%d]", i);
+            lighting.bouncePosLoc[i] = GetShaderLocation(lighting.shader, name);
+            snprintf(name, sizeof(name), "bounceColor[%d]", i);
+            lighting.bounceColorLoc[i] = GetShaderLocation(lighting.shader, name);
+        }
         lighting.shadowMapLoc = GetShaderLocation(lighting.shader, "shadowMap");
         lighting.lightSpaceMatrixLoc = GetShaderLocation(lighting.shader, "lightSpaceMatrix");
         int matNormalLoc = GetShaderLocation(lighting.shader, "matNormal");
@@ -410,6 +511,16 @@ void SetSceneLighting(EVLighting *lighting, SceneLighting preset) {
         SetShaderValue(lighting->shader, lighting->pointPosLoc[i], pPos, SHADER_UNIFORM_VEC3);
         SetShaderValue(lighting->shader, lighting->pointColorLoc[i], preset.pointColor[i], SHADER_UNIFORM_VEC3);
         SetShaderValue(lighting->shader, lighting->pointRadiusLoc[i], &preset.pointRadius[i], SHADER_UNIFORM_FLOAT);
+    }
+
+    // Environment reflection color
+    SetShaderValue(lighting->shader, lighting->reflectionColorLoc, preset.reflectionColor, SHADER_UNIFORM_VEC3);
+
+    // Bounce probes — indirect lighting
+    for (int i = 0; i < 3; i++) {
+        float bPos[3] = {preset.bouncePos[i].x, preset.bouncePos[i].y, preset.bouncePos[i].z};
+        SetShaderValue(lighting->shader, lighting->bouncePosLoc[i], bPos, SHADER_UNIFORM_VEC3);
+        SetShaderValue(lighting->shader, lighting->bounceColorLoc[i], preset.bounceColor[i], SHADER_UNIFORM_VEC3);
     }
 }
 
@@ -549,7 +660,8 @@ SceneLighting LightingPreset_Taxi(void) {
         // Taxi meter glow — green-teal dashboard
         .pointPos = {{0.45f, 0.72f, -1.06f}},
         .pointColor = {{0.6f, 1.0f, 0.8f}},
-        .pointRadius = {5.0f}
+        .pointRadius = {5.0f},
+        .reflectionColor = {0.8f, 0.6f, 0.3f},   // warm sodium on leather/glass
     };
 }
 
@@ -585,6 +697,9 @@ SceneLighting LightingPreset_Lobby(void) {
         .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}, {0, 3.5f, -5}},
         .pointColor = {{2.0f, 1.5f, 0.85f}, {0.5f, 0.38f, 0.22f}, {0.5f, 0.38f, 0.22f}, {0.7f, 0.50f, 0.30f}},
         .pointRadius = {10.0f, 6.0f, 6.0f, 5.0f},
+        .reflectionColor = {1.2f, 0.9f, 0.5f},   // warm chandelier gold on marble
+        .bouncePos = {{0, 0.1f, 0}, {-2, 6.4f, -2}, {0, 0.5f, -5}},
+        .bounceColor = {{0.15f, 0.12f, 0.08f}, {0.3f, 0.22f, 0.12f}, {0.10f, 0.08f, 0.05f}},
     };
 }
 
@@ -648,6 +763,9 @@ SceneLighting LightingPreset_Room(void) {
         .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
         .pointColor = {{1.2f, 0.9f, 0.55f}, {0.8f, 0.6f, 0.35f}, {0.8f, 0.6f, 0.35f}},
         .pointRadius = {6.0f, 3.5f, 3.5f},
+        .reflectionColor = {0.8f, 0.6f, 0.35f},   // warm gold on wood/brass
+        .bouncePos = {{0, 0.05f, 0}, {0, 3.68f, 0}},
+        .bounceColor = {{0.10f, 0.08f, 0.05f}, {0.20f, 0.15f, 0.08f}},
     };
 }
 
@@ -682,6 +800,9 @@ SceneLighting LightingPreset_Balcony(void) {
         .pointPos = {{0.0f, -0.5f, -8.0f}, {0.0f, 1.5f, 3.0f}},
         .pointColor = {{0.5f, 0.75f, 1.0f}, {0.8f, 0.55f, 0.30f}},
         .pointRadius = {30.0f, 5.0f},
+        .reflectionColor = {0.3f, 0.5f, 0.8f},   // Earth blue on glass floor
+        .bouncePos = {{0, -0.5f, -8}, {0, 1.5f, 3}},
+        .bounceColor = {{0.10f, 0.15f, 0.25f}, {0.12f, 0.08f, 0.04f}},
     };
 }
 
@@ -691,14 +812,42 @@ SceneLighting LightingPreset_SpaceLobby(void) {
     // Key comes DOWN at an angle — overhead chandelier casts long shadows
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),   // steep overhead — drama
-        .keyColor = {0.55f, 0.65f, 0.85f},        // Earth blue tint
+        .keyColor = {0.75f, 0.85f, 1.05f},        // Earth blue tint — boosted
         .fillDir = Vector3Normalize((Vector3){0.2f, 0.5f, 0.3f}),
         .fillColor = {0.12f, 0.18f, 0.28f},       // cool blue bounce — dim
         .ambient = {0.08f, 0.09f, 0.12f},          // LOW — dramatic pools of light
         // Chandelier above observation area + Earth glow on floor
         .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}, {0, 0.5f, -6.0f}},
-        .pointColor = {{0.85f, 0.65f, 0.40f}, {0.3f, 0.45f, 0.65f}, {0.3f, 0.45f, 0.65f}, {0.4f, 0.6f, 0.9f}},
+        .pointColor = {{1.1f, 0.85f, 0.55f}, {0.3f, 0.45f, 0.65f}, {0.3f, 0.45f, 0.65f}, {0.4f, 0.6f, 0.9f}},
         .pointRadius = {14.0f, 10.0f, 10.0f, 12.0f},
+        .reflectionColor = {0.3f, 0.45f, 0.7f},   // cool blue Earth on marble + brass
+        .bouncePos = {{0, 0.1f, -3}, {0, 6.4f, -3}, {0, 0.5f, -6}},
+        .bounceColor = {{0.08f, 0.12f, 0.20f}, {0.20f, 0.15f, 0.08f}, {0.10f, 0.15f, 0.25f}},
+    };
+}
+
+SceneLighting LightingPreset_SpaceHotel(void) {
+    // Massive glass atrium — Earth blue floods from glass walls
+    // Warm amber pools from overhead chandeliers create islands of comfort
+    return (SceneLighting){
+        .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.1f}),
+        .keyColor = {0.65f, 0.75f, 0.95f},       // Earth blue wash — cool, vast
+        .fillDir = Vector3Normalize((Vector3){0.4f, 0.3f, 0.0f}),
+        .fillColor = {0.08f, 0.12f, 0.22f},      // deep blue bounce off glass
+        .ambient = {0.06f, 0.07f, 0.10f},         // VERY LOW — drama through darkness
+        .pointPos = {
+            {-8, 18, 10},      // warm chandelier left
+            {8, 18, 24},       // warm chandelier right
+            {0, 0.5f, 18},     // Earth glow on floor (central)
+            {0, 4, 12},        // piano warm pool
+        },
+        .pointColor = {
+            {1.2f, 0.90f, 0.55f},   // amber chandelier
+            {1.1f, 0.85f, 0.50f},   // amber chandelier (slightly different)
+            {0.3f, 0.55f, 0.85f},   // Earth blue floor wash
+            {1.0f, 0.75f, 0.40f},   // warm spotlight on piano
+        },
+        .pointRadius = {20.0f, 20.0f, 25.0f, 8.0f},
     };
 }
 
@@ -733,6 +882,9 @@ SceneLighting LightingPreset_SpaceSuite(void) {
         .pointPos = {{0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0}},
         .pointColor = {{1.2f, 0.90f, 0.50f}, {1.1f, 0.80f, 0.45f}, {1.1f, 0.80f, 0.45f}, {0.20f, 0.40f, 0.75f}},
         .pointRadius = {10.0f, 6.0f, 6.0f, 8.0f},
+        .reflectionColor = {0.5f, 0.4f, 0.25f},   // warm amber — lamplight on brass/glass
+        .bouncePos = {{0, 0.1f, -4}, {-6, 2, 0}, {0, 4.8f, -4}},
+        .bounceColor = {{0.12f, 0.10f, 0.06f}, {0.06f, 0.10f, 0.18f}, {0.15f, 0.12f, 0.07f}},
     };
 }
 
@@ -762,6 +914,9 @@ SceneLighting LightingPreset_ParisDream(void) {
         .pointPos = {{0, 3.6f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
         .pointColor = {{1.8f, 1.3f, 0.60f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
         .pointRadius = {7.0f, 3.5f, 3.5f},
+        .reflectionColor = {1.5f, 1.0f, 0.45f},   // blazing gold — dream intensity
+        .bouncePos = {{0, 0.05f, 0}, {0, 3.6f, 0}},
+        .bounceColor = {{0.25f, 0.18f, 0.08f}, {0.30f, 0.22f, 0.10f}},
     };
 }
 

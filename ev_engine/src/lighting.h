@@ -9,7 +9,7 @@
 #include "raymath.h"
 
 #define MAX_POINT_LIGHTS 4
-#define SHADOW_MAP_SIZE 1024
+#define SHADOW_MAP_SIZE 2048
 
 // Per-scene lighting configuration — set once per scene transition
 typedef struct {
@@ -22,6 +22,11 @@ typedef struct {
     Vector3 pointPos[MAX_POINT_LIGHTS];
     float pointColor[MAX_POINT_LIGHTS][3];
     float pointRadius[MAX_POINT_LIGHTS];   // 0 = disabled
+    // Environment reflection — per-scene color for metallic/glass surfaces
+    float reflectionColor[3];  // {0,0,0} = no reflection
+    // Indirect light probes — cheap bounce approximation
+    Vector3 bouncePos[3];      // {0,0,0} = disabled
+    float bounceColor[3][3];   // RGB per probe
 } SceneLighting;
 
 typedef struct {
@@ -40,6 +45,10 @@ typedef struct {
     int pointRadiusLoc[MAX_POINT_LIGHTS];
     // Material
     int materialIdLoc;
+    // Environment reflection + bounce probes
+    int reflectionColorLoc;
+    int bouncePosLoc[3];
+    int bounceColorLoc[3];
     // Shadow mapping
     unsigned int shadowFBO;
     unsigned int shadowDepthTex;
@@ -89,6 +98,7 @@ SceneLighting LightingPreset_Room(void);
 SceneLighting LightingPreset_Bathroom(void);
 SceneLighting LightingPreset_Balcony(void);
 SceneLighting LightingPreset_SpaceLobby(void);
+SceneLighting LightingPreset_SpaceHotel(void);
 SceneLighting LightingPreset_SpaceCorridor(void);
 SceneLighting LightingPreset_SpaceSuite(void);
 SceneLighting LightingPreset_Hyperspace(void);
