@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(chmod:*)",
+      "Bash(make:*)",
+      "Bash(timeout 5 ./endearing_void)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // \"\"' | { read -r f; echo \"$f\" | grep -q 'ev_engine/src/' && cd /Users/maxwellyoung/Development/dante/ev_engine && make 2>&1 | tail -3 || true; }",
+            "timeout": 30,
+            "statusMessage": "Compiling EV engine..."
+          }
+        ]
+      }
+    ]
+  }
+}
