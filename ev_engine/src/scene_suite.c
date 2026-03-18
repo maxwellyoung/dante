@@ -287,7 +287,9 @@ void suite_update(float dt) {
                         // Steam appears on the window — Earth blurs through fog
                         add_wall(&g.scene, -6.8f, 2.0f, -1.0f, 0.1f, 3.0f, 4.0f, (Color){200,210,220,25});
                         add_wall(&g.scene, -6.6f, 2.5f, -0.5f, 0.08f, 2.0f, 3.0f, (Color){200,210,220,15});
-                        // Water sound would play here
+                        // Running water — the bath fills
+                        SetSoundVolume(g.audio.snd_running_water, 0.04f);
+                        PlaySound(g.audio.snd_running_water);
                         show_text("Big enough for two.");
                         obj->done = true;
                         break;

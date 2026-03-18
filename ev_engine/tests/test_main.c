@@ -27,6 +27,7 @@ typedef struct { unsigned int id; int *locs; } Shader;
 typedef struct { int dummy; } Sound;
 typedef struct { int dummy; } Music;
 typedef struct { int dummy; } Model;
+typedef struct { int dummy; } ModelAnimation;
 typedef struct {
     unsigned int id;
     struct { unsigned int id; int width; int height; int mipmaps; int format; } texture;
@@ -47,7 +48,7 @@ typedef struct { unsigned int id; int width; int height; int mipmaps; int format
 #include "../src/render.h"
 #include "../src/lighting.h"
 
-// Count enum values: STATE_RETURN_TAXI is the last enum value (17), so count = 18
+// Count enum values: STATE_RETURN_TAXI is the last enum value (19), so count = 20
 #define GAMESTATE_COUNT (STATE_RETURN_TAXI + 1)
 
 int main(void) {
@@ -84,7 +85,7 @@ int main(void) {
 
     // GameState enum count — should be 18
     printf("\nChecking GameState enum...\n");
-    assert(GAMESTATE_COUNT == 18);
+    assert(GAMESTATE_COUNT == 20);
     printf("  GameState count = %d  OK\n", GAMESTATE_COUNT);
     printf("  STATE_TITLE         = %d\n", STATE_TITLE);
     printf("  STATE_BATHROOM      = %d\n", STATE_BATHROOM);

@@ -55,6 +55,7 @@ static const char *fs_source =
     "uniform vec3 pointColor[4];\n"
     "uniform float pointRadius[4];\n"
     "uniform int materialId;\n"
+    "uniform float time;\n"
     "uniform sampler2D texture0;\n"
     "uniform vec4 colDiffuse;\n"
     "out vec4 finalColor;\n"
@@ -239,6 +240,31 @@ static const char *fs_source =
     "        baseColor *= 0.90 + sheen;\n"
     "        specMult = 0.04;\n"
     "    }\n"
+    "    else if (materialId == 14) {\n"
+    "        // WATER — dark reflective surface with animated ripple\n"
+    "        // Slow sine ripple distorts the normal for moving specular highlights\n"
+    "        float ripple1 = sin(wp.x * 1.5 + time * 0.4) * cos(wp.z * 2.0 + time * 0.3);\n"
+    "        float ripple2 = sin(wp.x * 3.0 - time * 0.5 + 1.7) * cos(wp.z * 1.2 + time * 0.2);\n"
+    "        float ripple = (ripple1 + ripple2 * 0.5) * 0.08;\n"
+    "        // Perturb normal — creates moving specular on a flat surface\n"
+    "        norm = normalize(norm + vec3(ripple, 0.0, ripple * 0.7));\n"
+    "        // Dark base — near-black with slight blue shift\n"
+    "        baseColor = baseColor * 0.3 + vec3(0.01, 0.02, 0.04);\n"
+    "        specMult = 0.7;\n"
+    "    }\n"
+    "    else if (materialId == 15) {\n"
+    "        // PUDDLE — thin wet film on ground, picks up nearby light\n"
+    "        // Subtle noise-based distortion for wet sheen, no animation\n"
+    "        float wet = noise(surfUV * 3.0);\n"
+    "        float edge = smoothstep(0.3, 0.7, wet);\n"
+    "        // Darken the ground color, add slight reflective sheen\n"
+    "        baseColor = baseColor * 0.25 + vec3(0.01, 0.015, 0.025);\n"
+    "        // Fresnel-like view-dependent reflection on the puddle\n"
+    "        float NdotV = max(dot(norm, normalize(viewPos - fragPosition)), 0.0);\n"
+    "        float pudFresnel = pow(1.0 - NdotV, 4.0) * 0.4;\n"
+    "        baseColor += vec3(pudFresnel) * edge;\n"
+    "        specMult = 0.55;\n"
+    "    }\n"
     "\n"
     "    // Shadow\n"
     "    float shadow = ShadowCalc(fragPosLightSpace);\n"
@@ -285,7 +311,7 @@ static const char *fs_source =
     "\n"
     "    // ── Rim light — edge catch, architectural silhouette ──\n"
     "    // Broader + stronger than before. Makes geometry pop from background.\n"
-    "    float rim = 1.0 - NdotV;\n"
+    "    float rim = 1.0 - viewDot;\n"
     "    rim = pow(rim, 2.5) * 0.30;\n"
     "    vec3 rimColor = lightColor * rim;\n"
     "\n"
@@ -301,6 +327,8 @@ static const char *fs_source =
     "    else if (materialId == 9) specPower = 6.0;\n"   // fabric — almost none
     "    else if (materialId == 13) specPower = 8.0;\n"  // velvet — soft sheen
     "    else if (materialId == 8) specPower = 12.0;\n"  // leather — broad
+    "    else if (materialId == 14) specPower = 64.0;\n" // water — tight moving highlight
+    "    else if (materialId == 15) specPower = 48.0;\n" // puddle — sharp wet glint
     "    vec3 halfDir = normalize(-lightDir + viewDir);\n"
     "    float spec = pow(max(dot(norm, halfDir), 0.0), specPower);\n"
     "    vec3 specColor = lightColor * spec * specMult;\n"
@@ -312,7 +340,7 @@ static const char *fs_source =
     "    float aoHeight = smoothstep(-0.5, 4.0, fragPosition.y);\n"
     "    // 3) Crease detection — where surfaces meet at angles\n"
     "    //    View-space normal curvature approximation\n"
-    "    float aoCrease = smoothstep(0.0, 0.3, NdotV);\n"
+    "    float aoCrease = smoothstep(0.0, 0.3, viewDot);\n"
     "    float ao = mix(0.45, 1.0, aoUp * mix(0.7, 1.0, aoHeight) * mix(0.6, 1.0, aoCrease));\n"
     "\n"
     "    // Self-lit — only very bright surfaces glow (light fixtures, not walls)\n"
@@ -320,7 +348,7 @@ static const char *fs_source =
     "    float selfLit = smoothstep(0.85, 0.95, brightness) * 0.2;\n"
     "\n"
     "    // ── Fresnel — edges catch more light (architectural depth cue) ──\n"
-    "    float fresnel = pow(1.0 - NdotV, 3.0) * 0.12;\n"
+    "    float fresnel = pow(1.0 - viewDot, 3.0) * 0.12;\n"
     "\n"
     "    vec3 lit = baseColor * (ambient * ao * (1.0 - selfLit) + keyDiffuse + fillDiffuse + pointLit + selfLit)"
     "              + rimColor + specColor + vec3(fresnel);\n"
@@ -360,6 +388,7 @@ EVLighting LoadEVLighting(void) {
             lighting.pointRadiusLoc[i] = GetShaderLocation(lighting.shader, name);
         }
         lighting.materialIdLoc = GetShaderLocation(lighting.shader, "materialId");
+        lighting.timeLoc = GetShaderLocation(lighting.shader, "time");
         lighting.shadowMapLoc = GetShaderLocation(lighting.shader, "shadowMap");
         lighting.lightSpaceMatrixLoc = GetShaderLocation(lighting.shader, "lightSpaceMatrix");
         int matNormalLoc = GetShaderLocation(lighting.shader, "matNormal");
@@ -381,13 +410,14 @@ void UnloadEVLighting(EVLighting *lighting) {
     if (lighting->ready) { UnloadShader(lighting->shader); lighting->ready = false; }
 }
 
-void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, float fogDensity) {
+void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, float fogDensity, float time) {
     if (!lighting->ready) return;
     float viewPos[3] = {camera.position.x, camera.position.y, camera.position.z};
     SetShaderValue(lighting->shader, lighting->viewPosLoc, viewPos, SHADER_UNIFORM_VEC3);
     float fogCol[3] = {fogColor.r / 255.0f, fogColor.g / 255.0f, fogColor.b / 255.0f};
     SetShaderValue(lighting->shader, lighting->fogColorLoc, fogCol, SHADER_UNIFORM_VEC3);
     SetShaderValue(lighting->shader, lighting->fogDensityLoc, &fogDensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(lighting->shader, lighting->timeLoc, &time, SHADER_UNIFORM_FLOAT);
 }
 
 void SetSceneLighting(EVLighting *lighting, SceneLighting preset) {
@@ -540,12 +570,13 @@ void UnbindShadowMap(void) {
 SceneLighting LightingPreset_Taxi(void) {
     // City light fragments through rain-streaked windows
     // Michael Mann night: dark but EVERY element reads
+    // Half-Lambert note: pull back key ~30%, lower ambient — wrap does the work now
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.5f, -0.3f, -0.6f}),
-        .keyColor = {1.8f, 1.3f, 0.85f},        // sodium streetlight — HOT orange, boosted
+        .keyColor = {1.2f, 0.9f, 0.58f},         // sodium streetlight — pulled back for half-Lambert
         .fillDir = Vector3Normalize((Vector3){0.2f, -0.4f, 0.5f}),
-        .fillColor = {0.5f, 0.52f, 0.7f},        // dashboard blue — boosted
-        .ambient = {0.4f, 0.36f, 0.42f},          // see the leather, see the driver — boosted
+        .fillColor = {0.35f, 0.38f, 0.52f},       // dashboard blue
+        .ambient = {0.18f, 0.16f, 0.20f},          // lower — half-Lambert wraps enough light
         // Taxi meter glow — green-teal dashboard
         .pointPos = {{0.45f, 0.72f, -1.06f}},
         .pointColor = {{0.6f, 1.0f, 0.8f}},
@@ -555,18 +586,16 @@ SceneLighting LightingPreset_Taxi(void) {
 
 SceneLighting LightingPreset_Exterior(void) {
     // Auckland at 2AM — moonlight gradient, not a directional sun
-    // Easy Delivery Co. insight: ambient gradient > orbiting light.
-    // Overcast night: everything lit by a single blue-grey gradient.
-    // The hotel entrance warm spill is the CONTRAST that draws you in.
+    // Half-Lambert wraps the moonlight beautifully — pull it back
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.2f, -0.7f, 0.3f}),
-        .keyColor = {0.45f, 0.50f, 0.65f},       // moonlight — ambient gradient, not spotlight
+        .keyColor = {0.30f, 0.34f, 0.45f},        // moonlight — moderated
         .fillDir = Vector3Normalize((Vector3){0.0f, 0.4f, -0.6f}),
-        .fillColor = {0.18f, 0.16f, 0.14f},      // ground bounce — subtle
-        .ambient = {0.22f, 0.23f, 0.30f},         // higher ambient — overcast gradient feeling
-        // Two practicals: lamppost + warm hotel entrance spill (safety vs night)
+        .fillColor = {0.10f, 0.09f, 0.08f},       // ground bounce — subtle
+        .ambient = {0.10f, 0.11f, 0.15f},          // lower — night should feel dark
+        // lamppost + warm hotel entrance spill
         .pointPos = {{-6.0f, 3.8f, -1.0f}, {0.0f, 2.0f, -4.0f}},
-        .pointColor = {{1.0f, 0.80f, 0.50f}, {1.2f, 0.90f, 0.55f}},
+        .pointColor = {{0.8f, 0.65f, 0.40f}, {1.0f, 0.75f, 0.45f}},
         .pointRadius = {14.0f, 8.0f},
     };
 }
@@ -574,16 +603,16 @@ SceneLighting LightingPreset_Exterior(void) {
 SceneLighting LightingPreset_Lobby(void) {
     // Grand lobby — one dominant chandelier, deep shadows elsewhere
     // Wes Anderson symmetry: light pools on marble, dark wood walls
-    // Steeper key angle + much lower ambient = contrast separation
+    // Half-Lambert note: key pulled back 40%, ambient halved — wrap prevents pitch black
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.9f, -0.4f}),
-        .keyColor = {2.2f, 1.6f, 0.9f},          // hot chandelier — boosted for contrast
+        .keyColor = {1.4f, 1.0f, 0.55f},          // chandelier — pulled back, half-Lambert wraps it
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.4f}),
-        .fillColor = {0.12f, 0.10f, 0.06f},      // warm counter — keeps shadows warm, not blue
-        .ambient = {0.08f, 0.06f, 0.04f},        // warm shadow tone — dark but readable, not dead
-        // Tight pools — dark between fixtures, Skin Deep contrast
+        .fillColor = {0.08f, 0.06f, 0.04f},       // warm counter — dimmer
+        .ambient = {0.04f, 0.03f, 0.02f},          // VERY low — pools must pop
+        // Tight pools — dark between fixtures
         .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}, {0, 3.5f, -5}},
-        .pointColor = {{2.5f, 1.8f, 1.0f}, {0.4f, 0.3f, 0.18f}, {0.4f, 0.3f, 0.18f}, {0.6f, 0.42f, 0.25f}},
+        .pointColor = {{1.8f, 1.3f, 0.7f}, {0.3f, 0.22f, 0.12f}, {0.3f, 0.22f, 0.12f}, {0.45f, 0.32f, 0.18f}},
         .pointRadius = {7.0f, 5.0f, 5.0f, 4.0f},
     };
 }
@@ -593,27 +622,26 @@ SceneLighting LightingPreset_Elevator(void) {
     // Hotel Chevalier golden cage. Not clinical fluorescent.
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
-        .keyColor = {0.95f, 0.80f, 0.55f},      // warm amber overhead
+        .keyColor = {0.60f, 0.50f, 0.35f},       // warm amber — pulled back for half-Lambert
         .fillDir = Vector3Normalize((Vector3){0.0f, 1.0f, 0.0f}),
-        .fillColor = {0.08f, 0.07f, 0.05f},     // dark marble absorbs — low bounce
-        .ambient = {0.06f, 0.06f, 0.05f},        // LOW — brass catches light, shadows go deep
+        .fillColor = {0.05f, 0.04f, 0.03f},      // dark marble absorbs
+        .ambient = {0.03f, 0.03f, 0.025f},        // VERY LOW — brass catches light, deep shadows
         .pointPos = {{0, 2.4f, 0}, {-0.9f, 1.2f, 0}},
-        .pointColor = {{1.0f, 0.85f, 0.55f}, {0.15f, 0.22f, 0.35f}},  // warm overhead + cool glass viewport
+        .pointColor = {{0.7f, 0.58f, 0.38f}, {0.10f, 0.15f, 0.25f}},
         .pointRadius = {3.5f, 2.5f},
     };
 }
 
 SceneLighting LightingPreset_ElevatorSpace(void) {
     // Brass box in space — warm overhead panel, Earth blue from below
-    // Through the glass floor: lobby glow fading, Earth glow rising
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
-        .keyColor = {0.75f, 0.70f, 0.55f},      // warmer brass, less fluorescent
+        .keyColor = {0.48f, 0.44f, 0.35f},       // warm brass — pulled back
         .fillDir = Vector3Normalize((Vector3){-0.3f, 1.0f, 0.0f}),
-        .fillColor = {0.12f, 0.18f, 0.28f},     // Earth blue from below/left
-        .ambient = {0.10f, 0.11f, 0.14f},        // cooler ambient than terrestrial
+        .fillColor = {0.08f, 0.12f, 0.18f},      // Earth blue from below
+        .ambient = {0.05f, 0.06f, 0.08f},         // low — brass catches light
         .pointPos = {{0, 2.4f, 0}, {-1.0f, -0.5f, 0}},
-        .pointColor = {{0.6f, 0.55f, 0.40f}, {0.08f, 0.15f, 0.25f}},
+        .pointColor = {{0.45f, 0.38f, 0.28f}, {0.06f, 0.10f, 0.18f}},
         .pointRadius = {3.0f, 5.0f},
     };
 }
@@ -623,13 +651,13 @@ SceneLighting LightingPreset_Hallway(void) {
     // Think: Kubrick's Shining hallway, but warmer
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -0.85f, -0.3f}),
-        .keyColor = {0.9f, 0.78f, 0.55f},       // warm overhead
+        .keyColor = {0.6f, 0.52f, 0.36f},        // warm overhead — pulled back
         .fillDir = Vector3Normalize((Vector3){0.4f, 0.3f, 0.2f}),
-        .fillColor = {0.18f, 0.16f, 0.13f},     // wall bounce
-        .ambient = {0.12f, 0.11f, 0.10f},        // dim corridors
-        // First ceiling light panel — player walks toward these
+        .fillColor = {0.10f, 0.09f, 0.07f},      // wall bounce — dimmer
+        .ambient = {0.06f, 0.05f, 0.04f},         // low — corridor should feel enclosed
+        // First ceiling light panel
         .pointPos = {{0, 3.9f, -3.0f}},
-        .pointColor = {{0.8f, 0.65f, 0.4f}},
+        .pointColor = {{0.6f, 0.48f, 0.3f}},
         .pointRadius = {8.0f},
     };
 }
@@ -637,16 +665,15 @@ SceneLighting LightingPreset_Hallway(void) {
 SceneLighting LightingPreset_Room(void) {
     // The hotel room — the emotional core
     // 2AM: strong overhead pool + bedside warmth vs dark corners
-    // Key steeper for shadow drama on walls and furniture
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.85f, -0.3f}),
-        .keyColor = {1.6f, 1.3f, 0.85f},        // HOT golden — chandelier intensity
+        .keyColor = {1.0f, 0.82f, 0.52f},        // golden — pulled back for half-Lambert
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.10f, 0.12f, 0.18f},     // barely-there cool blue — night
-        .ambient = {0.05f, 0.04f, 0.03f},        // VERY LOW — corners go dark
+        .fillColor = {0.06f, 0.08f, 0.12f},      // cool blue night — subtler
+        .ambient = {0.03f, 0.025f, 0.02f},        // VERY LOW — corners dark, wrap handles the rest
         // Tight ceiling pool + warm bedside lamps
         .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
-        .pointColor = {{1.2f, 0.9f, 0.55f}, {0.8f, 0.6f, 0.35f}, {0.8f, 0.6f, 0.35f}},
+        .pointColor = {{0.9f, 0.65f, 0.38f}, {0.6f, 0.45f, 0.25f}, {0.6f, 0.45f, 0.25f}},
         .pointRadius = {6.0f, 3.5f, 3.5f},
     };
 }
@@ -656,31 +683,29 @@ SceneLighting LightingPreset_Bathroom(void) {
     // Mirror's Edge bathroom energy
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.3f, -0.9f, -0.2f}),
-        .keyColor = {1.6f, 1.5f, 1.4f},        // harsh angled — casts side shadows on fixtures
+        .keyColor = {1.0f, 0.95f, 0.90f},       // harsh but pulled back — half-Lambert wraps enough
         .fillDir = Vector3Normalize((Vector3){-0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.06f, 0.08f, 0.10f},     // minimal cool bounce
-        .ambient = {0.05f, 0.06f, 0.07f},        // VERY LOW — stark shadows under basin, tub edge
-        // Ando slot window — tight bright pool
+        .fillColor = {0.04f, 0.05f, 0.06f},     // minimal cool bounce
+        .ambient = {0.03f, 0.035f, 0.04f},       // very low — stark shadows
+        // Ando slot window
         .pointPos = {{0, 2.6f, -1.88f}},
-        .pointColor = {{1.2f, 1.15f, 1.1f}},
+        .pointColor = {{0.8f, 0.78f, 0.75f}},
         .pointRadius = {3.0f},
     };
 }
 
 SceneLighting LightingPreset_Balcony(void) {
     // Orbital observation deck — Earth glow from below, starfield above
-    // Easy Delivery Co. insight: no directional sun in space. Just gradients.
-    // Earth glow (cool blue uplighting) vs. interior warmth (golden back wall).
     // The contrast IS the emotion — cold void, warm chair.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, 0.6f, -0.8f}),   // from Earth — uplighting
-        .keyColor = {0.50f, 0.70f, 0.95f},       // cooler blue — Earth is vast, cold
+        .keyDir = Vector3Normalize((Vector3){0.0f, 0.6f, -0.8f}),    // from Earth — uplighting
+        .keyColor = {0.32f, 0.45f, 0.62f},        // Earth blue — pulled back, wrap does the work
         .fillDir = Vector3Normalize((Vector3){0.0f, -0.5f, 0.5f}),
-        .fillColor = {0.40f, 0.30f, 0.18f},     // warm back wall — safety behind you
-        .ambient = {0.25f, 0.27f, 0.38f},        // raised — Earth glow fills the space
-        // Earth glow: massive reach, positioned in front. Interior lamp: intimate, warm.
+        .fillColor = {0.25f, 0.18f, 0.10f},       // warm back wall
+        .ambient = {0.12f, 0.14f, 0.20f},          // moderate — space is never pitch black
+        // Earth glow + interior lamp + floor accents
         .pointPos = {{0.0f, 0.5f, -4.0f}, {0.0f, 1.5f, 3.0f}, {-1.5f, 0.2f, -2.0f}, {1.5f, 0.2f, -2.0f}},
-        .pointColor = {{0.6f, 0.85f, 1.2f}, {0.8f, 0.55f, 0.30f}, {0.3f, 0.5f, 0.7f}, {0.3f, 0.5f, 0.7f}},
+        .pointColor = {{0.4f, 0.6f, 0.85f}, {0.55f, 0.38f, 0.20f}, {0.2f, 0.35f, 0.5f}, {0.2f, 0.35f, 0.5f}},
         .pointRadius = {35.0f, 5.0f, 12.0f, 12.0f},
     };
 }
@@ -688,16 +713,15 @@ SceneLighting LightingPreset_Balcony(void) {
 SceneLighting LightingPreset_SpaceLobby(void) {
     // Grand station lobby — chandelier + elevator shaft glow
     // Cold starlight from observation window, warm brass interior
-    // Key comes DOWN at an angle — overhead chandelier casts long shadows
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),   // steep overhead — drama
-        .keyColor = {0.55f, 0.65f, 0.85f},        // Earth blue tint
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),    // steep overhead
+        .keyColor = {0.35f, 0.42f, 0.55f},         // Earth blue — pulled back
         .fillDir = Vector3Normalize((Vector3){0.2f, 0.5f, 0.3f}),
-        .fillColor = {0.12f, 0.18f, 0.28f},       // cool blue bounce — dim
-        .ambient = {0.08f, 0.09f, 0.12f},          // LOW — dramatic pools of light
-        // Chandelier above observation area + Earth glow on floor
+        .fillColor = {0.08f, 0.12f, 0.18f},        // cool blue bounce
+        .ambient = {0.04f, 0.05f, 0.07f},           // LOW — dramatic pools
+        // Chandelier + Earth glow on floor
         .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}, {0, 0.5f, -6.0f}},
-        .pointColor = {{0.85f, 0.65f, 0.40f}, {0.3f, 0.45f, 0.65f}, {0.3f, 0.45f, 0.65f}, {0.4f, 0.6f, 0.9f}},
+        .pointColor = {{0.6f, 0.45f, 0.28f}, {0.2f, 0.30f, 0.45f}, {0.2f, 0.30f, 0.45f}, {0.3f, 0.45f, 0.65f}},
         .pointRadius = {14.0f, 10.0f, 10.0f, 12.0f},
     };
 }
@@ -705,16 +729,16 @@ SceneLighting LightingPreset_SpaceLobby(void) {
 SceneLighting LightingPreset_SpaceCorridor(void) {
     // Narrow corridor — warm amber strips vs cold void blue from portholes
     // Kubrick hallway: warm pools at intervals, blue-black between
-    // Color identity: amber/violet contrast, not grey neutrality
+    // Half-Lambert note: wrap lighting + strong points = walls finally read
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),   // steep overhead
-        .keyColor = {1.5f, 1.2f, 0.75f},           // brighter warm amber — walls must read
+        .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),    // steep overhead
+        .keyColor = {0.8f, 0.65f, 0.40f},            // amber — moderated for half-Lambert
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.18f, 0.24f, 0.42f},        // stronger porthole starlight
-        .ambient = {0.25f, 0.25f, 0.35f},           // raised — hull must pop against void
-        // Amber ceiling panels at eye level + porthole accent — spill onto walls
+        .fillColor = {0.12f, 0.16f, 0.28f},           // porthole starlight — cooler
+        .ambient = {0.10f, 0.10f, 0.16f},              // moderate — hull must read but not wash
+        // Amber ceiling panels + porthole accent
         .pointPos = {{0, 2.0f, 0}, {0, 2.0f, 6}, {0, 2.0f, 12}, {-2, 1.5f, 12}},
-        .pointColor = {{1.4f, 1.1f, 0.65f}, {1.3f, 1.0f, 0.60f}, {1.2f, 0.95f, 0.55f}, {0.30f, 0.45f, 0.85f}},
+        .pointColor = {{1.0f, 0.8f, 0.45f}, {0.9f, 0.7f, 0.40f}, {0.8f, 0.65f, 0.38f}, {0.25f, 0.38f, 0.70f}},
         .pointRadius = {18.0f, 18.0f, 18.0f, 12.0f},
     };
 }
@@ -722,16 +746,16 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
 SceneLighting LightingPreset_SpaceSuite(void) {
     // Space suite — warm amber interior vs cold Earth blue from window
     // Hotel Chevalier in orbit: golden lamplight, blue void outside
-    // Intimate room: tight warm pools, dark corners, Earth as cold counterpoint
+    // Half-Lambert note: Earth blue wraps beautifully now, pull intensities back
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.5f, -0.5f, -0.2f}),  // diagonal from window — shadows!
-        .keyColor = {0.55f, 0.68f, 0.90f},        // Earth blue key — slightly dimmed
+        .keyColor = {0.35f, 0.45f, 0.60f},        // Earth blue key — pulled back, wrap does the work
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.4f, 0.2f}),
-        .fillColor = {0.25f, 0.20f, 0.12f},       // warmer floor bounce — amber undertone
-        .ambient = {0.10f, 0.08f, 0.06f},          // warm-shifted ambient — breaks grey neutrality
+        .fillColor = {0.16f, 0.12f, 0.07f},       // warmer floor bounce — amber undertone
+        .ambient = {0.05f, 0.04f, 0.03f},          // low — pools must do the work, dark corners
         // Ceiling light above bed (warm) + bedside lamps (warmer) + Earth glow (cool)
         .pointPos = {{0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0}},
-        .pointColor = {{1.2f, 0.90f, 0.50f}, {1.1f, 0.80f, 0.45f}, {1.1f, 0.80f, 0.45f}, {0.20f, 0.40f, 0.75f}},
+        .pointColor = {{0.8f, 0.60f, 0.35f}, {0.7f, 0.52f, 0.30f}, {0.7f, 0.52f, 0.30f}, {0.15f, 0.30f, 0.55f}},
         .pointRadius = {10.0f, 6.0f, 6.0f, 8.0f},
     };
 }
@@ -741,10 +765,10 @@ SceneLighting LightingPreset_Hyperspace(void) {
     // Multiple point lights along tunnel so rings are visible at every depth
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, 0.0f, -1.0f}),
-        .keyColor = {1.5f, 1.2f, 0.85f},       // brighter — tunnel should glow
+        .keyColor = {1.0f, 0.8f, 0.55f},        // pulled back — half-Lambert wraps the glow
         .fillDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
-        .fillColor = {0.50f, 0.55f, 0.70f},     // stronger fill — see the geometry
-        .ambient = {0.45f, 0.42f, 0.50f},       // raised — no dead black in hyperspace
+        .fillColor = {0.30f, 0.35f, 0.45f},      // fill — moderate for half-Lambert
+        .ambient = {0.22f, 0.20f, 0.26f},        // moderate — no dead black, wrap handles rest
         .pointPos = {{0, 0, -5.0f}, {0, 0, -15.0f}, {0, 0, -30.0f}, {0, 0, -50.0f}},
         .pointColor = {{1.2f, 1.0f, 0.65f}, {1.0f, 0.85f, 0.55f}, {0.8f, 0.7f, 0.45f}, {0.6f, 0.5f, 0.35f}},
         .pointRadius = {15.0f, 20.0f, 25.0f, 30.0f},
@@ -754,14 +778,15 @@ SceneLighting LightingPreset_Hyperspace(void) {
 SceneLighting LightingPreset_ParisDream(void) {
     // Hotel Chevalier golden hour — HOT light, DEEP shadows
     // The dream is saturated, contrasty — memory intensifies everything
+    // Half-Lambert note: golden wraps beautifully but needs pull-back to keep contrast
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.5f, -0.7f, -0.3f}),
-        .keyColor = {2.2f, 1.5f, 0.70f},        // blazing golden
+        .keyColor = {1.4f, 0.95f, 0.42f},        // golden — pulled back, still hot
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.08f, 0.06f, 0.03f},     // barely there
-        .ambient = {0.05f, 0.04f, 0.02f},        // VERY LOW — dream shadows go black
+        .fillColor = {0.05f, 0.04f, 0.02f},      // barely there
+        .ambient = {0.03f, 0.025f, 0.015f},       // VERY LOW — dream shadows go deep
         .pointPos = {{0, 3.6f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
-        .pointColor = {{1.8f, 1.3f, 0.60f}, {1.0f, 0.75f, 0.40f}, {1.0f, 0.75f, 0.40f}},
+        .pointColor = {{1.2f, 0.85f, 0.40f}, {0.7f, 0.50f, 0.28f}, {0.7f, 0.50f, 0.28f}},
         .pointRadius = {7.0f, 3.5f, 3.5f},
     };
 }
@@ -771,12 +796,12 @@ SceneLighting LightingPreset_ReturnTaxi(void) {
     // Everything reads warmer and brighter than night. Circle closing.
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.4f, -0.5f}),
-        .keyColor = {1.8f, 1.3f, 0.85f},            // strong dawn — golden, not pink
+        .keyColor = {1.2f, 0.85f, 0.55f},             // dawn golden — pulled back
         .fillDir = Vector3Normalize((Vector3){0.2f, -0.3f, 0.5f}),
-        .fillColor = {0.40f, 0.35f, 0.45f},          // sky bounce — lilac dawn
-        .ambient = {0.50f, 0.45f, 0.42f},             // higher — dawn illuminates the whole cab
+        .fillColor = {0.25f, 0.22f, 0.30f},           // sky bounce — lilac dawn
+        .ambient = {0.25f, 0.22f, 0.20f},              // moderate — dawn but not washed
         .pointPos = {{0.45f, 0.72f, -1.06f}, {0, 0.5f, -3.0f}, {0, 1.0f, 2.0f}},
-        .pointColor = {{0.5f, 0.7f, 0.5f}, {0.8f, 0.60f, 0.40f}, {1.0f, 0.75f, 0.45f}},  // dash + windshield + dawn sky through rear
+        .pointColor = {{0.5f, 0.7f, 0.5f}, {0.6f, 0.45f, 0.28f}, {0.7f, 0.52f, 0.32f}},
         .pointRadius = {4.0f, 8.0f, 12.0f},
     };
 }

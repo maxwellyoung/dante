@@ -26,7 +26,7 @@ typedef struct {
     int pointPosLoc[MAX_POINT_LIGHTS];
     int pointColorLoc[MAX_POINT_LIGHTS];
     int pointRadiusLoc[MAX_POINT_LIGHTS];
-    int materialIdLoc, reflectionColorLoc;
+    int materialIdLoc, reflectionColorLoc, timeLoc;
     int bouncePosLoc[3], bounceColorLoc[3];
     unsigned int shadowFBO, shadowDepthTex;
     Shader shadowShader;
@@ -38,7 +38,7 @@ typedef struct {
 } EVLighting;
 EVLighting LoadEVLighting(void);
 void UnloadEVLighting(EVLighting *lighting);
-void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, float fogDensity);
+void UpdateEVLighting(EVLighting *lighting, Camera3D camera, Color fogColor, float fogDensity, float time);
 void AnimateLights(EVLighting *lighting, float time);
 void SetLightingWarmth(EVLighting *lighting, float warmth);
 void CreateShadowMap(EVLighting *lighting);

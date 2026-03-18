@@ -36,16 +36,16 @@ static const ShotConfig shots[MONTAGE_SHOT_COUNT] = {
     { .hold_time = 2.0f, .warmth = 0.2f, .grain = 0.3f, .saturation = 0.9f, .ca = 1.5f, .contrast = 1.0f, .exposure = 0.0f },
     // 2: Suite — two robes on the door
     { .hold_time = 2.0f, .warmth = 0.5f, .grain = 0.4f, .saturation = 0.95f, .ca = 2.0f, .contrast = 1.0f, .exposure = -0.1f },
-    // 3: Paris — her coat on the chair
-    { .hold_time = 2.0f, .warmth = 0.7f, .grain = 0.7f, .saturation = 0.4f, .ca = 3.5f, .contrast = 1.5f, .exposure = 0.1f },
+    // 3: Paris — her coat on the chair (B&W, only the red survives)
+    { .hold_time = 2.0f, .warmth = 0.15f, .grain = 0.7f, .saturation = 0.12f, .ca = 3.5f, .contrast = 1.4f, .exposure = 0.1f },
     // 4: Balcony — Earth, alone
     { .hold_time = 3.5f, .warmth = 0.0f, .grain = 0.2f, .saturation = 0.9f, .ca = 1.0f, .contrast = 1.0f, .exposure = 0.1f },
     // 5: Elevator — going down
     { .hold_time = 2.0f, .warmth = 0.3f, .grain = 0.35f, .saturation = 0.9f, .ca = 2.0f, .contrast = 1.0f, .exposure = -0.15f },
     // 6: Cleaned suite — one pillow, one robe, one glass
     { .hold_time = 3.5f, .warmth = 0.0f, .grain = 0.5f, .saturation = 0.7f, .ca = 1.5f, .contrast = 0.9f, .exposure = -0.1f },
-    // 7: Paris — toothbrush in glass (SINGLE FRAME)
-    { .hold_time = 0.15f, .warmth = 0.7f, .grain = 0.8f, .saturation = 0.3f, .ca = 4.0f, .contrast = 1.5f, .exposure = 0.0f },
+    // 7: Paris — toothbrush in glass (SINGLE FRAME, B&W)
+    { .hold_time = 0.15f, .warmth = 0.15f, .grain = 0.8f, .saturation = 0.12f, .ca = 4.0f, .contrast = 1.4f, .exposure = 0.0f },
     // 8: Hotel — two chairs by window, empty
     { .hold_time = 2.5f, .warmth = 0.1f, .grain = 0.3f, .saturation = 0.85f, .ca = 1.5f, .contrast = 1.0f, .exposure = 0.0f },
     // 9: Gibbons in the taxi — going home

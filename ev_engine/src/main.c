@@ -442,10 +442,20 @@ int main(void) {
         // bus error on macOS Metal — Raylib VAO exhaustion. Load only GLB models
         // until OBJs are consolidated into single-mesh exports.
         // The OBJ files remain in assets/ — procedural fallbacks render them.
+        // Each GLB model consumes VAO slots (1 per material).
+        // Gibbons=17, taxi_driver=6, bed=5, others=3-4 each.
+        // Primitives+skytower use 6. Budget ~40 VAOs safely.
+        // Load in priority order, stop if approaching limit.
         const char *priority_models[] = {
-            "assets/gibbons.glb",
-            "assets/taxi_driver.glb",
+            "assets/taxi_driver.glb",     // 6 VAOs — first impression
+            "assets/champagne_glasses.glb", // 4 VAOs — narrative core
+            "assets/telephone.glb",       // 3 VAOs — suite desk
+            "assets/bed.glb",            // 5 VAOs — emotional endpoint
+            "assets/bathtub.glb",        // 3 VAOs — Chevalier moment
+            "assets/piano.glb",          // 3 VAOs — lobby centrepiece
             NULL
+            // Gibbons (17 VAOs) excluded — cube-person reads well at 960x600
+            // and 17 VAOs is too many for the budget
         };
         for (int pi = 0; priority_models[pi] && g.model_asset_count < MAX_MODEL_ASSETS; pi++) {
             const char *path = priority_models[pi];

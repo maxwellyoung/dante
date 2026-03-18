@@ -730,16 +730,17 @@ void build_lobby(Scene *s) {
     add_wall(s, 0, H - 1.0f, hd, 4.0f, 2.0f, 0.3f, wallpaper);
     set_last_material(s, MAT_WALLPAPER);
 
-    // Left wall (-X)
-    add_wall(s, -hw, panel_h + (H - panel_h) / 2, 0, 0.3f, H - panel_h, D, wallpaper);
+    // Left wall (-X) — trimmed so box doesn't overlap back/front walls at corners
+    float side_d = D - 0.3f;  // subtract wall thickness to avoid corner overlap
+    add_wall(s, -hw, panel_h + (H - panel_h) / 2, 0, 0.3f, H - panel_h, side_d, wallpaper);
     set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, -hw, panel_h / 2, 0, 0.28f, panel_h, D, wood_dark);
+    add_wall(s, -hw, panel_h / 2, 0, 0.28f, panel_h, side_d, wood_dark);
     set_last_material(s, MAT_WOOD);
 
     // Right wall (+X)
-    add_wall(s, hw, panel_h + (H - panel_h) / 2, 0, 0.3f, H - panel_h, D, wallpaper);
+    add_wall(s, hw, panel_h + (H - panel_h) / 2, 0, 0.3f, H - panel_h, side_d, wallpaper);
     set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, hw, panel_h / 2, 0, 0.28f, panel_h, D, wood_dark);
+    add_wall(s, hw, panel_h / 2, 0, 0.28f, panel_h, side_d, wood_dark);
     set_last_material(s, MAT_WOOD);
 
     // ── Chair rail (brass strip at panel height) ──
@@ -1233,9 +1234,10 @@ void build_hallway(Scene *s) {
     for (int i = 0; i < 4; i++)
         add_light_panel(s, 0, H-0.1f, -3 - i*5, 1.5f, 0.05f, 0.5f, warm_amber);
 
-    add_wall(s, -W/2, H/2, -L/2, 0.3f, H, L, cream);
+    // Side walls trimmed by wall thickness to prevent corner overlap z-fighting
+    add_wall(s, -W/2, H/2, -L/2, 0.3f, H, L - 0.3f, cream);
     set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, W/2, H/2, -L/2, 0.3f, H, L, cream);
+    add_wall(s, W/2, H/2, -L/2, 0.3f, H, L - 0.3f, cream);
     set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, H/2, 0, W, H, 0.3f, cream);
     set_last_material(s, MAT_WALLPAPER);
@@ -1382,9 +1384,10 @@ void build_hotel_room(Scene *s) {
     set_last_material(s, MAT_WALLPAPER);
     add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, wall_gold);
     set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
+    // Side walls trimmed to prevent corner overlap z-fighting
+    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd - 0.3f, wall_gold);
     set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, wall_gold);
+    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd - 0.3f, wall_gold);
     set_last_material(s, MAT_WALLPAPER);
 
     // Baseboards — dark wood
@@ -1731,10 +1734,10 @@ void build_balcony(Scene *s) {
     add_wall(s, 3.0f, 1.2f, bd/2-0.14f, 0.3f, 0.4f, 0.04f, (Color){180,40,40,200});
     add_wall(s, 3.0f, 1.2f, bd/2-0.12f, 0.26f, 0.36f, 0.02f, hull);
 
-    // Side hull walls with external pipes
-    add_wall(s, -bw/2, 2.5f, 0, 0.3f, 5, bd+0.6f, hull);
+    // Side hull walls with external pipes (trimmed to prevent corner overlap)
+    add_wall(s, -bw/2, 2.5f, 0, 0.3f, 5, bd+0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, bw/2, 2.5f, 0, 0.3f, 5, bd+0.6f, hull);
+    add_wall(s, bw/2, 2.5f, 0, 0.3f, 5, bd+0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
     // Conduit pipes on hull walls
     add_cylinder(s, -bw/2-0.1f, 3.5f, 0, 0.04f, bd, (Color){90,85,80,255});
@@ -1940,9 +1943,9 @@ void build_bathroom(Scene *s) {
     set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, bh/2, bd/2, bw, bh, 0.2f, concrete);        // front wall (entrance)
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, -bw/2, bh/2, 0, 0.2f, bh, bd, concrete);       // left wall
+    add_wall(s, -bw/2, bh/2, 0, 0.2f, bh, bd - 0.2f, concrete); // left wall (trimmed corners)
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, bw/2, bh/2, 0, 0.2f, bh, bd, concrete);        // right wall
+    add_wall(s, bw/2, bh/2, 0, 0.2f, bh, bd - 0.2f, concrete); // right wall (trimmed corners)
     set_last_material(s, MAT_CONCRETE);
 
     // Bathtub — large freestanding, with curved half-cylinder ends and brass faucet
@@ -3160,8 +3163,8 @@ void build_space_lobby(Scene *s) {
     add_wall(s, 0, lh-0.05f, -ld/2+4, 16, 0.02f, 6, (Color){45, 100, 180, 25});
     set_last_decal(s);
 
-    // LEFT WALL — observation glass wall with tall windows
-    add_wall(s, -lw/2, lh/2, 0, 0.5f, lh, ld, hull);
+    // LEFT WALL — observation glass wall with tall windows (trimmed for corner overlap)
+    add_wall(s, -lw/2, lh/2, 0, 0.5f, lh, ld - 0.5f, hull);
     set_last_material(s, MAT_CONCRETE);
     // Tall side windows — 5 windows along left wall
     for (int i = 0; i < 5; i++) {
@@ -3178,8 +3181,8 @@ void build_space_lobby(Scene *s) {
         set_last_decal(s);
     }
 
-    // RIGHT WALL
-    add_wall(s, lw/2, lh/2, 0, 0.5f, lh, ld, hull);
+    // RIGHT WALL (trimmed for corner overlap)
+    add_wall(s, lw/2, lh/2, 0, 0.5f, lh, ld - 0.5f, hull);
     set_last_material(s, MAT_CONCRETE);
     // Tall side windows — 5 windows along right wall
     for (int i = 0; i < 5; i++) {
@@ -4406,8 +4409,8 @@ void build_space_suite(Scene *s) {
     // Wainscoting on front wall
     add_wainscoting(s, 0, 0, rd/2-0.2f, rw-1.5f, 1.2f, false, cream, brass);
 
-    // LEFT WALL (X-) — window wall (mostly glass, cream above/below)
-    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, hull);
+    // LEFT WALL (X-) — window wall (trimmed to prevent corner overlap)
+    add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd - 0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
     // Cream panel only on solid sections (above/below window, and ends)
     add_wall(s, -rw/2+0.17f, rh*0.4f, -rd/2+1.5f, 0.04f, rh*0.8f, 2.5f, cream);
@@ -4415,8 +4418,8 @@ void build_space_suite(Scene *s) {
     add_wall(s, -rw/2+0.17f, rh*0.4f, rd/2-1.5f, 0.04f, rh*0.8f, 2.5f, cream);
     set_last_material(s, MAT_WALLPAPER);
 
-    // RIGHT WALL (X+) — service wall (bathroom door, wardrobe, desk)
-    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, hull);
+    // RIGHT WALL (X+) — service wall (trimmed to prevent corner overlap)
+    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd - 0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
     add_wall(s, rw/2-0.17f, rh*0.4f, 0, 0.04f, rh*0.8f, rd-1, cream);
     set_last_material(s, MAT_WALLPAPER);

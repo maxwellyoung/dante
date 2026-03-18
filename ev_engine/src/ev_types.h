@@ -264,6 +264,8 @@ typedef enum {
     MAT_HERRINGBONE,  // 11 — interlocking plank pattern
     MAT_PARQUET,      // 12 — alternating wood grain direction
     MAT_VELVET,       // 13 — directional sheen, view-dependent nap
+    MAT_WATER,        // 14 — dark reflective surface, animated ripple
+    MAT_PUDDLE,       // 15 — thin film on ground, picks up nearby light color
 } MaterialType;
 
 typedef struct {

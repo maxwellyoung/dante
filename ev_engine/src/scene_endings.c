@@ -254,23 +254,27 @@ void paris_dream_load(void) {
     StartAmbient(&g.audio, DRONE_ROOM);
     SetSceneLighting(&g.lighting, LightingPreset_ParisDream());
     set_exposure(0.1f);
-    SetPostFXWarmth(&g.postfx, 0.7f);
-    SetPostFXGrain(&g.postfx, 0.7f);
-    SetPostFXSaturation(&g.postfx, 1.2f);
-    SetPostFXCA(&g.postfx, 3.5f);
-    SetPostFXVignette(&g.postfx, 2.0f);
-    SetPostFXContrast(&g.postfx, 1.5f);
-    g.scene.fog_color = (Color){30, 22, 10, 255};
+    // B&W. Godard grain. High contrast.
+    // One color survives — the red scarf, the red book cover.
+    // Memory preserves color selectively. Everything else is grey.
+    SetPostFXWarmth(&g.postfx, 0.15f);   // slight sepia warmth, not yellow
+    SetPostFXGrain(&g.postfx, 0.7f);     // 16mm film grain
+    SetPostFXSaturation(&g.postfx, 0.12f); // near-mono — reds bleed through
+    SetPostFXCA(&g.postfx, 3.5f);        // dreamlike aberration
+    SetPostFXVignette(&g.postfx, 2.0f);  // heavy vignette — memory narrows
+    SetPostFXContrast(&g.postfx, 1.4f);  // crushed mid-tones
+    g.scene.fog_color = (Color){22, 20, 18, 255};  // warm charcoal fog
     g.scene.fog_density = 0.005f;
 }
 
 void paris_dream_update(float dt) {
     update_player(&g.player, &g.scene, dt);
-    // Dream shimmer
+    // Dream shimmer — stays B&W, warmth flickers like old film
     {
-        float dream_t = fminf(1.0f, g.state_time / 5.0f);
-        float shimmer = 0.7f + 0.1f * sinf(g.state_time * 0.8f);
-        SetPostFXWarmth(&g.postfx, shimmer * dream_t);
+        float shimmer = 0.12f + 0.05f * sinf(g.state_time * 0.8f);
+        SetPostFXWarmth(&g.postfx, shimmer);
+        // Saturation stays near-zero — only the red survives
+        SetPostFXSaturation(&g.postfx, 0.12f + 0.03f * sinf(g.state_time * 1.2f));
         if (g.state_time > 30.0f) {
             float dream_fade = fminf(1.0f, (g.state_time - 30.0f) / 60.0f);
             g.player.control_mult = 1.0f - dream_fade * 0.5f;

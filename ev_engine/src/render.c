@@ -484,7 +484,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    Model *skytower_model, bool skytower_model_loaded,
                    bool indoor, float time) {
     if (lighting->ready) {
-        UpdateEVLighting(lighting, player->camera, scene->fog_color, scene->fog_density);
+        UpdateEVLighting(lighting, player->camera, scene->fog_color, scene->fog_density, time);
     }
 
     BeginMode3D(player->camera);
