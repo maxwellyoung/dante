@@ -357,8 +357,23 @@ def ev_setup(scene='space_suite', fov=CAMERA_FOV_DEFAULT):
     print("[EV] Available scenes:", list(LIGHTING_PRESETS.keys()))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MODEL KIT INTEGRATION
+# When modeling props, use ev_model_kit.py (in ev_engine/scripts/) instead
+# of defining ad-hoc materials. ev_model_kit provides:
+#   - Locked material palette mapping to engine materialIds
+#   - Form primitives (rounded_cube, cylinder, tapered_leg, etc.)
+#   - Validation gates (tri budget, scale, material compliance)
+#   - Auto-export with QA report
+#
+# This file (ev_style.py) handles SCENE SETUP (lighting, render, camera).
+# ev_model_kit.py handles MODEL BUILDING (geometry, materials, export).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 # Auto-run if executed directly
 if __name__ == '__main__' or True:
     print("\n[EV] ev_style.py loaded. Call ev_setup('scene_name') to initialize.")
     print("[EV] Scenes:", list(LIGHTING_PRESETS.keys()))
     print("[EV] Materials: run setup_gibbons_materials()")
+    print("[EV] For model building: use ev_model_kit.py (ev_engine/scripts/)")

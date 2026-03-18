@@ -1,98 +1,58 @@
 #!/usr/bin/env python3
-"""Blender script: Grand piano — lid propped, bench.
-Lobby centrepiece. Through-wall muffled piano comes from here. ~250 tris.
+"""Grand piano — Lobby centrepiece.
+Through-wall muffled piano comes from here. ~250 tris.
+Glossy black body, ivory keys, brass pedals, burgundy velvet bench.
 """
-import bpy
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ev_model_kit import *
 import math
 
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
+kit = EVModelKit()
+kit.begin("Piano", tri_budget=300)
 
-def mat(name, r, g, b, metallic=0, roughness=0.5):
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (r/255, g/255, b/255, 1.0)
-    bsdf.inputs["Metallic"].default_value = metallic
-    bsdf.inputs["Roughness"].default_value = roughness
-    return m
+# Piano body is glossy black — use LEATHER_DARK for the deep black + low roughness
+PIANO_BLACK = EVMaterial("EV_Piano_Black", 20, 18, 15, 0.0, 0.30, 2, "Glossy piano body")
 
-mat_body = mat("MAT_WOOD", 20, 18, 15, roughness=0.3)  # glossy black
-mat_keys_w = mat("MAT_MARBLE", 240, 238, 232, roughness=0.4)
-mat_keys_b = mat("MAT_LEATHER", 15, 12, 10, roughness=0.5)
-mat_brass = mat("MAT_BRASS", 184, 157, 107, metallic=0.9, roughness=0.3)
-mat_bench = mat("MAT_VELVET", 128, 0, 32, roughness=0.85)  # burgundy velvet
+# ── Main case (subdiv 1 — grand piano curve matters) ──
+kit.rounded_cube("Body", (0, 0.5, 0), (1.5, 0.3, 1.0),
+                 material=PIANO_BLACK, subdivisions=1)
 
-# ── Piano body — simplified grand piano silhouette ──
-# Main case — elongated curved shape (approximated with scaled cube + subsurf)
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.5, 0))
-body = bpy.context.active_object
-body.name = "Piano_Body"
-body.scale = (1.5, 0.3, 1.0)
-bpy.ops.object.transform_apply(scale=True)
-mod = body.modifiers.new("Subsurf", "SUBSURF")
-mod.levels = 1
-bpy.ops.object.modifier_apply(modifier="Subsurf")
-body.data.materials.append(mat_body)
+# ── Curved tail (wider at back) ──
+kit.cube("Tail", (-0.3, 0.5, 0.4), (0.8, 0.28, 0.3), material=PIANO_BLACK)
 
-# Curved tail (wider at back) — additional wedge
-bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.3, 0.5, 0.4))
-tail = bpy.context.active_object
-tail.name = "Piano_Tail"
-tail.scale = (0.8, 0.28, 0.3)
-bpy.ops.object.transform_apply(scale=True)
-tail.data.materials.append(mat_body)
-
-# ── Legs — 3 turned legs ──
-leg_positions = [(-0.55, 0.18, -0.35), (0.55, 0.18, -0.35), (-0.2, 0.18, 0.5)]
-for i, (lx, ly, lz) in enumerate(leg_positions):
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=0.36, vertices=8,
-                                         location=(lx, ly, lz))
-    leg = bpy.context.active_object
-    leg.name = "Piano_Leg_" + str(i)
-    leg.data.materials.append(mat_body)
+# ── 3 legs (sharp, structural) ──
+for i, (lx, lz) in enumerate([(-0.55, -0.35), (0.55, -0.35), (-0.2, 0.5)]):
+    kit.cylinder(f"Leg_{i}", (lx, 0.18, lz), radius=0.03, depth=0.36,
+                 material=PIANO_BLACK, vertices=8)
     # Brass caster at bottom
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.02, segments=6, ring_count=4,
-                                          location=(lx, 0.02, lz))
-    caster = bpy.context.active_object
-    caster.name = "Piano_Caster_" + str(i)
-    caster.data.materials.append(mat_brass)
+    kit.sphere(f"Caster_{i}", (lx, 0.02, lz), radius=0.02,
+               material=BRASS, segments=6, rings=4)
 
-# ── Lid — propped open at angle ──
+# ── Lid — propped open ──
 bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.85, 0.15))
 lid = bpy.context.active_object
 lid.name = "Piano_Lid"
 lid.scale = (1.4, 0.02, 0.8)
 bpy.ops.object.transform_apply(scale=True)
-lid.rotation_euler[0] = math.radians(-25)  # propped open
+lid.rotation_euler[0] = math.radians(-25)
 bpy.ops.object.transform_apply(rotation=True)
-lid.data.materials.append(mat_body)
+kit._apply_material(lid, PIANO_BLACK)
+kit._track(lid, PIANO_BLACK)
 
-# Lid prop stick
+# ── Lid prop stick ──
 bpy.ops.mesh.primitive_cylinder_add(radius=0.005, depth=0.2, vertices=4,
                                      location=(0.3, 0.75, 0.1))
 stick = bpy.context.active_object
 stick.name = "Piano_Stick"
 stick.rotation_euler[0] = math.radians(-15)
 bpy.ops.object.transform_apply(rotation=True)
-stick.data.materials.append(mat_brass)
+kit._apply_material(stick, BRASS)
+kit._track(stick, BRASS)
 
-# ── Keyboard — white and black keys ──
-# White key bed
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.65, -0.45))
-keys_w = bpy.context.active_object
-keys_w.name = "Piano_KeysWhite"
-keys_w.scale = (1.2, 0.02, 0.12)
-bpy.ops.object.transform_apply(scale=True)
-keys_w.data.materials.append(mat_keys_w)
-
-# Black keys strip
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.67, -0.42))
-keys_b = bpy.context.active_object
-keys_b.name = "Piano_KeysBlack"
-keys_b.scale = (1.1, 0.02, 0.05)
-bpy.ops.object.transform_apply(scale=True)
-keys_b.data.materials.append(mat_keys_b)
+# ── Keyboard ──
+kit.cube("KeysWhite", (0, 0.65, -0.45), (1.2, 0.02, 0.12), material=MARBLE_WHITE)
+kit.cube("KeysBlack", (0, 0.67, -0.42), (1.1, 0.02, 0.05), material=LEATHER_DARK)
 
 # ── Music stand ──
 bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.78, -0.38))
@@ -102,49 +62,19 @@ stand.scale = (0.6, 0.15, 0.01)
 bpy.ops.object.transform_apply(scale=True)
 stand.rotation_euler[0] = math.radians(-10)
 bpy.ops.object.transform_apply(rotation=True)
-stand.data.materials.append(mat_body)
+kit._apply_material(stand, PIANO_BLACK)
+kit._track(stand, PIANO_BLACK)
 
-# ── Pedals — 3 brass rectangles ──
+# ── 3 pedals ──
 for px in [-0.06, 0, 0.06]:
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(px, 0.02, -0.4))
-    pedal = bpy.context.active_object
-    pedal.name = "Piano_Pedal"
-    pedal.scale = (0.03, 0.005, 0.08)
-    bpy.ops.object.transform_apply(scale=True)
-    pedal.data.materials.append(mat_brass)
+    kit.cube(f"Pedal_{px}", (px, 0.02, -0.4), (0.03, 0.005, 0.08), material=BRASS)
 
-# ── Bench — burgundy velvet top, dark legs ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.35, -0.75))
-bench_top = bpy.context.active_object
-bench_top.name = "Piano_BenchTop"
-bench_top.scale = (0.8, 0.04, 0.3)
-bpy.ops.object.transform_apply(scale=True)
-bench_top.data.materials.append(mat_bench)
+# ── Bench — burgundy velvet top ──
+kit.cube("BenchTop", (0, 0.35, -0.75), (0.8, 0.04, 0.3), material=VELVET_RED)
 
-for bx, bz in [(-0.35, -0.85), (0.35, -0.85), (-0.35, -0.65), (0.35, -0.65)]:
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.015, depth=0.3, vertices=6,
-                                         location=(bx, 0.18, bz))
-    bleg = bpy.context.active_object
-    bleg.name = "Piano_BenchLeg"
-    bleg.data.materials.append(mat_body)
+kit.four_legs("BenchLeg",
+              [(-0.35, -0.85), (0.35, -0.85), (-0.35, -0.65), (0.35, -0.65)],
+              radius=0.015, height=0.3, material=PIANO_BLACK)
 
-# ── Join all ──
-bpy.ops.object.select_all(action='SELECT')
-bpy.context.view_layer.objects.active = body
-bpy.ops.object.join()
-piano = bpy.context.active_object
-piano.name = "Piano"
-
-total_verts = len(piano.data.vertices)
-total_tris = sum(max(0, len(p.vertices)-2) for p in piano.data.polygons)
-print("Piano: " + str(total_verts) + " verts, " + str(total_tris) + " tris")
-
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.wm.obj_export(
-    filepath='/Users/klaus/piano.obj',
-    export_selected_objects=True,
-    apply_modifiers=True,
-    export_normals=True,
-    export_colors=True,
-)
-print("Exported to /Users/klaus/piano.obj")
+kit.export_obj("/Users/klaus/piano.obj")
+kit.preview_placement()
