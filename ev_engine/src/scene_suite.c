@@ -98,6 +98,12 @@ void suite_update(float dt) {
         float spatial_grain = 0.35f + cold_t * 0.3f - warm_t * 0.1f;
         SetPostFXGrain(&g.postfx, spatial_grain);
 
+        // Phone ring — plays once, 30s after entry. Unanswered.
+        // The booking confirmation. "Your party of two has checked in."
+        if (g.state_time > 30.0f && g.state_time < 30.5f && g.tasks_done == 0) {
+            PlayPhoneRing(&g.audio);
+        }
+
         // Clock positional volume
         if (g.audio.clock_playing) {
             float center_dist = sqrtf(px * px + pz * pz);
@@ -302,7 +308,7 @@ void suite_update(float dt) {
                         g.interaction_phases[3] = 1;
                         g.interaction_timers[3] = 3.0f;
                         // Play THE piece — once, never repeats
-                        PlaySound(g.audio.snd_bed_ritual);
+                        PlayBedRitual(&g.audio);
                         // Agency surrender begins
                         g.player.control_mult = 0.3f;
                     } else if (strcmp(obj->name, "champagne") == 0 && obj->step == 1) {
@@ -325,6 +331,48 @@ void suite_update(float dt) {
                         g.scene.fog_density = 0.001f - ((float)g.tasks_done / SPACE_TASK_COUNT * 0.0005f);
 
                         if (g.tasks_done == 2) PlaySuiteMusic(&g.audio);
+
+                        // ── WRONGNESS — Barton Fink layer ──
+                        // After each task, the room shifts. Not horror. Just... wrong.
+                        // The wrongness IS the character's psychological state.
+                        if (g.tasks_done == 1) {
+                            // Photograph shifts slightly — did it move?
+                            for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                if (fabsf(g.scene.walls[wi].pos.y - 0.64f) < 0.05f &&
+                                    g.scene.walls[wi].size.y < 0.02f &&
+                                    g.scene.walls[wi].size.x < 0.25f &&
+                                    g.scene.walls[wi].color.r > 230) {
+                                    g.scene.walls[wi].pos.x += 0.03f;
+                                    g.scene.walls[wi].pos.z += 0.02f;
+                                    break;
+                                }
+                            }
+                        } else if (g.tasks_done == 2) {
+                            // Bathroom door cracks open — warm amber light spills out
+                            for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                Wall *w = &g.scene.walls[wi];
+                                if (w->material == MAT_WOOD &&
+                                    fabsf(w->pos.x - 6.86f) < 0.5f &&
+                                    fabsf(w->pos.z + 3.0f) < 0.5f &&
+                                    w->size.y > 2.0f) {
+                                    w->pos.x += 0.15f; // door slightly ajar
+                                    // Warm light through the crack
+                                    add_light_panel(&g.scene, w->pos.x - 0.1f, 1.0f, w->pos.z,
+                                        0.05f, 2.0f, 0.05f, (Color){240,200,120,40});
+                                    break;
+                                }
+                            }
+                        } else if (g.tasks_done == 3) {
+                            // Earth glow shifts angle — it's not where it should be
+                            for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                Wall *w = &g.scene.walls[wi];
+                                if (w->color.r < 70 && w->color.g > 100 && w->color.b > 180 &&
+                                    w->color.a < 200 && w->pos.y < 0.1f) {
+                                    w->pos.x += 1.5f; // Earth glow pool shifts
+                                    w->pos.z -= 0.8f;
+                                }
+                            }
+                        }
 
                         float new_rate = 1.0f - (float)g.tasks_done * 0.2f;
                         if (new_rate < 0.1f) new_rate = 0.1f;
