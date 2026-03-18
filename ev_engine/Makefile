@@ -63,7 +63,8 @@ qa-full:
 
 # Save current screenshots as the baseline to diff against
 qa-baseline:
-	@./qa/run.sh --baseline
+	@mkdir -p qa/baseline
+	@cp qa/screenshots/*_hero.png qa/baseline/ 2>/dev/null && echo "[QA] Baseline saved ($(ls qa/baseline/*.png 2>/dev/null | wc -l | tr -d ' ') screenshots)" || echo "[QA] No screenshots to save — run 'make qa' first"
 
 # Watch for source changes and re-run QA automatically
 qa-watch:

@@ -835,13 +835,106 @@ int main(void) {
         // Horror: blue-green dominant + low luma + high contrast
         if (warmth < -15 && luma < 40 && !dark && contrast_ratio > 3) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    ANTI-PATTERN: reads as horror (cold %.0f, dark luma %.0f)\n", warmth, luma); issues++;
+                "    ANTI-PATTERN: reads as horror (cold %.0f, dark luma %.0f)\n", (double)warmth, (double)luma); issues++;
         }
         // Grey-on-grey in space (space scenes should have color)
         if ((qa_scenes[qi].gs == STATE_SPACE_LOBBY || qa_scenes[qi].gs == STATE_SPACE_CORRIDOR ||
              qa_scenes[qi].gs == STATE_SPACE_SUITE) && hue_count < 3) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                 "    ANTI-PATTERN: grey-on-grey in space — hull must pop against void\n"); issues++;
+        }
+
+        // ── ANOMALY DETECTION — catch rogue geometry, single-color floods ──
+        {
+            // Dominant color check: if >40% of pixels are one color (±5), something's blocking the view
+            int color_buckets[64] = {0};  // 4-bit per channel = 64 buckets
+            for (int p = 0; p < total_px; p++) {
+                int bucket = (pixels[p].r >> 6) * 16 + (pixels[p].g >> 6) * 4 + (pixels[p].b >> 6);
+                color_buckets[bucket]++;
+            }
+            int max_bucket = 0;
+            for (int b = 0; b < 64; b++) {
+                if (color_buckets[b] > max_bucket) max_bucket = color_buckets[b];
+            }
+            float dominant_pct = 100.0f * (float)max_bucket / (float)total_px;
+            if (dominant_pct > 55.0f && !dark) {
+                ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                    "    ANOMALY: %.0f%% single color bucket — rogue geometry or unlit void\n", (double)dominant_pct); issues++;
+            }
+
+            // Horizontal band check: if a horizontal strip is uniform, might be z-fighting
+            int band_issues = 0;
+            for (int row = RENDER_H/4; row < 3*RENDER_H/4; row += RENDER_H/8) {
+                int row_r = 0, row_g = 0, row_b = 0;
+                for (int col = 0; col < RENDER_W; col++) {
+                    Color px = pixels[row * RENDER_W + col];
+                    row_r += px.r; row_g += px.g; row_b += px.b;
+                }
+                float row_var = 0;
+                float mr = (float)row_r / RENDER_W, mg = (float)row_g / RENDER_W, mb = (float)row_b / RENDER_W;
+                for (int col = 0; col < RENDER_W; col++) {
+                    Color px = pixels[row * RENDER_W + col];
+                    float dr = (float)px.r - mr, dg = (float)px.g - mg, db = (float)px.b - mb;
+                    row_var += dr*dr + dg*dg + db*db;
+                }
+                row_var /= RENDER_W;
+                if (row_var < 5.0f && !dark) band_issues++;
+            }
+            if (band_issues >= 3) {
+                ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                    "    ANOMALY: %d uniform horizontal bands — possible z-fighting or flat geometry\n", band_issues); issues++;
+            }
+        }
+
+        // ── REGRESSION DETECTION — compare against baseline if available ──
+        {
+            char baseline_path[256];
+            snprintf(baseline_path, sizeof(baseline_path), "qa/baseline/%s_hero.png", qa_scenes[qi].name);
+            if (FileExists(baseline_path)) {
+                Image baseline = LoadImage(baseline_path);
+                if (baseline.width == RENDER_W && baseline.height == RENDER_H) {
+                    Color *base_px = LoadImageColors(baseline);
+                    long diff_sum = 0;
+                    int changed_px = 0;
+                    for (int p = 0; p < total_px; p++) {
+                        int dr = (int)pixels[p].r - (int)base_px[p].r;
+                        int dg = (int)pixels[p].g - (int)base_px[p].g;
+                        int db = (int)pixels[p].b - (int)base_px[p].b;
+                        int d2 = dr*dr + dg*dg + db*db;
+                        diff_sum += d2;
+                        if (d2 > 900) changed_px++;  // >30 per channel = significant change
+                    }
+                    float avg_diff = sqrtf((float)diff_sum / total_px);
+                    float change_pct = 100.0f * (float)changed_px / (float)total_px;
+                    if (change_pct > 25.0f) {
+                        ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                            "    REGRESSION: %.0f%% pixels changed vs baseline (avg diff %.1f)\n",
+                            (double)change_pct, (double)avg_diff); issues++;
+                    }
+                    // Save diff image
+                    Image diff_img = GenImageColor(RENDER_W, RENDER_H, BLACK);
+                    Color *diff_px = LoadImageColors(diff_img);
+                    for (int p = 0; p < total_px; p++) {
+                        int dr = abs((int)pixels[p].r - (int)base_px[p].r);
+                        int dg = abs((int)pixels[p].g - (int)base_px[p].g);
+                        int db = abs((int)pixels[p].b - (int)base_px[p].b);
+                        int d = (dr + dg + db) * 3;
+                        if (d > 255) d = 255;
+                        diff_px[p] = (Color){(unsigned char)d, (unsigned char)(d/2), 0, 255};
+                    }
+                    // Write diff pixels back and export
+                    for (int p = 0; p < total_px; p++) {
+                        ((Color *)diff_img.data)[p] = diff_px[p];
+                    }
+                    char diff_path[256];
+                    snprintf(diff_path, sizeof(diff_path), "qa/diffs/%s_diff.png", qa_scenes[qi].name);
+                    ExportImage(diff_img, diff_path);
+                    UnloadImageColors(diff_px);
+                    UnloadImage(diff_img);
+                    UnloadImageColors(base_px);
+                }
+                UnloadImage(baseline);
+            }
         }
 
         const char *qs = issues == 0 ? "PASS" : "FAIL";
