@@ -26,6 +26,10 @@ void suite_load(void) {
     g.player.gravity_mult = 0.5f;
     StartAmbient(&g.audio, DRONE_SPACE_SUITE);
     PlayClockAmbient(&g.audio);
+    // Through-wall sounds — other lives in the hotel
+    // Commandment 6: inaccessible spaces communicate
+    PlayMuffledPiano(&g.audio);
+    PlayDistantVoices(&g.audio);
     g.audio.clock_rate = 1.0f;
     SetSoundPitch(g.audio.snd_clock, 1.0f);
     g.agency_removal_timer = 0;
@@ -57,6 +61,8 @@ void suite_load(void) {
     add_object(&g.scene, -2.5f, 0.64f, -4.5f, "photograph", (Color){240,238,230,255}, 1);
     // Wine glass with lipstick — examine
     add_object(&g.scene, -3.2f, 0.52f, 3.3f, "wineglass", (Color){210,210,215,255}, 1);
+    // Her book on left nightstand — pick up to see boarding pass bookmark
+    add_object(&g.scene, -2.6f, 0.64f, -4.9f, "book", (Color){50,80,175,255}, 1);
 }
 
 void suite_update(float dt) {
@@ -135,12 +141,41 @@ void suite_update(float dt) {
                          dt2 * 0.7f, dt2 * 0.6f, dt2 * 0.3f, dt2 * 5.0f);
         if (g.interaction_timers[2] <= 0) g.interaction_phases[2] = 2;
     }
-    // Bed ritual
+    // Bed ritual — the emotional center of the game
+    // Phase 1: lying down (camera descends, looks at ceiling)
     if (g.interaction_phases[3] == 1) {
         g.interaction_timers[3] -= dt;
-        float bt = fminf(1.0f, 1.0f - g.interaction_timers[3] / 2.0f);
-        g.player.camera.position.y += ((1.6f - bt*0.8f) - g.player.camera.position.y) * dt * 2.0f;
-        if (g.interaction_timers[3] <= 0) g.interaction_phases[3] = 2;
+        float bt = fminf(1.0f, 1.0f - g.interaction_timers[3] / 3.0f);
+        // Camera sinks to pillow height
+        float target_y = 1.6f - bt * 0.9f; // 1.6 → 0.7
+        g.player.camera.position.y += (target_y - g.player.camera.position.y) * dt * 2.0f;
+        // Look up at ceiling
+        g.player.camera.target.y += (3.5f - g.player.camera.target.y) * dt * 1.5f;
+        // Agency drains
+        g.player.control_mult = fmaxf(0.0f, 0.3f - bt * 0.3f);
+        if (g.interaction_timers[3] <= 0) {
+            g.interaction_phases[3] = 2;
+            g.player.control_mult = 0.0f; // fully surrendered
+        }
+    }
+    // Phase 2: holding — the game holds you. Earth rotates. Music plays.
+    if (g.interaction_phases[3] == 2) {
+        // Gentle breathing camera
+        float breath = sinf(g.state_time * 0.4f) * 0.003f;
+        g.player.camera.position.y = 0.72f + breath;
+        g.player.camera.target.y = 3.5f + breath * 2.0f;
+        g.player.control_mult = 0.0f;
+        // Progressive warmth — the room accepts you
+        float hold_time = g.state_time - g.agency_removal_timer;
+        if (g.agency_removal_timer < 0.01f) g.agency_removal_timer = g.state_time;
+        hold_time = g.state_time - g.agency_removal_timer;
+        float warm = fminf(1.0f, hold_time / 15.0f);
+        SetPostFXWarmth(&g.postfx, warm);
+        // After 20 seconds: hard cut to Paris dream
+        if (hold_time > 20.0f) {
+            g.player.control_mult = 1.0f;
+            hard_cut_to(STATE_PARIS_DREAM);
+        }
     }
     // Micro-animations
     if (g.interaction_phases[0] == 2) {
@@ -235,6 +270,12 @@ void suite_update(float dt) {
                         obj->done = true;
                         break;
                     }
+                    // Her book — pick up, see boarding pass bookmark
+                    if (strcmp(obj->name, "book") == 0 && obj->step == 1) {
+                        show_text("Her bookmark. A boarding pass.");
+                        obj->done = true;
+                        break;
+                    }
                     // Bathroom — run the bath (the Chevalier moment)
                     if (strcmp(obj->name, "bathroom") == 0 && obj->step == 1) {
                         // Steam appears on the window — Earth blurs through fog
@@ -255,7 +296,15 @@ void suite_update(float dt) {
                         g.interaction_phases[2] = 1;
                         g.interaction_timers[2] = 1.2f;
                     } else if (strcmp(obj->name, "bed") == 0 && obj->step == 1) {
+                        // Pull back the covers — the Chevalier moment
                         add_wall(&g.scene, 0, 0.54f, -4.3f, 2.8f, 0.02f, 1.4f, (Color){245,242,235,255});
+                        // Camera lowers — lying down
+                        g.interaction_phases[3] = 1;
+                        g.interaction_timers[3] = 3.0f;
+                        // Play THE piece — once, never repeats
+                        PlaySound(g.audio.snd_bed_ritual);
+                        // Agency surrender begins
+                        g.player.control_mult = 0.3f;
                     } else if (strcmp(obj->name, "champagne") == 0 && obj->step == 1) {
                         add_cone(&g.scene, -3.1f, 0.39f, 3.5f, 0.06f, 0.08f, (Color){210,210,215,200});
                         add_cylinder(&g.scene, -3.1f, 0.44f, 3.5f, 0.02f, 0.08f, (Color){210,210,215,200});

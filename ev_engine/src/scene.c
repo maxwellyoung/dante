@@ -1584,17 +1584,78 @@ void build_hotel_room(Scene *s) {
     // Right wall (along Z)
     add_crown_molding(s, rw/2-0.08f, rh, 0, rd, 1.0f, gold);
 
-    // BLOCKING WALLS — extra collision barriers to prevent room escape
-    // Corner reinforcement: thin invisible walls at all four corners
-    // These ensure diagonal movement can't clip through wall intersections
-    // NW corner
+    // BLOCKING WALLS — corner reinforcement
     add_wall(s, -rw/2+0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, wall_gold);
-    // NE corner
     add_wall(s, rw/2-0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, wall_gold);
-    // SW corner
     add_wall(s, -rw/2+0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, wall_gold);
-    // SE corner
     add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, wall_gold);
+
+    // ============================================================
+    // PARISIAN HOTEL DENSITY — this is a real room, not a box
+    // ============================================================
+
+    // Wall sconces — 4 brass fixtures with warm glow
+    for (int i = 0; i < 2; i++) {
+        float sx = -3.0f + i * 6.0f;
+        add_wall(s, sx, 2.2f, -rd/2+0.12f, 0.12f, 0.18f, 0.08f, gold);
+        set_last_material(s, MAT_BRASS);
+        add_light_panel(s, sx, 2.1f, -rd/2+0.15f, 0.18f, 0.25f, 0.06f, warm_light);
+    }
+    // Side wall sconces
+    add_wall(s, -rw/2+0.12f, 2.2f, 0, 0.08f, 0.18f, 0.12f, gold);
+    set_last_material(s, MAT_BRASS);
+    add_light_panel(s, -rw/2+0.15f, 2.1f, 0, 0.06f, 0.25f, 0.18f, warm_light);
+    add_wall(s, rw/2-0.12f, 2.2f, -1, 0.08f, 0.18f, 0.12f, gold);
+    set_last_material(s, MAT_BRASS);
+    add_light_panel(s, rw/2-0.15f, 2.1f, -1, 0.06f, 0.25f, 0.18f, warm_light);
+
+    // Radiator under window — cast iron, warm
+    add_wall(s, -rw/2+0.25f, 0.3f, -1.0f, 0.1f, 0.5f, 1.2f, (Color){180,175,168,255});
+    set_last_material(s, MAT_BRASS);
+
+    // Light switch by entry door
+    add_wall(s, 4.5f, 1.2f, rd/2-0.12f, 0.06f, 0.1f, 0.02f, cream);
+    // Smoke detector on ceiling
+    add_cylinder(s, 2, rh-0.05f, 0, 0.08f, 0.03f, white);
+    // Room number on entry wall
+    add_wall(s, 3.2f, 2.0f, rd/2-0.12f, 0.15f, 0.08f, 0.02f, gold);
+    set_last_material(s, MAT_BRASS);
+
+    // Curtains — heavy fabric framing the window
+    add_wall(s, -rw/2+0.2f, rh*0.5f, -2.2f, 0.08f, rh*0.8f, 0.3f, (Color){120,40,35,255});
+    set_last_material(s, MAT_VELVET);
+    add_wall(s, -rw/2+0.2f, rh*0.5f, 0.2f, 0.08f, rh*0.8f, 0.3f, (Color){120,40,35,255});
+    set_last_material(s, MAT_VELVET);
+    // Curtain rod — brass
+    add_cylinder(s, -rw/2+0.2f, rh-0.3f, -1.0f, 0.02f, 2.8f, gold);
+
+    // Mini-bar (dark wood cabinet under desk area)
+    add_wall(s, rw/2-0.8f, 0.35f, 1.0f, 0.5f, 0.7f, 0.4f, dark_wood);
+    set_last_material(s, MAT_WOOD);
+    // Handle
+    add_wall(s, rw/2-0.55f, 0.4f, 0.79f, 0.12f, 0.03f, 0.02f, gold);
+    set_last_material(s, MAT_BRASS);
+
+    // Ceiling rose — decorative plaster medallion around chandelier
+    add_cylinder(s, 0, rh-0.02f, 0, 0.8f, 0.03f, cream);
+    add_cylinder(s, 0, rh-0.01f, 0, 0.5f, 0.02f, cream);
+
+    // Power outlet on side wall
+    add_wall(s, rw/2-0.12f, 0.3f, 2.0f, 0.02f, 0.06f, 0.04f, cream);
+
+    // Luggage rack — folding brass frame
+    add_wall(s, 4.0f, 0.5f, 3.5f, 0.8f, 0.03f, 0.5f, gold);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, 3.6f, 0.25f, 3.25f, 0.02f, 0.5f, gold);
+    add_cylinder(s, 4.4f, 0.25f, 3.25f, 0.02f, 0.5f, gold);
+    add_cylinder(s, 3.6f, 0.25f, 3.75f, 0.02f, 0.5f, gold);
+    add_cylinder(s, 4.4f, 0.25f, 3.75f, 0.02f, 0.5f, gold);
+
+    // Coat hook by door
+    add_cylinder(s, 3.8f, 1.6f, rd/2-0.12f, 0.03f, 0.06f, gold);
+    set_last_material(s, MAT_BRASS);
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 4};
     s->has_exit = false;
@@ -1714,6 +1775,21 @@ void build_balcony(Scene *s) {
     // Ashtray
     add_cylinder(s, 0, 0.49f, -0.8f, 0.1f, 0.03f, (Color){140,135,130,255});
     add_object(s, 0, 0.55f, -0.8f, "cigarette", (Color){200,195,185,255}, 1);
+
+    // ── TELESCOPE — pointing at Earth, between the chairs ──
+    {
+        int scope_mdl = find_model_asset("telescope");
+        if (scope_mdl >= 0) {
+            add_model(s, 2.5f, 0, -0.5f, 1,1,1, 15, scope_mdl, MAT_BRASS, (Color){255,255,255,255});
+        } else {
+            // Fallback: brass cylinder on tripod
+            add_cylinder(s, 2.5f, 0.9f, -0.5f, 0.06f, 0.6f, gold);
+            set_last_material(s, MAT_BRASS);
+            add_cylinder(s, 2.3f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
+            add_cylinder(s, 2.7f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
+            add_cylinder(s, 2.5f, 0.45f, -0.7f, 0.015f, 0.9f, gold);
+        }
+    }
 
     // Distant station modules (tiny lit rectangles)
     add_wall(s, -30, 5, -50, 1.5f, 0.8f, 0.3f, (Color){140,150,165,80});
@@ -4713,8 +4789,16 @@ void build_space_suite(Scene *s) {
     }
 
     // TWO CHAIRS — angled toward each other, for watching Earth together
-    add_chair(s, -5.2f, 0, 0.5f, 45.0f, dark_wood, navy);
-    add_chair(s, -5.2f, 0, 2.5f, -30.0f, dark_wood, navy);
+    {
+        int chair_mdl = find_model_asset("armchair");
+        if (chair_mdl >= 0) {
+            add_model(s, -5.2f, 0, 0.5f, 1,1,1, 45, chair_mdl, MAT_LEATHER, (Color){255,255,255,255});
+            add_model(s, -5.2f, 0, 2.5f, 1,1,1, -30, chair_mdl, MAT_LEATHER, (Color){255,255,255,255});
+        } else {
+            add_chair(s, -5.2f, 0, 0.5f, 45.0f, dark_wood, navy);
+            add_chair(s, -5.2f, 0, 2.5f, -30.0f, dark_wood, navy);
+        }
+    }
     // Small side table between chairs
     add_wall(s, -5.5f, 0.45f, 1.5f, 0.4f, 0.04f, 0.4f, brass);
     set_last_material(s, MAT_BRASS);
@@ -4763,21 +4847,24 @@ void build_space_suite(Scene *s) {
     // ============================================================
 
     // SUITCASE — half-packed, by the door
-    add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
-    set_last_material(s, MAT_LEATHER);
-    // Suitcase brass trim
-    add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
-    set_last_material(s, MAT_BRASS);
-    set_last_decal(s);
-    // Lid propped open
-    add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
-    set_last_material(s, MAT_LEATHER);
-    // Shirt spilling out — blue fabric
-    add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
-    set_last_material(s, MAT_FABRIC);
-    // Folded shirt inside
-    add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
-    set_last_material(s, MAT_FABRIC);
+    {
+        int case_mdl = find_model_asset("suitcase");
+        if (case_mdl >= 0) {
+            add_model(s, 4.5f, 0, 4.5f, 1,1,1, 0, case_mdl, MAT_LEATHER, (Color){255,255,255,255});
+        } else {
+            add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
+            set_last_material(s, MAT_BRASS);
+            set_last_decal(s);
+            add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
+            set_last_material(s, MAT_FABRIC);
+        }
+    }
 
     // Luggage rack — brass frame near entry
     add_wall(s, 5.5f, 0.5f, 4.8f, 1.0f, 0.04f, 0.5f, brass);
@@ -4995,6 +5082,52 @@ void build_space_suite(Scene *s) {
     add_cylinder(s, -2.8f, 0.39f, 3.2f, 0.1f, 0.45f, (Color){230,225,215,220});
     set_last_decal(s);
 
+    // ============================================================
+    // 23. BOLAÑO OBJECTS — the abstract-mundane
+    // These resist interpretation. They're the geometry textbook
+    // on the washing line. Don't explain them.
+    // (Geometry textbook + half-written letter already on desk above.)
+    // ============================================================
+
+    // ONE SOCK UNDER THE BED — the most mundane object in the game. The most real.
+    // Dark fabric, small, half-hidden under the bed frame. Not yours.
+    add_wall(s, 1.2f, 0.02f, -3.8f, 0.12f, 0.02f, 0.08f, (Color){45,40,55,230});
+    set_last_material(s, MAT_FABRIC);
+    set_last_decal(s);
+
+    // ROOM SERVICE CARD — two handwritings, margin notes about the cheese plate.
+    // A tiny, lived argument. Resolved with an arrow.
+    add_wall(s, -2.5f, 0.4f, 3.6f, 0.25f, 0.005f, 0.18f, (Color){245,242,235,255}); // card
+    // Two different ink colors — his blue, her red
+    add_wall(s, -2.55f, 0.405f, 3.55f, 0.1f, 0.002f, 0.06f, (Color){30,40,120,120}); // blue writing
+    set_last_decal(s);
+    add_wall(s, -2.45f, 0.405f, 3.65f, 0.08f, 0.002f, 0.05f, (Color){160,40,40,100}); // red writing
+    set_last_decal(s);
+
+    // HOTEL SLIPPERS — still wrapped. Nobody coming to unwrap them.
+    add_wall(s, 0.8f, 0.01f, 4.0f, 0.2f, 0.03f, 0.1f, (Color){240,238,232,255}); // wrapper
+    set_last_material(s, MAT_FABRIC);
+    set_last_decal(s);
+    // Thin ribbon holding them closed
+    add_wall(s, 0.8f, 0.04f, 4.0f, 0.22f, 0.005f, 0.02f, (Color){160,140,80,180});
+    set_last_decal(s);
+
+    // SHOES ARRANGED FOR TWO — by the entry. Yours and hers. The hotel set them out.
+    // Your shoes — dark, larger
+    add_wall(s, -0.5f, 0.015f, 4.2f, 0.12f, 0.03f, 0.24f, (Color){35,30,28,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_decal(s);
+    add_wall(s, -0.3f, 0.015f, 4.2f, 0.12f, 0.03f, 0.24f, (Color){35,30,28,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_decal(s);
+    // Her shoes — smaller, lighter color
+    add_wall(s, 0.5f, 0.01f, 4.15f, 0.09f, 0.025f, 0.2f, (Color){180,160,140,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_decal(s);
+    add_wall(s, 0.65f, 0.01f, 4.15f, 0.09f, 0.025f, 0.2f, (Color){180,160,140,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_decal(s);
+
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 4};
@@ -5109,6 +5242,40 @@ void build_space_suite_cleaned(Scene *s) {
             w->pos.x < -1.5f && w->pos.x > -2.5f &&
             w->pos.z > 2.5f && w->pos.z < 3.5f &&
             w->size.x > 0.4f) {
+            w->active = false;
+            continue;
+        }
+
+        // ── HER SHOES (lighter pair, x=0.5/0.65, z=4.15) ──
+        if (w->pos.z > 4.0f && w->pos.z < 4.3f &&
+            w->pos.x > 0.4f && w->pos.x < 0.8f &&
+            w->pos.y < 0.05f && w->size.x < 0.12f) {
+            w->active = false;
+            continue;
+        }
+
+        // ── SOCK UNDER BED (x=1.2, z=-3.8) ──
+        if (w->pos.x > 1.0f && w->pos.x < 1.4f &&
+            w->pos.z > -4.0f && w->pos.z < -3.6f &&
+            w->pos.y < 0.05f && w->size.x < 0.15f &&
+            w->color.r < 60 && w->color.b > 40) {
+            w->active = false;
+            continue;
+        }
+
+        // ── HOTEL SLIPPERS (wrapped, x=0.8, z=4.0) ──
+        if (w->pos.x > 0.6f && w->pos.x < 1.0f &&
+            w->pos.z > 3.8f && w->pos.z < 4.2f &&
+            w->pos.y < 0.06f && w->color.r > 220) {
+            w->active = false;
+            continue;
+        }
+
+        // ── ROOM SERVICE CARD with two handwritings (x=-2.5, z=3.6) ──
+        if (w->pos.x > -2.7f && w->pos.x < -2.3f &&
+            w->pos.z > 3.4f && w->pos.z < 3.8f &&
+            w->pos.y > 0.38f && w->pos.y < 0.42f &&
+            w->size.y < 0.01f) {
             w->active = false;
             continue;
         }
