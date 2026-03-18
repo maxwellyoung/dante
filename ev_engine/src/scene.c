@@ -516,26 +516,26 @@ void build_hotel_exterior(Scene *s) {
     // Michael Mann's Collateral: beauty in empty streets.
     // ============================================================
 
-    // RAIN PUDDLES — irregular pools reflecting the tower and lampposts
-    // Large puddle near entrance — reflects the warm entrance glow
-    add_wall(s, -2, 0.005f, -2, 3.0f, 0.005f, 2.5f, (Color){250, 230, 170, 18});
-    set_last_decal(s);
+    // RAIN PUDDLES — MAT_PUDDLE: dark reflective film, shader does the work
+    // Large puddle near entrance — warm tones from entrance light
+    add_wall_decal(s, -2, 0.005f, -2, 3.0f, 0.005f, 2.5f, (Color){30, 28, 24, 255});
+    set_last_material(s, MAT_PUDDLE);
     // Puddle catching lamppost glow — left
-    add_wall(s, -8, 0.005f, -3, 2.5f, 0.005f, 2.0f, (Color){240, 210, 120, 22});
-    set_last_decal(s);
-    // Puddle near taxi — red taillight reflection
-    add_wall(s, -5, 0.005f, -6, 2.0f, 0.005f, 1.5f, (Color){180, 40, 40, 15});
-    set_last_decal(s);
+    add_wall_decal(s, -8, 0.005f, -3, 2.5f, 0.005f, 2.0f, (Color){28, 26, 22, 255});
+    set_last_material(s, MAT_PUDDLE);
+    // Puddle near taxi — red-tinted from taillight
+    add_wall_decal(s, -5, 0.005f, -6, 2.0f, 0.005f, 1.5f, (Color){35, 18, 18, 255});
+    set_last_material(s, MAT_PUDDLE);
     // Narrow puddle along curb — continuous
-    add_wall(s, 0, 0.003f, -7, 12, 0.005f, 0.6f, (Color){120, 140, 170, 10});
-    set_last_decal(s);
+    add_wall_decal(s, 0, 0.003f, -7, 12, 0.005f, 0.6f, (Color){22, 24, 30, 255});
+    set_last_material(s, MAT_PUDDLE);
 
     // NEON SIGNAGE — Auckland CBD nocturnal texture
     // Bar sign on left building — Godard red neon rectangle
     add_wall(s, -16, 4.5f, 17.5f, 2.5f, 0.8f, 0.06f, (Color){220, 45, 40, 160});
     // Neon glow pool on sidewalk below
-    add_wall(s, -16, 0.01f, 15, 2.0f, 0.005f, 2.0f, (Color){180, 35, 30, 12});
-    set_last_decal(s);
+    add_wall_decal(s, -16, 0.01f, 15, 2.0f, 0.005f, 2.0f, (Color){40, 12, 10, 255});
+    set_last_material(s, MAT_PUDDLE);
     // Pharmacy cross — blue-green, right side
     add_wall(s, 14, 5.0f, 18, 0.3f, 1.2f, 0.06f, (Color){40, 200, 180, 140});
     add_wall(s, 14, 5.0f, 18, 1.2f, 0.3f, 0.06f, (Color){40, 200, 180, 140});
@@ -562,16 +562,9 @@ void build_hotel_exterior(Scene *s) {
     add_wall(s, 0, 35, 7.5f, 3.5f, 1.2f, 0.1f, (Color){240, 200, 110, 60});
 
     // HARBOR — Auckland's Waitemata Harbour in the distance
-    // Water surface — dark, faintly reflective, far behind the tower
+    // Water surface — MAT_WATER: dark reflective, animated ripple sells it
     add_wall(s, 0, -0.5f, 35, 80, 0.05f, 25, (Color){8, 14, 28, 255});
-    // Harbor reflections — scattered city light on water
-    for (int i = 0; i < 8; i++) {
-        float hx = -20.0f + (float)((i*31)%40);
-        float hz = 30.0f + (float)((i*13)%20);
-        add_wall(s, hx, -0.45f, hz, 1.5f, 0.02f, 0.3f,
-                 (Color){240, 200, 110, (unsigned char)(15+(i*11)%20)});
-        set_last_decal(s);
-    }
+    set_last_material(s, MAT_WATER);
     // Harbor Bridge — distant silhouette, arc shape approximated
     add_wall(s, -15, 3, 45, 35, 0.3f, 0.5f, (Color){20, 22, 30, 255});
     // Bridge lights — dotted line of amber
@@ -1703,8 +1696,6 @@ void build_balcony(Scene *s) {
     s->fog_color = (Color){2, 3, 8, 255};  // deep space
     s->fog_density = 0.001f;  // almost no fog — vacuum clarity
 
-    Color stone = PAL_MARBLE_A;
-    Color railing = PAL_MID;
     Color gold = PAL_BRASS;
     Color hull = PAL_HULL;
 
@@ -3680,6 +3671,112 @@ void build_space_lobby(Scene *s) {
     // Smoke wisp — faint transparent rectangle
     add_wall(s, -7.85f, 2.4f, -1.85f, 0.04f, 0.15f, 0.04f, (Color){180,178,175,15});
 
+    // ================================================================
+    // FLOOR INLAYS — marble compass rose, brass directional lines
+    // The station is navigable by architecture, not signage.
+    // ================================================================
+
+    // Compass rose — center of lobby, dark marble inlay in light marble
+    add_cylinder(s, 0, 0.015f, 0, 4.0f, 0.02f, marble_b);
+    set_last_material(s, MAT_MARBLE);
+    set_last_decal(s);
+    // Inner ring — brass
+    add_cylinder(s, 0, 0.02f, 0, 2.8f, 0.015f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Cardinal points — 4 brass arrows extending from center
+    for (int i = 0; i < 4; i++) {
+        float angle = i * 1.5708f; // PI/2
+        float ax = cosf(angle) * 2.5f;
+        float az = sinf(angle) * 2.5f;
+        float dx = cosf(angle) * 0.8f;
+        float dz = sinf(angle) * 0.8f;
+        add_wall(s, ax, 0.022f, az, fabsf(dx) + 0.04f, 0.01f, fabsf(dz) + 0.04f, gold);
+        set_last_material(s, MAT_BRASS);
+        set_last_decal(s);
+    }
+    // Brass directional lines — from elevator to key exits
+    add_wall(s, 0, 0.015f, 6, 0.06f, 0.01f, 4, brass);
+    set_last_material(s, MAT_BRASS); set_last_decal(s);
+    add_wall(s, -6, 0.015f, -2, 0.06f, 0.01f, 6, brass);
+    set_last_material(s, MAT_BRASS); set_last_decal(s);
+
+    // ================================================================
+    // OBSERVATION WINDOW MULLIONS — massive glass wall at -Z
+    // Deep brass grid dividing the void into cinematic panels
+    // ================================================================
+
+    // Horizontal mullions — 3 levels
+    for (int i = 1; i <= 3; i++) {
+        float my = i * (lh / 4.0f);
+        add_wall(s, 0, my, -ld/2+0.25f, lw-4, 0.08f, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+    }
+    // Vertical mullions — 7 posts across the window
+    for (int i = -3; i <= 3; i++) {
+        add_wall(s, i * 4.5f, lh/2, -ld/2+0.26f, 0.08f, lh-1, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+    }
+
+    // ================================================================
+    // MAGAZINE RACK — near seating cluster, brass frame
+    // ================================================================
+    add_wall(s, 12.5f, 0.5f, 2.5f, 0.6f, 1.0f, 0.15f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Magazines — colored spines visible
+    for (int i = 0; i < 4; i++) {
+        Color mag_colors[] = {godard_red, godard_blue, navy, cream};
+        add_wall(s, 12.5f, 0.2f + i*0.22f, 2.42f, 0.45f, 0.18f, 0.02f, mag_colors[i]);
+    }
+
+    // ================================================================
+    // COAT CHECK AREA — near entry, brass hooks, one coat
+    // ================================================================
+    // Brass rod
+    add_wall(s, -3, 1.8f, ld/2-1.5f, 2.0f, 0.04f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Hooks — 5 brass spheres along rod
+    for (int i = 0; i < 5; i++) {
+        add_sphere(s, -4 + i*0.5f, 1.72f, ld/2-1.5f, 0.04f, brass);
+    }
+    // ONE COAT — dark, hanging. Someone already checked in alone.
+    add_wall(s, -3.5f, 1.1f, ld/2-1.52f, 0.4f, 1.2f, 0.08f, (Color){40,35,30,255});
+    set_last_material(s, MAT_FABRIC);
+
+    // ================================================================
+    // UMBRELLA STAND — brass cylinder near exit, two umbrellas
+    // ================================================================
+    add_cylinder(s, 5, 0.25f, ld/2-1, 0.2f, 0.5f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Umbrella 1 — navy handle visible
+    add_cylinder(s, 4.95f, 0.4f, ld/2-1.05f, 0.03f, 0.6f, navy);
+    // Umbrella 2 — Godard red
+    add_cylinder(s, 5.08f, 0.35f, ld/2-0.92f, 0.03f, 0.6f, godard_red);
+
+    // ================================================================
+    // FLOOR LAMPS — tall brass, flanking observation window
+    // ================================================================
+    // Left
+    add_cylinder(s, -14, 0.8f, -10, 0.04f, 1.6f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cone(s, -14, 1.7f, -10, 0.25f, 0.18f, cream);
+    add_light_panel(s, -14, 1.5f, -10, 0.3f, 0.4f, 0.3f, warm_light);
+    // Right
+    add_cylinder(s, 14, 0.8f, -10, 0.04f, 1.6f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cone(s, 14, 1.7f, -10, 0.25f, 0.18f, cream);
+    add_light_panel(s, 14, 1.5f, -10, 0.3f, 0.4f, 0.3f, warm_light);
+
+    // ================================================================
+    // CEILING ROSETTES — decorative brass discs above chandeliers
+    // ================================================================
+    add_cylinder(s, 0, lh-0.05f, -4, 1.0f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, -10, lh-0.05f, 2, 0.7f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, 10, lh-0.05f, 2, 0.7f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+
     // Interactive objects
     add_object(s, -11, 1.18f, -3.5f, "bell", (Color){200,195,180,255}, 1);
     add_object(s, 8, 2.2f, -5, "wineglass", (Color){210,210,215,255}, 1);
@@ -4962,6 +5059,174 @@ void build_space_suite(Scene *s) {
     add_wall(s, 0.65f, 0.01f, 4.15f, 0.09f, 0.025f, 0.2f, (Color){180,160,140,255});
     set_last_material(s, MAT_LEATHER);
     set_last_decal(s);
+
+    // ============================================================
+    // 24. BATHROOM — visible through door, the Chevalier wet room
+    // ============================================================
+    {
+        float bx = rw/2 + 2.5f;  // center of bathroom (beyond right wall)
+        float bz = 2.5f;
+        Color tile = {225, 222, 218, 255};
+        Color grout = {200, 195, 188, 255};
+
+        // Floor — herringbone tile
+        add_wall(s, bx, 0, bz, 4, 0.05f, 4, tile);
+        set_last_material(s, MAT_HERRINGBONE);
+        // Back wall
+        add_wall(s, bx, 1.5f, bz-2, 4, 3, 0.1f, tile);
+        set_last_material(s, MAT_TILE);
+        // Far wall
+        add_wall(s, bx+2, 1.5f, bz, 0.1f, 3, 4, tile);
+        set_last_material(s, MAT_TILE);
+        // Ceiling
+        add_wall(s, bx, 3, bz, 4, 0.05f, 4, hull);
+
+        // BATHTUB — freestanding, big enough for two
+        {
+            int tub_mdl = find_model_asset("bathtub");
+            if (tub_mdl >= 0) {
+                add_model(s, bx+0.5f, 0, bz-0.5f, 1,1,1, 0, tub_mdl, MAT_MARBLE, PAL_MARBLE_A);
+            } else {
+                // Outer shell
+                add_wall(s, bx+0.5f, 0.3f, bz-0.5f, 1.6f, 0.55f, 0.7f, PAL_MARBLE_A);
+                set_last_material(s, MAT_MARBLE);
+                // Inner void — dark
+                add_wall(s, bx+0.5f, 0.4f, bz-0.5f, 1.4f, 0.45f, 0.55f, (Color){40,45,55,255});
+                // Brass rim
+                add_wall(s, bx+0.5f, 0.58f, bz-0.5f, 1.65f, 0.04f, 0.75f, brass);
+                set_last_material(s, MAT_BRASS);
+                // Brass feet — 4 claws
+                add_sphere(s, bx-0.2f, 0.04f, bz-0.8f, 0.06f, brass);
+                add_sphere(s, bx+1.2f, 0.04f, bz-0.8f, 0.06f, brass);
+                add_sphere(s, bx-0.2f, 0.04f, bz-0.2f, 0.06f, brass);
+                add_sphere(s, bx+1.2f, 0.04f, bz-0.2f, 0.06f, brass);
+            }
+            // Faucet — tall brass arch
+            add_cylinder(s, bx+0.5f, 0.7f, bz-0.85f, 0.03f, 0.3f, brass);
+            add_wall(s, bx+0.5f, 1.0f, bz-0.75f, 0.03f, 0.03f, 0.2f, brass);
+            set_last_material(s, MAT_BRASS);
+            // Hot/cold knobs
+            add_sphere(s, bx+0.35f, 0.72f, bz-0.85f, 0.035f, brass);
+            add_sphere(s, bx+0.65f, 0.72f, bz-0.85f, 0.035f, brass);
+        }
+
+        // Vanity — double sink, mirror, brass fixtures
+        add_wall(s, bx-0.8f, 0.45f, bz+1.2f, 1.6f, 0.06f, 0.5f, PAL_MARBLE_A);
+        set_last_material(s, MAT_MARBLE);
+        // Cabinet below
+        add_wall(s, bx-0.8f, 0.22f, bz+1.2f, 1.5f, 0.4f, 0.45f, dark_wood);
+        set_last_material(s, MAT_WOOD);
+        // Sink basin 1
+        add_cylinder(s, bx-1.2f, 0.44f, bz+1.2f, 0.3f, 0.06f, white);
+        // Sink basin 2 — hers
+        add_cylinder(s, bx-0.4f, 0.44f, bz+1.2f, 0.3f, 0.06f, white);
+        // Faucets
+        add_cylinder(s, bx-1.2f, 0.55f, bz+1.3f, 0.02f, 0.12f, brass);
+        add_cylinder(s, bx-0.4f, 0.55f, bz+1.3f, 0.02f, 0.12f, brass);
+        // Mirror — full width above vanity
+        add_wall(s, bx-0.8f, 1.4f, bz+1.48f, 1.8f, 1.0f, 0.02f, (Color){180,185,195,180});
+        set_last_material(s, MAT_GLASS);
+        // Mirror frame — brass
+        add_wall(s, bx-0.8f, 1.95f, bz+1.49f, 1.9f, 0.04f, 0.02f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, bx-0.8f, 0.85f, bz+1.49f, 1.9f, 0.04f, 0.02f, brass);
+        set_last_material(s, MAT_BRASS);
+
+        // Towel rail — brass, two white towels
+        add_wall(s, bx+1.8f, 1.0f, bz+0.5f, 0.02f, 0.04f, 0.6f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, bx+1.8f, 0.7f, bz+0.4f, 0.02f, 0.55f, 0.04f, white);
+        set_last_material(s, MAT_FABRIC);
+        add_wall(s, bx+1.78f, 0.7f, bz+0.6f, 0.02f, 0.55f, 0.04f, white);
+        set_last_material(s, MAT_FABRIC);
+
+        // HER TOOTHBRUSH in the glass — the most mundane detail
+        add_cylinder(s, bx-1.5f, 0.48f, bz+1.1f, 0.04f, 0.08f, (Color){210,215,220,140});
+        set_last_material(s, MAT_GLASS);
+        add_cylinder(s, bx-1.48f, 0.54f, bz+1.1f, 0.015f, 0.1f, PAL_BLUE);
+
+        // Light above mirror — brass bar light
+        add_wall(s, bx-0.8f, 2.1f, bz+1.46f, 1.4f, 0.06f, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_light_panel(s, bx-0.8f, 2.0f, bz+1.44f, 1.5f, 0.15f, 0.1f, warm_light);
+
+        // Floor drain — brass disc
+        add_cylinder(s, bx+0.5f, 0.01f, bz+0.5f, 0.08f, 0.01f, brass);
+        set_last_decal(s);
+        // Tile grout lines — horizontal
+        for (int i = 0; i < 5; i++) {
+            add_wall(s, bx, 0.3f + i * 0.5f, bz-1.99f, 3.8f, 0.01f, 0.01f, grout);
+            set_last_decal(s);
+        }
+    }
+
+    // ============================================================
+    // 25. CEILING DETAIL — recessed light tracks, pendant fixture
+    // ============================================================
+
+    // Recessed light tracks — 3 parallel brass rails across ceiling
+    for (int i = -1; i <= 1; i++) {
+        add_wall(s, i * 2.5f, rh-0.04f, 0, 0.08f, 0.08f, rd*0.7f, brass);
+        set_last_material(s, MAT_BRASS);
+        // Light spots along each track — 4 per track
+        for (int j = 0; j < 4; j++) {
+            float tz = -rd*0.3f + j * (rd*0.6f / 3.0f);
+            add_cylinder(s, i * 2.5f, rh-0.08f, tz, 0.06f, 0.04f, brass);
+            add_light_panel(s, i * 2.5f, rh-0.15f, tz, 0.1f, 0.08f, 0.1f, (Color){255,235,200,25});
+        }
+    }
+
+    // Pendant light — over coffee table, brass + frosted glass
+    add_cylinder(s, -3, rh-0.02f, 3.5f, 0.02f, 0.5f, brass); // wire
+    add_cone(s, -3, rh-0.65f, 3.5f, 0.25f, 0.2f, brass);     // mount
+    add_sphere(s, -3, rh-0.95f, 3.5f, 0.18f, (Color){240,235,220,140}); // globe
+    add_light_panel(s, -3, rh-0.95f, 3.5f, 0.3f, 0.3f, 0.3f, warm_light);
+
+    // ============================================================
+    // 26. DRAPE HARDWARE — curtain tracks on window wall
+    // ============================================================
+
+    // Curtain track — brass rail above window
+    add_wall(s, -rw/2+0.2f, rh-0.15f, win_cz, 0.04f, 0.04f, win_w+0.5f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Curtain finials — brass spheres at track ends
+    add_sphere(s, -rw/2+0.22f, rh-0.15f, win_cz-win_w/2-0.35f, 0.04f, brass);
+    add_sphere(s, -rw/2+0.22f, rh-0.15f, win_cz+win_w/2+0.35f, 0.04f, brass);
+    // Sheer curtain panels — bunched at sides (cream, translucent)
+    add_wall(s, -rw/2+0.2f, rh*0.5f, win_cz-win_w/2-0.15f, 0.06f, rh-0.5f, 0.5f, (Color){245,240,232,60});
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, -rw/2+0.2f, rh*0.5f, win_cz+win_w/2+0.15f, 0.06f, rh-0.5f, 0.5f, (Color){245,240,232,60});
+    set_last_material(s, MAT_FABRIC);
+
+    // ============================================================
+    // 27. FLOOR DETAIL — rug under bed, brass threshold strip
+    // ============================================================
+
+    // Rug under bed zone — deep navy with red border
+    add_rug(s, 0, 0, -4.5f, 5, 3.5f, navy, PAL_RED);
+    // Brass threshold strip at entry door
+    add_wall(s, 3, 0.01f, rd/2-0.2f, 1.4f, 0.02f, 0.06f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Brass threshold at bathroom door
+    add_wall(s, rw/2-0.15f, 0.01f, 2.5f, 0.06f, 0.02f, 1.4f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+
+    // ============================================================
+    // 28. WINDOW SILL OBJECTS — personal touches on the brass ledge
+    // ============================================================
+
+    // Small cactus in brass pot
+    add_cylinder(s, -rw/2+0.2f, 0.28f, win_cz-1.5f, 0.05f, 0.06f, brass);
+    add_cylinder(s, -rw/2+0.2f, 0.36f, win_cz-1.5f, 0.04f, 0.08f, (Color){55,110,50,255});
+    // Snow globe — glass sphere on brass base
+    add_cylinder(s, -rw/2+0.2f, 0.26f, win_cz+1.0f, 0.05f, 0.03f, brass);
+    add_sphere(s, -rw/2+0.2f, 0.35f, win_cz+1.0f, 0.06f, (Color){200,210,220,120});
+    set_last_material(s, MAT_GLASS);
+    // Candle in brass holder — unlit
+    add_cylinder(s, -rw/2+0.2f, 0.28f, win_cz+2.0f, 0.04f, 0.03f, brass);
+    add_cylinder(s, -rw/2+0.2f, 0.35f, win_cz+2.0f, 0.025f, 0.1f, cream);
 
     tag_materials_by_color(s);
 

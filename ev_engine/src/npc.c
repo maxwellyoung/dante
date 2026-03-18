@@ -291,6 +291,22 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
                     (Vector3){npc->pos.x, base_y_m + 0.02f, npc->pos.z},
                     (Vector3){0,1,0}, 0, (Vector3){0.5f, 0.01f, 0.5f}, WHITE);
             }
+
+            // ── LUGGAGE CART — separate object, follows with delay ──
+            // If assets/cart.obj or assets/suitcase.obj exists, draw it trailing behind
+            {
+                int cart_i = find_model_asset("suitcase");
+                if (cart_i >= 0 && g.model_assets[cart_i].loaded) {
+                    // Cart follows 1.2m behind Gibbons (opposite his facing direction)
+                    float behind_x = npc->pos.x + sinf(npc->yaw) * 1.2f;
+                    float behind_z = npc->pos.z + cosf(npc->yaw) * 1.2f;
+                    DrawModelEx(g.model_assets[cart_i].model,
+                        (Vector3){behind_x, base_y_m, behind_z},
+                        (Vector3){0, 1, 0}, npc->yaw * RAD2DEG + 180,
+                        (Vector3){0.8f, 0.8f, 0.8f}, WHITE);
+                }
+            }
+
             return;  // skip cube-person
         }
     }
