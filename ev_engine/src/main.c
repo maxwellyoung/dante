@@ -1029,9 +1029,9 @@ int main(void) {
 #else  // normal game
 
 #ifdef DEV_START
-    load_state(DEV_START);
+    load_state(g, DEV_START);
 #else
-    load_state(STATE_TITLE);
+    load_state(g, STATE_TITLE);
 #endif
 
     while (!WindowShouldClose()) {
@@ -1058,8 +1058,8 @@ int main(void) {
             if (g.interact_lean < 0) { g.interact_lean = 0; g.interact_lean_vel = 0; }
         }
 
-        update_menu_springs(dt);
-        bool menu_active = update_pause_menu();
+        update_menu_springs(g, dt);
+        bool menu_active = update_pause_menu(g);
         if (!menu_active) {
             g.state_time += dt;
             g.total_time += dt;
@@ -1539,12 +1539,12 @@ int main(void) {
                     int sy = (int)(by + (by - RENDER_H/2) * expand * 0.5f);
                     float gl = 0.6f + 0.3f * sinf(GetTime()*(0.3f+i*0.07f) + i*2);
                     // Keep color progression from BED
-                    unsigned char r, g, b;
-                    if (i < 5) { r = 240; g = 200; b = 100; }
-                    else if (i < 10) { r = 230; g = 235; b = 245; }
-                    else { r = 180; g = 200; b = 255; }
-                    DrawCircle(sx, sy, 1.5f, (Color){r, g, b, (unsigned char)(gl*120)});
-                    DrawCircle(sx, sy, 4, (Color){r, g, b, (unsigned char)(gl*25)});
+                    unsigned char r, sg, b;
+                    if (i < 5) { r = 240; sg = 200; b = 100; }
+                    else if (i < 10) { r = 230; sg = 235; b = 245; }
+                    else { r = 180; sg = 200; b = 255; }
+                    DrawCircle(sx, sy, 1.5f, (Color){r, sg, b, (unsigned char)(gl*120)});
+                    DrawCircle(sx, sy, 4, (Color){r, sg, b, (unsigned char)(gl*25)});
                 }
 
                 // Background star field expands
@@ -1596,7 +1596,7 @@ int main(void) {
         }
 
         // Vignette text overlay
-        draw_vignette_text();
+        draw_vignette_text(g);
 
         // Pause menu overlay — drawn into 480x300, gets film grain treatment
         if (g.menu_mode != MENU_NONE) draw_pause_menu();
