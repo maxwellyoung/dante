@@ -430,6 +430,57 @@ int main(void) {
         printf("[EV] WARNING: assets/skytower.obj not found\n");
     }
 
+    // ── Load model assets from assets/ directory ──
+    // Scans for .glb and .obj files (excluding skytower.obj which is loaded above)
+    {
+        const char *extensions[] = {".glb", ".obj"};
+        FilePathList files = LoadDirectoryFiles("assets");
+        for (unsigned int fi = 0; fi < files.count && g.model_asset_count < MAX_MODEL_ASSETS; fi++) {
+            const char *path = files.paths[fi];
+            bool is_model = false;
+            for (int ei = 0; ei < 2; ei++) {
+                if (IsFileExtension(path, extensions[ei])) { is_model = true; break; }
+            }
+            if (!is_model) continue;
+            // Skip skytower — loaded separately above
+            if (TextFindIndex(GetFileName(path), "skytower") >= 0) continue;
+
+            ModelAsset *ma = &g.model_assets[g.model_asset_count];
+            const char *fname = GetFileNameWithoutExt(path);
+            strncpy(ma->name, fname, sizeof(ma->name) - 1);
+            ma->model = LoadModel(path);
+            if (ma->model.meshCount > 0) {
+                // Apply lighting shader to all material slots
+                if (g.lighting.ready) {
+                    for (int mi = 0; mi < ma->model.materialCount; mi++) {
+                        ma->model.materials[mi].shader = g.lighting.shader;
+                    }
+                }
+                // Load animations if GLB
+                // Skip for large models (>5MB) — animation parsing can hang
+                if (IsFileExtension(path, ".glb")) {
+                    long fsize = GetFileLength(path);
+                    if (fsize > 0 && fsize < 5 * 1024 * 1024) {
+                        ma->anims = LoadModelAnimations(path, &ma->anim_count);
+                        printf("[EV]   Animations: %d\n", ma->anim_count);
+                    } else {
+                        printf("[EV]   Skipping animation load (file %ldKB — optimize model)\n", fsize / 1024);
+                    }
+                }
+                ma->loaded = true;
+                printf("[EV] Model asset '%s' loaded — %d meshes, %d mats, %d anims\n",
+                       ma->name, ma->model.meshCount, ma->model.materialCount, ma->anim_count);
+                g.model_asset_count++;
+            } else {
+                printf("[EV] WARNING: Model asset '%s' empty after load\n", fname);
+                UnloadModel(ma->model);
+            }
+        }
+        UnloadDirectoryFiles(files);
+        if (g.model_asset_count > 0)
+            printf("[EV] Loaded %d model asset(s)\n", g.model_asset_count);
+    }
+
     DisableCursor();
     SetExitKey(0);  // ESC handled by pause menu, not raylib
 
@@ -504,7 +555,7 @@ int main(void) {
             .outdoor = false},
         {STATE_CAR, "taxi",
             .hero  = {{0, 0, 0}, {-0.3f, 0.9f, -1.2f}},   // driver + dashboard
-            .spawn = {{0, 0, 0}, {0.5f, 0.8f, -0.5f}},     // windshield + city
+            .spawn = {{0, 0, 0}, {0, 0.9f, -2.0f}},      // forward through windshield
             .dark_by_design = true, .outdoor = false},
         {STATE_HYPERSPACE, "hyperspace",
             .hero  = {{0, 0, 0}, {0, 0, -20}},             // tunnel convergence
@@ -867,6 +918,12 @@ int main(void) {
     if (g.sphere_model_loaded) UnloadModel(g.sphere_model);
     if (g.cone_model_loaded) UnloadModel(g.cone_model);
     if (g.skytower_loaded) UnloadModel(g.skytower_model);
+    for (int mi = 0; mi < g.model_asset_count; mi++) {
+        if (g.model_assets[mi].loaded) {
+            if (g.model_assets[mi].anims) UnloadModelAnimations(g.model_assets[mi].anims, g.model_assets[mi].anim_count);
+            UnloadModel(g.model_assets[mi].model);
+        }
+    }
     UnloadEVLighting(&g.lighting);
     UnloadEVPostFX(&g.postfx);
     UnloadFileMusic(&g.audio);
@@ -913,6 +970,17 @@ int main(void) {
         if (!menu_active) {
             g.state_time += dt;
             g.total_time += dt;
+
+            // Tick model animations (GLB skeletal)
+            for (int mi = 0; mi < g.model_asset_count; mi++) {
+                ModelAsset *ma = &g.model_assets[mi];
+                if (ma->loaded && ma->anims && ma->anim_count > 0) {
+                    ma->current_frame++;
+                    UpdateModelAnimation(ma->model, ma->anims[ma->current_anim], ma->current_frame);
+                    if (ma->current_frame >= ma->anims[ma->current_anim].frameCount)
+                        ma->current_frame = 0;
+                }
+            }
         }
 
         // Decay g.scene-cut flash
@@ -1250,7 +1318,22 @@ int main(void) {
                      || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE)
                     && g.gibbons.active) {
                     BeginMode3D(g.player.camera);
-                    draw_npc(&g.gibbons, &g.cube_model, &g.cyl_model, &g.lighting);
+                    int gibbons_mi = find_model_asset("gibbons");
+                    if (gibbons_mi >= 0 && g.model_assets[gibbons_mi].loaded) {
+                        // Use Blender GLB model
+                        ModelAsset *ma = &g.model_assets[gibbons_mi];
+                        float yaw_deg = g.gibbons.yaw * RAD2DEG;
+                        float base_y = g.gibbons.use_physics ? g.gibbons.ground_y : (g.gibbons.pos.y - 1.6f);
+                        float bob = g.gibbons.waiting ? 0 : sinf(g.gibbons.bob_timer) * 0.05f;
+                        DrawModelEx(ma->model,
+                            (Vector3){g.gibbons.pos.x, base_y + bob, g.gibbons.pos.z},
+                            (Vector3){0, 1, 0}, yaw_deg + 180.0f,
+                            (Vector3){0.8f, 0.8f, 0.8f},  // scale to fit scene
+                            WHITE);
+                    } else {
+                        // Fallback: procedural cube geometry
+                        draw_npc(&g.gibbons, &g.cube_model, &g.cyl_model, &g.lighting);
+                    }
                     EndMode3D();
                 }
                 // Sprint 5B: Zero-G sparkles — larger drift, occasional bright flashes
@@ -1572,6 +1655,12 @@ int main(void) {
     if (g.sphere_model_loaded) UnloadModel(g.sphere_model);
     if (g.cone_model_loaded) UnloadModel(g.cone_model);
     if (g.skytower_loaded) UnloadModel(g.skytower_model);
+    for (int mi = 0; mi < g.model_asset_count; mi++) {
+        if (g.model_assets[mi].loaded) {
+            if (g.model_assets[mi].anims) UnloadModelAnimations(g.model_assets[mi].anims, g.model_assets[mi].anim_count);
+            UnloadModel(g.model_assets[mi].model);
+        }
+    }
     DestroyShadowMap(&g.lighting);
     UnloadEVLighting(&g.lighting);
     UnloadEVPostFX(&g.postfx);
