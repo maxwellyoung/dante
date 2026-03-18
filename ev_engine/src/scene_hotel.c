@@ -182,6 +182,7 @@ void room_update(float dt) {
     if (g.tasks_done >= 3 && !g.phone_triggered) {
         g.phone_triggered = true;
         add_wall(&g.scene, 5.2f, 0.87f, 0.15f, 0.2f, 0.01f, 0.1f, (Color){100,180,240,220});
+        set_last_decal(&g.scene);
         g.phone_wall_idx = g.scene.wall_count - 1;
     }
     if (g.phone_triggered && g.phone_wall_idx >= 0) {

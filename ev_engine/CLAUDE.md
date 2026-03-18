@@ -60,6 +60,49 @@ player.c            — Quake-style movement/physics
 npc.c               — Gibbons NPC
 ui.c / ui.h         — Spring physics, icons, UI components
 config.h            — centralized constants (PI, SAMPLE_RATE, task counts, etc.)
+
+assets/skytower.obj — Sky Tower 3D model (first external mesh)
+assets/*.glb, *.obj — Auto-loaded model assets (ModelAsset registry)
+scripts/blender_send.py — Blender MCP socket helper (model/rig/export)
+```
+
+### 3D Model Asset System
+
+**Auto-loading**: Any `.glb` or `.obj` in `assets/` is auto-loaded at startup into `g.model_assets[]` (max 16). Lighting shader applied to all material slots. GLB animations loaded and ticked each frame.
+
+**Placing models in scenes:**
+```c
+int taxi = find_model_asset("taxi");  // lookup by filename without extension
+if (taxi >= 0) {
+    add_model(s, 0, 0, -5,           // position
+              1, 1, 1,               // scale
+              0,                     // rotation degrees
+              taxi,                  // model_index
+              MAT_CONCRETE,          // materialId for shader
+              (Color){220,200,50,255}); // base color
+}
+```
+
+**Key types** (`ev_types.h`):
+- `ModelAsset` — Model + animations + name + frame tracking
+- `SHAPE_MODEL` — ShapeType for walls referencing loaded models
+- `model_index` — field on Wall struct, indexes `g.model_assets[]`
+
+**Formats:**
+- **Static props** (.obj): 50-200 tris, no textures, no animation
+- **Animated models** (.glb): 200-800 tris, simple rigs, max 4 bone influences
+- **No UV textures** — GLSL materialId system handles surfaces procedurally
+- **Scale**: 1 unit = 1 meter. GLB exports Y-up (matches Raylib).
+
+### Blender Pipeline (Mac Mini)
+
+Blender runs on Mac Mini (`ssh mini-ts`, port 9877). Use `/blender` skill or `scripts/blender_send.py`.
+
+```bash
+# Model in Blender, export GLB, fetch to engine
+ssh mini-ts 'python3 ~/blender_send.py --export-glb /Users/klaus/taxi.glb'
+scp mini-ts:~/taxi.glb assets/
+make run  # auto-loads new model
 ```
 
 ### Adding a New Scene
@@ -106,6 +149,18 @@ GLSL 330 embedded as C string literals in `vs_source` / `fs_source`. Modifying t
 All geometry is code — no mesh files except `assets/skytower.obj`. Scenes built with `add_wall()`, `add_cylinder()`, `add_sphere()`, `add_cone()` + composition helpers (`add_chandelier()`, `add_desk()`, etc.). Material tagging happens via `set_last_material()` or auto-detection in `tag_materials_by_color()`.
 
 **Budget:** `MAX_WALLS = 2048`, `MAX_OBJECTS = 64`. Check `make qa` for per-scene wall counts.
+
+### Z-Fighting Prevention
+The engine uses a **decal system** with OpenGL polygon offset to prevent z-fighting. Any geometry that sits flush against another surface MUST be marked as a decal.
+
+**Rules:**
+1. **Flush-against-wall geometry** (baseboards, crown molding, wainscoting panels, picture canvases): auto-marked as decal in composition helpers
+2. **Floor overlays** (puddles, light shafts, rugs, stains): use `add_wall_decal()` or `add_wall()` + `set_last_decal()`
+3. **Blob shadows**: rendered with stronger polygon offset (`-2.0, -2.0`) in their own GL state block
+4. **Clip planes**: tightened to near=0.05, far=300 (`rlSetClipPlanes` in main.c) — ~20× better depth precision than defaults
+5. **Never place two `add_wall()` calls at the same position** without marking one as decal
+6. Use `add_wall_decal()` for one-off decals instead of `add_wall()` + `set_last_decal()`
+7. Constants `Z_DECAL_BIAS`, `Z_DECAL_BIAS2`, `Z_TRIM_BIAS` in `config.h` for manual y-offsets when needed
 
 ### Audio System (`audio.c`)
 100% procedural — every sound synthesized from sine waves, noise, and envelopes at `SAMPLE_RATE = 44100`. No audio files. Drones are 20-32 second loops with reverb tails. Through-wall sounds (muffled piano, distant voices, footsteps above) create presence of inaccessible lives.

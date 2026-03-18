@@ -228,12 +228,13 @@ void suite_update(float dt) {
                             add_wall(&g.scene, -2.5f, 1.8f, -5.35f, 1.2f, 1.5f, 0.01f, (Color){60,45,20,40});
                         } else if (strcmp(obj->name, "desk") == 0) {
                             add_wall(&g.scene, 5.5f, 0.85f, -2, 1.8f, 0.01f, 0.8f, (Color){20,25,45,255});
-                            add_wall(&g.scene, 5.2f, 0.86f, -2.1f, 0.06f, 0.005f, 0.06f, (Color){240,235,220,200});
-                            add_wall(&g.scene, 5.7f, 0.86f, -1.8f, 0.04f, 0.005f, 0.04f, (Color){240,235,220,180});
-                            add_wall(&g.scene, 5.4f, 0.86f, -1.6f, 0.05f, 0.005f, 0.05f, (Color){240,235,220,160});
-                            add_wall(&g.scene, 6.0f, 0.86f, -2.3f, 0.03f, 0.005f, 0.03f, (Color){240,235,220,170});
-                            add_wall(&g.scene, 5.45f, 0.862f, -1.95f, 0.8f, 0.003f, 0.02f, (Color){180,60,50,100});
+                            add_wall_decal(&g.scene, 5.2f, 0.86f, -2.1f, 0.06f, 0.005f, 0.06f, (Color){240,235,220,200});
+                            add_wall_decal(&g.scene, 5.7f, 0.86f, -1.8f, 0.04f, 0.005f, 0.04f, (Color){240,235,220,180});
+                            add_wall_decal(&g.scene, 5.4f, 0.86f, -1.6f, 0.05f, 0.005f, 0.05f, (Color){240,235,220,160});
+                            add_wall_decal(&g.scene, 6.0f, 0.86f, -2.3f, 0.03f, 0.005f, 0.03f, (Color){240,235,220,170});
+                            add_wall_decal(&g.scene, 5.45f, 0.862f, -1.95f, 0.8f, 0.003f, 0.02f, (Color){180,60,50,100});
                             add_cylinder(&g.scene, 5.7f, 0.863f, -1.8f, 0.12f, 0.003f, (Color){180,60,50,80});
+                            set_last_decal(&g.scene);
                         } else if (strcmp(obj->name, "bed") == 0) {
                             add_wall(&g.scene, 0, 0.68f, -5.0f, 0.18f, 0.04f, 0.12f, (Color){90,50,25,255});
                             g.interaction_phases[3] = 1;

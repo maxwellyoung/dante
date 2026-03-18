@@ -196,6 +196,7 @@ void paris_dream_load(void) {
     // A scarf on the bed. Godard red. Memory preserves color selectively.
     add_wall(&g.scene, 0.3f, 0.62f, -3.2f, 0.6f, 0.02f, 0.15f, (Color){200,50,45,255});
     set_last_material(&g.scene, MAT_FABRIC);
+    set_last_decal(&g.scene);
 
     // Eiffel Tower silhouette through window
     add_object(&g.scene, -2.5f, 0.62f, -3.5f, "photograph", (Color){240,238,230,255}, 1);
@@ -274,7 +275,7 @@ void paris_dream_update(float dt) {
             SetPostFXCA(&g.postfx, 2.5f);
             SetPostFXVignette(&g.postfx, 1.0f);
             SetPostFXContrast(&g.postfx, 1.0f);
-            hard_cut_to(STATE_BED);
+            hard_cut_to(STATE_CLEANED_SUITE);
         }
     }
     if (g.state_time > 90.0f) {
@@ -283,6 +284,6 @@ void paris_dream_update(float dt) {
         SetPostFXCA(&g.postfx, 2.5f);
         SetPostFXVignette(&g.postfx, 1.0f);
         SetPostFXContrast(&g.postfx, 1.0f);
-        hard_cut_to(STATE_BED);
+        hard_cut_to(STATE_CLEANED_SUITE);
     }
 }

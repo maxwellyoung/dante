@@ -10,6 +10,9 @@ void add_sphere(Scene *s, float x, float y, float z, float diameter, Color c);
 void add_cone(Scene *s, float x, float y, float z, float diameter, float height, Color c);
 void add_light_panel(Scene *s, float x, float y, float z, float w, float h, float d, Color c);
 void add_skytower(Scene *s, float x, float y, float z, float scale, Color c);
+void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz,
+               float rotation_deg, int model_index, MaterialType mat, Color c);
+int find_model_asset(const char *name);
 void add_object(Scene *s, float x, float y, float z, const char *name, Color c, int max_steps);
 
 // Material assignment (set on most recently added wall)
@@ -20,6 +23,9 @@ void set_last_rotation(Scene *s, float degrees);
 
 // Mark as decal — polygon offset prevents z-fighting on overlay geometry
 void set_last_decal(Scene *s);
+
+// Convenience: add_wall + auto-mark as decal (for floor overlays, light shafts, puddles)
+void add_wall_decal(Scene *s, float x, float y, float z, float w, float h, float d, Color c);
 
 // Composition helpers — rich furniture from simple primitives
 void add_dining_table(Scene *s, float x, float y, float z, float w, float d, float angle, Color wood);

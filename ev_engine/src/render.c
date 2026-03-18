@@ -2,6 +2,7 @@
 // No hand-holding. No task counter. No exit beacon.
 // The space speaks for itself.
 #include "render.h"
+#include "game_ctx.h"
 #include "palette.h"
 #include "raymath.h"
 #include "rlgl.h"
@@ -546,6 +547,24 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                                        (Vector3){w->size.x, w->size.y * 0.3f, w->size.z}, WHITE);
                         }
                         break;
+                    case SHAPE_MODEL: {
+                        extern GameCtx g;
+                        int mi = w->model_index;
+                        if (mi >= 0 && mi < g.model_asset_count && g.model_assets[mi].loaded) {
+                            ModelAsset *ma = &g.model_assets[mi];
+                            // Multi-material models (GLB): draw with their own Blender colors.
+                            // Single-color override only if the wall color isn't white (255,255,255).
+                            bool override_color = !(w->color.r == 255 && w->color.g == 255 && w->color.b == 255);
+                            if (override_color) {
+                                // Simple prop — override all material slots with wall color
+                                for (int mj = 0; mj < ma->model.materialCount; mj++)
+                                    ma->model.materials[mj].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                            }
+                            DrawModelEx(ma->model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                                       w->size, WHITE);
+                        }
+                        break;
+                    }
                     default: // SHAPE_CUBE
                         if (cube_model_loaded) {
                             cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
@@ -587,7 +606,11 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
     }
 
     // Blob shadows — dark discs under furniture, grounds objects in scene
+    // Polygon offset prevents z-fighting with floor geometry
     if (indoor && cyl_model_loaded && cyl_model && cyl_model->meshCount > 0) {
+        rlDrawRenderBatchActive();
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(-2.0f, -2.0f);  // stronger bias than decals — shadows always on top
         if (lighting->ready) SetMaterialId(lighting, 0);
         int shadow_count = 0;
         for (int i = 0; i < scene->wall_count && shadow_count < 40; i++) {
@@ -610,6 +633,8 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                 }
             }
         }
+        rlDrawRenderBatchActive();
+        glDisable(GL_POLYGON_OFFSET_FILL);
     }
 
     // ── Ambient micro-animations — the world breathes ──

@@ -1,6 +1,7 @@
 // scene.c — Scene construction
 // Material palette. Clean volumes. Dramatic light.
 #include "scene.h"
+#include "game_ctx.h"
 #include "scale.h"
 #include "palette.h"
 #include <math.h>
@@ -92,6 +93,32 @@ void add_skytower(Scene *s, float x, float y, float z, float scale, Color c) {
     };
 }
 
+void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz,
+               float rotation_deg, int model_index, MaterialType mat, Color c) {
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — model at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z}, .size = {sx, sy, sz}, .color = c,
+        .active = true, .shape = SHAPE_MODEL,
+        .material = mat, .rotation_y = rotation_deg,
+        .model_index = model_index,
+    };
+}
+
+// Find a loaded model asset by name — returns index or -1
+int find_model_asset(const char *name) {
+    // Access global game context
+    extern GameCtx g;
+    for (int i = 0; i < g.model_asset_count; i++) {
+        if (strcmp(g.model_assets[i].name, name) == 0 && g.model_assets[i].loaded)
+            return i;
+    }
+    return -1;
+}
+
 // Set material on the most recently added wall — chainable, non-breaking
 void set_last_material(Scene *s, MaterialType mat) {
     if (s->wall_count > 0) s->walls[s->wall_count - 1].material = mat;
@@ -104,6 +131,12 @@ void set_last_rotation(Scene *s, float degrees) {
 // Mark most recent wall as decal — rendered with polygon offset to prevent z-fighting
 void set_last_decal(Scene *s) {
     if (s->wall_count > 0) s->walls[s->wall_count - 1].is_decal = true;
+}
+
+// Convenience: add_wall + auto-mark as decal (floor overlays, light shafts, puddles)
+void add_wall_decal(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
+    add_wall(s, x, y, z, w, h, d, c);
+    set_last_decal(s);
 }
 
 // ── P5: Enhanced geometry helpers ──
@@ -220,21 +253,20 @@ void add_window(Scene *s, float x, float y, float z,
 
 void add_baseboard(Scene *s, float x, float y, float z,
                    float length, float depth_axis, Color c) {
-    // depth_axis: 'x' length along X, 'z' length along Z
-    // Thin strip at floor level
+    // Thin strip at floor level — flush against wall, so mark as decal
     float h = 0.08f;
     if (depth_axis > 0.01f) {
-        // Along Z axis
         add_wall(s, x, y + h/2, z, 0.03f, h, length, c);
     } else {
-        // Along X axis
         add_wall(s, x, y + h/2, z, length, h, 0.03f, c);
     }
     set_last_material(s, MAT_WOOD);
+    set_last_decal(s);
 }
 
 void add_crown_molding(Scene *s, float x, float y, float z,
                        float length, float along_z, Color c) {
+    // Flush against wall/ceiling junction — mark as decal
     float h = 0.06f;
     if (along_z > 0.01f) {
         add_wall(s, x, y - h/2, z, 0.04f, h, length, c);
@@ -242,15 +274,17 @@ void add_crown_molding(Scene *s, float x, float y, float z,
         add_wall(s, x, y - h/2, z, length, h, 0.04f, c);
     }
     set_last_material(s, MAT_WOOD);
+    set_last_decal(s);
 }
 
 void add_picture_frame(Scene *s, float x, float y, float z,
                        float w, float h, Color frame_color, Color canvas_color) {
     float t = 0.05f;
-    // Canvas
+    // Canvas — sits against wall, mark as decal to avoid z-fight
     add_wall(s, x, y, z, w, h, 0.01f, canvas_color);
     set_last_material(s, MAT_FABRIC);
-    // Frame strips
+    set_last_decal(s);
+    // Frame strips — slightly proud of canvas (0.02f offset), no z-fight
     add_wall(s, x, y + h/2 + t/2, z, w + t*2, t, 0.03f, frame_color);
     set_last_material(s, MAT_WOOD);
     add_wall(s, x, y - h/2 - t/2, z, w + t*2, t, 0.03f, frame_color);
@@ -294,8 +328,10 @@ void add_bookshelf(Scene *s, float x, float y, float z,
 void add_light_panel(Scene *s, float x, float y, float z,
                      float w, float h, float d, Color c) {
     add_wall(s, x, y, z, w, h, d, (Color){c.r, c.g, c.b, 160});
+    // Glow halo — decal to avoid z-fight with core panel
     add_wall(s, x, y, z + (d > 0.2f ? 0 : 0.05f), w + 0.2f, h + 0.2f, d + 0.08f,
              (Color){c.r, c.g, c.b, 50});
+    set_last_decal(s);
 }
 
 // Recessed panel — creates depth illusion with inset + frame
@@ -1125,6 +1161,38 @@ void build_lobby(Scene *s) {
     set_last_material(s, MAT_BRASS);
 
     // ============================================================
+    // TABLE FOR TWO — by the window, near entrance
+    // Commandment 9: the game is full of twos and the player is one.
+    // A small café table with two chairs. Two coffee cups.
+    // The chairs face each other. One has a coat draped over it.
+    // ============================================================
+    {
+        float tx = 6.5f, tz = 5.0f;  // right side, near entrance
+
+        // Small round table — brass pedestal
+        add_wall(s, tx, 0.4f, tz, 0.7f, 0.03f, 0.7f, gold);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, tx, 0.2f, tz, 0.06f, 0.4f, gold);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, tx, 0.01f, tz, 0.2f, 0.02f, gold);
+        set_last_material(s, MAT_BRASS);
+
+        // TWO CHAIRS — facing each other
+        add_chair(s, tx, 0, tz - 0.7f, 0, wood_dark, leather_brn);
+        add_chair(s, tx, 0, tz + 0.7f, 180, wood_dark, leather_brn);
+
+        // Two coffee cups — one used (dark inside), one untouched
+        add_cylinder(s, tx - 0.15f, 0.43f, tz - 0.1f, 0.07f, 0.1f, white);
+        add_cylinder(s, tx - 0.15f, 0.44f, tz - 0.1f, 0.05f, 0.03f, (Color){45,30,20,200});
+        add_cylinder(s, tx + 0.15f, 0.43f, tz + 0.1f, 0.07f, 0.1f, white);
+        // Second cup: still full, untouched — she never came down for breakfast
+
+        // Coat draped over second chair back — someone was expected
+        add_wall(s, tx, 0.65f, tz + 0.75f, 0.4f, 0.5f, 0.06f, (Color){55,48,42,220});
+        set_last_material(s, MAT_FABRIC);
+    }
+
+    // ============================================================
     // BLOCKING — seal gaps to prevent escape into void
     // ============================================================
     // Front wall gap is handled by wall sections + transom above
@@ -1196,9 +1264,9 @@ void build_hallway(Scene *s) {
     add_wall(s, W/2-0.14f, 1.1f, -L+4, 0.09f, 0.06f, 0.09f, godard_red);
 
     // LIGHT SHAFT — light from end window, trapezoid approximation on floor
-    add_wall(s, 0, 0.02f, -L+2, 1.5f, 0.02f, 2.0f, (Color){230,225,215,90});
-    add_wall(s, 0, 0.02f, -L+4, 2.0f, 0.02f, 2.0f, (Color){230,225,215,70});
-    add_wall(s, 0, 0.02f, -L+6, 2.5f, 0.02f, 2.0f, (Color){230,225,215,50});
+    add_wall_decal(s, 0, 0.02f, -L+2, 1.5f, 0.02f, 2.0f, (Color){230,225,215,90});
+    add_wall_decal(s, 0, 0.02f, -L+4, 2.0f, 0.02f, 2.0f, (Color){230,225,215,70});
+    add_wall_decal(s, 0, 0.02f, -L+6, 2.5f, 0.02f, 2.0f, (Color){230,225,215,50});
 
     // "Do Not Disturb" sign on door 2 (left side)
     add_wall(s, -(W/2-0.1f)-0.02f, 1.1f, -3.5f - 1*4.5f, 0.3f, 0.15f, 0.04f, (Color){200,50,40,255});
@@ -2867,6 +2935,22 @@ void build_taxi_ride(Scene *s) {
     add_wall(s, 0.35f, 0.64f, -0.2f, 0.1f, 0.06f, 0.1f, (Color){60,55,50,255});
     set_last_decal(s);
 
+    // ── SECOND TICKET — Commandment 9. The trip was for two. ──
+    // Two paper receipts on the backseat, right side. Not interactive.
+    // Ticket 1 — yours, slightly crumpled
+    add_wall(s, 0.55f, 0.42f, 0.2f, 0.22f, 0.005f, 0.1f, (Color){245,242,235,255});
+    set_last_decal(s);
+    // Blue print line
+    add_wall(s, 0.55f, 0.425f, 0.18f, 0.18f, 0.002f, 0.015f, (Color){50,80,180,200});
+    set_last_decal(s);
+    // Ticket 2 — hers, untouched, slightly overlapping
+    add_wall(s, 0.62f, 0.42f, 0.25f, 0.22f, 0.005f, 0.1f, (Color){245,242,235,255});
+    set_last_rotation(s, 8.0f);
+    set_last_decal(s);
+    add_wall(s, 0.62f, 0.425f, 0.23f, 0.18f, 0.002f, 0.015f, (Color){50,80,180,200});
+    set_last_rotation(s, 8.0f);
+    set_last_decal(s);
+
 }
 
 // ============================================================
@@ -3662,6 +3746,15 @@ void build_space_lobby(Scene *s) {
 
     tag_materials_by_color(s);
 
+    // ── GIBBONS MODEL — if the GLB is loaded, place him at the desk ──
+    {
+        int gi = find_model_asset("gibbons");
+        if (gi >= 0) {
+            // WHITE = preserve Blender's own material colors (multi-material model)
+            add_model(s, -10, 0, -2, 1,1,1, 0, gi, MAT_CONCRETE, (Color){255,255,255,255});
+        }
+    }
+
     // Spawn facing the observation window
     s->spawn = (Vector3){0, 1.6f, 8};
     s->exit_pos = (Vector3){0, 1.6f, ld/2-1};
@@ -4390,9 +4483,38 @@ void build_space_suite(Scene *s) {
     // Brass door handle — you can almost reach through
     add_sphere(s, rw/2-0.1f, 1.1f, -3.1f, 0.08f, brass);
     set_last_material(s, MAT_BRASS);
-    // Through the crack: darkness with a single pillow visible
-    add_wall(s, rw/2+0.2f, 0.4f, -3.5f, 0.4f, 0.15f, 0.3f, white);
-    set_last_material(s, MAT_FABRIC);
+    // ── ADJOINING ROOM INTERIOR — visible through the crack ──
+    // A dark mirror of your suite. The room she would have had.
+    // Just enough geometry to read through a 6cm gap.
+    {
+        float ax = rw/2 + 3.5f;  // center of adjoining room (3.5m beyond wall)
+        float az = -3.5f;
+        Color adj_dark = {18, 16, 14, 255};
+        Color adj_wall = {35, 32, 28, 255};
+
+        // Back wall
+        add_wall(s, ax, 1.5f, az-2.5f, 5, 3, 0.1f, adj_wall);
+        // Far wall
+        add_wall(s, ax+2.5f, 1.5f, az, 0.1f, 3, 5, adj_wall);
+        // Floor — dark
+        add_wall(s, ax, 0, az, 5, 0.05f, 5, adj_dark);
+        // Ceiling
+        add_wall(s, ax, 3, az, 5, 0.05f, 5, adj_dark);
+
+        // Single pillow on a bed — one person, mirroring your suite
+        // Bed frame
+        add_wall(s, ax, 0.18f, az-1.0f, 2.0f, 0.3f, 1.4f, (Color){40,30,20,255});
+        // Mattress
+        add_wall(s, ax, 0.38f, az-1.0f, 1.8f, 0.2f, 1.2f, (Color){50,48,45,255});
+        set_last_material(s, MAT_FABRIC);
+        // ONE pillow — centered
+        add_wall(s, ax, 0.52f, az-1.4f, 0.55f, 0.14f, 0.3f, (Color){200,195,185,255});
+        set_last_material(s, MAT_FABRIC);
+
+        // Light seam under the door — warm amber, someone was here recently
+        add_wall(s, rw/2+0.05f, 0.02f, az, 0.04f, 0.04f, 1.0f, (Color){240,200,100,80});
+        set_last_decal(s);
+    }
 
     // ============================================================
     // 8. BED ZONE — back-center, the emotional core
@@ -4527,23 +4649,31 @@ void build_space_suite(Scene *s) {
     set_last_material(s, MAT_LEATHER);
 
     // TWO CHAMPAGNE GLASSES on tray — one poured, one empty
-    // Tray — brass oval
-    add_wall(s, -2.7f, 0.39f, 3.3f, 0.5f, 0.02f, 0.3f, brass);
-    set_last_material(s, MAT_BRASS);
-    // Glass 1 — half full (golden liquid inside)
-    add_cylinder(s, -2.8f, 0.44f, 3.3f, 0.03f, 0.14f, glass_clr);
-    set_last_material(s, MAT_GLASS);
-    add_wall(s, -2.8f, 0.44f, 3.3f, 0.04f, 0.07f, 0.04f, gold);
-    // Glass 2 — empty, tilted
-    add_cylinder(s, -2.6f, 0.44f, 3.35f, 0.03f, 0.14f, glass_clr);
-    set_last_material(s, MAT_GLASS);
-    set_last_rotation(s, 5.0f);
-
-    // Wine glass with lipstick mark
-    add_cylinder(s, -3.3f, 0.42f, 3.6f, 0.03f, 0.14f, (Color){210,210,215,160});
-    add_wall(s, -3.3f, 0.51f, 3.6f, 0.06f, 0.06f, 0.06f, (Color){210,210,215,160});
-    // Lipstick mark — red crescent on rim
-    add_wall(s, -3.28f, 0.54f, 3.58f, 0.03f, 0.02f, 0.01f, (Color){180,45,55,220});
+    {
+        int glasses_mdl = find_model_asset("champagne_glasses");
+        if (glasses_mdl >= 0) {
+            // Use 3D model — tray + both glasses + wine glass in one piece
+            add_model(s, -2.7f, 0.39f, 3.3f, 1,1,1, 0, glasses_mdl, MAT_GLASS, glass_clr);
+        } else {
+            // Fallback: procedural geometry
+            // Tray — brass oval
+            add_wall(s, -2.7f, 0.39f, 3.3f, 0.5f, 0.02f, 0.3f, brass);
+            set_last_material(s, MAT_BRASS);
+            // Glass 1 — half full (golden liquid inside)
+            add_cylinder(s, -2.8f, 0.44f, 3.3f, 0.03f, 0.14f, glass_clr);
+            set_last_material(s, MAT_GLASS);
+            add_wall(s, -2.8f, 0.44f, 3.3f, 0.04f, 0.07f, 0.04f, gold);
+            // Glass 2 — empty, tilted
+            add_cylinder(s, -2.6f, 0.44f, 3.35f, 0.03f, 0.14f, glass_clr);
+            set_last_material(s, MAT_GLASS);
+            set_last_rotation(s, 5.0f);
+            // Wine glass with lipstick mark
+            add_cylinder(s, -3.3f, 0.42f, 3.6f, 0.03f, 0.14f, (Color){210,210,215,160});
+            add_wall(s, -3.3f, 0.51f, 3.6f, 0.06f, 0.06f, 0.06f, (Color){210,210,215,160});
+            // Lipstick mark — red crescent on rim
+            add_wall(s, -3.28f, 0.54f, 3.58f, 0.03f, 0.02f, 0.01f, (Color){180,45,55,220});
+        }
+    }
 
     // TWO CHAIRS — angled toward each other, for watching Earth together
     add_chair(s, -5.2f, 0, 0.5f, 45.0f, dark_wood, navy);
@@ -4572,6 +4702,21 @@ void build_space_suite(Scene *s) {
     // Geometry textbook open
     add_wall(s, rw/2-1.3f, S_DESK_H+0.02f, -1.2f, 0.4f, 0.04f, 0.3f, (Color){180,40,35,255});
     set_last_material(s, MAT_LEATHER);
+
+    // Telephone on desk — rings unanswered
+    {
+        int phone_mdl = find_model_asset("telephone");
+        if (phone_mdl >= 0) {
+            add_model(s, rw/2-0.8f, S_DESK_H+0.01f, -1.8f, 1,1,1, -90, phone_mdl, MAT_BRASS, brass);
+        } else {
+            // Fallback: simple box phone
+            add_wall(s, rw/2-0.8f, S_DESK_H+0.04f, -1.8f, 0.14f, 0.06f, 0.1f, brass);
+            set_last_material(s, MAT_BRASS);
+            // Handset
+            add_wall(s, rw/2-0.8f, S_DESK_H+0.08f, -1.8f, 0.04f, 0.02f, 0.12f, (Color){35,30,25,255});
+            set_last_material(s, MAT_LEATHER);
+        }
+    }
 
     // Desk chair
     add_chair(s, rw/2-2.0f, 0, -1.5f, -90.0f, dark_wood, (Color){60,55,50,255});
@@ -4819,6 +4964,153 @@ void build_space_suite(Scene *s) {
     s->has_exit = false;
 }
 
+// ============================================================
+// CLEANED SUITE — montage variant. Every two becomes one.
+// The room after. Housekeeping has been. She was never here.
+// ============================================================
+void build_space_suite_cleaned(Scene *s) {
+    // Start with the full suite
+    build_space_suite(s);
+
+    // Now strip the "twos" — walk the wall array and remove her presence.
+    // The montage shows: what's left when you subtract a person from a room.
+
+    // We rebuild the bed zone with ONE pillow, ONE side set up
+    // And strip floating objects (zero-g storytelling is over — gravity resumed)
+    // Strip her book, her throw pillow, her scarf, lipstick glass, second champagne glass
+
+    // Strategy: mark specific walls as inactive by matching position+color.
+    // This is fragile but the geometry is code-defined and won't change without us knowing.
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (!w->active) continue;
+
+        // ── SECOND PILLOW (her side, left, x=-0.6) ──
+        if (w->pos.z < -5.0f && w->pos.z > -5.4f &&
+            w->pos.x < -0.3f && w->pos.x > -0.9f &&
+            w->pos.y > 0.6f && w->pos.y < 0.75f &&
+            w->size.x > 0.5f && w->size.y < 0.3f) {
+            w->active = false;
+            continue;
+        }
+
+        // ── HER BOOK on left nightstand (blue cover, x=-2.6) ──
+        if (w->pos.x < -2.4f && w->pos.x > -2.8f &&
+            w->pos.y > 0.6f && w->pos.y < 0.7f &&
+            w->pos.z < -4.7f && w->pos.z > -5.1f &&
+            w->color.b > 150) {
+            w->active = false;
+            continue;
+        }
+
+        // ── SECOND THROW PILLOW on sofa (blue, x=-2.4, her favorite color) ──
+        if (w->pos.x > -2.6f && w->pos.x < -2.2f &&
+            w->pos.y > 0.4f && w->pos.y < 0.55f &&
+            w->pos.z > 1.5f && w->pos.z < 2.0f &&
+            w->color.b > 150) {
+            w->active = false;
+            continue;
+        }
+
+        // ── SCARF draped over sofa arm (red, x=-4.1) ──
+        if (w->pos.x < -3.9f && w->pos.x > -4.3f &&
+            w->pos.y > 0.6f && w->pos.y < 0.8f &&
+            w->pos.z > 1.8f && w->pos.z < 2.2f &&
+            w->color.r > 180 && w->color.g < 80) {
+            w->active = false;
+            continue;
+        }
+
+        // ── SECOND CHAMPAGNE GLASS (empty, tilted, x=-2.6) ──
+        if (w->pos.x > -2.7f && w->pos.x < -2.5f &&
+            w->pos.y > 0.4f && w->pos.y < 0.5f &&
+            w->pos.z > 3.2f && w->pos.z < 3.5f &&
+            w->shape == SHAPE_CYLINDER) {
+            w->active = false;
+            continue;
+        }
+
+        // ── WINE GLASS with lipstick mark + the mark itself ──
+        if (w->pos.x < -3.1f && w->pos.x > -3.5f &&
+            w->pos.z > 3.4f && w->pos.z < 3.8f &&
+            w->pos.y > 0.35f && w->pos.y < 0.6f) {
+            w->active = false;
+            continue;
+        }
+
+        // ── FLOATING OBJECTS — zero-g is over, gravity resumed ──
+        // Bathrobe floating mid-room (y=2.6)
+        if (w->pos.y > 2.0f && w->pos.y < 3.5f &&
+            w->pos.x > 1.5f && w->pos.x < 3.0f &&
+            w->pos.z > 0.5f && w->pos.z < 1.5f) {
+            w->active = false;
+            continue;
+        }
+        // Floating pen (y=1.6, near desk)
+        if (w->pos.y > 1.4f && w->pos.y < 1.8f &&
+            w->pos.x > 5.0f &&
+            w->pos.z < -1.5f && w->pos.z > -2.1f &&
+            w->shape == SHAPE_CYLINDER && w->size.x < 0.04f) {
+            w->active = false;
+            continue;
+        }
+        // Inverted champagne glass near ceiling (y>3.5)
+        if (w->pos.y > 3.2f && w->pos.x < -3.8f &&
+            (w->shape == SHAPE_CONE || w->shape == SHAPE_CYLINDER || w->shape == SHAPE_SPHERE)) {
+            w->active = false;
+            continue;
+        }
+        // Floating photograph (y=2.5)
+        if (w->pos.y > 2.3f && w->pos.y < 2.7f &&
+            w->pos.x > 2.5f && w->pos.x < 3.5f &&
+            w->size.y < 0.02f) {
+            w->active = false;
+            continue;
+        }
+        // Floating book (y=1.5, near sofa)
+        if (w->pos.y > 1.3f && w->pos.y < 1.7f &&
+            w->pos.x < -1.5f && w->pos.x > -2.5f &&
+            w->pos.z > 2.5f && w->pos.z < 3.5f &&
+            w->size.x > 0.4f) {
+            w->active = false;
+            continue;
+        }
+    }
+
+    // ── Replace the remaining pillow — centered, singular ──
+    // Find the surviving right pillow (x=0.6) and center it
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (!w->active) continue;
+        if (w->pos.z < -5.0f && w->pos.z > -5.4f &&
+            w->pos.x > 0.3f && w->pos.x < 0.9f &&
+            w->pos.y > 0.6f && w->pos.y < 0.75f &&
+            w->size.x > 0.5f && w->size.y < 0.3f) {
+            w->pos.x = 0.0f;  // centered — one person
+            break;
+        }
+    }
+
+    // ── ONE glass, washed, centered on tray ──
+    // Find the surviving glass 1 (x=-2.8) and center it on the tray
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (!w->active) continue;
+        if (w->pos.x > -2.9f && w->pos.x < -2.7f &&
+            w->pos.y > 0.4f && w->pos.y < 0.5f &&
+            w->pos.z > 3.2f && w->pos.z < 3.5f &&
+            w->shape == SHAPE_CYLINDER) {
+            w->pos.x = -2.7f;  // centered on tray
+            break;
+        }
+    }
+
+    // ── Remove all interactive objects — nothing left to do ──
+    s->object_count = 0;
+
+    // The room is clean. The room is empty. The room is for one.
+}
+
 
 // ============================================================
 // COMPOSITION HELPERS — Rich furniture from simple primitives
@@ -4884,9 +5176,12 @@ void add_column_row(Scene *s, float x_start, float z, float spacing, int count, 
 }
 
 void add_wainscoting(Scene *s, float x, float y, float z, float length, float height, bool along_z, Color panel, Color trim) {
+    // Panel sits against wall — mark as decal
     if (along_z) {
         add_wall(s, x, y + height/2, z, S_WAINSCOT_D, height, length, panel);
         set_last_material(s, MAT_WOOD);
+        set_last_decal(s);
+        // Trim rails proud of panel — no z-fight (wider than panel)
         add_wall(s, x, y + height, z, S_WAINSCOT_D + 0.03f, S_WAINSCOT_RAIL, length, trim);
         set_last_material(s, MAT_WOOD);
         add_wall(s, x, y + height * 0.6f, z, S_WAINSCOT_D + 0.02f, S_WAINSCOT_RAIL, length, trim);
@@ -4894,6 +5189,7 @@ void add_wainscoting(Scene *s, float x, float y, float z, float length, float he
     } else {
         add_wall(s, x, y + height/2, z, length, height, S_WAINSCOT_D, panel);
         set_last_material(s, MAT_WOOD);
+        set_last_decal(s);
         add_wall(s, x, y + height, z, length, S_WAINSCOT_RAIL, S_WAINSCOT_D + 0.03f, trim);
         set_last_material(s, MAT_WOOD);
         add_wall(s, x, y + height * 0.6f, z, length, S_WAINSCOT_RAIL, S_WAINSCOT_D + 0.02f, trim);
