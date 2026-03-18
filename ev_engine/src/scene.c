@@ -2283,10 +2283,18 @@ void build_taxi_ride(Scene *s) {
 
     // ── THE MOTIF: cigarette ──
     // Stubbed out in the cupholder. The driver's? Yours?
-    // It was here before you got in.
     add_cylinder(s, 0.35f, 0.62f, -0.2f, 0.01f, 0.04f, (Color){230,225,215,255});
-    // Ash tip — still warm
     add_wall(s, 0.35f, 0.64f, -0.2f, 0.015f, 0.008f, 0.015f, (Color){60,55,50,255});
+
+    // ── COMMANDMENT 9: The first "two" ──
+    // Booking confirmation on the passenger seat beside you.
+    // "2 guests." The player's first interaction is hiding evidence.
+    // Cream card, slightly crumpled, hotel letterhead.
+    add_wall(s, 0.45f, 0.52f, 0.3f, 0.2f, 0.005f, 0.14f, (Color){240,235,225,230});
+    set_last_decal(s);
+    // Second line of text — smaller, darker (the number "2")
+    add_wall(s, 0.43f, 0.525f, 0.28f, 0.08f, 0.003f, 0.02f, (Color){60,55,50,180});
+    set_last_decal(s);
 
 }
 
@@ -2295,6 +2303,56 @@ void build_taxi_ride(Scene *s) {
 // A luxury hotel that has no business being in orbit.
 // Parisian warmth inside, infinite void outside.
 // ============================================================
+
+// ── The cleaned room — montage beat 7 ──
+// The hotel has already erased her. One pillow. One glass. One robe.
+// The room has moved on even if you haven't.
+void build_space_suite_cleaned(Scene *s) {
+    build_space_suite(s);
+    // Remove her traces — walk the wall list and deactivate:
+    // - Second bathrobe (her robe on the door)
+    // - Empty champagne glass (the second glass)
+    // - Sock under bed
+    // - Hotel slippers (still wrapped)
+    // - Scarf on sofa arm
+    // - Lipstick wine glass
+    // - Her book on coffee table
+    // Strategy: deactivate walls near known positions
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (!w->active) continue;
+        // Second bathrobe (near front wall, high)
+        if (fabsf(w->pos.x - 5.8f) < 0.3f && w->pos.y > 1.0f && fabsf(w->pos.z - 5.7f) < 0.5f
+            && w->size.y > 0.5f)
+            w->active = false;
+        // Sock under bed
+        if (fabsf(w->pos.x - 1.2f) < 0.2f && w->pos.y < 0.1f && fabsf(w->pos.z + 4.0f) < 0.2f
+            && w->size.x < 0.2f)
+            w->active = false;
+        // Hotel slippers by door
+        if (fabsf(w->pos.x - 4.5f) < 0.5f && w->pos.y < 0.1f && fabsf(w->pos.z - 5.0f) < 0.2f
+            && w->size.x < 0.25f)
+            w->active = false;
+        // Scarf on sofa arm
+        if (fabsf(w->pos.x + 4.2f) < 0.2f && fabsf(w->pos.z - 2.0f) < 0.2f
+            && w->color.r > 150 && w->color.g < 80)
+            w->active = false;
+    }
+    // Remove RIGHT pillow (hers) — leave only left
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (fabsf(w->pos.x - 0.6f) < 0.15f && fabsf(w->pos.y - 0.68f) < 0.1f
+            && fabsf(w->pos.z + 5.2f) < 0.2f && w->size.x < 0.8f)
+            w->active = false;
+    }
+    // Deactivate empty champagne glass (second one on tray)
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (w->shape == SHAPE_CYLINDER && fabsf(w->pos.x + 2.55f) < 0.1f
+            && fabsf(w->pos.z - 3.6f) < 0.1f && w->pos.y > 0.3f && w->pos.y < 0.5f)
+            w->active = false;
+    }
+}
 
 void build_return_taxi(Scene *s) {
     // RETURN TAXI — dawn Auckland. Same interior, different world.
