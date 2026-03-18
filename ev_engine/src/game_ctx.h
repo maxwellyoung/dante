@@ -114,6 +114,10 @@ typedef struct {
     bool photograph_flipped; // suite: photograph turned face-up once
     bool three_note_played;  // ending: 3-note callback plays once in stars
 
+    // ── Paris dream window morphing ──
+    int dream_tower_walls[3];    // indices of Eiffel/Sky Tower silhouette walls
+    int dream_window_phase;      // 0=Eiffel, 1=Sky Tower, 2=neither
+
     // ── Clock deceleration ──
     float bed_clock_rate;
 
@@ -149,6 +153,11 @@ typedef struct {
 
     // ── Hard cut flash ──
     float cut_flash_timer;
+
+    // ── Montage ──
+    int montage_shot;         // current shot index (0-12)
+    float montage_shot_time;  // time in current shot
+    bool montage_flash;       // white flash between cuts
 
     // ── Interaction ritual timers ──
     float interaction_timers[4];

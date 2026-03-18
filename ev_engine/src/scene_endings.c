@@ -115,7 +115,7 @@ void bed_update(float dt) {
         SetPostFXGrain(&g.postfx, 0.3f + desat * 0.5f);
     }
     if (g.state_time > 20)
-        hard_cut_to(STATE_STARS);
+        hard_cut_to(STATE_MONTAGE);
     // Breathing
     {
         float breath_rate = 0.4f;
@@ -175,7 +175,7 @@ void stars_update(float dt) {
     if (g.state_time > 15.0f || (g.state_time > 8.0f && IsKeyPressed(KEY_ENTER))) {
         SetMasterVolume(1.0f);
         SetPostFXWarmth(&g.postfx, 0.0f);
-        hard_cut_to(STATE_RETURN_TAXI);
+        hard_cut_to(STATE_MONTAGE);
     }
 }
 
@@ -230,12 +230,17 @@ void paris_dream_load(void) {
     add_wall(&g.scene, 0.95f, 0.705f, -3.68f, 0.15f, 0.003f, 0.02f, (Color){50,80,180,255});
     set_last_decal(&g.scene);
 
-    // Eiffel Tower silhouette through window
+    // Eiffel Tower silhouette through window — memory edits itself
     add_object(&g.scene, -2.5f, 0.62f, -3.5f, "photograph", (Color){240,238,230,255}, 1);
     add_object(&g.scene, -5.5f, 1.5f, -1.0f, "window", (Color){120,150,220,100}, 1);
-    add_wall(&g.scene, -6.5f, 2.5f, -1.0f, 0.06f, 2.0f, 0.06f, (Color){40,35,30,60});
-    add_wall(&g.scene, -6.5f, 3.5f, -1.0f, 0.6f, 0.04f, 0.04f, (Color){40,35,30,40});
-    add_wall(&g.scene, -6.5f, 3.0f, -1.0f, 0.35f, 0.04f, 0.04f, (Color){40,35,30,45});
+    // Tower silhouette — track indices for morphing (Eiffel → Sky Tower → neither)
+    g.dream_tower_walls[0] = g.scene.wall_count;
+    add_wall(&g.scene, -6.5f, 2.5f, -1.0f, 0.06f, 2.0f, 0.06f, (Color){40,35,30,60});   // vertical shaft
+    g.dream_tower_walls[1] = g.scene.wall_count;
+    add_wall(&g.scene, -6.5f, 3.5f, -1.0f, 0.6f, 0.04f, 0.04f, (Color){40,35,30,40});   // upper arms
+    g.dream_tower_walls[2] = g.scene.wall_count;
+    add_wall(&g.scene, -6.5f, 3.0f, -1.0f, 0.35f, 0.04f, 0.04f, (Color){40,35,30,45});  // lower arms
+    g.dream_window_phase = 0;  // starts as Eiffel
 
     // Dream geometry compression — proportions wrong, memory distorts
     for (int i = 0; i < g.scene.wall_count; i++) {
@@ -272,6 +277,32 @@ void paris_dream_update(float dt) {
         }
         SetPostFXGrain(&g.postfx, 0.7f + g.state_time * 0.003f);
     }
+    // Window morphing — memory edits itself
+    // Eiffel Tower → Sky Tower → neither. The city changes when you're not sure.
+    {
+        int new_phase = g.dream_window_phase;
+        if (g.state_time > 40.0f) new_phase = 2;       // neither — memory failed
+        else if (g.state_time > 20.0f) new_phase = 1;   // Sky Tower — wrong city
+        if (new_phase != g.dream_window_phase) {
+            g.dream_window_phase = new_phase;
+            Wall *shaft = &g.scene.walls[g.dream_tower_walls[0]];
+            Wall *upper = &g.scene.walls[g.dream_tower_walls[1]];
+            Wall *lower = &g.scene.walls[g.dream_tower_walls[2]];
+            if (new_phase == 1) {
+                // Sky Tower — taller, thinner, no arms. Auckland, not Paris.
+                shaft->size = (Vector3){0.04f, 3.5f, 0.04f};  // taller, thinner
+                shaft->pos.y = 3.0f;
+                upper->active = false;  // no arms — it's a needle
+                lower->active = false;
+            } else if (new_phase == 2) {
+                // Neither — memory gives up. All gone.
+                shaft->active = false;
+                upper->active = false;
+                lower->active = false;
+            }
+        }
+    }
+
     // Interactions
     if (IsKeyPressed(KEY_E)) {
         for (int i = 0; i < g.scene.object_count; i++) {
@@ -290,7 +321,13 @@ void paris_dream_update(float dt) {
                     } else if (strcmp(obj->name, "window") == 0) {
                         obj->step++; obj->done = true;
                         kick_camera(&g.player, -0.02f, 0.01f);
-                        show_text("Paris. Before all this.");
+                        // Memory edits itself — what city is this?
+                        if (g.dream_window_phase == 0)
+                            show_text("Paris. Before all this.");
+                        else if (g.dream_window_phase == 1)
+                            show_text("Auckland. Or was it?");
+                        else
+                            show_text("Somewhere. Nowhere.");
                     }
                 }
                 break;

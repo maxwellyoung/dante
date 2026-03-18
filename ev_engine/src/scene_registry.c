@@ -39,6 +39,8 @@ void paris_dream_load(void);
 void paris_dream_update(float dt);
 void cleaned_suite_load(void);
 void cleaned_suite_update(float dt);
+void montage_load(void);
+void montage_update(float dt);
 void return_taxi_load(void);
 void return_taxi_update(float dt);
 
@@ -61,6 +63,7 @@ const SceneDesc scene_descs[] = {
     [STATE_SPACE_SUITE]    = { .load = suite_load,       .update = suite_update,        .indoor = true  },
     [STATE_PARIS_DREAM]    = { .load = paris_dream_load, .update = paris_dream_update,  .indoor = true  },
     [STATE_CLEANED_SUITE]  = { .load = cleaned_suite_load, .update = cleaned_suite_update, .indoor = true },
+    [STATE_MONTAGE]        = { .load = montage_load,       .update = montage_update,      .indoor = true },
     [STATE_RETURN_TAXI]    = { .load = return_taxi_load,  .update = return_taxi_update, .indoor = true  },
 };
 
