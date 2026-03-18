@@ -432,54 +432,50 @@ int main(void) {
     }
 
     // ── Load model assets from assets/ directory ──
-    // Scans for .glb and .obj files (excluding skytower.obj which is loaded above)
-    // Skip in QA mode — procedural fallbacks handle all geometry
+    // Priority-ordered list — load only the models that matter most.
+    // Too many OBJ models exhaust Raylib's VAO slots → bus error.
+    // Procedural fallbacks handle everything not loaded here.
 #ifndef QA_MODE
     {
-        const char *extensions[] = {".glb", ".obj"};
-        FilePathList files = LoadDirectoryFiles("assets");
-        for (unsigned int fi = 0; fi < files.count && g.model_asset_count < MAX_MODEL_ASSETS; fi++) {
-            const char *path = files.paths[fi];
-            bool is_model = false;
-            for (int ei = 0; ei < 2; ei++) {
-                if (IsFileExtension(path, extensions[ei])) { is_model = true; break; }
-            }
-            if (!is_model) continue;
-            // Skip skytower — loaded separately above
-            if (TextFindIndex(GetFileName(path), "skytower") >= 0) continue;
+        // Priority order: narrative weight → visual impact
+        // NOTE: Loading multiple OBJ models after Gibbons (17 meshes) causes
+        // bus error on macOS Metal — Raylib VAO exhaustion. Load only GLB models
+        // until OBJs are consolidated into single-mesh exports.
+        // The OBJ files remain in assets/ — procedural fallbacks render them.
+        const char *priority_models[] = {
+            "assets/gibbons.glb",
+            "assets/taxi_driver.glb",
+            NULL
+        };
+        for (int pi = 0; priority_models[pi] && g.model_asset_count < MAX_MODEL_ASSETS; pi++) {
+            const char *path = priority_models[pi];
+            if (!FileExists(path)) continue;
 
             ModelAsset *ma = &g.model_assets[g.model_asset_count];
             const char *fname = GetFileNameWithoutExt(path);
             strncpy(ma->name, fname, sizeof(ma->name) - 1);
             ma->model = LoadModel(path);
             if (ma->model.meshCount > 0) {
-                // Apply lighting shader to all material slots
                 if (g.lighting.ready) {
-                    for (int mi = 0; mi < ma->model.materialCount; mi++) {
+                    for (int mi = 0; mi < ma->model.materialCount; mi++)
                         ma->model.materials[mi].shader = g.lighting.shader;
-                    }
                 }
-                // Load animations if GLB
-                // Skip for large models (>5MB) — animation parsing can hang
                 if (IsFileExtension(path, ".glb")) {
                     long fsize = GetFileLength(path);
                     if (fsize > 0 && fsize < 5 * 1024 * 1024) {
                         ma->anims = LoadModelAnimations(path, &ma->anim_count);
                         printf("[EV]   Animations: %d\n", ma->anim_count);
-                    } else {
-                        printf("[EV]   Skipping animation load (file %ldKB — optimize model)\n", fsize / 1024);
                     }
                 }
                 ma->loaded = true;
                 printf("[EV] Model asset '%s' loaded — %d meshes, %d mats, %d anims\n",
                        ma->name, ma->model.meshCount, ma->model.materialCount, ma->anim_count);
+                fflush(stdout);
                 g.model_asset_count++;
             } else {
-                printf("[EV] WARNING: Model asset '%s' empty after load\n", fname);
                 UnloadModel(ma->model);
             }
         }
-        UnloadDirectoryFiles(files);
         if (g.model_asset_count > 0)
             printf("[EV] Loaded %d model asset(s)\n", g.model_asset_count);
     }

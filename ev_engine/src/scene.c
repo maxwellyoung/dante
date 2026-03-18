@@ -2864,79 +2864,60 @@ void build_taxi_ride(Scene *s) {
     add_cylinder(s, -0.35f, 0.65f, -1.35f, 0.04f, 0.2f, (Color){40, 38, 35, 255});
 
     // ============================================================
-    // DRIVER — high fidelity cube-person, viewed from backseat
-    // Segmented limbs, face detail, clothing: collar flaps, cuffs, watch
+    // DRIVER — viewed from backseat
     // ============================================================
-    Color driver_collar = {225, 220, 210, 255};
-    Color driver_cap = {42, 40, 36, 255};
-    Color driver_skin = {205, 180, 145, 255};
-    Color driver_cuff = {180, 175, 168, 255};
-    Color driver_hair = {50, 42, 35, 255};
-    float dx = -0.4f, dz = -0.88f;
+    {
+        int driver_mdl = find_model_asset("taxi_driver");
+        if (driver_mdl >= 0) {
+            // GLB model — smooth, subdivided, proper silhouette
+            // Position at origin (model already has driver at correct position)
+            add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_CONCRETE, (Color){255,255,255,255});
+        } else {
+            // Fallback: procedural cube-person
+            Color driver_collar = {225, 220, 210, 255};
+            Color driver_cap = {42, 40, 36, 255};
+            Color driver_skin = {205, 180, 145, 255};
+            Color driver_cuff = {180, 175, 168, 255};
+            Color driver_hair = {50, 42, 35, 255};
+            float dx = -0.4f, dz = -0.88f;
 
-    // Torso
-    add_wall(s, dx, 0.72f, dz, 0.44f, 0.50f, 0.30f, driver_coat);
-    set_last_material(s, MAT_FABRIC);
-    // Shoulders
-    add_wall(s, dx, 0.96f, dz, 0.58f, 0.12f, 0.30f, driver_coat);
-    set_last_material(s, MAT_FABRIC);
-    // Collar — bright white V
-    add_wall(s, dx, 1.03f, dz + 0.02f, 0.26f, 0.08f, 0.18f, driver_collar);
-    set_last_material(s, MAT_FABRIC);
-    // Collar flaps — V shape visible from front/side
-    add_wall(s, dx - 0.08f, 1.00f, dz - 0.14f, 0.10f, 0.06f, 0.06f, driver_collar);
-    add_wall(s, dx + 0.08f, 1.00f, dz - 0.14f, 0.10f, 0.06f, 0.06f, driver_collar);
-
-    // Neck
-    add_cylinder(s, dx, 1.08f, dz + 0.01f, 0.14f, 0.10f, driver_skin);
-
-    // Head
-    add_wall(s, dx, 1.20f, dz + 0.02f, 0.24f, 0.26f, 0.24f, driver_head);
-    // Jaw — wider at bottom
-    add_wall(s, dx, 1.10f, dz + 0.02f, 0.22f, 0.06f, 0.20f, driver_skin);
-    // Ears
-    add_wall(s, dx + 0.13f, 1.18f, dz + 0.02f, 0.04f, 0.08f, 0.06f, driver_skin);
-    add_wall(s, dx - 0.13f, 1.18f, dz + 0.02f, 0.04f, 0.08f, 0.06f, driver_skin);
-    // Hair — dark patch on back of head (player sees this)
-    add_wall(s, dx, 1.22f, dz + 0.11f, 0.22f, 0.18f, 0.08f, driver_hair);
-    // Eyes — visible in rearview mirror angle, dark
-    add_wall(s, dx - 0.06f, 1.22f, dz - 0.11f, 0.05f, 0.04f, 0.02f, (Color){30,25,20,255});
-    add_wall(s, dx + 0.06f, 1.22f, dz - 0.11f, 0.05f, 0.04f, 0.02f, (Color){30,25,20,255});
-
-    // Flat cap
-    add_wall(s, dx, 1.35f, dz + 0.02f, 0.30f, 0.07f, 0.30f, driver_cap);
-    set_last_material(s, MAT_FABRIC);
-    // Cap brim
-    add_wall(s, dx, 1.33f, dz - 0.12f, 0.28f, 0.025f, 0.14f, driver_cap);
-    set_last_material(s, MAT_FABRIC);
-
-    // Left upper arm
-    add_wall(s, dx - 0.22f, 0.84f, dz - 0.05f, 0.13f, 0.28f, 0.13f, driver_coat);
-    set_last_material(s, MAT_FABRIC);
-    // Left forearm — reaching to wheel
-    add_wall(s, dx - 0.20f, 0.76f, dz - 0.28f, 0.11f, 0.14f, 0.22f, driver_coat);
-    set_last_material(s, MAT_FABRIC);
-    // Left cuff — white shirt
-    add_wall(s, dx - 0.18f, 0.74f, dz - 0.36f, 0.10f, 0.05f, 0.06f, driver_cuff);
-    // Left hand on wheel
-    add_wall(s, dx - 0.16f, 0.74f, dz - 0.42f, 0.10f, 0.07f, 0.08f, driver_skin);
-    // Watch — brass glint
-    add_wall(s, dx - 0.19f, 0.74f, dz - 0.34f, 0.04f, 0.03f, 0.06f, (Color){210,180,100,255});
-    set_last_material(s, MAT_BRASS);
-
-    // Right upper arm
-    add_wall(s, dx + 0.22f, 0.84f, dz + 0.02f, 0.13f, 0.28f, 0.13f, driver_coat);
-    set_last_material(s, MAT_FABRIC);
-    // Right forearm — resting
-    add_wall(s, dx + 0.24f, 0.70f, dz + 0.08f, 0.11f, 0.22f, 0.11f, driver_coat);
-    set_last_material(s, MAT_FABRIC);
-    // Right cuff
-    add_wall(s, dx + 0.24f, 0.60f, dz + 0.08f, 0.10f, 0.05f, 0.06f, driver_cuff);
-    // Right hand
-    add_wall(s, dx + 0.24f, 0.56f, dz + 0.08f, 0.10f, 0.07f, 0.08f, driver_skin);
-
-    // Jacket center seam — visible from behind
-    add_wall(s, dx, 0.80f, dz + 0.15f, 0.02f, 0.40f, 0.02f, (Color){15,13,10,255});
+            add_wall(s, dx, 0.72f, dz, 0.44f, 0.50f, 0.30f, driver_coat);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx, 0.96f, dz, 0.58f, 0.12f, 0.30f, driver_coat);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx, 1.03f, dz + 0.02f, 0.26f, 0.08f, 0.18f, driver_collar);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx - 0.08f, 1.00f, dz - 0.14f, 0.10f, 0.06f, 0.06f, driver_collar);
+            add_wall(s, dx + 0.08f, 1.00f, dz - 0.14f, 0.10f, 0.06f, 0.06f, driver_collar);
+            add_cylinder(s, dx, 1.08f, dz + 0.01f, 0.14f, 0.10f, driver_skin);
+            add_wall(s, dx, 1.20f, dz + 0.02f, 0.24f, 0.26f, 0.24f, driver_head);
+            add_wall(s, dx, 1.10f, dz + 0.02f, 0.22f, 0.06f, 0.20f, driver_skin);
+            add_wall(s, dx + 0.13f, 1.18f, dz + 0.02f, 0.04f, 0.08f, 0.06f, driver_skin);
+            add_wall(s, dx - 0.13f, 1.18f, dz + 0.02f, 0.04f, 0.08f, 0.06f, driver_skin);
+            add_wall(s, dx, 1.22f, dz + 0.11f, 0.22f, 0.18f, 0.08f, driver_hair);
+            add_wall(s, dx - 0.06f, 1.22f, dz - 0.11f, 0.05f, 0.04f, 0.02f, (Color){30,25,20,255});
+            add_wall(s, dx + 0.06f, 1.22f, dz - 0.11f, 0.05f, 0.04f, 0.02f, (Color){30,25,20,255});
+            add_wall(s, dx, 1.35f, dz + 0.02f, 0.30f, 0.07f, 0.30f, driver_cap);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx, 1.33f, dz - 0.12f, 0.28f, 0.025f, 0.14f, driver_cap);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx - 0.22f, 0.84f, dz - 0.05f, 0.13f, 0.28f, 0.13f, driver_coat);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx - 0.20f, 0.76f, dz - 0.28f, 0.11f, 0.14f, 0.22f, driver_coat);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx - 0.18f, 0.74f, dz - 0.36f, 0.10f, 0.05f, 0.06f, driver_cuff);
+            add_wall(s, dx - 0.16f, 0.74f, dz - 0.42f, 0.10f, 0.07f, 0.08f, driver_skin);
+            add_wall(s, dx - 0.19f, 0.74f, dz - 0.34f, 0.04f, 0.03f, 0.06f, (Color){210,180,100,255});
+            set_last_material(s, MAT_BRASS);
+            add_wall(s, dx + 0.22f, 0.84f, dz + 0.02f, 0.13f, 0.28f, 0.13f, driver_coat);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx + 0.24f, 0.70f, dz + 0.08f, 0.11f, 0.22f, 0.11f, driver_coat);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, dx + 0.24f, 0.60f, dz + 0.08f, 0.10f, 0.05f, 0.06f, driver_cuff);
+            add_wall(s, dx + 0.24f, 0.56f, dz + 0.08f, 0.10f, 0.07f, 0.08f, driver_skin);
+            add_wall(s, dx, 0.80f, dz + 0.15f, 0.02f, 0.40f, 0.02f, (Color){15,13,10,255});
+        }
+    }
 
     // Rear-view mirror — small rectangle above dashboard center
     add_wall(s, 0, 1.15f, -1.1f, 0.2f, 0.1f, 0.04f, mirror_c);
@@ -3295,34 +3276,34 @@ void build_space_lobby(Scene *s) {
 
     // Brass inlay strips — pathways defining circulation
     // Central axis toward observation window
-    add_wall(s, 0, 0.01f, 0, 0.08f, 0.02f, ld*0.8f, brass);
+    add_wall(s, 0, 0.04f, 0, 0.08f, 0.02f, ld*0.8f, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
     // Cross axis
-    add_wall(s, 0, 0.01f, 0, lw*0.6f, 0.02f, 0.08f, brass);
+    add_wall(s, 0, 0.04f, 0, lw*0.6f, 0.02f, 0.08f, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
     // Diagonal convergence lines toward window
-    add_wall(s, -4, 0.01f, -3, 0.06f, 0.02f, 12, brass);
+    add_wall(s, -4, 0.04f, -3, 0.06f, 0.02f, 12, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
     set_last_rotation(s, 12.0f);
-    add_wall(s, 4, 0.01f, -3, 0.06f, 0.02f, 12, brass);
+    add_wall(s, 4, 0.04f, -3, 0.06f, 0.02f, 12, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
     set_last_rotation(s, -12.0f);
     // Perimeter inlay — rectangle around elevator area
-    add_wall(s, 0, 0.01f, 0, 8, 0.02f, 0.06f, brass);
+    add_wall(s, 0, 0.04f, 0, 8, 0.02f, 0.06f, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
-    add_wall(s, 0, 0.01f, 4, 8, 0.02f, 0.06f, brass);
+    add_wall(s, 0, 0.04f, 4, 8, 0.02f, 0.06f, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
-    add_wall(s, -4, 0.01f, 2, 0.06f, 0.02f, 4, brass);
+    add_wall(s, -4, 0.04f, 2, 0.06f, 0.02f, 4, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
-    add_wall(s, 4, 0.01f, 2, 0.06f, 0.02f, 4, brass);
+    add_wall(s, 4, 0.04f, 2, 0.06f, 0.02f, 4, brass);
     set_last_material(s, MAT_BRASS); set_last_decal(s);
 
     // Floor-embedded directional lighting strips — soft blue glow
     for (int i = 0; i < 5; i++) {
         float sz = -10 + i * 5;
-        add_wall(s, -0.5f, 0.02f, sz, 0.3f, 0.02f, 0.8f, (Color){60, 130, 200, 60});
+        add_wall(s, -0.5f, 0.05f, sz, 0.3f, 0.02f, 0.8f, (Color){60, 130, 200, 60});
         set_last_decal(s);
-        add_wall(s, 0.5f, 0.02f, sz, 0.3f, 0.02f, 0.8f, (Color){60, 130, 200, 60});
+        add_wall(s, 0.5f, 0.05f, sz, 0.3f, 0.02f, 0.8f, (Color){60, 130, 200, 60});
         set_last_decal(s);
     }
 
