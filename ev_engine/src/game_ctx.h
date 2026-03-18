@@ -171,6 +171,21 @@ typedef struct {
     float interact_lean;
     float interact_lean_vel;
 
+    // ── Narrative choices (Firewatch-style backstory) ──
+    // Option A: pre-title black screen choices
+    // Option B: taxi ride internal choices
+    int choice_cursor;            // 0 or 1 (which option highlighted)
+    bool choice_active;           // choice UI visible
+    bool choice_confirmed;        // player pressed enter
+    const char *choice_question;  // question text (centered top)
+    const char *choice_a;         // option 0
+    const char *choice_b;         // option 1
+    int choice_result;            // what they picked (0 or 1), -1 if not yet
+    // Backstory storage — persists across scenes, colors the experience
+    int backstory[4];             // results of up to 4 choices (-1 = unanswered)
+    int backstory_count;          // how many choices completed
+    int backstory_phase;          // which choice we're on (pre-title or taxi)
+
     // ── Pause menu ──
     MenuMode menu_mode;
     int menu_cursor;
@@ -199,6 +214,7 @@ static inline void game_ctx_init(GameCtx *g) {
     g->text_y_offset = 20.0f;
     g->ambient_fade = 1.0f;
     g->setting_master_vol = 1.0f;
+    for (int i = 0; i < 4; i++) g->backstory[i] = -1;
 }
 
 // Scene registry — extern, defined in scene_registry.c

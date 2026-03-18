@@ -126,6 +126,16 @@ typedef struct {
     float duck_timer;        // >0 = ducking active, counts down
     float duck_amount;       // 0-1, how much to reduce ambient (0.3 = 30% reduction)
 
+    // Exterior rain — Auckland 2AM, you're in it
+    Sound snd_rain;              // wideband noise — rain on pavement, close and present
+    bool rain_playing;
+
+    // Paris dream — rain and distant traffic (B&W sonic palette)
+    Sound snd_dream_rain;        // filtered noise — rain on window, memory of Paris
+    Sound snd_dream_traffic;     // low modulated hum — distant cars, ground-floor hotel
+    bool dream_rain_playing;
+    bool dream_traffic_playing;
+
     // Drone crossfade — smooth transition between ambient drones
     DroneType next_drone;    // target drone for crossfade
     float crossfade_timer;   // >0 = crossfading, counts down
@@ -219,6 +229,14 @@ void StopCorridorMusic(EVAudio *audio);
 void PlayTitleMusic(EVAudio *audio);
 void StopTitleMusic(EVAudio *audio);
 void SetFileMusicVolume(EVAudio *audio, float vol);
+
+// Paris dream audio — B&W sonic palette
+void PlayRain(EVAudio *audio);
+void StopRain(EVAudio *audio);
+void PlayDreamRain(EVAudio *audio);
+void StopDreamRain(EVAudio *audio);
+void PlayDreamTraffic(EVAudio *audio);
+void StopDreamTraffic(EVAudio *audio);
 
 // Nuclear stop — kills every looping sound. Call at top of load_state.
 void StopAllAudio(EVAudio *audio);

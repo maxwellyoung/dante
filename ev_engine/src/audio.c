@@ -978,6 +978,9 @@ static Sound gen_three_note(void);
 static Sound gen_taxi_radio(void);
 static Sound gen_running_water(void);
 static Sound gen_tv_murmur(void);
+static Sound gen_rain(void);
+static Sound gen_dream_rain(void);
+static Sound gen_dream_traffic(void);
 static Sound gen_hyperspace_tone(void);
 static Sound gen_hyperspace_riser(void);
 static Sound gen_arrival_thump(void);
@@ -1045,6 +1048,9 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_hard_cut_punch = gen_hard_cut_punch();
     audio->snd_phone_ring = gen_phone_ring();
     audio->snd_earth_presence = gen_earth_presence();
+    audio->snd_rain = gen_rain();
+    audio->snd_dream_rain = gen_dream_rain();
+    audio->snd_dream_traffic = gen_dream_traffic();
     audio->city_playing = false;
     audio->clock_playing = false;
     audio->stairwell_playing = false;
@@ -1061,6 +1067,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->hyperspace_riser_playing = false;
     audio->elevator_whoosh_playing = false;
     audio->earth_presence_playing = false;
+    audio->dream_rain_playing = false;
+    audio->dream_traffic_playing = false;
     audio->clock_rate = 1.0f;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
@@ -1116,6 +1124,10 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_hard_cut_punch, 0.10f);    // physical cut — snappy
     SetSoundVolume(audio->snd_phone_ring, 0.03f);        // muffled — through walls, unanswered
     SetSoundVolume(audio->snd_earth_presence, 0.0f);     // starts silent — distance-controlled
+    SetSoundVolume(audio->snd_rain, 0.045f);             // Auckland rain — present, not overwhelming
+    SetSoundVolume(audio->snd_dream_rain, 0.035f);      // rain on glass — gentle, persistent
+    SetSoundVolume(audio->snd_dream_traffic, 0.02f);    // distant cars — barely there, ground-floor
+    audio->rain_playing = false;
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -1155,6 +1167,9 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_hard_cut_punch);
     UnloadSound(audio->snd_phone_ring);
     UnloadSound(audio->snd_earth_presence);
+    UnloadSound(audio->snd_rain);
+    UnloadSound(audio->snd_dream_rain);
+    UnloadSound(audio->snd_dream_traffic);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -1770,6 +1785,127 @@ static Sound gen_tv_murmur(void) {
         d[i] = (short)(filtered * burst * env * 4000);
     }
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Rain on window — filtered high-frequency noise, looped
+// B&W sonic palette: compressed, intimate, Paris ground-floor hotel
+static Sound gen_dream_rain(void) {
+    int len = SAMPLE_RATE * 12;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 7777;
+    float prev1 = 0, prev2 = 0;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // High-pass filter chain — rain is bright but distant
+        prev1 = prev1 * 0.6f + noise * 0.4f;
+        prev2 = prev2 * 0.7f + prev1 * 0.3f;
+        float rain = prev1 - prev2 * 0.8f;
+        // Droplet clusters — irregular rhythm
+        float cluster = 0.4f + 0.6f * fmaxf(0, sinf(t * 2.1f) * sinf(t * 5.3f));
+        // Slow intensity swell — rain comes and goes
+        float swell = 0.6f + 0.4f * sinf(t * 0.3f);
+        // Loop envelope
+        float env = 1.0f;
+        if (lt < 0.03f) env = lt / 0.03f;
+        if (lt > 0.97f) env = (1.0f - lt) / 0.03f;
+        d[i] = (short)(rain * cluster * swell * env * 3500);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Distant traffic — low rumble with occasional swells
+// The street outside a Paris hotel at night
+static Sound gen_dream_traffic(void) {
+    int len = SAMPLE_RATE * 15;
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 8888;
+    float prev = 0;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Very heavy low-pass — distant rumble, felt more than heard
+        prev = prev * 0.96f + noise * 0.04f;
+        // Car pass-by swells — doppler-ish
+        float swell1 = 0.3f + 0.7f * fmaxf(0, sinf(t * 0.4f));
+        float swell2 = 0.5f + 0.5f * fmaxf(0, sinf(t * 0.15f + 1.5f));
+        float pass = swell1 * swell2;
+        // Loop envelope
+        float env = 1.0f;
+        if (lt < 0.04f) env = lt / 0.04f;
+        if (lt > 0.96f) env = (1.0f - lt) / 0.04f;
+        d[i] = (short)(prev * pass * env * 4000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// Auckland rain — you're outside in it. Wider, wetter, more present than dream rain.
+static Sound gen_rain(void) {
+    int len = SAMPLE_RATE * 16;  // 16 second loop
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 42424;
+    float prev1 = 0, prev2 = 0, prev3 = 0;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Bandpass: keep mid-high frequencies (rain on pavement is brighter than pipe water)
+        prev1 = prev1 * 0.5f + noise * 0.5f;
+        prev2 = prev2 * 0.75f + prev1 * 0.25f;
+        prev3 = prev3 * 0.85f + prev2 * 0.15f;
+        float rain = prev1 - prev3 * 0.6f;
+        // Droplet impacts — sharp transients layered on top
+        float drop1 = ev_randf(&rng);
+        if (drop1 > 0.997f) rain += (ev_randf(&rng) - 0.5f) * 2.0f;  // occasional loud drop
+        // Intensity swell — rain comes in waves
+        float swell = 0.5f + 0.5f * sinf(t * 0.25f) * sinf(t * 0.11f + 0.7f);
+        // Subtle spatial variation — slight stereo-ish character in mono
+        float spatial = 0.8f + 0.2f * sinf(t * 1.7f);
+        // Loop envelope
+        float env = 1.0f;
+        if (lt < 0.02f) env = lt / 0.02f;
+        if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
+        d[i] = (short)(rain * swell * spatial * env * 4000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayRain(EVAudio *audio) {
+    if (!audio->initialized || audio->rain_playing) return;
+    PlaySound(audio->snd_rain);
+    audio->rain_playing = true;
+}
+void StopRain(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_rain);
+    audio->rain_playing = false;
+}
+
+// Play/Stop for dream sounds
+void PlayDreamRain(EVAudio *audio) {
+    if (!audio->initialized || audio->dream_rain_playing) return;
+    PlaySound(audio->snd_dream_rain);
+    audio->dream_rain_playing = true;
+}
+void StopDreamRain(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_dream_rain);
+    audio->dream_rain_playing = false;
+}
+void PlayDreamTraffic(EVAudio *audio) {
+    if (!audio->initialized || audio->dream_traffic_playing) return;
+    PlaySound(audio->snd_dream_traffic);
+    audio->dream_traffic_playing = true;
+}
+void StopDreamTraffic(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_dream_traffic);
+    audio->dream_traffic_playing = false;
 }
 
 void SetDoorSoundVolume(EVAudio *audio, int door_index, float volume) {
@@ -2396,6 +2532,9 @@ void StopAllAudio(EVAudio *audio) {
     StopHyperspaceRiser(audio);
     StopElevatorWhoosh(audio);
     StopEarthPresence(audio);
+    StopRain(audio);
+    StopDreamRain(audio);
+    StopDreamTraffic(audio);
     StopSuiteMusic(audio);
     StopBalconyMusic(audio);
     StopCorridorMusic(audio);
