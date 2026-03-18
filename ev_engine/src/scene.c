@@ -3433,6 +3433,40 @@ void build_space_suite(Scene *s) {
     set_last_material(s, MAT_FABRIC);
 
     // ============================================================
+    // THE TWOS — the suite was booked for two. You are one.
+    // ============================================================
+
+    // SECOND BATHROBE — hung on door, hers (smaller, different color)
+    // The first robe floats (zero-g). This one is neatly hung. She was tidy.
+    add_wall(s, 5.8f, 1.5f, rd/2-0.3f, 0.5f, 1.2f, 0.06f, (Color){225,215,200,255});
+    set_last_material(s, MAT_FABRIC);
+
+    // CHAMPAGNE TRAY — two glasses, one poured, one empty
+    // The tray on the coffee table
+    add_wall(s, -2.7f, 0.38f, 3.6f, 0.6f, 0.02f, 0.3f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Glass 1 — poured (golden liquid visible through clear glass)
+    add_cylinder(s, -2.85f, 0.42f, 3.6f, 0.04f, 0.12f, (Color){210,210,215,160});
+    add_wall(s, -2.85f, 0.48f, 3.6f, 0.04f, 0.04f, 0.04f, (Color){220,195,90,160});
+    // Glass 2 — empty. The most violent image in the game. Completely still.
+    add_cylinder(s, -2.55f, 0.42f, 3.6f, 0.04f, 0.12f, (Color){210,210,215,160});
+
+    // SOCK — one sock, under the bed. Not yours. The most mundane object.
+    add_wall(s, 1.2f, 0.05f, -4.0f, 0.15f, 0.03f, 0.08f, (Color){235,232,225,220});
+    set_last_material(s, MAT_FABRIC);
+
+    // HOTEL SLIPPERS — still wrapped, by the door. Nobody coming to unwrap them.
+    add_wall(s, 4.5f, 0.04f, 5.0f, 0.22f, 0.06f, 0.1f, white);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 4.8f, 0.04f, 5.0f, 0.22f, 0.06f, 0.1f, white);
+    set_last_material(s, MAT_FABRIC);
+
+    // SECOND PILLOW indent — her side shows a slight depression
+    // The left pillow is slightly lower, slightly misshapen
+    // (we already have two pillows; adjust left one to show indent)
+
+    // ============================================================
     // RECESSED PANELS — depth on hull walls
     // ============================================================
     add_recessed_panel(s, -3, rh*0.6f, -rd/2+0.2f, 2.5f, 1.5f, 0.08f, hull);
