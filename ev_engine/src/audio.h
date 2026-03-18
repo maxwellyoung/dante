@@ -76,6 +76,7 @@ typedef struct {
     // Sprint 1: Bed drone + held chord for ending
     Sound snd_bed_drone;         // low ~50Hz, 20s loop — surrender
     Sound snd_held_chord;        // C3-G3-D4 stacked fifths, 3s attack, infinite sustain
+    Sound snd_music_fragment;    // three-note ghost — the suite music returns as memory
     bool bed_drone_playing;
     bool held_chord_playing;
 
@@ -103,11 +104,21 @@ typedef struct {
     bool elevator_whoosh_playing;
     bool earth_presence_playing;
 
+    // Dream-specific audio — Paris sequence
+    Sound snd_dream_rain;        // filtered noise — rain on a Parisian window
+    Sound snd_dream_traffic;     // distant muffled city — through a window
+    bool dream_rain_playing;
+    bool dream_traffic_playing;
+
+    // Taxi radio — warm song, cuts off at hyperspace
+    Sound snd_taxi_radio;        // procedural melody — lullaby-jazz through car speakers
+    bool taxi_radio_playing;
+
     // Clock rate — for pitch modulation
     float clock_rate;            // 1.0 = normal, 0.0 = stopped
 
     // File-based music — Maxwell's compositions, played once
-    Music music_suite;           // "lighthouse" — the one composed piece, triggered once
+    Music music_suite;           // TBD (placeholder: lighthouse) — triggered once on bed ritual
     Music music_balcony;         // "unsaid" — melancholy, the void outside
     Music music_corridor;        // "stt" — the long walk
     Music music_title;           // "ambient1" — title screen atmosphere
@@ -173,6 +184,7 @@ void PlayBedDrone(EVAudio *audio);
 void StopBedDrone(EVAudio *audio);
 void PlayHeldChord(EVAudio *audio);
 void StopHeldChord(EVAudio *audio);
+void PlayMusicFragment(EVAudio *audio);
 
 // Sprint 2: Clock rate modulation
 void SetClockRate(EVAudio *audio, float rate);
@@ -197,6 +209,16 @@ void PlayBedImpact(EVAudio *audio);
 void PlayBalconyGust(EVAudio *audio);
 void PlayTitleBreath(EVAudio *audio);
 void PlayHardCutPunch(EVAudio *audio);
+
+// Dream-specific audio — Paris sequence
+void PlayDreamRain(EVAudio *audio);
+void StopDreamRain(EVAudio *audio);
+void PlayDreamTraffic(EVAudio *audio);
+void StopDreamTraffic(EVAudio *audio);
+
+// Taxi radio — warm song on the car radio
+void PlayTaxiRadio(EVAudio *audio);
+void StopTaxiRadio(EVAudio *audio);
 
 // Earth presence — sub-bass drone near observation window
 void PlayEarthPresence(EVAudio *audio);

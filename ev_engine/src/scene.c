@@ -1,19 +1,13 @@
 // scene.c — Scene construction
 // Material palette. Clean volumes. Dramatic light.
 #include "scene.h"
+#include "config.h"
 #include "scale.h"
 #include "palette.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-#ifndef DEG2RAD
-#define DEG2RAD 0.017453293f
-#endif
-#ifndef PI
-#define PI 3.14159265358979f
-#endif
 
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
     if (s->wall_count >= MAX_WALLS) {
@@ -2790,6 +2784,23 @@ void build_space_lobby(Scene *s) {
     add_wall(s, 5.5f, 1.4f, -5.5f, 0.5f, 0.02f, 0.35f, (Color){235,232,228,220});
     add_object(s, 5.5f, 1.5f, -5.5f, "newspaper", (Color){235,232,228,255}, 1);
 
+    // ── TWOS — everything in this lobby was designed for a couple ──
+
+    // Bench facing Earth — two-person width, invitation to sit together
+    add_wall(s, 0, 0.25f, -5, 1.8f, 0.5f, 0.5f, cream);
+    set_last_material(s, MAT_FABRIC);
+    // Armrest dividing two seats
+    add_wall(s, 0, 0.45f, -5, 0.06f, 0.3f, 0.5f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // Luggage rack — brass, two positions marked
+    add_wall(s, 3, 0.3f, 3, 1.2f, 0.04f, 0.6f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Your one bag — conspicuously light for a suite booked for two
+    add_wall(s, 3.3f, 0.35f, 3, 0.4f, 0.25f, 0.3f, (Color){60,55,50,255});
+    set_last_material(s, MAT_LEATHER);
+    // The empty space where the second bag would be — just the brass rack showing
+
     tag_materials_by_color(s);
 
     // Spawn facing the observation window, not the exit
@@ -3678,6 +3689,34 @@ void build_space_suite(Scene *s) {
     add_cylinder(s, -2.35f, 0.88f, -4.3f, 0.04f, 0.08f, (Color){200,210,220,120});
     set_last_material(s, MAT_GLASS);
 
+    // ============================================================
+    // BOLAÑO OBJECTS — the abstract-mundane
+    // These resist interpretation. They're the geometry textbook
+    // on the washing line. Don't explain them.
+    // ============================================================
+
+    // Geometry textbook — open on the desk, spine cracked
+    // Someone studying orbital mechanics for a conversation that never happened
+    add_wall(s, 5.3f, 0.85f, -2.5f, 0.25f, 0.04f, 0.18f, (Color){50,75,120,255});  // cover
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 5.3f, 0.875f, -2.5f, 0.23f, 0.005f, 0.16f, cream);  // pages open
+    // Pencil marks — orbits drawn in margin
+    add_wall(s, 5.4f, 0.877f, -2.45f, 0.06f, 0.002f, 0.002f, (Color){80,80,85,100});
+    set_last_decal(s);
+    add_wall(s, 5.35f, 0.877f, -2.55f, 0.04f, 0.002f, 0.003f, (Color){80,80,85,80});
+    set_last_decal(s);
+
+    // Half-written postcard — addressed to no one
+    // Handwriting changes mood halfway through. Unreadable at 960x600.
+    // That's the point.
+    add_wall(s, 2.8f, 0.65f, -4.3f, 0.14f, 0.003f, 0.1f, cream);
+    set_last_rotation(s, 12.0f);
+    // Two ink tones — the mood shifted mid-sentence
+    add_wall(s, 2.82f, 0.653f, -4.33f, 0.06f, 0.001f, 0.015f, (Color){30,30,60,70});
+    set_last_decal(s);
+    add_wall(s, 2.78f, 0.653f, -4.27f, 0.05f, 0.001f, 0.012f, (Color){60,30,30,50});
+    set_last_decal(s);
+
     // ── Leading line — brass floor inlay guides eye to window ──
     // Narrow brass strip from entrance toward the left-wall window
     add_wall(s, -2, 0.01f, 0, 0.08f, 0.02f, rd*0.6f, brass);
@@ -3717,6 +3756,65 @@ void build_space_suite(Scene *s) {
     // On the nightstand, beside the face-down photograph. Always together.
     add_red_book(s, -2.6f, 0.86f, -4.2f, 5.0f);
 
+}
+
+void build_space_suite_cleaned(Scene *s) {
+    build_space_suite(s);
+
+    // The hotel has moved on. Housekeeping has erased her.
+    // One pillow. One robe. One glass. The most violent cut in the montage.
+
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+
+        // Robe 2 (hers) — at (6.8, 1.7, 2.6) — GONE
+        if (fabsf(w->pos.x - 6.8f) < 0.15f && fabsf(w->pos.y - 1.7f) < 0.2f && fabsf(w->pos.z - 2.6f) < 0.2f)
+            w->active = false;
+
+        // Second champagne glass — cone at (-3.5, 0.39, 3.5) + cylinder at (-3.5, 0.44, 3.5) — GONE
+        if (fabsf(w->pos.x + 3.5f) < 0.1f && fabsf(w->pos.z - 3.5f) < 0.1f && w->pos.y > 0.35f && w->pos.y < 0.5f)
+            w->active = false;
+
+        // Her book on nightstand — at (2.5, 0.66, -4.6) + pages at (2.5, 0.69, -4.6) — GONE
+        if (fabsf(w->pos.x - 2.5f) < 0.1f && fabsf(w->pos.z + 4.6f) < 0.1f && w->pos.y > 0.6f && w->pos.y < 0.75f)
+            w->active = false;
+
+        // Second pair of slippers — at (0.6, 0.03, -3.5) and (0.8, 0.03, -3.5) — GONE
+        if (w->pos.x > 0.5f && w->pos.x < 0.9f && fabsf(w->pos.y - 0.03f) < 0.02f && fabsf(w->pos.z + 3.5f) < 0.1f)
+            w->active = false;
+
+        // Room service card — at (5.7, 0.85, -1.6) + ink at (5.7, 0.856, -1.5) — GONE
+        if (fabsf(w->pos.x - 5.7f) < 0.1f && w->pos.y > 0.84f && w->pos.y < 0.86f && w->pos.z > -1.7f && w->pos.z < -1.4f)
+            w->active = false;
+
+        // The sock under the bed — at (0.8, 0.05, -4.0) — GONE
+        if (fabsf(w->pos.x - 0.8f) < 0.1f && fabsf(w->pos.y - 0.05f) < 0.02f && fabsf(w->pos.z + 4.0f) < 0.1f)
+            w->active = false;
+
+        // Her scarf on sofa arm — at (-4.2, 0.7, 2.0), red — GONE
+        if (fabsf(w->pos.x + 4.2f) < 0.1f && fabsf(w->pos.y - 0.7f) < 0.15f && fabsf(w->pos.z - 2.0f) < 0.15f && w->color.r > 150)
+            w->active = false;
+    }
+
+    // Remove the right pillow — at (0.6, 0.68, -5.2). One remains.
+    for (int i = 0; i < s->wall_count; i++) {
+        if (fabsf(s->walls[i].pos.x - 0.6f) < 0.15f &&
+            fabsf(s->walls[i].pos.y - 0.68f) < 0.1f &&
+            fabsf(s->walls[i].pos.z + 5.2f) < 0.15f) {
+            s->walls[i].active = false;
+            break;
+        }
+    }
+
+    // Remove the duplicate right pillow — at (0.5, 0.72, -5.3)
+    for (int i = 0; i < s->wall_count; i++) {
+        if (fabsf(s->walls[i].pos.x - 0.5f) < 0.15f &&
+            fabsf(s->walls[i].pos.y - 0.72f) < 0.1f &&
+            fabsf(s->walls[i].pos.z + 5.3f) < 0.15f) {
+            s->walls[i].active = false;
+            break;
+        }
+    }
 }
 
 void build_space_hotel(Scene *s) {
@@ -4030,6 +4128,9 @@ void build_space_hotel(Scene *s) {
 
     // Interactive objects
     add_object(s, -2, 0.9f, 12, "piano", piano_red, 1);
+
+    // ── The Motif: red book on the piano lid ──
+    add_red_book(s, -1.5f, 1.12f, 12.5f, 10.0f);
 
     tag_materials_by_color(s);
 

@@ -1,14 +1,11 @@
 // audio.c — Procedural audio engine
 // NO CREEPY DRONES. Pleasant or silent. Bioshock vibes.
 #include "audio.h"
+#include "config.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define SAMPLE_RATE 44100
-#ifndef PI
-#define PI 3.14159265358979f
-#endif
 
 static Wave gen_wave(int samples) {
     Wave w = {0};
@@ -17,6 +14,10 @@ static Wave gen_wave(int samples) {
     w.sampleSize = 16;
     w.channels = 1;
     w.data = calloc(samples, sizeof(short));
+    if (!w.data) {
+        fprintf(stderr, "[EV] FATAL: audio alloc failed (%d samples)\n", samples);
+        w.frameCount = 0;
+    }
     return w;
 }
 
@@ -1152,6 +1153,7 @@ static Sound gen_footsteps_above(void) {
 // Forward declarations for sounds defined below InitEVAudio
 static Sound gen_bed_drone(void);
 static Sound gen_held_chord(void);
+static Sound gen_music_fragment(void);
 static Sound gen_running_water(void);
 static Sound gen_tv_murmur(void);
 static Sound gen_hyperspace_tone(void);
@@ -1166,6 +1168,9 @@ static Sound gen_balcony_gust(void);
 static Sound gen_title_breath(void);
 static Sound gen_hard_cut_punch(void);
 static Sound gen_earth_presence(void);
+static Sound gen_dream_rain(void);
+static Sound gen_dream_traffic(void);
+static Sound gen_taxi_radio(void);
 
 // --- ENGINE ---
 
@@ -1205,6 +1210,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_comms_chatter = gen_comms_chatter();
     audio->snd_bed_drone = gen_bed_drone();
     audio->snd_held_chord = gen_held_chord();
+    audio->snd_music_fragment = gen_music_fragment();
     audio->snd_running_water = gen_running_water();
     audio->snd_tv_murmur = gen_tv_murmur();
     audio->snd_hyperspace_tone = gen_hyperspace_tone();
@@ -1219,6 +1225,9 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_title_breath = gen_title_breath();
     audio->snd_hard_cut_punch = gen_hard_cut_punch();
     audio->snd_earth_presence = gen_earth_presence();
+    audio->snd_dream_rain = gen_dream_rain();
+    audio->snd_dream_traffic = gen_dream_traffic();
+    audio->snd_taxi_radio = gen_taxi_radio();
     audio->city_playing = false;
     audio->clock_playing = false;
     audio->stairwell_playing = false;
@@ -1234,6 +1243,9 @@ void InitEVAudio(EVAudio *audio) {
     audio->hyperspace_riser_playing = false;
     audio->elevator_whoosh_playing = false;
     audio->earth_presence_playing = false;
+    audio->dream_rain_playing = false;
+    audio->dream_traffic_playing = false;
+    audio->taxi_radio_playing = false;
     audio->clock_rate = 1.0f;
     audio->step_timer = 0;
     audio->step_interval = 0.50f;
@@ -1274,6 +1286,7 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_comms_chatter, 0.015f);     // radio voice — behind door
     SetSoundVolume(audio->snd_bed_drone, 0.04f);         // low hum — felt, not heard
     SetSoundVolume(audio->snd_held_chord, 0.05f);        // credits chord — present but gentle
+    SetSoundVolume(audio->snd_music_fragment, 0.04f);    // ghost of the suite music — quieter than original
     SetSoundVolume(audio->snd_running_water, 0.015f);    // behind door — muffled
     SetSoundVolume(audio->snd_tv_murmur, 0.015f);        // behind door — muffled
     SetSoundVolume(audio->snd_hyperspace_tone, 0.06f);   // rising tone — builds tension
@@ -1288,6 +1301,9 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_title_breath, 0.04f);      // barely there — subliminal
     SetSoundVolume(audio->snd_hard_cut_punch, 0.10f);    // physical cut — snappy
     SetSoundVolume(audio->snd_earth_presence, 0.0f);     // starts silent — distance-controlled
+    SetSoundVolume(audio->snd_dream_rain, 0.04f);       // quiet — rain on glass, muffled
+    SetSoundVolume(audio->snd_dream_traffic, 0.03f);    // barely there — distant Paris traffic
+    SetSoundVolume(audio->snd_taxi_radio, 0.07f);       // warm but muffled — car speakers
 }
 
 void UnloadEVAudio(EVAudio *audio) {
@@ -1313,6 +1329,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_muffled_machinery); UnloadSound(audio->snd_comms_chatter);
     UnloadSound(audio->snd_footsteps_above);
     UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
+    UnloadSound(audio->snd_music_fragment);
     UnloadSound(audio->snd_running_water); UnloadSound(audio->snd_tv_murmur);
     UnloadSound(audio->snd_hyperspace_tone);
     UnloadSound(audio->snd_hyperspace_riser);
@@ -1326,6 +1343,9 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_title_breath);
     UnloadSound(audio->snd_hard_cut_punch);
     UnloadSound(audio->snd_earth_presence);
+    UnloadSound(audio->snd_dream_rain);
+    UnloadSound(audio->snd_dream_traffic);
+    UnloadSound(audio->snd_taxi_radio);
     CloseAudioDevice();
     audio->initialized = false;
 }
@@ -1668,6 +1688,49 @@ static Sound gen_held_chord(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Three-note ghost of the suite music — a memory, not a performance.
+// Uses the held chord's harmonic language (stacked fifths: D4→G3→C3)
+// but as a descending melody. Same warm timbre, longer decay, slight
+// detune — because memory isn't perfect.
+static Sound gen_music_fragment(void) {
+    int len = SAMPLE_RATE * 5;  // 5 seconds — 3 notes + long reverb tail
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    // D4 → G3 → C3 — the held chord's notes as a descending melody
+    // The suite music falling away, dissolving into silence
+    float notes[] = {293.66f, 196.00f, 130.81f};
+    float note_times[] = {0.0f, 0.9f, 1.8f};  // unhurried spacing
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float sample = 0;
+        for (int n = 0; n < 3; n++) {
+            float nt = t - note_times[n];
+            if (nt < 0) continue;
+            // Longer decay than original — the memory lingers
+            float env = expf(-nt * 1.2f);
+            // Each successive note quieter — fading
+            float note_vol = 1.0f - n * 0.15f;
+            float freq = notes[n];
+            // Warm triangle wave — same timbre as held chord's sine but softer
+            float phase = fmodf(nt * freq, 1.0f);
+            float tri = fabsf(phase * 4.0f - 2.0f) - 1.0f;
+            // Second voice, slightly detuned — the memory wavers
+            float phase2 = fmodf(nt * freq * 1.004f, 1.0f);
+            float tri2 = fabsf(phase2 * 4.0f - 2.0f) - 1.0f;
+            // Third voice, detuned other direction — chorus width
+            float phase3 = fmodf(nt * freq * 0.996f, 1.0f);
+            float tri3 = fabsf(phase3 * 4.0f - 2.0f) - 1.0f;
+            // Blend: main voice dominant, detuned voices add shimmer
+            float voice = tri * 0.5f + tri2 * 0.25f + tri3 * 0.25f;
+            // Subtle 2nd harmonic — body, like the held chord
+            voice += sinf(2 * PI * freq * 2.0f * nt) * 0.08f * env;
+            sample += voice * env * note_vol * 0.25f;
+        }
+        d[i] = (short)(sample * 5000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 void PlayBedDrone(EVAudio *audio) {
     if (!audio->initialized) return;
     if (!audio->bed_drone_playing) {
@@ -1691,6 +1754,10 @@ void StopHeldChord(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_held_chord);
     audio->held_chord_playing = false;
+}
+void PlayMusicFragment(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_music_fragment);
 }
 
 // ── Sprint 2: Clock rate modulation ────────────────────────────────
@@ -2222,6 +2289,240 @@ void SetEarthPresenceVolume(EVAudio *audio, float vol) {
     SetSoundVolume(audio->snd_earth_presence, vol);
 }
 
+// ── Dream rain — filtered pink noise, rain on a Parisian window ─────
+// Muffled through glass. Rhythmic droplet pings on the pane.
+// Gusts of intensity — the rain breathes against the window.
+static Sound gen_dream_rain(void) {
+    int len = SAMPLE_RATE * 20;  // 20 second loop
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xD4E1;
+    float lp1 = 0, lp2 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Pink noise base
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        // Two-pole low-pass — heavy, muffled through glass
+        lp1 += (noise - lp1) * 0.03f;
+        lp2 += (lp1 - lp2) * 0.04f;
+        float rain = lp2 * 0.4f;
+        // Slow intensity waves — rain gusts against the window
+        float gust = 0.6f + 0.4f * sinf(2 * PI * t / 7.3f);
+        gust *= 0.7f + 0.3f * sinf(2 * PI * t / 3.1f);
+        rain *= gust;
+        // Occasional droplet pings — water on glass, high and brief
+        float ping_phase = fmodf(t * 3.7f + sinf(t * 0.8f) * 0.5f, 1.0f);
+        if (ping_phase < 0.008f) {
+            float ping_env = 1.0f - ping_phase / 0.008f;
+            rain += sinf(ping_phase * 800.0f * 2 * PI) * 0.12f * ping_env * ping_env;
+        }
+        // Second ping stream — offset timing, different pitch
+        float ping2 = fmodf(t * 5.3f + 0.37f, 1.0f);
+        if (ping2 < 0.005f) {
+            float p2_env = 1.0f - ping2 / 0.005f;
+            rain += sinf(ping2 * 1200.0f * 2 * PI) * 0.06f * p2_env * p2_env;
+        }
+        // Loop crossfade
+        if (lt < 0.03f) rain *= lt / 0.03f;
+        if (lt > 0.97f) rain *= (1.0f - lt) / 0.03f;
+        d[i] = (short)(rain * 3000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+void PlayDreamRain(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->dream_rain_playing) {
+        SetSoundVolume(audio->snd_dream_rain, 0.025f);
+        PlaySound(audio->snd_dream_rain);
+        audio->dream_rain_playing = true;
+    }
+}
+void StopDreamRain(EVAudio *audio) {
+    if (audio->dream_rain_playing) { StopSound(audio->snd_dream_rain); audio->dream_rain_playing = false; }
+}
+
+// ── Dream traffic — distant muffled Paris street, through a window ──
+// A car passes. A horn, faint. Other lives outside, unreachable.
+static Sound gen_dream_traffic(void) {
+    int len = SAMPLE_RATE * 16;  // 16 second loop
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0xB0CA;
+    float lp1 = 0, lp2 = 0, lp3 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        // Base: very low rumble — distant road surface
+        float noise = ev_randf(&rng) * 2.0f - 1.0f;
+        lp1 = lp1 * 0.95f + noise * 0.05f;
+        lp2 = lp2 * 0.97f + lp1 * 0.03f;
+        lp3 = lp3 * 0.98f + lp2 * 0.02f;
+        float traffic = lp3 * 0.5f;
+        // Car pass — doppler-like sweep, happens twice per loop
+        float car1_t = t - 3.5f;
+        if (car1_t > -1.0f && car1_t < 2.0f) {
+            float car_env = expf(-2.0f * car1_t * car1_t);
+            float car_freq = 120.0f + 40.0f / (1.0f + car1_t * car1_t);
+            traffic += sinf(2 * PI * car_freq * t) * car_env * 0.15f;
+        }
+        float car2_t = t - 10.0f;
+        if (car2_t > -1.0f && car2_t < 2.0f) {
+            float car_env = expf(-2.5f * car2_t * car2_t);
+            float car_freq = 100.0f + 50.0f / (1.0f + car2_t * car2_t);
+            traffic += sinf(2 * PI * car_freq * t) * car_env * 0.12f;
+        }
+        // Distant horn — single bleat at ~6s
+        float horn_t = t - 6.0f;
+        if (horn_t > 0 && horn_t < 0.4f) {
+            float horn_env = (horn_t < 0.05f) ? horn_t / 0.05f : expf(-5.0f * (horn_t - 0.05f));
+            traffic += sinf(2 * PI * 340.0f * t) * horn_env * 0.06f;
+            traffic += sinf(2 * PI * 420.0f * t) * horn_env * 0.03f;
+        }
+        // Loop crossfade
+        if (lt < 0.04f) traffic *= lt / 0.04f;
+        if (lt > 0.96f) traffic *= (1.0f - lt) / 0.04f;
+        d[i] = (short)(traffic * 2500);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+void PlayDreamTraffic(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->dream_traffic_playing) {
+        SetSoundVolume(audio->snd_dream_traffic, 0.02f);
+        PlaySound(audio->snd_dream_traffic);
+        audio->dream_traffic_playing = true;
+    }
+}
+void StopDreamTraffic(EVAudio *audio) {
+    if (audio->dream_traffic_playing) { StopSound(audio->snd_dream_traffic); audio->dream_traffic_playing = false; }
+}
+
+// ── Taxi radio — warm procedural melody through car speakers ────────
+// Between a lullaby and jazz. Major 7th warmth. Muffled, slightly distorted.
+// The last song before reality breaks.
+static Sound gen_taxi_radio(void) {
+    float beat = 0.5f;  // moderate tempo
+    float loop_len = 24.0f * beat * 2;  // 24 bars, doubled
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
+    int total = len + reverb_delay;
+    Wave w = gen_wave(total);
+    short *d = (short *)w.data;
+
+    // Warm major 7th / sus melody — Cmaj7 territory
+    // Notes from a lullaby someone half-remembers
+    float melody[][3] = {
+        // Phrase 1 — gentle ascending
+        {261.6f, 0, 3},     // C4
+        {329.6f, 3, 2},     // E4
+        {392.0f, 5, 4},     // G4 (hold)
+        {493.9f, 10, 2},    // B4
+        {392.0f, 12, 2},    // G4
+        {329.6f, 14, 4},    // E4 (rest)
+        // Phrase 2 — descending with sus
+        {440.0f, 20, 3},    // A4
+        {392.0f, 23, 2},    // G4
+        {349.2f, 25, 3},    // F4 (sus)
+        {329.6f, 28, 4},    // E4 (resolve)
+        {293.7f, 33, 2},    // D4
+        {261.6f, 35, 6},    // C4 (long hold)
+        // Phrase 3 — repeat with variation
+        {329.6f, 42, 2},    // E4
+        {392.0f, 44, 3},    // G4
+        {440.0f, 47, 2},    // A4
+        {493.9f, 49, 4},    // B4 (hold)
+        {440.0f, 54, 2},    // A4
+        {392.0f, 56, 2},    // G4
+        {329.6f, 58, 4},    // E4
+        // Phrase 4 — sparse ending
+        {261.6f, 64, 4},    // C4
+        {293.7f, 68, 3},    // D4
+        {261.6f, 71, 6},    // C4 (home)
+    };
+    int note_count = 21;
+
+    // Bass line — root movement, warm foundation
+    float bass[][3] = {
+        {130.8f, 0, 8},     // C3
+        {146.8f, 10, 6},    // D3
+        {130.8f, 18, 8},    // C3
+        {110.0f, 28, 6},    // A2
+        {130.8f, 35, 8},    // C3
+        {146.8f, 44, 6},    // D3
+        {130.8f, 52, 8},    // C3
+        {130.8f, 64, 10},   // C3 (long home)
+    };
+    int bass_count = 8;
+
+    // Low-pass state — car speaker muffling
+    float lp1 = 0, lp2 = 0;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float sample = 0;
+        // Melody
+        for (int n = 0; n < note_count; n++) {
+            float freq = melody[n][0];
+            unsigned int seed = (unsigned int)(n * 773 + 19);
+            float offset = (ev_randf(&seed) - 0.5f) * 0.04f;  // slight swing
+            float start = melody[n][1] * beat + offset;
+            float dur = melody[n][2] * beat;
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 2.0f) continue;
+            float attack = (nt < 0.06f) ? nt / 0.06f : 1.0f;
+            float env = attack * expf(-0.8f * nt);
+            // Warm tone with gentle vibrato
+            float vib = 1.0f + 0.003f * sinf(2 * PI * 5.5f * t);
+            float tone = sinf(2 * PI * freq * vib * t);
+            tone += 0.3f * sinf(2 * PI * freq * 2.0f * vib * t);  // 2nd harmonic
+            tone += 0.08f * sinf(2 * PI * freq * 3.0f * t);       // 3rd — slight brightness
+            sample += tone * env * 0.4f;
+        }
+        // Bass
+        for (int n = 0; n < bass_count; n++) {
+            float freq = bass[n][0];
+            float start = bass[n][1] * beat;
+            float dur = bass[n][2] * beat;
+            float nt = t - start;
+            if (nt < 0 || nt > dur + 1.5f) continue;
+            float env = expf(-0.6f * nt);
+            sample += sinf(2 * PI * freq * t) * env * 0.25f;
+        }
+        // Car speaker low-pass — kills highs, warm and muffled
+        lp1 = lp1 * 0.88f + sample * 0.12f;
+        lp2 = lp2 * 0.90f + lp1 * 0.10f;
+        // Slight speaker distortion — soft clip
+        float out = lp2;
+        if (out > 0.6f) out = 0.6f + (out - 0.6f) * 0.3f;
+        if (out < -0.6f) out = -0.6f + (out + 0.6f) * 0.3f;
+        // Loop crossfade
+        float lt = (float)i / len;
+        if (lt < 0.02f) out *= lt / 0.02f;
+        if (lt > 0.98f) out *= (1.0f - lt) / 0.02f;
+        d[i] = (short)(out * 2800);
+    }
+    // Short reverb — car interior reflections
+    for (int i = reverb_delay; i < total; i++)
+        d[i] += (short)(d[i - reverb_delay] * 0.08f);
+
+    w.frameCount = total;
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+void PlayTaxiRadio(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->taxi_radio_playing) {
+        SetSoundVolume(audio->snd_taxi_radio, 0.03f);
+        PlaySound(audio->snd_taxi_radio);
+        audio->taxi_radio_playing = true;
+    }
+}
+void StopTaxiRadio(EVAudio *audio) {
+    if (audio->taxi_radio_playing) { StopSound(audio->snd_taxi_radio); audio->taxi_radio_playing = false; }
+}
+
 // ============================================================
 // FILE-BASED MUSIC — Maxwell's compositions
 // Loaded from assets/audio/. Streamed, not buffered.
@@ -2334,6 +2635,9 @@ void StopAllAudio(EVAudio *audio) {
     StopHyperspaceRiser(audio);
     StopElevatorWhoosh(audio);
     StopEarthPresence(audio);
+    StopDreamRain(audio);
+    StopDreamTraffic(audio);
+    StopTaxiRadio(audio);
     StopSuiteMusic(audio);
     StopBalconyMusic(audio);
     StopCorridorMusic(audio);
