@@ -267,7 +267,8 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
               EVLighting *lighting) {
     if (!npc->active) return;
 
-    // ── GLB MODEL PATH — use 3D model if available ──
+    // ── GLB MODEL PATH — rigged animated Gibbons ──
+    // Animations (alphabetical load order): 0=Bow, 1=Gesture, 2=Idle, 3=Walk
     {
         extern GameCtx g;
         int gi = find_model_asset("gibbons");
@@ -275,29 +276,50 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
             ModelAsset *ma = &g.model_assets[gi];
             float base_y_m = npc->use_physics ? npc->ground_y : (npc->pos.y - 1.6f);
 
+            // Select animation based on NPC behavior
+            if (ma->anims && ma->anim_count > 0) {
+                int target_anim = 2;  // default: Idle
+                if (!npc->waiting) target_anim = 3;  // Walk
+                if (npc->behavior == NPC_GESTURING) target_anim = 1;  // Gesture
+                // Bow: play once when arriving at waypoint
+                if (!npc->waiting && npc->idle_timer > 0.5f && npc->idle_timer < 2.0f)
+                    target_anim = 0;  // Bow
+
+                // Switch animation — reset frame on change
+                if (ma->current_anim != target_anim) {
+                    ma->current_anim = target_anim;
+                    ma->current_frame = 0;
+                }
+
+                // Advance frame
+                if (target_anim < ma->anim_count) {
+                    UpdateModelAnimation(ma->model, ma->anims[target_anim], ma->current_frame);
+                    ma->current_frame++;
+                    if (ma->current_frame >= ma->anims[target_anim].frameCount)
+                        ma->current_frame = 0;  // loop
+                }
+            }
+
             // Draw the model at NPC position with NPC yaw
-            if (lighting->ready) SetMaterialId(lighting, 0);  // MAT_CONCRETE — neutral base
+            if (lighting->ready) SetMaterialId(lighting, 0);
             DrawModelEx(ma->model,
                 (Vector3){npc->pos.x, base_y_m, npc->pos.z},
-                (Vector3){0, 1, 0}, npc->yaw * RAD2DEG + 180,  // +180: face forward
+                (Vector3){0, 1, 0}, npc->yaw * RAD2DEG + 180,
                 (Vector3){1, 1, 1}, WHITE);
 
             // Shadow disc
             if (cyl_model) {
-                float sa_val = 80;
-                cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0,0,0,(unsigned char)sa_val};
+                cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0,0,0,80};
                 SetMaterialId(lighting, 0);
                 DrawModelEx(*cyl_model,
                     (Vector3){npc->pos.x, base_y_m + 0.02f, npc->pos.z},
                     (Vector3){0,1,0}, 0, (Vector3){0.5f, 0.01f, 0.5f}, WHITE);
             }
 
-            // ── LUGGAGE CART — separate object, follows with delay ──
-            // If assets/cart.obj or assets/suitcase.obj exists, draw it trailing behind
+            // Luggage cart trailing behind
             {
                 int cart_i = find_model_asset("cart");
                 if (cart_i >= 0 && g.model_assets[cart_i].loaded) {
-                    // Cart follows 1.2m behind Gibbons (opposite his facing direction)
                     float behind_x = npc->pos.x + sinf(npc->yaw) * 1.2f;
                     float behind_z = npc->pos.z + cosf(npc->yaw) * 1.2f;
                     DrawModelEx(g.model_assets[cart_i].model,
@@ -307,7 +329,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
                 }
             }
 
-            return;  // skip cube-person
+            return;  // skip cube-person fallback
         }
     }
 

@@ -26,6 +26,68 @@ void hide_text(void) {
     g.text_scale_target = 0.0f;
 }
 
+// ── Narrative choice system ──
+void show_choice(const char *question, const char *a, const char *b) {
+    g.choice_question = question;
+    g.choice_a = a;
+    g.choice_b = b;
+    g.choice_cursor = 0;
+    g.choice_active = true;
+    g.choice_confirmed = false;
+    g.choice_result = -1;
+}
+
+// Returns -1 while pending, 0 or 1 when confirmed
+int poll_choice(void) {
+    if (!g.choice_active) return g.choice_result;
+    if (g.choice_confirmed) {
+        g.choice_active = false;
+        return g.choice_result;
+    }
+    return -1;
+}
+
+static void update_choice_input(void) {
+    if (!g.choice_active || g.choice_confirmed) return;
+    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A))
+        g.choice_cursor = 0;
+    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D))
+        g.choice_cursor = 1;
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_SPACE)) {
+        g.choice_result = g.choice_cursor;
+        g.choice_confirmed = true;
+        g.backstory[g.backstory_count] = g.choice_cursor;
+        g.backstory_count++;
+        PlayInteract(&g.audio, INTERACT_CLICK);
+    }
+}
+
+static void draw_choice(void) {
+    if (!g.choice_active) return;
+
+    // Question — centered, upper third
+    int qy = RENDER_H / 3;
+    draw_text_box(g.choice_question, qy, 11, (Color){248, 245, 238, 200});
+
+    // Options — below question, indented
+    int oy = qy + 28;
+    unsigned char a_alpha = (g.choice_cursor == 0) ? 240 : 100;
+    unsigned char b_alpha = (g.choice_cursor == 1) ? 240 : 100;
+    Color ca = {248, 245, 238, a_alpha};
+    Color cb = {248, 245, 238, b_alpha};
+
+    // Selection indicator — small dash before selected option
+    const char *prefix_a = (g.choice_cursor == 0) ? "- " : "  ";
+    const char *prefix_b = (g.choice_cursor == 1) ? "- " : "  ";
+
+    char buf_a[128], buf_b[128];
+    snprintf(buf_a, sizeof(buf_a), "%s%s", prefix_a, g.choice_a);
+    snprintf(buf_b, sizeof(buf_b), "%s%s", prefix_b, g.choice_b);
+
+    draw_text_box(buf_a, oy, 10, ca);
+    draw_text_box(buf_b, oy + 18, 10, cb);
+}
+
 InteractSoundType get_interact_sound_ext(const char *name) {
     if (strcmp(name, "lamp") == 0) return INTERACT_CLICK;
     if (strcmp(name, "drawers") == 0) return INTERACT_FABRIC;
@@ -447,15 +509,24 @@ int main(void) {
         // Primitives+skytower use 6. Budget ~40 VAOs safely.
         // Load in priority order, stop if approaching limit.
         const char *priority_models[] = {
+            "assets/gibbons.glb",        // rigged bellhop — Walk/Idle/Bow/Gesture anims
             "assets/taxi_driver.glb",     // 6 VAOs — first impression
             "assets/champagne_glasses.glb", // 4 VAOs — narrative core
             "assets/telephone.glb",       // 3 VAOs — suite desk
             "assets/bed.glb",            // 5 VAOs — emotional endpoint
             "assets/bathtub.glb",        // 3 VAOs — Chevalier moment
             "assets/piano.glb",          // 3 VAOs — lobby centrepiece
+            "assets/floor_lamp.glb",     // 3 VAOs — suite atmosphere
+            "assets/wine_glass.glb",     // 2 VAOs — narrative (lipstick)
+            "assets/photograph_frame.glb", // 2 VAOs — emotional prop
+            "assets/standing_ashtray.glb", // 3 VAOs — atmospheric
+            "assets/record_player.glb",  // 3 VAOs — suite furniture
+            "assets/room_service_tray.glb", // 2 VAOs — untouched service
+            "assets/desk_lamp.glb",       // 3 VAOs — suite desk accent
+            "assets/ice_bucket.glb",      // 4 VAOs — luxury atmosphere
             NULL
-            // Gibbons (17 VAOs) excluded — cube-person reads well at 960x600
-            // and 17 VAOs is too many for the budget
+            // VAO budget: ~46 VAOs total. May hit limit on macOS Metal.
+            // If bus error on startup, remove last entries.
         };
         for (int pi = 0; priority_models[pi] && g.model_asset_count < MAX_MODEL_ASSETS; pi++) {
             const char *path = priority_models[pi];
@@ -551,7 +622,7 @@ int main(void) {
             .spawn = {{0, 1.6f, 0}, {-0.3f, 2.5f, -0.8f}},  // up at ceiling + mirror
             .dark_by_design = true, .outdoor = false},
         {STATE_SPACE_LOBBY, "space_lobby",
-            .hero  = {{0, 1.6f, 4}, {0, 3, -7}},          // observation window + Earth
+            .hero  = {{5, 1.6f, 5}, {-5, 3, -6}},          // diagonal — window + chandelier + columns
             .spawn = {{0, 1.6f, 6}, {0, 2, -3}},           // entering, chandelier visible
             .outdoor = true},
         {STATE_SPACE_CORRIDOR, "space_corridor",
@@ -1068,6 +1139,7 @@ int main(void) {
             if (g.interact_lean < 0) { g.interact_lean = 0; g.interact_lean_vel = 0; }
         }
 
+        update_choice_input();
         update_menu_springs(dt);
         bool menu_active = update_pause_menu();
         if (!menu_active) {
@@ -1607,6 +1679,7 @@ int main(void) {
 
         // Vignette text overlay
         draw_vignette_text();
+        draw_choice();
 
         // Pause menu overlay — drawn into 480x300, gets film grain treatment
         if (g.menu_mode != MENU_NONE) draw_pause_menu();
