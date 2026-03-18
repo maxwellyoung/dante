@@ -101,6 +101,37 @@ static const char *postfx_fs =
     "        fromCenter = uv - 0.5;\n"
     "    }\n"
     "\n"
+    "    // --- FXAA — edge-aware anti-aliasing ---\n"
+    "    vec3 fxaa;\n"
+    "    {\n"
+    "        float FXAA_SPAN = 4.0;\n"
+    "        float FXAA_MIN = 1.0/64.0;\n"
+    "        float FXAA_MUL = 1.0/8.0;\n"
+    "        vec3 cNW = texture(texture0, uv + vec2(-1,-1)*px).rgb;\n"
+    "        vec3 cNE = texture(texture0, uv + vec2( 1,-1)*px).rgb;\n"
+    "        vec3 cSW = texture(texture0, uv + vec2(-1, 1)*px).rgb;\n"
+    "        vec3 cSE = texture(texture0, uv + vec2( 1, 1)*px).rgb;\n"
+    "        vec3 cM  = texture(texture0, uv).rgb;\n"
+    "        vec3 lumaW = vec3(0.299, 0.587, 0.114);\n"
+    "        float lNW = dot(cNW, lumaW);\n"
+    "        float lNE = dot(cNE, lumaW);\n"
+    "        float lSW = dot(cSW, lumaW);\n"
+    "        float lSE = dot(cSE, lumaW);\n"
+    "        float lM  = dot(cM,  lumaW);\n"
+    "        float lMin = min(lM, min(min(lNW,lNE), min(lSW,lSE)));\n"
+    "        float lMax = max(lM, max(max(lNW,lNE), max(lSW,lSE)));\n"
+    "        vec2 dir = vec2(-(lNW+lNE)+(lSW+lSE), (lNW+lSW)-(lNE+lSE));\n"
+    "        float dirReduce = max((lNW+lNE+lSW+lSE)*0.25*FXAA_MUL, FXAA_MIN);\n"
+    "        float rcpDir = 1.0/(min(abs(dir.x),abs(dir.y))+dirReduce);\n"
+    "        dir = clamp(dir*rcpDir, vec2(-FXAA_SPAN), vec2(FXAA_SPAN)) * px;\n"
+    "        vec3 a = 0.5*(texture(texture0,uv+dir*(1.0/3.0-0.5)).rgb+\n"
+    "                      texture(texture0,uv+dir*(2.0/3.0-0.5)).rgb);\n"
+    "        vec3 b2 = a*0.5+0.25*(texture(texture0,uv+dir*-0.5).rgb+\n"
+    "                              texture(texture0,uv+dir*0.5).rgb);\n"
+    "        float lB = dot(b2, lumaW);\n"
+    "        fxaa = (lB<lMin||lB>lMax) ? a : b2;\n"
+    "    }\n"
+    "\n"
     "    // --- Chromatic aberration — RGB split at edges ---\n"
     "    float caStrength = dot(fromCenter, fromCenter) * caAmount;\n"
     "    vec2 caOffset = fromCenter * caStrength * px * 3.0;\n"
@@ -108,6 +139,8 @@ static const char *postfx_fs =
     "    float g = texture(texture0, uv).g;\n"
     "    float b = texture(texture0, uv - caOffset).b;\n"
     "    vec3 col = vec3(r, g, b);\n"
+    "    // Blend FXAA — smooth edges while preserving CA character\n"
+    "    col = mix(col, fxaa, 0.5);\n"
     "\n"
     "    // --- Sharpening — unsharp mask ---\n"
     "    if (sharpenAmt > 0.0) {\n"
@@ -135,17 +168,17 @@ static const char *postfx_fs =
     "        col += bloomCol * bloomAmt * 1.5;\n"
     "    }\n"
     "\n"
-    "    // --- SSAO — screen-space edge darkening ---\n"
+    "    // --- SSAO — subtle edge darkening (light touch at 960x600) ---\n"
     "    float center_luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
     "    float ao_accum = 0.0;\n"
     "    for (int i = 0; i < 8; i++) {\n"
     "        float angle = float(i) * 0.785398;\n"
-    "        vec2 offset = vec2(cos(angle), sin(angle)) * px * 2.5;\n"
+    "        vec2 offset = vec2(cos(angle), sin(angle)) * px * 1.5;\n"
     "        float neighbor_luma = dot(texture(texture0, uv + offset).rgb, vec3(0.299, 0.587, 0.114));\n"
     "        ao_accum += max(0.0, center_luma - neighbor_luma);\n"
     "    }\n"
-    "    float ssao = 1.0 - ao_accum * 0.45;\n"  // stronger AO
-    "    col *= max(ssao, 0.4);\n"
+    "    float ssao = 1.0 - ao_accum * 0.2;\n"
+    "    col *= max(ssao, 0.7);\n"
     "\n"
     "    // --- Exposure ---\n"
     "    col *= exp2(exposure);\n"
@@ -159,19 +192,15 @@ static const char *postfx_fs =
     "    col = col * 0.97 + vec3(0.02, 0.018, 0.015);\n"
     "    col *= tint;\n"
     "\n"
-    "    // --- Split toning — cinematic shadow/highlight color separation ---\n"
-    "    // Shadows push toward cool blue, highlights toward warm amber.\n"
-    "    // The split creates depth and dimensionality in the lo-fi palette.\n"
+    "    // --- Split toning — gentle, only engages with warmth progression ---\n"
     "    {\n"
     "        float st_luma = dot(col, vec3(0.299, 0.587, 0.114));\n"
-    "        // Shadow tint: cool blue-teal (applied to dark regions)\n"
-    "        vec3 shadow_tint = vec3(0.92, 0.95, 1.05);\n"
-    "        // Highlight tint: warm amber (applied to bright regions)\n"
-    "        vec3 highlight_tint = vec3(1.04, 1.0, 0.94);\n"
+    "        vec3 shadow_tint = vec3(0.95, 0.97, 1.03);\n"
+    "        vec3 highlight_tint = vec3(1.02, 1.0, 0.97);\n"
     "        float shadow_w = 1.0 - smoothstep(0.0, 0.5, st_luma);\n"
     "        float highlight_w = smoothstep(0.5, 1.0, st_luma);\n"
-    "        // Blend strength scales with warmth — colder scenes get more split\n"
-    "        float split_strength = 0.3 + warmth * 0.2;\n"
+    "        // Only kicks in as warmth rises — cold scenes stay neutral\n"
+    "        float split_strength = warmth * 0.35;\n"
     "        col *= mix(vec3(1.0), shadow_tint, shadow_w * split_strength);\n"
     "        col *= mix(vec3(1.0), highlight_tint, highlight_w * split_strength);\n"
     "    }\n"
@@ -218,27 +247,11 @@ static const char *postfx_fs =
     "        }\n"
     "    }\n"
     "\n"
-    "    // --- Vignette ---\n"
-    "    float vig = 1.0 - dot((uv - 0.5) * 0.9, (uv - 0.5) * 0.9);\n"
-    "    vig = clamp(pow(vig, 0.7), 0.0, 1.0);\n"
-    "    float vigDark = mix(0.75, 1.0, vig);\n"  // darker vignette
+    "    // --- Vignette — gentle, not crushing ---\n"
+    "    float vig = 1.0 - dot((uv - 0.5) * 0.85, (uv - 0.5) * 0.85);\n"
+    "    vig = clamp(pow(vig, 0.8), 0.0, 1.0);\n"
+    "    float vigDark = mix(0.85, 1.0, vig);\n"
     "    col *= mix(1.0, vigDark, vignetteAmt);\n"
-    "\n"
-    "    // --- Peripheral softness — lo-fi lens: center sharp, edges dissolve ---\n"
-    "    // Strength scales inversely with speed (still = dreamy, moving = sharp)\n"
-    "    {\n"
-    "        float pDist = length(fromCenter) * 2.0;\n"
-    "        float softness = pDist * pDist * (1.0 - speedNorm) * 0.12;\n"
-    "        if (softness > 0.01) {\n"
-    "            vec3 soft = vec3(0.0);\n"
-    "            soft += texture(texture0, uv + vec2( px.x, 0) * softness * 3.0).rgb;\n"
-    "            soft += texture(texture0, uv + vec2(-px.x, 0) * softness * 3.0).rgb;\n"
-    "            soft += texture(texture0, uv + vec2(0,  px.y) * softness * 3.0).rgb;\n"
-    "            soft += texture(texture0, uv + vec2(0, -px.y) * softness * 3.0).rgb;\n"
-    "            soft *= 0.25;\n"
-    "            col = mix(col, soft, softness);\n"
-    "        }\n"
-    "    }\n"
     "\n"
     "    // --- Speed lines — radial blur from center at high speed ---\n"
     "    if (speedNorm > 0.0) {\n"
@@ -302,14 +315,14 @@ EVPostFX LoadEVPostFX(void) {
         float one = 1.0f;
         SetShaderValue(pfx.postfx, pfx.warmthLoc, &zero, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.exposureLoc, &zero, SHADER_UNIFORM_FLOAT);
-        float defaultGrain = 0.5f;
+        float defaultGrain = 0.3f;
         SetShaderValue(pfx.postfx, pfx.grainLoc, &defaultGrain, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.flashLoc, &zero, SHADER_UNIFORM_FLOAT);
         float white[3] = {1.0f, 1.0f, 1.0f};
         SetShaderValue(pfx.postfx, pfx.flashColorLoc, white, SHADER_UNIFORM_VEC3);
-        float defaultSat = 0.92f;
+        float defaultSat = 1.0f;
         SetShaderValue(pfx.postfx, pfx.saturationLoc, &defaultSat, SHADER_UNIFORM_FLOAT);
-        float defaultCA = 2.5f;
+        float defaultCA = 0.8f;
         SetShaderValue(pfx.postfx, pfx.caAmountLoc, &defaultCA, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.contrastLoc, &one, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.vignetteLoc, &one, SHADER_UNIFORM_FLOAT);
@@ -397,29 +410,30 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed) {
 // ============================================================
 //                                  sat    ca   con  vig  grn  exp   tint_r/g/b        dith scan blm  post pix  shrp
 const VisualStyle visual_styles[STYLE_COUNT] = {
-    // 1: Default — 16mm Godard. Warm, grainy, slight bloom.
-    {"16mm Film",     0.88f, 2.5f, 1.2f, 1.4f, 0.5f,  0.05f, {1.02f,1.0f,0.98f},    0.0f,0.0f,0.5f, 0,  1,  0.2f},
+    // 1: Default — clean architectural photograph. Let the geometry speak.
+    //    Minimal processing. Colors stay true. Grain is texture, not noise.
+    {"16mm Film",     1.0f,  0.8f, 0.9f, 0.7f, 0.3f,  0.08f, {1.01f,1.0f,0.99f},    0.0f,0.0f,0.15f, 0,  1,  0.3f},
 
     // 2: PS1 — ordered dithering, color quantization, chunky pixels
-    {"PS1",           0.85f, 1.0f, 0.8f, 0.5f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},
+    {"PS1",           0.85f, 0.5f, 0.8f, 0.4f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},
 
     // 3: Noir — crushed blacks, nearly mono, heavy vignette, sharp
-    {"Noir",          0.15f, 1.5f, 1.8f, 2.5f, 0.8f, -0.2f, {0.92f,0.92f,1.0f},      0.0f,0.0f,0.0f, 0,  1,  1.5f},
+    {"Noir",          0.15f, 0.8f, 1.6f, 1.8f, 0.6f, -0.15f, {0.94f,0.94f,1.0f},     0.0f,0.0f,0.0f, 0,  1,  1.2f},
 
-    // 4: CRT — scanlines, bloom, phosphor glow, slight curve
-    {"CRT",           0.95f, 4.0f, 1.1f, 1.5f, 0.3f,  0.05f,{1.0f,0.95f,0.9f},       0.0f,1.0f,0.6f, 0,  1,  0.0f},
+    // 4: CRT — scanlines, bloom, phosphor glow
+    {"CRT",           0.95f, 2.0f, 1.0f, 1.0f, 0.2f,  0.05f,{1.0f,0.95f,0.9f},       0.0f,0.8f,0.4f, 0,  1,  0.0f},
 
-    // 5: Godard — SATURATED, contrasty, red push, French New Wave
-    {"Godard",        1.3f,  4.0f, 1.4f, 1.3f, 0.7f,  0.1f, {1.15f,0.95f,0.85f},     0.0f,0.0f,0.4f, 0,  1,  0.5f},
+    // 5: Godard — saturated, contrasty, red push, French New Wave
+    {"Godard",        1.25f, 1.5f, 1.3f, 0.8f, 0.5f,  0.1f, {1.12f,0.96f,0.88f},     0.0f,0.0f,0.2f, 0,  1,  0.4f},
 
-    // 6: VHS — heavy grain, CA blowout, warm mud, scanlines
-    {"VHS",           0.7f,  8.0f, 0.6f, 1.8f, 1.2f, -0.1f, {1.1f,0.95f,0.85f},      0.2f,0.6f,0.2f, 0,  1,  0.0f},
+    // 6: VHS — grain, CA, warm, scanlines
+    {"VHS",           0.75f, 5.0f, 0.6f, 1.2f, 1.0f, -0.1f, {1.08f,0.96f,0.88f},     0.15f,0.5f,0.15f, 0,  1,  0.0f},
 
-    // 7: Neon — oversaturated, bloom heavy, high exposure, teal-orange
-    {"Neon",          1.4f,  3.0f, 1.2f, 0.8f, 0.2f,  0.15f,{1.1f,0.9f,1.15f},       0.0f,0.0f,1.0f, 0,  1,  0.3f},
+    // 7: Neon — oversaturated, bloom, teal-orange
+    {"Neon",          1.35f, 1.5f, 1.1f, 0.5f, 0.15f, 0.15f,{1.08f,0.92f,1.12f},     0.0f,0.0f,0.8f, 0,  1,  0.2f},
 
-    // 8: Woodcut — extreme dithering, near-mono, posterized, high contrast
-    {"Woodcut",       0.1f,  0.5f, 2.0f, 1.5f, 0.0f,  0.0f, {1.0f,0.98f,0.95f},      1.5f,0.0f,0.0f, 4,  1,  2.0f},
+    // 8: Woodcut — extreme dithering, near-mono, posterized
+    {"Woodcut",       0.1f,  0.3f, 1.8f, 1.2f, 0.0f,  0.0f, {1.0f,0.98f,0.95f},      1.5f,0.0f,0.0f, 4,  1,  1.8f},
 
     // 9: Raw — nothing. Naked geometry and lighting.
     {"Raw",           1.0f,  0.0f, 0.0f, 0.0f, 0.0f,  0.0f, {1.0f,1.0f,1.0f},        0.0f,0.0f,0.0f, 0,  1,  0.0f},
@@ -808,97 +822,240 @@ void draw_title(void) {
     float dt = GetFrameTime();
 
     // ================================================================
-    // Hotel Chevalier opening — quiet, warm, contemplative
-    // Black fades to deep navy. A horizon line breathes.
-    // The title materializes like phosphorescent stars.
-    // Wonder and melancholy, not aggression.
+    // Un Chien Andalou × Godard × American Zoetrope
+    //
+    // Phase 1: Studio card — "ninetynine digital" — warm gold on black,
+    //          prestige framing lines, like Zoetrope before Apocalypse Now
+    // Phase 2: The Moon — full white disc, wispy clouds drift across,
+    //          faithful to Buñuel's actual sequence
+    // Phase 3: The Razor — diagonal slash across the moon,
+    //          then the moon splits and slides apart
+    // Phase 4: RED flash — Godard's red, not white. Le Mépris.
+    // Phase 5: Title card — "ENDEARING VOID" in clean white,
+    //          red rule underneath (tricolore energy)
     // ================================================================
 
-    // Background: true black → deep navy over 3 seconds
-    float bg_t = fminf(1.0f, t / 3.0f);
-    unsigned char bg_r = (unsigned char)(5 * bg_t);
-    unsigned char bg_g = (unsigned char)(5 * bg_t);
-    unsigned char bg_b = (unsigned char)(8 * bg_t);
-    ClearBackground((Color){bg_r, bg_g, bg_b, 255});
+    ClearBackground(BLACK);
 
-    // Sparse stars fade in — same seed as the ending (continuity)
-    if (t > 1.0f) {
-        float star_a = fminf(1.0f, (t - 1.0f) / 3.0f);
-        SetRandomSeed(99);
-        for (int i = 0; i < 30; i++) {
-            int sx = GetRandomValue(20, RENDER_W - 20);
-            int sy = GetRandomValue(10, RENDER_H * 2 / 3);
-            float twk = 0.5f + 0.5f * sinf(t * (0.3f + i * 0.05f) + i * 1.7f);
-            unsigned char sa = (unsigned char)(40 * star_a * twk);
-            DrawPixel(sx, sy, (Color){200, 195, 180, sa});
+    int cx = RENDER_W / 2;
+    int cy = RENDER_H / 2;
+
+    // Godard palette
+    Color godard_red  = {195, 45, 40, 255};
+    Color godard_blue = {40, 65, 160, 255};
+
+    // ── Phase 1: Studio card (0 → 3.2s) ────────────────────────────
+    // American Zoetrope energy: prestige, gold, framing lines
+    if (t < 3.2f) {
+        float fade_in = fminf(1.0f, t / 1.0f);
+        float fade_out = (t > 2.4f) ? 1.0f - fminf(1.0f, (t - 2.4f) / 0.8f) : 1.0f;
+        float a = fade_in * fade_out;
+        unsigned char ua = (unsigned char)(255 * a);
+
+        // Framing lines — top and bottom, golden, cinematic aspect ratio
+        int frame_inset = 80;
+        int line_top = cy - 45;
+        int line_bot = cy + 45;
+        DrawRectangle(frame_inset, line_top, RENDER_W - frame_inset * 2, 1,
+                      (Color){178, 155, 107, (unsigned char)(140 * a)});
+        DrawRectangle(frame_inset, line_bot, RENDER_W - frame_inset * 2, 1,
+                      (Color){178, 155, 107, (unsigned char)(140 * a)});
+
+        // Studio name — warm gold, generous tracking
+        const char *studio = "NINETYNINE DIGITAL";
+        int sw = MeasureText(studio, 12);
+        DrawText(studio, cx - sw / 2, cy - 6, 12,
+                 (Color){210, 185, 120, ua});
+
+        // Small decorative dot above and below name (Zoetrope motif)
+        DrawCircle(cx, line_top + 6, 2, (Color){178, 155, 107, (unsigned char)(100 * a)});
+        DrawCircle(cx, line_bot - 6, 2, (Color){178, 155, 107, (unsigned char)(100 * a)});
+
+        return;
+    }
+
+    // ── Phase 2: The Moon (3.2 → 5.6s) ─────────────────────────────
+    // Buñuel's actual image: full moon, clouds drifting across
+    if (t < 5.6f) {
+        float mt = t - 3.2f;  // 0 → 2.4
+
+        // Moon — large white disc, slightly off-center (cinematic framing)
+        int moon_x = cx;
+        int moon_y = cy - 10;
+        int moon_r = 55;
+
+        // Moon fades in
+        float moon_a = fminf(1.0f, mt / 0.8f);
+        unsigned char ma = (unsigned char)(240 * moon_a);
+
+        // Moon glow — soft halo
+        for (int ring = moon_r + 20; ring > moon_r; ring--) {
+            float glow_f = 1.0f - (float)(ring - moon_r) / 20.0f;
+            unsigned char ga = (unsigned char)(30 * glow_f * moon_a);
+            DrawCircleLines(moon_x, moon_y, ring, (Color){200, 210, 230, ga});
         }
-    }
 
-    // Horizon line — golden ratio, breathes like a heartbeat
-    if (t > 1.5f) {
-        float line_a = fminf(1.0f, (t - 1.5f) / 2.0f);
-        float breath = 0.7f + 0.3f * sinf(t * 1.2f);
-        int line_y = (int)(RENDER_H * 0.5f);
-        DrawRectangle(0, line_y, RENDER_W, 1,
-                      (Color){178, 155, 107, (unsigned char)(120 * line_a * breath)});
-    }
+        // Moon disc — slightly blue-white (moonlight)
+        DrawCircle(moon_x, moon_y, moon_r, (Color){220, 225, 235, ma});
 
-    // Title — "ENDEARING VOID" — materializes letter by letter
-    if (t > 2.0f) {
-        float title_t = t - 2.0f;
-        const char *title = "ENDEARING VOID";
-        int font_size = 16;
-        float spacing = 14.0f;
-        int len = 0;
-        for (const char *p = title; *p; p++) len++;
-        float total_w = (float)(len - 1) * spacing + 10.0f;
-        float start_x = (float)RENDER_W / 2.0f - total_w / 2.0f;
-        int title_y = (int)(RENDER_H * 0.382f);  // golden ratio
-
-        for (int i = 0; i < len; i++) {
-            // Each letter appears 0.15s after the previous
-            float char_delay = (float)i * 0.15f;
-            float char_t = title_t - char_delay;
-            if (char_t < 0) continue;
-
-            // Fade in over 0.8s — like phosphorescent stars charging
-            float char_a = fminf(1.0f, char_t / 0.8f);
-            // Subtle breathing once fully visible
-            float char_breath = 1.0f;
-            if (char_t > 1.0f) {
-                char_breath = 0.85f + 0.15f * sinf(t * 0.8f + (float)i * 0.6f);
+        // Moon surface — subtle crater shadows (seeded)
+        SetRandomSeed(42);
+        for (int i = 0; i < 8; i++) {
+            int dx = GetRandomValue(-moon_r + 15, moon_r - 15);
+            int dy = GetRandomValue(-moon_r + 15, moon_r - 15);
+            if (dx * dx + dy * dy < (moon_r - 12) * (moon_r - 12)) {
+                int cr = GetRandomValue(4, 12);
+                DrawCircle(moon_x + dx, moon_y + dy, cr,
+                           (Color){195, 200, 210, (unsigned char)(40 * moon_a)});
             }
+        }
 
-            int cx = (int)(start_x + (float)i * spacing);
-            char ch[2] = { title[i], '\0' };
+        // Clouds — horizontal wisps drifting right-to-left across the moon
+        // Three cloud bands at different speeds (parallax)
+        for (int c = 0; c < 3; c++) {
+            float speed = 35.0f + (float)c * 15.0f;
+            float cloud_x = (float)RENDER_W - mt * speed + (float)c * 200.0f;
+            int cloud_y = moon_y - 15 + c * 18;
+            int cloud_w = 180 + c * 40;
+            int cloud_h = 8 + c * 3;
 
-            unsigned char ta = (unsigned char)(240 * char_a * char_breath);
-            // Shadow
-            DrawText(ch, cx + 1, title_y + 1, font_size, (Color){0, 0, 0, (unsigned char)(ta / 2)});
-            // Warm gold — matches the star color progression
-            DrawText(ch, cx, title_y, font_size, (Color){200, 178, 130, ta});
+            // Cloud is a soft rect with alpha falloff
+            for (int row = 0; row < cloud_h; row++) {
+                float row_f = (float)row / (float)cloud_h;
+                // Bell curve across height
+                float density = 1.0f - 4.0f * (row_f - 0.5f) * (row_f - 0.5f);
+                if (density < 0) density = 0;
+                unsigned char ca = (unsigned char)(120 * density * moon_a);
+                // Horizontal soft edges
+                for (int col = 0; col < cloud_w; col++) {
+                    float col_f = (float)col / (float)cloud_w;
+                    float edge = 1.0f - 4.0f * (col_f - 0.5f) * (col_f - 0.5f);
+                    if (edge < 0) edge = 0;
+                    int px = (int)cloud_x + col;
+                    int py = cloud_y + row;
+                    if (px >= 0 && px < RENDER_W && py >= 0 && py < RENDER_H) {
+                        unsigned char pa = (unsigned char)((float)ca * edge);
+                        if (pa > 4)
+                            DrawPixel(px, py, (Color){15, 18, 25, pa});
+                    }
+                }
+            }
+        }
+
+        // The razor — diagonal slash at mt=1.8, Buñuel's actual diagonal
+        if (mt > 1.8f) {
+            float razor_t = fminf(1.0f, (mt - 1.8f) / 0.25f);
+            // Diagonal line from upper-left to lower-right across moon
+            int x1 = moon_x - moon_r - 20;
+            int y1 = moon_y - moon_r - 20;
+            int x2 = moon_x + moon_r + 20;
+            int y2 = moon_y + moon_r + 20;
+            // Interpolate endpoint
+            int ex = x1 + (int)((float)(x2 - x1) * razor_t);
+            int ey = y1 + (int)((float)(y2 - y1) * razor_t);
+            // Bright white razor line
+            DrawLine(x1, y1, ex, ey, (Color){255, 255, 255, 255});
+            DrawLine(x1 + 1, y1, ex + 1, ey, (Color){255, 255, 255, 180});
+            // Red trail — Godard's blood
+            DrawLine(x1 - 1, y1 + 1, ex - 1, ey + 1,
+                     (Color){godard_red.r, godard_red.g, godard_red.b, (unsigned char)(200 * razor_t)});
+        }
+
+        // After razor completes — moon splits apart (the wound)
+        if (mt > 2.1f) {
+            float split_t = fminf(1.0f, (mt - 2.1f) / 0.3f);
+            float eased = split_t * split_t;
+            int split_dist = (int)(25.0f * eased);
+            // Black wedge opens along the diagonal cut
+            for (int i = -moon_r - 10; i < moon_r + 10; i++) {
+                int bx = moon_x + i;
+                int by = moon_y + i;  // diagonal
+                for (int w = 0; w < split_dist; w++) {
+                    int px = bx - w / 2;
+                    int py = by + w / 2;
+                    if (px >= 0 && px < RENDER_W && py >= 0 && py < RENDER_H)
+                        DrawPixel(px, py, BLACK);
+                    px = bx + w / 2;
+                    py = by - w / 2;
+                    if (px >= 0 && px < RENDER_W && py >= 0 && py < RENDER_H)
+                        DrawPixel(px, py, BLACK);
+                }
+            }
+        }
+
+        return;
+    }
+
+    // ── Phase 3: Red flash — Godard (5.6 → 5.9s) ───────────────────
+    if (t < 5.9f) {
+        float flash_t = (t - 5.6f) / 0.3f;
+        if (flash_t < 0.4f) {
+            // RED flash — Le Mépris, Pierrot le Fou
+            float fi = flash_t / 0.4f;
+            ClearBackground((Color){
+                (unsigned char)(godard_red.r * fi),
+                (unsigned char)(godard_red.g * fi),
+                (unsigned char)(godard_red.b * fi), 255});
+        } else {
+            // Decay through blue to black — tricolore
+            float fd = (flash_t - 0.4f) / 0.6f;
+            float blue_peak = (fd < 0.3f) ? fd / 0.3f : 1.0f - (fd - 0.3f) / 0.7f;
+            if (blue_peak < 0) blue_peak = 0;
+            float red_decay = 1.0f - fd;
+            if (red_decay < 0) red_decay = 0;
+            ClearBackground((Color){
+                (unsigned char)(godard_red.r * red_decay * 0.3f),
+                (unsigned char)(godard_blue.g * blue_peak * 0.6f),
+                (unsigned char)(godard_blue.b * blue_peak * 0.4f), 255});
+        }
+        return;
+    }
+
+    // ── Phase 4: Title card (5.9s+) ─────────────────────────────────
+    {
+        float title_a = fminf(1.0f, (t - 5.9f) / 0.5f);
+        unsigned char ta = (unsigned char)(255 * title_a);
+
+        const char *title = "ENDEARING VOID";
+        int font_size = 30;
+        int tw = MeasureText(title, font_size);
+        int tx = cx - tw / 2;
+        int ty = (int)(RENDER_H * 0.40f);
+
+        // Title — bright white, bold, confident
+        DrawText(title, tx, ty, font_size, (Color){250, 248, 242, ta});
+
+        // Red rule underneath — Godard accent
+        if (title_a > 0.2f) {
+            float rule_a = fminf(1.0f, (title_a - 0.2f) / 0.3f);
+            int rule_w = tw;
+            int rule_x = cx - rule_w / 2;
+            int rule_y = ty + font_size + 6;
+            DrawRectangle(rule_x, rule_y, rule_w, 2,
+                          (Color){godard_red.r, godard_red.g, godard_red.b,
+                           (unsigned char)(220 * rule_a)});
+        }
+
+        // Blue accent dot — subtle, lower right of rule (tricolore hint)
+        if (title_a > 0.5f) {
+            float dot_a = fminf(1.0f, (title_a - 0.5f) / 0.3f);
+            int rule_y = ty + font_size + 6;
+            DrawCircle(cx + tw / 2 + 8, rule_y + 1, 2,
+                       (Color){godard_blue.r, godard_blue.g, godard_blue.b,
+                        (unsigned char)(160 * dot_a)});
         }
     }
 
-    // Credit — fades in at golden ratio below
-    if (t > 5.0f) {
-        float ca = fminf(1.0f, (t - 5.0f) / 2.0f);
-        int credit_y = (int)(RENDER_H * 0.618f);
-        draw_text_box("Maxwell Young", credit_y, 10,
-                      (Color){140, 135, 128, (unsigned char)(130 * ca)});
-    }
-
-    // "PRESS ENTER" — springs in from below after 6 seconds
-    if (t > 6.0f && !title_enter_triggered) {
+    // ── "PRESS ENTER" — springs in after title settles ──────────────
+    if (t > 7.5f && !title_enter_triggered) {
         title_enter_triggered = true;
-        title_enter_y_offset = 20.0f;
+        title_enter_y_offset = 15.0f;
         title_enter_y_vel = 0.0f;
         title_enter_scale = 0.0f;
         title_enter_scale_vel = 0.0f;
     }
 
     if (title_enter_triggered) {
-        // Spring physics (Kowalski: k=280, d=26, m=0.9)
         float sk = 280.0f, sd = 26.0f, sm = 0.9f;
         float fy = -sk * title_enter_y_offset - sd * title_enter_y_vel;
         title_enter_y_vel += (fy / sm) * dt;
@@ -908,14 +1065,15 @@ void draw_title(void) {
         title_enter_scale += title_enter_scale_vel * dt;
 
         if (title_enter_scale > 0.01f) {
-            int enter_y = RENDER_H - 28 + (int)title_enter_y_offset;
-            unsigned char ea = (unsigned char)(200 * title_enter_scale);
-            if (ea > 200) ea = 200;
-            // Gentle pulse — not strobe
-            float pulse = 0.75f + 0.25f * sinf(t * 2.0f);
+            float sc = fminf(title_enter_scale, 1.0f);
+            unsigned char ea = (unsigned char)(220 * sc);
+            float pulse = 0.88f + 0.12f * sinf(t * 1.8f);
             ea = (unsigned char)((float)ea * pulse);
-            draw_text_box("PRESS ENTER", enter_y, 10,
-                          (Color){200, 195, 185, ea});
+            int ey = RENDER_H - 50 + (int)title_enter_y_offset;
+            const char *prompt = "PRESS ENTER";
+            int pw = MeasureText(prompt, 10);
+            DrawText(prompt, cx - pw / 2, ey, 10,
+                     (Color){200, 198, 190, ea});
         }
     }
 }
@@ -1142,10 +1300,10 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
 }
 
 // ============================================================
-// PROCEDURAL EARTH — the emotional anchor of the game
-// Multi-layered: deep ocean, continent hints, cloud wisps,
-// atmosphere rim glow, city lights on the night side.
-// At 480x300, the sphere is ~100px across — every layer counts.
+// PROCEDURAL EARTH — the emotional anchor
+// Simplified: 3 layers that don't fight each other.
+// Ocean base, atmosphere rim, outer glow. That's it.
+// At 960x600 the sphere is ~100-200px. Clean reads better.
 // ============================================================
 void draw_earth(Camera3D camera, float time,
                 Model *sphere_model, EVLighting *lighting,
@@ -1154,77 +1312,45 @@ void draw_earth(Camera3D camera, float time,
 
     Vector3 earth_pos = earth_center;
     float earth_scale = 50.0f;
-    float rot = time * 0.5f;  // slow rotation — ~12 min per revolution
-    Vector3 axis = {0.23f, 1, 0};  // tilted axis (Earth's 23.5°)
+    float rot = time * 0.5f;
+    Vector3 axis = {0.23f, 1, 0};  // 23.5° axial tilt
     Color saved_color = sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
 
-    // Layer 1: Deep ocean — dark navy-blue base
-    if (lighting && lighting->ready) SetMaterialId(lighting, 0);  // concrete — matte ocean
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){18, 42, 110, 255};
+    // Layer 1: Planet body — rich ocean blue, catches key light
+    // One sphere, one color. The lighting shader does the rest.
+    if (lighting && lighting->ready) SetMaterialId(lighting, 0);
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){22, 52, 120, 255};
     DrawModelEx(*sphere_model, earth_pos, axis, rot,
                 (Vector3){earth_scale, earth_scale, earth_scale}, WHITE);
 
-    // Layer 2: Continent landmasses — slightly larger sphere, green-brown tint
-    // The overlap with the ocean sphere creates a layered, painterly look
-    if (lighting && lighting->ready) SetMaterialId(lighting, 3);  // carpet — matte land texture
-    float land_scale = earth_scale * 1.002f;
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){55, 80, 45, 160};
-    DrawModelEx(*sphere_model, earth_pos, axis, rot + 15.0f,  // offset rotation = different "continents"
-                (Vector3){land_scale, land_scale * 0.97f, land_scale}, WHITE);
-
-    // Layer 3: Ice caps — poles slightly brighter
-    float ice_scale = earth_scale * 1.003f;
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){200, 210, 220, 80};
-    DrawModelEx(*sphere_model, earth_pos, axis, rot,
-                (Vector3){ice_scale * 0.6f, ice_scale * 1.15f, ice_scale * 0.6f}, WHITE);
-
-    // Layer 4: Cloud layer — slightly larger, slowly drifting
-    if (lighting && lighting->ready) SetMaterialId(lighting, 4);  // wallpaper — swirling pattern
-    float cloud_scale = earth_scale * 1.012f;
-    float cloud_rot = rot + time * 0.3f;  // clouds drift faster than surface
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){220, 225, 235, 35};
-    DrawModelEx(*sphere_model, earth_pos, axis, cloud_rot,
-                (Vector3){cloud_scale, cloud_scale, cloud_scale}, WHITE);
-
-    // Layer 5: City lights on the night side — warm amber dots
-    // Slightly smaller sphere, bright warm color, only visible where unlit
-    if (lighting && lighting->ready) SetMaterialId(lighting, 0);  // concrete for flat rendering
-    float city_scale = earth_scale * 1.004f;
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){255, 200, 80, 25};
-    DrawModelEx(*sphere_model, earth_pos, axis, rot + 8.0f,
-                (Vector3){city_scale, city_scale * 0.95f, city_scale}, WHITE);
-
-    // Layer 6: Atmosphere rim — Fresnel-like glow, blue-white edge
-    // Thin shell that catches the light shader's rim calculation
-    if (lighting && lighting->ready) SetMaterialId(lighting, 7);  // glass — reflective rim
-    float atmo_scale = earth_scale * 1.06f;
-    // Breathing: atmosphere subtly pulses — the planet is alive
-    float breath = 1.0f + sinf(time * 0.4f) * 0.008f;
+    // Layer 2: Atmosphere — glass material catches rim/Fresnel
+    // Visible separation from the body. This IS the Earth's silhouette.
+    if (lighting && lighting->ready) SetMaterialId(lighting, 7);  // glass
+    float atmo_scale = earth_scale * 1.04f;
+    float breath = 1.0f + sinf(time * 0.4f) * 0.006f;
     atmo_scale *= breath;
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){100, 160, 240, 30};
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){90, 155, 235, 45};
     DrawModelEx(*sphere_model, earth_pos, axis, rot * 0.1f,
                 (Vector3){atmo_scale, atmo_scale, atmo_scale}, WHITE);
 
-    // Layer 7: Outer glow — largest, faintest, catches edge light
-    float glow_scale = earth_scale * 1.12f;
-    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){80, 140, 220, 12};
+    // Layer 3: Outer glow — soft halo, defines the planet against void
+    float glow_scale = earth_scale * 1.10f;
+    sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){70, 130, 210, 15};
     DrawModelEx(*sphere_model, earth_pos, axis, 0,
                 (Vector3){glow_scale, glow_scale, glow_scale}, WHITE);
 
-    // Earth-shine on the observation deck — 2D glow on lower screen
-    // Subtle blue wash from the planet's reflected light
+    // Earthshine — 2D blue wash on lower screen
     {
         float glow_y = (float)RENDER_H * 0.7f;
         float glow_h = (float)RENDER_H * 0.3f;
         float pulse = 0.7f + 0.3f * sinf(time * 0.6f);
-        unsigned char ga = (unsigned char)(12.0f * pulse);
-        EndMode3D();  // switch to 2D for the glow overlay
+        unsigned char ga = (unsigned char)(10.0f * pulse);
+        EndMode3D();
         DrawRectangle(0, (int)glow_y, RENDER_W, (int)glow_h,
-                      (Color){40, 100, 200, ga});
-        BeginMode3D(camera);  // return to 3D
+                      (Color){35, 90, 190, ga});
+        BeginMode3D(camera);
     }
 
-    // Restore
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_color;
 }
 

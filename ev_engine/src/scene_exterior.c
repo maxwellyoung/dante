@@ -16,6 +16,7 @@ void exterior_load(void) {
     PlayWindAmbient(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_Exterior());
     set_exposure(0.0f);
+    SetPostFXWarmth(&g.postfx, 0.05f);
     SetPostFXGrain(&g.postfx, 0.6f);
 }
 

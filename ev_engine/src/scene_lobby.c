@@ -13,6 +13,7 @@ void lobby_load(void) {
     EnableCursor(); DisableCursor();
     build_lobby(&g.scene);
     init_player(&g.player, g.scene.spawn);
+    StopAmbient(&g.audio);
     StartAmbient(&g.audio, DRONE_LOBBY);
     StopClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);

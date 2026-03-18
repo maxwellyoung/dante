@@ -24,6 +24,7 @@ void hyperspace_load(void) {
     PlayHyperspaceRiser(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_Hyperspace());
     set_exposure(0.2f);
+    SetPostFXWarmth(&g.postfx, 0.3f);
     SetPostFXGrain(&g.postfx, 0.6f);
     SetPostFXCA(&g.postfx, 5.0f);
 }
@@ -126,6 +127,7 @@ void stars_load(void) {
     StopAmbient(&g.audio); StopClockAmbient(&g.audio); StopCityAmbient(&g.audio); StopWindAmbient(&g.audio);
     StopBedDrone(&g.audio);
     PlayHeldChord(&g.audio);
+    SetPostFXWarmth(&g.postfx, 0.0f);
     int rt_m = (int)g.total_time / 60, rt_s = (int)g.total_time % 60;
     printf("\n[PLAYTHROUGH] Total runtime: %d:%02d\n\n", rt_m, rt_s);
 }

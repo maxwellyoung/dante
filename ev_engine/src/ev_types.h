@@ -32,6 +32,7 @@ typedef struct {
 
     // Gravity & jumping
     float gravity;              // downward acceleration
+    float terminal_velocity;    // max downward speed (prevents floor tunneling)
     float jump_impulse;         // upward velocity on jump
     float coyote_time;          // seconds after leaving edge where jump still works
     float jump_buffer_time;     // seconds before landing where jump press is remembered
@@ -100,6 +101,11 @@ typedef struct {
     float speed_shake_threshold; // speed above which camera shakes
     float speed_shake_intensity; // shake amplitude at max speed
 
+    // Wall climb (mid-air jump near wall → pull up to ledge)
+    float climb_reach;          // how far above eye you can grab while climbing
+    float climb_min_vy;         // minimum downward vy to allow climb (negative = falling)
+    float climb_wall_dist;      // max distance from wall to trigger climb
+
     // Dash
     float dash_speed;           // impulse speed of dash
     float dash_duration;        // how long the dash lasts
@@ -122,6 +128,7 @@ static inline PhysicsConfig physics_default(void) {
         .air_friction       = 0.2f,
 
         .gravity            = 18.0f,
+        .terminal_velocity  = -25.0f,  // max fall speed (prevents floor tunneling)
         .jump_impulse       = 5.5f,
         .coyote_time        = 0.12f,
         .jump_buffer_time   = 0.1f,
@@ -178,6 +185,10 @@ static inline PhysicsConfig physics_default(void) {
         .speed_fov_max      = 100.0f,
         .speed_shake_threshold = 12.0f,
         .speed_shake_intensity = 0.02f,
+
+        .climb_reach    = 2.5f,     // can grab ledges 2.5m above eye (generous)
+        .climb_min_vy   = -6.0f,   // can climb even when falling (not terminal)
+        .climb_wall_dist = 0.8f,   // must be close to the wall
 
         .dash_speed     = 18.0f,
         .dash_duration  = 0.15f,

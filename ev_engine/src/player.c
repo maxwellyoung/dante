@@ -351,9 +351,51 @@ static bool find_mantle_ledge(Player *p, Scene *scene, Vector3 fwd,
     return false;
 }
 
+// ── Wall climb ledge detection ───────────────────────────────────────
+// Like find_mantle_ledge but with larger vertical range + checks if
+// we're actually against a wall (not just facing one from far away).
+static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
+                             float *out_ledge_y) {
+    Vector3 pos = p->camera.position;
+    float pr = phys.player_radius;
+    // Check slightly ahead in look direction
+    float cx = pos.x + fwd.x * phys.climb_wall_dist;
+    float cz = pos.z + fwd.z * phys.climb_wall_dist;
+    float best = -999.0f;
+
+    for (int i = 0; i < scene->wall_count; i++) {
+        Wall *w = &scene->walls[i];
+        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (w->no_collide || w->is_decal) continue;
+        float wt = w->pos.y + w->size.y / 2;
+        float wb = w->pos.y - w->size.y / 2;
+        // Ledge must be above feet but within climb reach above eye
+        if (wt < pos.y - phys.eye_height + phys.step_height) continue;
+        if (wt > pos.y + phys.climb_reach) continue;
+        if (wt <= best) continue;
+        // Wall must extend below us (we're against it, not above it)
+        if (wb > pos.y - phys.eye_height + 0.5f) continue;
+        // XZ proximity check
+        if (cx > w->pos.x - w->size.x/2 - pr &&
+            cx < w->pos.x + w->size.x/2 + pr &&
+            cz > w->pos.z - w->size.z/2 - pr &&
+            cz < w->pos.z + w->size.z/2 + pr) {
+            best = wt;
+        }
+    }
+    if (best > -999.0f) {
+        *out_ledge_y = best + phys.eye_height;
+        return true;
+    }
+    return false;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 
 void update_player(Player *p, Scene *scene, float dt) {
+    // ── Clamp dt to prevent tunneling on frame spikes ────────────
+    if (dt > 0.05f) dt = 0.05f;
+
     // ── Mantle in progress ──────────────────────────────────────────
     if (p->mantling) {
         p->mantle_timer += dt * phys.mantle_speed;
@@ -606,16 +648,26 @@ void update_player(Player *p, Scene *scene, float dt) {
     if (!p->moving && !p->wall_running && !p->dashing) target_tilt = 0;
     p->tilt_current += (target_tilt - p->tilt_current) * fminf(1.0f, phys.tilt_lerp_speed * dt);
 
-    // ── Position ────────────────────────────────────────────────────
+    // ── Position (substepped to prevent wall tunneling) ─────────────
     Vector3 new_pos = p->camera.position;
-    new_pos.x += p->vel.x * dt;
-    new_pos.z += p->vel.z * dt;
 
     // ── Collision & physics ─────────────────────────────────────────
     if (!p->noclip) {
         float eye_y = p->camera.position.y;
-        CollisionInfo col = collide_and_slide(&new_pos, &p->vel, scene,
-                                              p->ground_y, phys.player_radius, eye_y);
+        // Substep: if displacement > 80% of player_radius, break into
+        // smaller steps so we can't skip through thin walls at speed
+        float disp = sqrtf(p->vel.x * p->vel.x + p->vel.z * p->vel.z) * dt;
+        int substeps = (int)(disp / (phys.player_radius * 0.8f)) + 1;
+        if (substeps > 4) substeps = 4;
+        float sub_dt = dt / (float)substeps;
+        CollisionInfo col = {false, {0,0,0}, NULL, 0, 0};
+        for (int si = 0; si < substeps; si++) {
+            new_pos.x += p->vel.x * sub_dt;
+            new_pos.z += p->vel.z * sub_dt;
+            CollisionInfo c = collide_and_slide(&new_pos, &p->vel, scene,
+                                                 p->ground_y, phys.player_radius, eye_y);
+            if (c.hit) col = c;
+        }
 
         // ── Wall running ────────────────────────────────────────────
         // Start: airborne + fast + side wall contact + holding forward
@@ -739,6 +791,19 @@ void update_player(Player *p, Scene *scene, float dt) {
             p->grounded = false;
             p->jump_buffer = 0;
             just_jumped = true;
+        } else if (!can_jump && wants_jump && !p->dashing
+                   && p->vy > phys.climb_min_vy) {
+            // Wall climb — mid-air jump near a wall pulls you up to ledge
+            float climb_y;
+            if (find_climb_ledge(p, scene, flat_fwd, &climb_y)) {
+                p->mantling = true;
+                p->mantle_target_y = climb_y;
+                p->mantle_timer = 0;
+                p->vy = 0;
+                p->jump_buffer = 0;
+                p->wall_running = false;
+                return;
+            }
         } else if (can_jump && wants_jump) {
             // Low gravity = higher jumps (up to 1.6x in space)
             float grav_jump = 1.0f + (1.0f - p->gravity_mult) * 0.6f;
@@ -770,6 +835,8 @@ void update_player(Player *p, Scene *scene, float dt) {
         // ── Gravity ─────────────────────────────────────────────────
         if (!p->wall_running && !p->dashing) {
             p->vy -= phys.gravity * p->gravity_mult * dt;
+            if (p->vy < phys.terminal_velocity)
+                p->vy = phys.terminal_velocity;
         }
 
         // ── Head bob — figure-8 (vertical + horizontal sway) ────────

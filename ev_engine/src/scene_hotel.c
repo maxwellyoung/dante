@@ -15,6 +15,7 @@ InteractSoundType get_interact_sound_ext(const char *name);
 void hallway_load(void) {
     build_hallway(&g.scene);
     init_player(&g.player, g.scene.spawn);
+    StopAmbient(&g.audio);
     StartAmbient(&g.audio, DRONE_HALLWAY);
     StopClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);
@@ -70,6 +71,7 @@ void room_load(void) {
         SetPostFXWarmth(&g.postfx, 0.0f);
     }
 
+    StopAmbient(&g.audio);
     StartAmbient(&g.audio, DRONE_ROOM);
     PlayClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);
@@ -201,6 +203,7 @@ void room_update(float dt) {
 void bathroom_load(void) {
     build_bathroom(&g.scene);
     init_player(&g.player, g.scene.spawn);
+    StopAmbient(&g.audio);
     StartAmbient(&g.audio, DRONE_ROOM);
     StopClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);

@@ -2556,9 +2556,11 @@ void build_taxi_ride(Scene *s) {
     // ── THE MOTIF: cigarette ──
     // Stubbed out in the cupholder. The driver's? Yours?
     // It was here before you got in.
-    add_cylinder(s, 0.35f, 0.62f, -0.2f, 0.01f, 0.04f, (Color){230,225,215,255});
+    add_cylinder(s, 0.35f, 0.62f, -0.2f, 0.1f, 0.45f, (Color){230,225,215,255});
+    set_last_decal(s);
     // Ash tip — still warm
-    add_wall(s, 0.35f, 0.64f, -0.2f, 0.015f, 0.008f, 0.015f, (Color){60,55,50,255});
+    add_wall(s, 0.35f, 0.64f, -0.2f, 0.1f, 0.06f, 0.1f, (Color){60,55,50,255});
+    set_last_decal(s);
 
 }
 
@@ -2602,7 +2604,8 @@ void build_return_taxi(Scene *s) {
 
     // ── THE MOTIF: cigarette ──
     // Fresh one this time. Dawn light. The circle closes.
-    add_cylinder(s, 0.3f, 0.62f, -0.15f, 0.01f, 0.04f, (Color){230,225,215,255});
+    add_cylinder(s, 0.3f, 0.62f, -0.15f, 0.1f, 0.45f, (Color){230,225,215,255});
+    set_last_decal(s);
 
 }
 
@@ -3340,9 +3343,11 @@ void build_space_lobby(Scene *s) {
     // THE MOTIF: cigarette — floating in zero-g near reception
     // The previous guest's last act before checking in.
     // ================================================================
-    add_cylinder(s, -8, 2.2f, -2, 0.008f, 0.04f, (Color){230,225,215,160});
+    add_cylinder(s, -8, 2.2f, -2, 0.1f, 0.45f, (Color){230,225,215,160});
+    set_last_decal(s);
     // Ash drifting
-    add_wall(s, -7.9f, 2.3f, -1.9f, 0.012f, 0.012f, 0.012f, (Color){120,115,110,80});
+    add_wall(s, -7.9f, 2.3f, -1.9f, 0.1f, 0.1f, 0.1f, (Color){120,115,110,80});
+    set_last_decal(s);
     // Smoke wisp — faint transparent rectangle
     add_wall(s, -7.85f, 2.4f, -1.85f, 0.04f, 0.15f, 0.04f, (Color){180,178,175,15});
 
@@ -3754,7 +3759,8 @@ void build_space_corridor(Scene *s) {
     // ── THE MOTIF: cigarette ──
     // Visible through the porthole — in the neighbor's room.
     // Someone else is waiting too.
-    add_cylinder(s, -3.4f, 1.1f, 6.05f, 0.008f, 0.03f, (Color){230,225,215,100});
+    add_cylinder(s, -3.4f, 1.1f, 6.05f, 0.1f, 0.45f, (Color){230,225,215,100});
+    set_last_decal(s);
 
     // ================================================================
     // HIGH ROUTE — parkour path along the corridor ceiling
@@ -4403,7 +4409,8 @@ void build_space_suite(Scene *s) {
     // On the coffee table, unlit. From the previous guest.
     // You could light it. You won't.
     // ============================================================
-    add_cylinder(s, -2.8f, 0.39f, 3.2f, 0.01f, 0.05f, (Color){230,225,215,220});
+    add_cylinder(s, -2.8f, 0.39f, 3.2f, 0.1f, 0.45f, (Color){230,225,215,220});
+    set_last_decal(s);
 
     tag_materials_by_color(s);
 
