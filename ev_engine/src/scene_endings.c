@@ -23,8 +23,8 @@ void hyperspace_load(void) {
     PlayHyperspaceTone(&g.audio);
     PlayHyperspaceRiser(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_Hyperspace());
-    set_exposure(0.1f);
-    SetPostFXGrain(&g.postfx, 0.7f);
+    set_exposure(0.2f);
+    SetPostFXGrain(&g.postfx, 0.6f);
     SetPostFXCA(&g.postfx, 5.0f);
 }
 

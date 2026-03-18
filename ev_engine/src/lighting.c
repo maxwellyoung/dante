@@ -677,11 +677,11 @@ SceneLighting LightingPreset_Balcony(void) {
         .keyColor = {0.50f, 0.70f, 0.95f},       // cooler blue — Earth is vast, cold
         .fillDir = Vector3Normalize((Vector3){0.0f, -0.5f, 0.5f}),
         .fillColor = {0.40f, 0.30f, 0.18f},     // warm back wall — safety behind you
-        .ambient = {0.22f, 0.24f, 0.34f},        // lowered — stronger contrast lit vs dark
-        // Earth glow: massive reach. Interior lamp: intimate, warm, close.
-        .pointPos = {{0.0f, -0.5f, -8.0f}, {0.0f, 1.5f, 3.0f}},
-        .pointColor = {{0.5f, 0.75f, 1.0f}, {0.8f, 0.55f, 0.30f}},
-        .pointRadius = {30.0f, 5.0f},
+        .ambient = {0.25f, 0.27f, 0.38f},        // raised — Earth glow fills the space
+        // Earth glow: massive reach, positioned in front. Interior lamp: intimate, warm.
+        .pointPos = {{0.0f, 0.5f, -4.0f}, {0.0f, 1.5f, 3.0f}, {-1.5f, 0.2f, -2.0f}, {1.5f, 0.2f, -2.0f}},
+        .pointColor = {{0.6f, 0.85f, 1.2f}, {0.8f, 0.55f, 0.30f}, {0.3f, 0.5f, 0.7f}, {0.3f, 0.5f, 0.7f}},
+        .pointRadius = {35.0f, 5.0f, 12.0f, 12.0f},
     };
 }
 
@@ -708,14 +708,14 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
     // Color identity: amber/violet contrast, not grey neutrality
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),   // steep overhead
-        .keyColor = {1.3f, 1.0f, 0.65f},           // warm amber — pushed warmer
+        .keyColor = {1.5f, 1.2f, 0.75f},           // brighter warm amber — walls must read
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.12f, 0.18f, 0.35f},        // porthole starlight — stronger blue
-        .ambient = {0.18f, 0.18f, 0.28f},           // blue-shifted ambient — corridor reads cool between pools
-        // Amber ceiling panels + one distinctly blue porthole accent
-        .pointPos = {{0, 3.2f, -8}, {0, 3.2f, 0}, {0, 3.2f, 8}, {-2, 1.5f, 12}},
-        .pointColor = {{1.3f, 1.0f, 0.60f}, {1.2f, 0.95f, 0.55f}, {1.1f, 0.88f, 0.50f}, {0.25f, 0.40f, 0.80f}},
-        .pointRadius = {14.0f, 14.0f, 14.0f, 10.0f},
+        .fillColor = {0.18f, 0.24f, 0.42f},        // stronger porthole starlight
+        .ambient = {0.25f, 0.25f, 0.35f},           // raised — hull must pop against void
+        // Amber ceiling panels at eye level + porthole accent — spill onto walls
+        .pointPos = {{0, 2.0f, 0}, {0, 2.0f, 6}, {0, 2.0f, 12}, {-2, 1.5f, 12}},
+        .pointColor = {{1.4f, 1.1f, 0.65f}, {1.3f, 1.0f, 0.60f}, {1.2f, 0.95f, 0.55f}, {0.30f, 0.45f, 0.85f}},
+        .pointRadius = {18.0f, 18.0f, 18.0f, 12.0f},
     };
 }
 
@@ -737,16 +737,17 @@ SceneLighting LightingPreset_SpaceSuite(void) {
 }
 
 SceneLighting LightingPreset_Hyperspace(void) {
-    // Wormhole tunnel — everything glows, brass rings catch light
+    // Wormhole tunnel — rings glow, convergence point blazes
+    // Multiple point lights along tunnel so rings are visible at every depth
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.0f, 0.0f, -1.0f}),
-        .keyColor = {1.2f, 1.0f, 0.75f},
+        .keyColor = {1.5f, 1.2f, 0.85f},       // brighter — tunnel should glow
         .fillDir = Vector3Normalize((Vector3){0.0f, -1.0f, 0.0f}),
-        .fillColor = {0.40f, 0.45f, 0.60f},
-        .ambient = {0.35f, 0.32f, 0.40f},
-        .pointPos = {{0, 0, -20.0f}},
-        .pointColor = {{1.0f, 0.85f, 0.55f}},
-        .pointRadius = {30.0f},
+        .fillColor = {0.50f, 0.55f, 0.70f},     // stronger fill — see the geometry
+        .ambient = {0.45f, 0.42f, 0.50f},       // raised — no dead black in hyperspace
+        .pointPos = {{0, 0, -5.0f}, {0, 0, -15.0f}, {0, 0, -30.0f}, {0, 0, -50.0f}},
+        .pointColor = {{1.2f, 1.0f, 0.65f}, {1.0f, 0.85f, 0.55f}, {0.8f, 0.7f, 0.45f}, {0.6f, 0.5f, 0.35f}},
+        .pointRadius = {15.0f, 20.0f, 25.0f, 30.0f},
     };
 }
 

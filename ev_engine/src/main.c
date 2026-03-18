@@ -494,8 +494,9 @@ int main(void) {
             .spawn = {{0, 1.6f, 6}, {0, 2, -3}},           // entering, chandelier visible
             .outdoor = true},
         {STATE_SPACE_CORRIDOR, "space_corridor",
-            .hero  = {{-14, 1.6f, 3}, {5, 1.4f, 1}},        // near spawn, looking down curved corridor (doors + windows visible)
-            .spawn = {{-14, 1.6f, 3}, {-8, 1.6f, 2}},       // toward first porthole
+            .hero  = {{0, 1.6f, 2}, {0, 1.4f, 14}},         // down corridor toward exit
+            .spawn = {{0, 1.6f, 0}, {-2, 1.6f, 4}},         // entering, first door visible
+            .dark_by_design = true,
             .outdoor = false},
         {STATE_SPACE_SUITE, "space_suite",
             .hero  = {{3, 1.6f, 0}, {-6, 2, -2}},         // from right looking at Earth window

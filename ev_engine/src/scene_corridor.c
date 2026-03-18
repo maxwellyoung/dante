@@ -28,8 +28,8 @@ void corridor_load(void) {
     g.door_positions[1] = (Vector3){3.5f, 1.6f, 8.0f};
     g.door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f};
     SetSceneLighting(&g.lighting, LightingPreset_SpaceCorridor());
-    set_exposure(0.0f);
-    SetPostFXGrain(&g.postfx, 0.4f);
+    set_exposure(0.08f);
+    SetPostFXGrain(&g.postfx, 0.35f);
     // Gibbons
     {
         Vector3 corr_wps[] = {

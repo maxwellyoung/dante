@@ -23,8 +23,8 @@ void balcony_load(void) {
     g.player.gravity_mult = 0.3f;
     SetPostFXWarmth(&g.postfx, 1.0f);
     SetSceneLighting(&g.lighting, LightingPreset_Balcony());
-    set_exposure(0.05f);
-    SetPostFXGrain(&g.postfx, 0.6f);
+    set_exposure(0.12f);
+    SetPostFXGrain(&g.postfx, 0.5f);
 }
 
 void balcony_update(float dt) {
