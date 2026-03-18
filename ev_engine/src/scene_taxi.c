@@ -1,6 +1,7 @@
 // scene_taxi.c — STATE_CAR, STATE_DRIVING, STATE_RETURN_TAXI
 #include "game_ctx.h"
 #include <math.h>
+#include <string.h>
 
 extern GameCtx g;
 
@@ -24,6 +25,11 @@ void taxi_load(void) {
     StopTitleMusic(&g.audio);
     PlayCityAmbient(&g.audio);
     SetCityAmbientVolume(&g.audio, 0.04f);
+    PlayTaxiRadio(&g.audio);  // warm song on the radio — cuts off at hyperspace
+
+    // THE SECOND TICKET — on the seat beside you. "2 guests."
+    // The player's first interaction: picking it up. Pocketing evidence.
+    add_object(&g.scene, 0.6f, 0.42f, 0.23f, "ticket", (Color){245,242,235,255}, 1);
     SetSceneLighting(&g.lighting, LightingPreset_Taxi());
     set_exposure(0.05f);
     SetPostFXGrain(&g.postfx, 0.45f);
@@ -60,6 +66,39 @@ void taxi_update(float dt) {
         if (g.scene.walls[i].pos.z > 10.0f) {
             g.scene.walls[i].pos.z -= 220.0f;
         }
+    }
+
+    // Ticket interaction — E to pocket it
+    if (IsKeyPressed(KEY_E)) {
+        for (int i = 0; i < g.scene.object_count; i++) {
+            InteractObject *obj = &g.scene.objects[i];
+            if (!obj->active || obj->done) continue;
+            if (strcmp(obj->name, "ticket") == 0) {
+                obj->done = true;
+                show_text("Booking confirmation. 2 guests.");
+                // Remove her ticket from the seat (pocketed — yours stays)
+                for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                    Wall *w = &g.scene.walls[wi];
+                    // Her ticket (x=0.62, z=0.25, slightly rotated)
+                    if (w->pos.y > 0.40f && w->pos.y < 0.44f &&
+                        w->pos.x > 0.55f && w->pos.x < 0.70f &&
+                        w->pos.z > 0.15f && w->pos.z < 0.35f &&
+                        w->color.r > 230 && w->size.y < 0.01f) {
+                        w->active = false;  // pocketed
+                    }
+                }
+                break;
+            }
+        }
+    }
+    if (g.state_time > 4.5f && g.scene.objects[0].done && g.vig_text != NULL) {
+        hide_text();
+    }
+
+    // Radio fades as hyperspace approaches
+    if (g.state_time > 10.0f && g.audio.taxi_radio_playing) {
+        float fade = (g.state_time - 10.0f) / 3.5f;
+        SetSoundVolume(g.audio.snd_taxi_radio, 0.025f * fmaxf(0, 1.0f - fade));
     }
 
     // Post-FX ramp
@@ -182,7 +221,10 @@ void return_taxi_update(float dt) {
         g.fade_alpha = fminf(1.0f, fo);
         g.fade_target = 1.0f;
         if (g.state_time > 17.0f) {
-            CloseWindow();
+            // Return to title — the game loops. Second playthrough,
+            // the player sees the twos everywhere.
+            SetMasterVolume(1.0f);
+            hard_cut_to(STATE_TITLE);
         }
     }
 }
