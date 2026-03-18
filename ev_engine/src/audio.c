@@ -1150,6 +1150,59 @@ static Sound gen_footsteps_above(void) {
     Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
 }
 
+// Muffled laughter — rhythmic filtered noise bursts through a wall
+// Reads as someone laughing in the next room: 3-4 quick bursts, warm, muffled
+static Sound gen_muffled_laughter(void) {
+    float loop_len = 12.0f;
+    int len = (int)(SAMPLE_RATE * loop_len);
+    int reverb_delay = (int)(SAMPLE_RATE * 0.18f);
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 0x1AFF;
+    float lp1 = 0, lp2 = 0;
+
+    // Two laugh events in the loop — sparse, real
+    float laugh_starts[] = {1.8f, 6.5f, 9.2f};
+    int laugh_count = 3;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float sample = 0;
+
+        for (int l = 0; l < laugh_count; l++) {
+            float lt2 = t - laugh_starts[l];
+            if (lt2 < 0 || lt2 > 1.6f) continue;
+            // 3-5 quick bursts — ha ha ha
+            float burst_rate = 6.0f + (float)l * 0.5f;  // slightly different rhythm each time
+            float burst = fmaxf(0, sinf(2 * PI * burst_rate * lt2));
+            burst *= burst;  // sharpen the bursts
+            // Overall laugh envelope — rises then fades
+            float env = sinf(PI * lt2 / 1.6f);
+            env *= env;
+            // Noise source — voice-like band
+            float noise = ev_randf(&rng) * 2.0f - 1.0f;
+            // Pitched component — fundamental around 250Hz (warm, female-ish)
+            float voice = sinf(2 * PI * (250.0f + sinf(lt2 * 12.0f) * 30.0f) * lt2) * 0.4f;
+            sample += (noise * 0.6f + voice) * burst * env;
+        }
+
+        // Two-pole low-pass — wall absorption (heavy, only bass gets through)
+        lp1 = lp1 * 0.88f + sample * 0.12f;
+        lp2 = lp2 * 0.92f + lp1 * 0.08f;
+
+        // Loop crossfade
+        if (lt < 0.03f) lp2 *= lt / 0.03f;
+        if (lt > 0.97f) lp2 *= (1.0f - lt) / 0.03f;
+
+        d[i] = (short)(lp2 * 2000);
+    }
+    // Reverb tap — room behind the wall
+    for (int i = reverb_delay; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay] * 0.12f);
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
 // Forward declarations for sounds defined below InitEVAudio
 static Sound gen_bed_drone(void);
 static Sound gen_held_chord(void);
@@ -1206,6 +1259,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_muffled_piano = gen_muffled_piano();
     audio->snd_distant_voices = gen_distant_voices();
     audio->snd_footsteps_above = gen_footsteps_above();
+    audio->snd_muffled_laughter = gen_muffled_laughter();
     audio->snd_muffled_machinery = gen_muffled_machinery();
     audio->snd_comms_chatter = gen_comms_chatter();
     audio->snd_bed_drone = gen_bed_drone();
@@ -1235,6 +1289,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->muffled_piano_playing = false;
     audio->distant_voices_playing = false;
     audio->footsteps_above_playing = false;
+    audio->muffled_laughter_playing = false;
     audio->muffled_machinery_playing = false;
     audio->comms_chatter_playing = false;
     audio->bed_drone_playing = false;
@@ -1282,6 +1337,7 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_muffled_piano, 0.02f);     // barely there — someone else's room
     SetSoundVolume(audio->snd_distant_voices, 0.015f);   // murmur — other lives
     SetSoundVolume(audio->snd_footsteps_above, 0.02f);   // thuds — felt more than heard
+    SetSoundVolume(audio->snd_muffled_laughter, 0.03f);    // couple laughing — muffled through wall
     SetSoundVolume(audio->snd_muffled_machinery, 0.02f);  // life support hum — behind bulkhead
     SetSoundVolume(audio->snd_comms_chatter, 0.015f);     // radio voice — behind door
     SetSoundVolume(audio->snd_bed_drone, 0.04f);         // low hum — felt, not heard
@@ -1326,6 +1382,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_city); UnloadSound(audio->snd_clock);
     UnloadSound(audio->snd_stairwell); UnloadSound(audio->snd_wind);
     UnloadSound(audio->snd_muffled_piano); UnloadSound(audio->snd_distant_voices);
+    UnloadSound(audio->snd_muffled_laughter);
     UnloadSound(audio->snd_muffled_machinery); UnloadSound(audio->snd_comms_chatter);
     UnloadSound(audio->snd_footsteps_above);
     UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
@@ -1603,6 +1660,20 @@ void StopFootstepsAbove(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_footsteps_above);
     audio->footsteps_above_playing = false;
+}
+
+// Muffled laughter — couple behind the warm-light door
+void PlayMuffledLaughter(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->muffled_laughter_playing) {
+        PlaySound(audio->snd_muffled_laughter);
+        audio->muffled_laughter_playing = true;
+    }
+}
+void StopMuffledLaughter(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_muffled_laughter);
+    audio->muffled_laughter_playing = false;
 }
 
 // Space corridor through-wall sounds — not Paris audio
@@ -2627,6 +2698,7 @@ void StopAllAudio(EVAudio *audio) {
     StopMuffledPiano(audio);
     StopDistantVoices(audio);
     StopFootstepsAbove(audio);
+    StopMuffledLaughter(audio);
     StopMuffledMachinery(audio);
     StopCommsChatter(audio);
     StopBedDrone(audio);

@@ -6,7 +6,6 @@
 #include "palette.h"
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
@@ -370,7 +369,7 @@ static void add_red_book(Scene *s, float x, float y, float z, float rot_y) {
 // ============================================================
 
 void build_hotel_exterior(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // SKY TOWER BASE — Auckland CBD, 2 AM
     // The tower IS the building. You walk to its entrance.
     s->surface = SURFACE_MARBLE;
@@ -480,7 +479,9 @@ void build_hotel_exterior(Scene *s) {
 
     // More city buildings — deeper, taller, creating a canyon feel
     add_wall(s, -25, 12, 25, 8, 24, 4, (Color){15, 17, 30, 255});
+    set_last_material(s, MAT_TILE);
     add_wall(s, 28, 10, 22, 6, 20, 4, (Color){14, 16, 28, 255});
+    set_last_material(s, MAT_CONCRETE);
     // Lit windows on distant buildings
     for (int b = 0; b < 5; b++) {
         float bx = -22 + b * 4.0f + ((b*7)%3);
@@ -603,7 +604,7 @@ void build_hotel_exterior(Scene *s) {
 }
 
 void build_lobby(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 30m x 20m, partially enclosed (front wall has gaps for entrance)
     s->surface = SURFACE_MARBLE;
 
@@ -852,7 +853,7 @@ void build_lobby(Scene *s) {
 }
 
 void build_hallway(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 4.5m x 40m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_CARPET;
 
@@ -951,7 +952,7 @@ void build_hallway(Scene *s) {
 }
 
 void build_hotel_room(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 12m x 10m, fully enclosed (4 walls + floor + ceiling + corner blocks)
     s->surface = SURFACE_WOOD;
 
@@ -1237,7 +1238,7 @@ void build_hotel_room(Scene *s) {
 }
 
 void build_balcony(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // OBSERVATION DECK — open to the void, Earth below
     // Parisian balcony furniture, infinite space outside
     s->surface = SURFACE_MARBLE;
@@ -1382,7 +1383,7 @@ void build_balcony(Scene *s) {
 }
 
 void build_bathroom(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 5m x 4m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
@@ -1496,7 +1497,7 @@ void build_bathroom(Scene *s) {
 }
 
 void build_stairwell(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 6m x 6m x 12m tall, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
@@ -1602,7 +1603,7 @@ void build_stairwell(Scene *s) {
 }
 
 void build_roof(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 20m x 20m, open-air (parapet walls 0.8m high, no ceiling)
     s->surface = SURFACE_MARBLE;
 
@@ -1695,7 +1696,7 @@ void build_roof(Scene *s) {
 }
 
 void build_elevator(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 2m x 2m, fully enclosed (4 walls + floor + ceiling)
     s->surface = SURFACE_MARBLE;
 
@@ -1845,7 +1846,7 @@ void build_elevator(Scene *s) {
 }
 
 void build_elevator_space(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // SPACE ELEVATOR — same brass box, but you're riding between floors
     // of an orbital hotel. Through the glass: the lobby shrinks below,
     // station skeleton passes, Earth glows through hull gaps.
@@ -2046,7 +2047,7 @@ void build_elevator_space(Scene *s) {
 }
 
 void build_taxi_ride(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: taxi interior — no player movement, mouse-look only
     s->surface = SURFACE_MARBLE;
 
@@ -2393,7 +2394,7 @@ void build_return_taxi(Scene *s) {
 }
 
 void build_hyperspace(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // HYPERSPACE TUNNEL — the Sky Tower on its side becomes a wormhole
     // Player flies through it at accelerating speed. 2001 Stargate meets Auckland.
     s->surface = SURFACE_MARBLE;
@@ -2496,7 +2497,7 @@ void build_hyperspace(Scene *s) {
 }
 
 void build_space_lobby(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 24m x 16m, fully enclosed cylindrical station interior
     s->surface = SURFACE_MARBLE;
 
@@ -2848,7 +2849,7 @@ void build_space_lobby(Scene *s) {
 }
 
 void build_space_corridor(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: curved corridor — 4m wide, 30m long, hull walls with portholes
     s->surface = SURFACE_CARPET;
 
@@ -3297,7 +3298,7 @@ void build_space_corridor(Scene *s) {
 }
 
 void build_space_suite(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 14m x 12m, fully enclosed — the Glass Elevator suite
     // Dahl's space hotel room: absurd luxury in zero gravity
     s->surface = SURFACE_WOOD;
@@ -3735,12 +3736,22 @@ void build_space_suite(Scene *s) {
     add_cylinder(s, -5.6f, 0.6f, -1.6f, 0.04f, 0.15f, brass);
     set_last_material(s, MAT_BRASS);
 
+    // ── THERMOSTAT — a compromise temperature ──
+    // Set to 22°. Her preference. You can change it.
+    // Small brass rectangle on the wall near the door
+    add_wall(s, 5.5f, 1.3f, 4.5f, 0.12f, 0.08f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Digital display — small emissive rectangle
+    add_wall(s, 5.5f, 1.3f, 4.48f, 0.06f, 0.04f, 0.01f, (Color){100,200,120,200});
+    set_last_material(s, MAT_EMISSIVE);
+
     // Interactive objects
     add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);
     add_object(s, 5.5f, 1.0f, -2, "desk", (Color){200,155,90,255}, 2);
     add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 2);
     add_object(s, 0, 0.8f, -4.5f, "bed", white, 2);
     add_object(s, -5.0f, 0.5f, -1.5f, "bath", (Color){180,210,230,200}, 2);
+    add_object(s, 5.5f, 1.3f, 4.5f, "thermostat", brass, 1);
 
     tag_materials_by_color(s);
 
@@ -3818,7 +3829,7 @@ void build_space_suite_cleaned(Scene *s) {
 }
 
 void build_space_hotel(Scene *s) {
-    memset(s, 0, sizeof(Scene));
+    *s = (Scene){0};
     // BOUNDS: 50m x 40m, curved glass atrium — the Gehry hotel
     // Bilbao in orbit. The impossible space you didn't know you were inside.
     s->surface = SURFACE_MARBLE;
@@ -4030,9 +4041,13 @@ void build_space_hotel(Scene *s) {
         add_wall(s, 19, by + 0.5f, 18, 0.04f, 1.0f, 30.0f, brass);
         set_last_material(s, MAT_BRASS);
     }
-    // Level 1 detail: warm light pool + empty chair
+    // Level 1 detail: warm light pool + TWO chairs, TWO figures
     add_light_panel(s, -21, 5.4f, 12, 2.0f, 0.3f, 2.0f, warm_light);
-    add_wall(s, -21, 5.3f, 12, 0.5f, 0.5f, 0.5f, cream);  // chair silhouette
+    add_wall(s, -21.3f, 5.3f, 12, 0.5f, 0.5f, 0.5f, cream);
+    add_wall(s, -20.5f, 5.3f, 12, 0.5f, 0.5f, 0.5f, cream);
+    // Two figures — distant, sitting together. Other people's lives.
+    add_wall(s, -21.3f, 5.9f, 12, 0.25f, 0.7f, 0.2f, (Color){45,40,38,180});
+    add_wall(s, -20.5f, 5.9f, 12, 0.22f, 0.65f, 0.2f, (Color){45,40,38,160});
     // Level 2 detail: single warm lamp glow
     add_light_panel(s, 21, 10.4f, 20, 1.5f, 0.3f, 1.5f, warm_light);
     // Level 3 detail: coat rack silhouette

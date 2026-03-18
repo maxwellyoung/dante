@@ -49,65 +49,60 @@ static bool skytower_loaded = false;
 static RenderTexture2D render_target;
 static RenderTexture2D postfx_target;
 
+// ============================================================
+// SCENE STATE — per-scene variables, grouped by system
+// ============================================================
+
+// ── Task progression ──
 static int tasks_done = 0;
-// Task counts defined in config.h
 static float done_pause = 0;
-static float paris_dream_timer = -1;  // -1 = not triggered, >0 = counting down
+static float paris_dream_timer = -1;   // -1 = not triggered, >0 = counting down
 static bool returning_from_dream = false;
-
-// Accumulating wrongness — Barton Fink layer
-// The room shifts after each task. Not horror. Just... wrong.
-static bool wrongness_photo = false;
-static bool wrongness_door = false;
-static bool wrongness_earth = false;
-static int adjoining_door_wall_idx = -1;  // wall index of door panel — deactivated when opened
-static bool adjoining_door_opened = false;
-
-static bool phone_triggered = false;
-static int phone_wall_idx = -1;
-
-
-static bool eiffel_sparkle = false;
-static float sparkle_timer = 0;
-
-// Suite photograph — optional, observational (not a counted task)
-static bool photograph_flipped = false;
-static float photo_text_timer = 0;
-
-static bool elevator_ding_played = false;
-static bool elevator_to_corridor = false;  // true = space lobby elevator, false = terrestrial
-static bool gibbons_glanced = false;
-
 static bool returning_to_room = false;
-// Track completed object names for room restore (player can complete in any order)
 static const char *completed_objects[MAX_OBJECTS] = {0};
 static int completed_count = 0;
 
-// Rug pull — Gravity Bone flash on balcony
+// ── Suite wrongness (Barton Fink layer) ──
+static bool wrongness_photo = false;
+static bool wrongness_door = false;
+static bool wrongness_earth = false;
+static int adjoining_door_wall_idx = -1;
+static bool adjoining_door_opened = false;
+static bool phone_triggered = false;
+static int phone_wall_idx = -1;
+
+// ── Suite photograph ──
+static bool photograph_flipped = false;
+static float photo_text_timer = 0;
+
+// ── Elevator + transitions ──
+static bool elevator_ding_played = false;
+static bool elevator_to_corridor = false;
+static bool gibbons_glanced = false;
+
+// ── Balcony ──
 static bool balcony_flash_triggered = false;
 static float balcony_flash_timer = 0;
+static bool eiffel_sparkle = false;
+static float sparkle_timer = 0;
 
-
-// Cigarette camera animation (Phase 5)
+// ── Cigarette camera animation ──
 static bool cigarette_anim = false;
 static float cigarette_anim_timer = 0;
 static Vector3 cigarette_cam_origin = {0};
 static Vector3 cigarette_cam_target = {0};
 
+// ── NPC ──
 static NPC gibbons = {0};
 
-// Sprint 1: Clock deceleration state
-static float bed_clock_rate = 1.0f;
-
-// Sprint 2: Door positions for spatial audio (corridor)
+// ── Corridor spatial audio ──
 static Vector3 door_positions[3] = {{0}};
-static float door_listen_timer = 0;   // how long player has listened at door 1
-static bool door_1_silenced = false;   // TV murmur goes silent after extended listen
+static float door_listen_timer = 0;
+static bool door_1_silenced = false;
 
-// Sprint 3: Agency removal
+// ── Per-scene timers ──
+static float bed_clock_rate = 1.0f;
 static float agency_removal_timer = 0;
-
-// Sprint 5C: Lobby memory palace
 static int lobby_visit_count = 0;
 
 // ── Cinematic FX (Godard / Blendo film grammar) ──
@@ -339,7 +334,7 @@ static void draw_pause_menu(void) {
             char val[48] = "";
             int vx = RENDER_W / 2 + 30 + xo;
             switch (i) {
-                case 0: snprintf(val, sizeof(val), "< %.1f >", ev_mouse_sens * 1000.0f); break;
+                case 0: snprintf(val, sizeof(val), "< %.1f >", (double)(ev_mouse_sens * 1000.0f)); break;
                 case 1: snprintf(val, sizeof(val), "< %d%% >", (int)(setting_master_vol * 100.0f + 0.5f)); break;
                 case 2: snprintf(val, sizeof(val), "< %s >", visual_styles[current_style].name); break;
                 case 3: snprintf(val, sizeof(val), "[ %s ]", setting_fullscreen ? "ON" : "OFF"); break;
@@ -455,7 +450,7 @@ static void montage_advance(Montage *m) {
         // Gibbons alone in the elevator. Facing camera. Briefcase in hand.
         gibbons.active = true;
         gibbons.pos = (Vector3){0, 1.6f, -0.5f};
-        gibbons.yaw = 3.14159f;  // facing the camera
+        gibbons.yaw = PI;  // facing the camera
         gibbons.behavior = NPC_WAITING;
         gibbons.waiting = true;
         gibbons.waypoint_count = 0;
@@ -511,7 +506,7 @@ static void compose_ending_montage(Montage *m) {
         .scene = STATE_CAR,
         .duration = 3.0f,
         .cam_pos = {0, 1.2f, 0},
-        .cam_target = {0, 0.9f, -2},
+        .cam_target = {-0.45f, 0.6f, 0.1f},  // the second ticket on the seat
         .exposure = 0.1f, .warmth = 0.4f, .saturation = 0.9f,
         .grain = 0.4f, .contrast = 1.2f,
         .text = NULL,
@@ -528,12 +523,12 @@ static void compose_ending_montage(Montage *m) {
         .text = NULL,
     };
 
-    // Beat 3: The hotel — the piano, from across the atrium. Red against marble.
+    // Beat 3: The hotel — the two chairs facing each other. Empty.
     m->beats[i++] = (MontageBeat){
         .scene = STATE_SPACE_HOTEL,
         .duration = 2.0f,
-        .cam_pos = {8, 1.6f, 12},
-        .cam_target = {-2, 0.9f, 12},   // looking at the piano
+        .cam_pos = {-4, 1.6f, 4},
+        .cam_target = {-6, 0.5f, 3},   // the two chairs facing each other. Empty.
         .exposure = -0.08f, .warmth = 0.3f, .saturation = 0.85f,
         .grain = 0.4f, .contrast = 1.2f,
         .text = NULL,
@@ -550,12 +545,12 @@ static void compose_ending_montage(Montage *m) {
         .text = NULL,
     };
 
-    // Beat 4: The suite — the two glasses. One full. One empty.
+    // Beat 5: The suite — "Three hours." The empty champagne glass. Untouched.
     m->beats[i++] = (MontageBeat){
         .scene = STATE_SPACE_SUITE,
         .duration = 2.5f,
-        .cam_pos = {-3, 0.8f, 3.0f},
-        .cam_target = {-3.3f, 0.39f, 3.5f},   // looking down at both glasses on the tray
+        .cam_pos = {-3.8f, 1.0f, 3.2f},
+        .cam_target = {-3.5f, 0.44f, 3.5f},   // the empty glass
         .exposure = -0.1f, .warmth = 0.6f, .saturation = 0.9f,
         .grain = 0.4f, .contrast = 1.1f,
         .text = NULL,   // the glasses speak for themselves
@@ -572,12 +567,12 @@ static void compose_ending_montage(Montage *m) {
         .text = NULL,
     };
 
-    // Beat 6: Paris dream fragment — B&W flash. It happened. It didn't.
+    // Beat 6: Paris dream fragment — B&W flash. Her coat, draped on the chair.
     m->beats[i++] = (MontageBeat){
         .scene = STATE_PARIS_DREAM,
         .duration = 0.15f,  // ~9 frames — subliminal
-        .cam_pos = {-2, 1.6f, -3},
-        .cam_target = {-2.5f, 0.6f, -3.5f},
+        .cam_pos = {-1.2f, 1.4f, 2.5f},
+        .cam_target = {-1.5f, 0.8f, 2.0f},  // her coat, draped
         .exposure = 0.1f, .warmth = 0.0f, .saturation = 0.0f,
         .grain = 0.9f, .contrast = 2.0f,
         .text = NULL,
@@ -630,12 +625,12 @@ static void compose_ending_montage(Montage *m) {
         .text = NULL,
     };
 
-    // Beat 10: The suite window — looking out. No one inside anymore.
+    // Beat 10: The suite — looking at the two robes on the bathroom door.
     m->beats[i++] = (MontageBeat){
         .scene = STATE_SPACE_SUITE,
         .duration = 1.5f,
-        .cam_pos = {-6.5f, 1.6f, 0},
-        .cam_target = {-7.5f, 1.0f, 0},   // pressed against glass, looking out
+        .cam_pos = {5, 1.6f, 1},
+        .cam_target = {6.8f, 1.7f, 2.0f},   // two robes on the door
         .exposure = -0.15f, .warmth = 0.0f, .saturation = 0.6f,
         .grain = 0.6f, .contrast = 1.2f,
         .text = NULL,
@@ -658,8 +653,8 @@ static void compose_ending_montage(Montage *m) {
     m->beats[i++] = (MontageBeat){
         .scene = STATE_SPACE_SUITE,
         .duration = 3.0f,
-        .cam_pos = {0, 1.2f, -3},
-        .cam_target = {0.6f, 0.68f, -5.2f},  // looking at where the second pillow was
+        .cam_pos = {5, 1.6f, 1},
+        .cam_target = {6.8f, 1.7f, 2.6f},  // where her robe was. Gone.
         .exposure = -0.05f, .warmth = 0.0f, .saturation = 0.7f,
         .grain = 0.3f, .contrast = 1.2f,
         .text = "__cleaned__",
@@ -779,6 +774,7 @@ static void cinema_update(float dt) {
 
 // ── Cinematic trigger helpers ──
 
+__attribute__((unused))
 static void cinema_split_start(SplitMode mode, GameState second_scene,
                                Vector3 cam_pos, Vector3 cam_target, float split_pos) {
     cinema.split_mode = mode;
@@ -792,6 +788,7 @@ static void cinema_split_start(SplitMode mode, GameState second_scene,
     cinema.split_blend_target = 1.0f;
 }
 
+__attribute__((unused))
 static void cinema_split_end(void) {
     cinema.split_blend_target = 0.0f;
 }
@@ -1251,8 +1248,13 @@ static void load_state(GameState s) {
             // THE RED OBJECT — one color survives the B&W.
             // A scarf on the bed. Godard red. Memory preserves color selectively.
             // You remember what mattered.
-            add_wall(&scene, 0.3f, 0.62f, -3.2f, 0.6f, 0.02f, 0.15f, (Color){200,50,45,255});
-            set_last_material(&scene, MAT_FABRIC);
+            add_wall(&scene, 0.3f, 0.62f, -3.2f, 0.6f, 0.02f, 0.15f, (Color){255,30,25,255});
+            set_last_material(&scene, MAT_EMISSIVE);  // self-lit — bleeds through B&W
+
+            // Red flower in a glass on the table — Godard red survives the dream
+            add_cylinder(&scene, -1.35f, 0.48f, 0.6f, 0.025f, 0.08f, (Color){210,210,215,180}); // glass
+            add_cylinder(&scene, -1.35f, 0.56f, 0.6f, 0.015f, 0.1f, (Color){255,30,25,255});    // flower
+            set_last_material(&scene, MAT_EMISSIVE);  // self-lit — bleeds through B&W
 
             // Her book — same novel as the suite nightstand, further along.
             // She was reading it here first. The timeline is real.
@@ -1296,7 +1298,7 @@ static void load_state(GameState s) {
             set_exposure(0.05f);                     // slightly lifted
             SetPostFXWarmth(&postfx, 0.0f);         // NO warmth — pure B&W
             SetPostFXGrain(&postfx, 0.8f);          // heavy film grain — Godard 16mm
-            SetPostFXSaturation(&postfx, 0.0f);     // ZERO saturation — true B&W
+            SetPostFXSaturation(&postfx, 0.06f);    // near-zero — only the most saturated reds bleed through
             SetPostFXCA(&postfx, 2.0f);             // subtle chromatic shift
             SetPostFXVignette(&postfx, 2.5f);       // heavy vignette — iris-like
             SetPostFXContrast(&postfx, 1.8f);       // crushed blacks, blown whites — Godard contrast
@@ -1411,8 +1413,11 @@ static void load_state(GameState s) {
             set_exposure(-0.08f);          // darker than lobby — more dramatic
             SetPostFXGrain(&postfx, 0.35f);
             // Ambient life — same hotel, same elevators, same distant guests
+            // Other people's relationships, muffled through glass and distance
             PlayCommsChatter(&audio);
             SetSoundVolume(audio.snd_comms_chatter, 0.005f);  // whisper — farther than lobby
+            PlayDistantVoices(&audio);
+            SetSoundVolume(audio.snd_distant_voices, 0.015f);  // couples' murmur — other lives
             lobby_ding_timer = 6.0f + (float)(rand() % 60) / 10.0f;  // first ding in 6-12s
             // Gibbons — walks the central axis, 4 waypoints through the atrium
             {
@@ -1447,8 +1452,9 @@ static void load_state(GameState s) {
             PlayCorridorMusic(&audio);  // ambient1 — underneath the walk
             // Through bulkheads: space has its own acoustic character
             PlayCommsChatter(&audio);
-            // Per-door spatial sounds — door 0: machinery, door 1: TV, door 2: silence
+            // Per-door spatial sounds — door 0: machinery+laughter, door 1: TV, door 2: silence
             PlayMuffledMachinery(&audio);
+            PlayMuffledLaughter(&audio);  // couple behind the warm-light door
             PlaySound(audio.snd_running_water);
             PlaySound(audio.snd_tv_murmur);
             // Door positions for distance-based volume
@@ -1494,7 +1500,7 @@ static void load_state(GameState s) {
             StopCityAmbient(&audio);
             StopWindAmbient(&audio);
             StopMuffledPiano(&audio); StopFootstepsAbove(&audio);
-            StopDistantVoices(&audio);
+            StopDistantVoices(&audio); StopMuffledLaughter(&audio);
             StopCorridorMusic(&audio);
             StopSound(audio.snd_running_water); StopSound(audio.snd_tv_murmur);
             PlayDoorThud(&audio);     // suite door closing — sealed in
@@ -1638,6 +1644,53 @@ static void draw_vignette_text(void) {
 }
 
 // ============================================================
+// QA TYPES (used by qa_render_shot and QA mode in main)
+// ============================================================
+#ifdef QA_MODE
+typedef struct {
+    Vector3 pos;
+    Vector3 target;
+} QACam;
+typedef struct {
+    GameState gs;
+    const char *name;
+    QACam hero;
+    QACam spawn;
+    bool dark_by_design;
+    bool outdoor;
+} QAEntry;
+
+// Render scene from a given camera angle and save screenshot
+static void qa_render_shot(QACam cam, const char *suffix,
+                           const char *scene_name, bool outdoor) {
+    if (cam.pos.x != 0 || cam.pos.y != 0 || cam.pos.z != 0)
+        player.camera.position = cam.pos;
+    player.camera.target = cam.target;
+    for (int f = 0; f < 8; f++) {
+        BeginTextureMode(render_target);
+        ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8,10,22,255});
+        draw_scene_3d(&player, &scene, &lighting,
+            &cube_model, cube_model_loaded, &cyl_model, cyl_model_loaded,
+            &sphere_model, sphere_model_loaded, &cone_model, cone_model_loaded,
+            &skytower_model, skytower_loaded,
+            !outdoor, (float)f * 0.016f);
+        EndTextureMode();
+        process_bloom(&postfx, render_target);
+        BeginTextureMode(postfx_target); ClearBackground(BLACK);
+        draw_postfx(&postfx, render_target); EndTextureMode();
+        BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+    }
+    RenderTexture2D disp = postfx.ready ? postfx_target : render_target;
+    Image img = LoadImageFromTexture(disp.texture);
+    ImageFlipVertical(&img);
+    char path[256];
+    snprintf(path, sizeof(path), "qa/screenshots/%s_%s.png", scene_name, suffix);
+    ExportImage(img, path);
+    UnloadImage(img);
+}
+#endif
+
+// ============================================================
 // MAIN
 // ============================================================
 
@@ -1725,19 +1778,7 @@ int main(void) {
     SetMasterVolume(0.0f);
 
     // ── Scene registry with per-scene camera angles ──
-    // Each scene gets a "hero" shot (best composition) and "spawn" shot (first impression)
-    typedef struct {
-        Vector3 pos;        // camera position (0,0,0 = use scene spawn)
-        Vector3 target;     // look-at target
-    } QACam;
-    typedef struct {
-        GameState gs;
-        const char *name;
-        QACam hero;         // the money shot — shows scene at its best
-        QACam spawn;        // what the player actually sees first
-        bool dark_by_design;
-        bool outdoor;
-    } QAEntry;
+    // Types defined above main() for qa_render_shot function
 
     // Camera angles tuned per-scene based on geometry and hero elements
     QAEntry qa_scenes[] = {
@@ -1815,39 +1856,11 @@ int main(void) {
         load_state(qa_scenes[qi].gs);
         fade_alpha = 0.0f; fade_target = 0.0f;
 
-        // ── Render helper: take a screenshot from a given angle ──
-        #define QA_RENDER_SHOT(cam_setup, suffix) do { \
-            if (cam_setup.pos.x != 0 || cam_setup.pos.y != 0 || cam_setup.pos.z != 0) \
-                player.camera.position = cam_setup.pos; \
-            player.camera.target = cam_setup.target; \
-            for (int _f = 0; _f < 8; _f++) { \
-                BeginTextureMode(render_target); \
-                ClearBackground(scene.fog_color.a > 0 ? scene.fog_color : (Color){8,10,22,255}); \
-                draw_scene_3d(&player, &scene, &lighting, \
-                    &cube_model, cube_model_loaded, &cyl_model, cyl_model_loaded, \
-                    &sphere_model, sphere_model_loaded, &cone_model, cone_model_loaded, \
-                    &skytower_model, skytower_loaded, \
-                    !qa_scenes[qi].outdoor, (float)_f * 0.016f); \
-                EndTextureMode(); \
-                process_bloom(&postfx, render_target); \
-                BeginTextureMode(postfx_target); ClearBackground(BLACK); \
-                draw_postfx(&postfx, render_target); EndTextureMode(); \
-                BeginDrawing(); ClearBackground(BLACK); EndDrawing(); \
-            } \
-            RenderTexture2D _disp = postfx.ready ? postfx_target : render_target; \
-            Image _img = LoadImageFromTexture(_disp.texture); \
-            ImageFlipVertical(&_img); \
-            char _path[256]; \
-            snprintf(_path, sizeof(_path), "qa/screenshots/%s_%s.png", qa_scenes[qi].name, suffix); \
-            ExportImage(_img, _path); \
-            UnloadImage(_img); \
-        } while(0)
-
         // Take hero shot — this is also the image we analyze
-        QA_RENDER_SHOT(qa_scenes[qi].hero, "hero");
+        qa_render_shot(qa_scenes[qi].hero, "hero",
+                       qa_scenes[qi].name, qa_scenes[qi].outdoor);
 
-        // Capture hero image for analysis (re-render from same angle)
-        // The macro already rendered; just grab the framebuffer
+        // Capture hero framebuffer for pixel analysis
         RenderTexture2D display = postfx.ready ? postfx_target : render_target;
         Image img = LoadImageFromTexture(display.texture);
         ImageFlipVertical(&img);
@@ -1858,7 +1871,8 @@ int main(void) {
         // Take spawn shot
         load_state(qa_scenes[qi].gs);
         fade_alpha = 0.0f; fade_target = 0.0f;
-        QA_RENDER_SHOT(qa_scenes[qi].spawn, "spawn");
+        qa_render_shot(qa_scenes[qi].spawn, "spawn",
+                       qa_scenes[qi].name, qa_scenes[qi].outdoor);
 
         Color *pixels = LoadImageColors(img);
         int total_px = RENDER_W * RENDER_H;
@@ -2012,7 +2026,7 @@ int main(void) {
         }
         if (center_avg < 10 && edge_avg < 10 && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COMPOSITION: center luma %.0f — nothing visible in frame center\n", center_avg); issues++;
+                "    COMPOSITION: center luma %.0f — nothing visible in frame center\n", (double)center_avg); issues++;
         }
 
         // LIGHTING checks
@@ -2042,7 +2056,7 @@ int main(void) {
         // COLOR checks
         if (cvar < 50.0f && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COLOR: variance %.0f — flat, no accent colors\n", cvar); issues++;
+                "    COLOR: variance %.0f — flat, no accent colors\n", (double)cvar); issues++;
         }
         if (hue_count < 2 && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
@@ -2052,7 +2066,7 @@ int main(void) {
         // BUDGET checks
         if (wall_pct > 85.0f) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    BUDGET: wall budget %.0f%% (%d/%d) — near overflow\n", wall_pct, scene.wall_count, MAX_WALLS); issues++;
+                "    BUDGET: wall budget %.0f%% (%d/%d) — near overflow\n", (double)wall_pct, scene.wall_count, MAX_WALLS); issues++;
         }
 
         // INTERACTION checks
@@ -2065,7 +2079,7 @@ int main(void) {
         // Horror: blue-green dominant + low luma + high contrast
         if (warmth < -15 && luma < 40 && !dark && contrast_ratio > 3) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    ANTI-PATTERN: reads as horror (cold %.0f, dark luma %.0f)\n", warmth, luma); issues++;
+                "    ANTI-PATTERN: reads as horror (cold %.0f, dark luma %.0f)\n", (double)warmth, (double)luma); issues++;
         }
         // Grey-on-grey in space (space scenes should have color)
         if ((qa_scenes[qi].gs == STATE_SPACE_LOBBY || qa_scenes[qi].gs == STATE_SPACE_CORRIDOR ||
@@ -2130,7 +2144,6 @@ int main(void) {
         UnloadImageColors(pixels);
         UnloadImage(img);
     }
-    #undef QA_RENDER_SHOT
 
     if (jf) {
         fprintf(jf, "\n  ],\n  \"total_issues\": %d,\n  \"scene_count\": %d\n}\n", qa_total_issues, qa_count);
@@ -2555,7 +2568,7 @@ int main(void) {
                 UpdateEVAudio(&audio, player.moving, player.sprinting, scene.surface, dt);
                 // Sky Tower beacon — red pulse every 2 seconds
                 {
-                    float beacon = sinf(state_time * 3.14159f) * 0.5f + 0.5f;
+                    float beacon = sinf(state_time * PI) * 0.5f + 0.5f;
                     beacon = beacon * beacon;  // sharper pulse
                     SetPointLightIdx(&lighting, 2,
                         0, 52, 8,
@@ -3105,8 +3118,8 @@ int main(void) {
                     // Contrast pulses — like a projector struggling
                     float pulse = 1.8f + 0.2f * sinf(state_time * 1.2f);
                     SetPostFXContrast(&postfx, pulse);
-                    // Saturation stays at zero — this is B&W, always
-                    SetPostFXSaturation(&postfx, 0.0f);
+                    // Near-zero saturation — only emissive reds bleed through
+                    SetPostFXSaturation(&postfx, 0.06f);
                     // Agency slowly draining — you're losing the dream
                     if (state_time > 20.0f) {
                         float dream_fade = fminf(1.0f, (state_time - 20.0f) / 40.0f);
@@ -3216,7 +3229,7 @@ int main(void) {
                 {
                     float breath_rate = 0.4f;  // slow, surrendered breathing
                     float breath_amp = 0.015f;
-                    float breath = sinf(state_time * breath_rate * 2 * 3.14159f) * breath_amp;
+                    float breath = sinf(state_time * breath_rate * 2 * PI) * breath_amp;
                     player.camera.position.y += breath * dt * 2.0f;
                 }
                 break;
@@ -3583,8 +3596,45 @@ int main(void) {
                     SetSoundVolume(audio.snd_comms_chatter, 0.005f);  // whisper
                 }
                 {
+                // Piano interaction — one note. It resonates through the entire atrium.
+                // "Someone left this here. It doesn't play itself." (Gibbons)
+                if (IsKeyPressed(KEY_E)) {
+                    for (int i = 0; i < scene.object_count; i++) {
+                        InteractObject *obj = &scene.objects[i];
+                        if (!obj->active || obj->done) continue;
+                        float dist = Vector3Distance(player.camera.position, obj->pos);
+                        if (dist < obj->radius) {
+                            Vector3 to = Vector3Normalize(Vector3Subtract(obj->pos, player.camera.position));
+                            Vector3 look = Vector3Normalize(Vector3Subtract(player.camera.target, player.camera.position));
+                            if (Vector3DotProduct(to, look) > 0.5f) {
+                                if (strcmp(obj->name, "piano") == 0) {
+                                    obj->step++; obj->done = true;
+                                    PlayMusicFragment(&audio);
+                                    kick_camera(&player, -0.01f, 0.005f);
+                                    add_wall(&scene, -2.2f, 0.88f, 11.18f, 0.12f, 0.04f, 0.18f,
+                                             (Color){235, 232, 225, 255});
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                     float chatter_pan = 0.5f + 0.3f * sinf(state_time * 0.1f);
                     SetSoundPan(audio.snd_comms_chatter, chatter_pan);
+                }
+                // ── Couples' murmur — louder near the seating clusters ──
+                // The hotel is full of people living the trip you were supposed to have.
+                {
+                    float pz_h = player.camera.position.z;
+                    float px_h = player.camera.position.x;
+                    // Cluster 1: chairs at (-6, 0, 3), Cluster 2: sofa at (-8, 0, 14)
+                    float d1 = sqrtf((px_h+6)*(px_h+6) + (pz_h-3)*(pz_h-3));
+                    float d2 = sqrtf((px_h+8)*(px_h+8) + (pz_h-14)*(pz_h-14));
+                    float near = fminf(d1, d2);
+                    float voices_vol = (near < 8.0f)
+                        ? 0.015f + 0.025f * (1.0f - near / 8.0f)
+                        : 0.015f;
+                    SetSoundVolume(audio.snd_distant_voices, voices_vol);
                 }
                 // Exit — corridor door at far end
                 if (scene.has_exit) {
@@ -3690,6 +3740,13 @@ int main(void) {
 
                         if (di == 0) {
                             SetSoundVolume(audio.snd_muffled_machinery, dvol);
+                            // Muffled laughter — couple behind this door
+                            // Louder than machinery, warmer — these are people, not systems
+                            float laugh_vol = (ddist < 5.0f) ? 0.04f * (1.0f - ddist / 5.0f) : 0.0f;
+                            laugh_vol *= silence;
+                            SetSoundVolume(audio.snd_muffled_laughter, laugh_vol);
+                            SetSoundPan(audio.snd_muffled_laughter, (di == 0 && ddist > 0.01f) ?
+                                0.5f + (fwd.x * to_door.z - fwd.z * to_door.x) * 0.4f : 0.5f);
                             // Running water — bathroom behind this door
                             // Fades in as you approach, someone's home
                             float water_vol = (ddist < 4.0f) ? 0.04f * (1.0f - ddist / 4.0f) : 0.0f;
@@ -3828,11 +3885,16 @@ int main(void) {
                         float t = fminf(1.0f, (-4.0f - px) / 3.0f);
                         speed_mult = 1.0f - t * 0.4f;
                     }
-                    // Near bed (z < -3): slow to 70%
+                    // Near bed (z < -3): slow to 70%, agency softens
                     if (pz < -3.0f) {
                         float t = fminf(1.0f, (-3.0f - pz) / 2.5f);
                         float bed_mult = 1.0f - t * 0.3f;
                         if (bed_mult < speed_mult) speed_mult = bed_mult;
+                        // Agency surrender — mouse sensitivity fades near bed.
+                        // The room teaches you to be still.
+                        player.control_mult = 1.0f - t * 0.4f;  // 1.0 at z=-3, 0.6 at bed
+                    } else {
+                        player.control_mult = 1.0f;
                     }
                     if (speed_mult < 1.0f) {
                         player.vel.x *= speed_mult;
@@ -4070,6 +4132,20 @@ int main(void) {
                                     show_text("Paris.");
                                     photo_text_timer = 2.0f;
                                     // Done — but NOT a counted task. Observational.
+                                    obj->done = true;
+                                    break;
+                                } else if (strcmp(obj->name, "thermostat") == 0 && obj->step == 1) {
+                                    // Change the temperature. The compromise is over.
+                                    PlayInteract(&audio, INTERACT_CLICK);
+                                    kick_camera(&player, -0.005f, 0.003f);
+                                    // Emissive display shifts from warm green to cool blue
+                                    for (int j = 0; j < scene.wall_count; j++) {
+                                        if (fabsf(scene.walls[j].pos.x - 5.5f) < 0.1f &&
+                                            fabsf(scene.walls[j].pos.z - 4.48f) < 0.1f &&
+                                            scene.walls[j].material == MAT_EMISSIVE) {
+                                            scene.walls[j].color = (Color){80,140,220,200};
+                                        }
+                                    }
                                     obj->done = true;
                                     break;
                                 } else if (strcmp(obj->name, "adjoining_door") == 0 && obj->step == 1 && !adjoining_door_opened) {
@@ -4313,7 +4389,7 @@ int main(void) {
                 // Gibbons gestures at suite threshold (waypoint 0) — the bow
                 if (gibbons.active && gibbons.waiting && gibbons.current_waypoint == 0) {
                     gibbons.behavior = NPC_GESTURING;
-                    gibbons.yaw_target = 3.14159f;  // face the player
+                    gibbons.yaw_target = PI;  // face the player
                 }
                 // Sprint 4A: Gibbons sits after dialogue, stands on task completion
                 if (!gibbons.active && tasks_done < SPACE_TASK_COUNT) {

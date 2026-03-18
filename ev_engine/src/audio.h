@@ -73,6 +73,10 @@ typedef struct {
     bool muffled_machinery_playing;
     bool comms_chatter_playing;
 
+    // Muffled couple — laughter through a wall, someone's actually living in there
+    Sound snd_muffled_laughter;
+    bool muffled_laughter_playing;
+
     // Sprint 1: Bed drone + held chord for ending
     Sound snd_bed_drone;         // low ~50Hz, 20s loop — surrender
     Sound snd_held_chord;        // C3-G3-D4 stacked fifths, 3s attack, infinite sustain
@@ -172,6 +176,10 @@ void PlayDistantVoices(EVAudio *audio);
 void StopDistantVoices(EVAudio *audio);
 void PlayFootstepsAbove(EVAudio *audio);
 void StopFootstepsAbove(EVAudio *audio);
+
+// Muffled couple — laughter through a wall
+void PlayMuffledLaughter(EVAudio *audio);
+void StopMuffledLaughter(EVAudio *audio);
 
 // Space corridor through-wall sounds
 void PlayMuffledMachinery(EVAudio *audio);
