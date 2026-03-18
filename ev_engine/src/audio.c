@@ -975,6 +975,7 @@ static Sound gen_bed_drone(void);
 static Sound gen_held_chord(void);
 static Sound gen_bed_ritual(void);
 static Sound gen_three_note(void);
+static Sound gen_taxi_radio(void);
 static Sound gen_running_water(void);
 static Sound gen_tv_murmur(void);
 static Sound gen_hyperspace_tone(void);
@@ -988,6 +989,7 @@ static Sound gen_bed_impact(void);
 static Sound gen_balcony_gust(void);
 static Sound gen_title_breath(void);
 static Sound gen_hard_cut_punch(void);
+static Sound gen_phone_ring(void);
 static Sound gen_earth_presence(void);
 
 // --- ENGINE ---
@@ -1027,6 +1029,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_held_chord = gen_held_chord();
     audio->snd_bed_ritual = gen_bed_ritual();
     audio->snd_three_note = gen_three_note();
+    audio->snd_taxi_radio = gen_taxi_radio();
     audio->snd_running_water = gen_running_water();
     audio->snd_tv_murmur = gen_tv_murmur();
     audio->snd_hyperspace_tone = gen_hyperspace_tone();
@@ -1040,6 +1043,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_balcony_gust = gen_balcony_gust();
     audio->snd_title_breath = gen_title_breath();
     audio->snd_hard_cut_punch = gen_hard_cut_punch();
+    audio->snd_phone_ring = gen_phone_ring();
     audio->snd_earth_presence = gen_earth_presence();
     audio->city_playing = false;
     audio->clock_playing = false;
@@ -1052,6 +1056,7 @@ void InitEVAudio(EVAudio *audio) {
     audio->held_chord_playing = false;
     audio->bed_ritual_playing = false;
     audio->bed_ritual_played_once = false;
+    audio->taxi_radio_playing = false;
     audio->hyperspace_tone_playing = false;
     audio->hyperspace_riser_playing = false;
     audio->elevator_whoosh_playing = false;
@@ -1095,6 +1100,7 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_held_chord, 0.05f);        // credits chord — present but gentle
     SetSoundVolume(audio->snd_bed_ritual, 0.06f);        // THE piece — warm, present, emotional center
     SetSoundVolume(audio->snd_three_note, 0.04f);        // callback fragment — ghostly, brief
+    SetSoundVolume(audio->snd_taxi_radio, 0.025f);       // lo-fi car radio — warm background
     SetSoundVolume(audio->snd_running_water, 0.015f);    // behind door — muffled
     SetSoundVolume(audio->snd_tv_murmur, 0.015f);        // behind door — muffled
     SetSoundVolume(audio->snd_hyperspace_tone, 0.06f);   // rising tone — builds tension
@@ -1108,6 +1114,7 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_balcony_gust, 0.07f);      // void rushing in
     SetSoundVolume(audio->snd_title_breath, 0.04f);      // barely there — subliminal
     SetSoundVolume(audio->snd_hard_cut_punch, 0.10f);    // physical cut — snappy
+    SetSoundVolume(audio->snd_phone_ring, 0.03f);        // muffled — through walls, unanswered
     SetSoundVolume(audio->snd_earth_presence, 0.0f);     // starts silent — distance-controlled
 }
 
@@ -1133,6 +1140,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_footsteps_above);
     UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
     UnloadSound(audio->snd_bed_ritual); UnloadSound(audio->snd_three_note);
+    UnloadSound(audio->snd_taxi_radio);
     UnloadSound(audio->snd_running_water); UnloadSound(audio->snd_tv_murmur);
     UnloadSound(audio->snd_hyperspace_tone);
     UnloadSound(audio->snd_hyperspace_riser);
@@ -1145,6 +1153,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_balcony_gust);
     UnloadSound(audio->snd_title_breath);
     UnloadSound(audio->snd_hard_cut_punch);
+    UnloadSound(audio->snd_phone_ring);
     UnloadSound(audio->snd_earth_presence);
     CloseAudioDevice();
     audio->initialized = false;
@@ -1630,6 +1639,76 @@ void PlayThreeNote(EVAudio *audio) {
     PlaySound(audio->snd_three_note);
 }
 
+// ── Taxi radio — warm lo-fi song ─────────────────────────────────
+// Something you'd listen to together. Cuts off at hyperspace.
+// G major pentatonic melody over gentle chords — lo-fi car radio warmth.
+static Sound gen_taxi_radio(void) {
+    int len = SAMPLE_RATE * 20;  // 20s loop — enough for the taxi ride
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+    unsigned int rng = 77;
+
+    // Lo-fi warmth: gentle G major chord bed + simple melody
+    // G2-B2-D3 chord base (low, warm, muffled by car speakers)
+    float chord_freqs[] = {98.0f, 123.47f, 146.83f};
+
+    // Melody: pentatonic, singable — G4, A4, B4, D5, E5
+    float mel[] = {392.0f, 440.0f, 493.88f, 587.33f, 659.26f};
+    float mel_times[] = {0.5f, 2.0f, 3.5f, 5.0f, 6.5f, 8.5f, 10.0f, 11.5f, 13.0f, 14.5f, 16.5f, 18.0f};
+    int mel_notes[] =   {0, 2, 4, 3, 1, 0, 2, 1, 3, 4, 2, 0};
+    int mel_count = 12;
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+
+        // Loop envelope
+        float env = 1.0f;
+        if (lt < 0.02f) env = lt / 0.02f;
+        if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
+
+        // Chord bed — muffled, lo-fi (low-pass via fewer harmonics)
+        float chord = 0;
+        for (int n = 0; n < 3; n++) {
+            float f = chord_freqs[n];
+            chord += sinf(2 * PI * f * t) * 0.12f;
+            chord += sinf(2 * PI * f * 1.004f * t) * 0.03f;  // detuned for warmth
+        }
+
+        // Melody — soft, slightly distorted (car speaker character)
+        float melody = 0;
+        for (int m = 0; m < mel_count; m++) {
+            float mt = t - mel_times[m];
+            if (mt >= 0 && mt < 2.0f) {
+                float menv = expf(-2.0f * mt);
+                float mf = mel[mel_notes[m]];
+                melody += sinf(2 * PI * mf * t) * menv * 0.15f;
+                // Slight harmonic distortion — car speaker
+                melody += sinf(2 * PI * mf * 2.0f * t) * menv * 0.02f;
+            }
+        }
+
+        // Lo-fi noise floor — car cabin hiss
+        float hiss = (ev_randf(&rng) * 2.0f - 1.0f) * 0.008f;
+
+        d[i] = (short)((chord + melody + hiss) * env * 3000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayTaxiRadio(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!audio->taxi_radio_playing) {
+        PlaySound(audio->snd_taxi_radio);
+        audio->taxi_radio_playing = true;
+    }
+}
+void StopTaxiRadio(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_taxi_radio);
+    audio->taxi_radio_playing = false;
+}
+
 // ── Sprint 2: Clock rate modulation ────────────────────────────────
 void SetClockRate(EVAudio *audio, float rate) {
     if (!audio->initialized) return;
@@ -2112,6 +2191,58 @@ void PlayHardCutPunch(EVAudio *audio) {
     PlaySound(audio->snd_hard_cut_punch);
 }
 
+// ── Phone ring — vintage two-bell, muffled through walls ────────────
+// One double-ring, then silence. Unanswered. Someone calling a room
+// that's booked for two but occupied by one.
+static Sound gen_phone_ring(void) {
+    int len = SAMPLE_RATE * 4;  // 4 seconds — one ring cycle, then decay
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    // Two-bell pattern: ring-ring, pause, ring-ring
+    // Each "ring" is 0.4s of dual-frequency bell
+    float ring_starts[] = {0.2f, 0.7f, 2.0f, 2.5f};
+    float ring_dur = 0.35f;
+
+    int reverb_delay = (int)(SAMPLE_RATE * 0.12f);
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float sample = 0;
+
+        for (int r = 0; r < 4; r++) {
+            float rt = t - ring_starts[r];
+            if (rt >= 0 && rt < ring_dur) {
+                float renv = sinf(PI * rt / ring_dur);  // smooth bell shape
+                renv *= renv;
+                // Two bell frequencies — slightly dissonant, vintage
+                float bell1 = sinf(2 * PI * 440.0f * t) * 0.3f;
+                float bell2 = sinf(2 * PI * 480.0f * t) * 0.25f;
+                // Muffled — through a wall, through time
+                float muffle = expf(-2.0f * rt);
+                sample += (bell1 + bell2) * renv * muffle;
+            }
+        }
+
+        // Overall fade — the ring gets quieter, giving up
+        float fade = 1.0f;
+        if (t > 3.0f) fade = (4.0f - t);
+        if (fade < 0) fade = 0;
+
+        d[i] = (short)(sample * fade * 5000);
+    }
+    // Reverb — room resonance
+    for (int i = reverb_delay; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay] * 0.2f);
+
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayPhoneRing(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_phone_ring);
+}
+
 // ── Earth presence — 30Hz sub-bass, gravitational hum near observation window ──
 static Sound gen_earth_presence(void) {
     int len = SAMPLE_RATE * 10;  // 10-second loop
@@ -2260,6 +2391,7 @@ void StopAllAudio(EVAudio *audio) {
     StopBedDrone(audio);
     StopHeldChord(audio);
     StopBedRitual(audio);
+    StopTaxiRadio(audio);
     StopHyperspaceTone(audio);
     StopHyperspaceRiser(audio);
     StopElevatorWhoosh(audio);

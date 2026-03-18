@@ -95,12 +95,17 @@ typedef struct {
     Sound snd_title_breath;      // inhale/exhale texture — before title text
     Sound snd_hard_cut_punch;    // micro-transient — Blendo-style instant cuts
     Sound snd_earth_presence;    // 30Hz sub-bass — Earth's gravitational hum, near window only
+    Sound snd_phone_ring;        // vintage two-bell ring — plays once in suite, unanswered
     bool hyperspace_riser_playing;
     bool elevator_whoosh_playing;
     bool earth_presence_playing;
 
     // Clock rate — for pitch modulation
     float clock_rate;            // 1.0 = normal, 0.0 = stopped
+
+    // Taxi radio — warm song, cuts off at hyperspace
+    Sound snd_taxi_radio;        // lo-fi warmth, something you'd listen to together
+    bool taxi_radio_playing;
 
     // File-based music — Maxwell's compositions, played once
     Music music_suite;           // "lighthouse" — the one composed piece, triggered once
@@ -190,6 +195,11 @@ void PlayBedImpact(EVAudio *audio);
 void PlayBalconyGust(EVAudio *audio);
 void PlayTitleBreath(EVAudio *audio);
 void PlayHardCutPunch(EVAudio *audio);
+void PlayPhoneRing(EVAudio *audio);   // vintage ring — plays once, unanswered
+
+// Taxi radio — warm song, cuts at hyperspace
+void PlayTaxiRadio(EVAudio *audio);
+void StopTaxiRadio(EVAudio *audio);
 
 // Earth presence — sub-bass drone near observation window
 void PlayEarthPresence(EVAudio *audio);
