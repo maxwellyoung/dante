@@ -84,6 +84,8 @@ void bed_load(void) {
     PlayBedImpact(&g.audio);
     g.bed_clock_rate = 1.0f;
     PlayClockAmbient(&g.audio);
+    // THE composed piece — plays once, never repeats. The emotional center.
+    PlayBedRitual(&g.audio);
 }
 
 void bed_update(float dt) {
@@ -126,8 +128,10 @@ void bed_update(float dt) {
 void stars_load(void) {
     StopAmbient(&g.audio); StopClockAmbient(&g.audio); StopCityAmbient(&g.audio); StopWindAmbient(&g.audio);
     StopBedDrone(&g.audio);
+    StopBedRitual(&g.audio);
     PlayHeldChord(&g.audio);
     SetPostFXWarmth(&g.postfx, 0.0f);
+    g.three_note_played = false;
     int rt_m = (int)g.total_time / 60, rt_s = (int)g.total_time % 60;
     printf("\n[PLAYTHROUGH] Total runtime: %d:%02d\n\n", rt_m, rt_s);
 }
@@ -155,6 +159,12 @@ void stars_update(float dt) {
         SetPostFXGrain(&g.postfx, 0.8f - g.state_time * 0.5f);
     }
     if (IsKeyPressed(KEY_ESCAPE)) { CloseWindow(); }
+    // Three-note callback — the bed ritual returns as a fragment
+    if (g.state_time > 10.0f && !g.three_note_played) {
+        StopHeldChord(&g.audio);  // held chord fades, three notes take over
+        PlayThreeNote(&g.audio);
+        g.three_note_played = true;
+    }
     // Waking up
     if (g.state_time > 13.0f) {
         float wake = (g.state_time - 13.0f) / 2.0f;
@@ -196,6 +206,28 @@ void paris_dream_load(void) {
     // A scarf on the bed. Godard red. Memory preserves color selectively.
     add_wall(&g.scene, 0.3f, 0.62f, -3.2f, 0.6f, 0.02f, 0.15f, (Color){200,50,45,255});
     set_last_material(&g.scene, MAT_FABRIC);
+    set_last_decal(&g.scene);
+
+    // HER TOOTHBRUSH — in the bathroom glass by the sink.
+    // The most mundane detail. The most devastating on replay.
+    // A cylinder (glass) + thin cylinder (toothbrush) on the sink counter.
+    add_cylinder(&g.scene, 2.0f, 0.95f, 0.8f, 0.03f, 0.1f, (Color){220,225,230,160}); // glass
+    add_cylinder(&g.scene, 2.02f, 1.08f, 0.8f, 0.01f, 0.12f, (Color){60,140,180,255}); // toothbrush — blue
+    set_last_material(&g.scene, MAT_CONCRETE);
+
+    // BOARDING PASS BOOKMARK — in her book on the bed.
+    // The same book as the suite nightstand, but here it's open, further along.
+    // The bookmark IS the boarding pass. Her name on it. The timeline connects.
+    // Book (open, spine up) — Godard red, same as suite but further read
+    add_wall(&g.scene, 0.8f, 0.65f, -3.8f, 0.4f, 0.08f, 0.3f, (Color){200,50,45,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+    // Pages visible (open book, spine cracked further)
+    add_wall(&g.scene, 0.8f, 0.69f, -3.8f, 0.38f, 0.01f, 0.28f, (Color){240,235,225,255});
+    set_last_decal(&g.scene);
+    // Boarding pass bookmark — white rectangle with blue airline stripe, peeking out
+    add_wall(&g.scene, 0.95f, 0.70f, -3.65f, 0.15f, 0.005f, 0.08f, (Color){245,242,235,255});
+    set_last_decal(&g.scene);
+    add_wall(&g.scene, 0.95f, 0.705f, -3.68f, 0.15f, 0.003f, 0.02f, (Color){50,80,180,255});
     set_last_decal(&g.scene);
 
     // Eiffel Tower silhouette through window

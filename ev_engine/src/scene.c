@@ -883,6 +883,21 @@ void build_lobby(Scene *s) {
     // Interactive trigger
     add_object(s, elev_x, 1.5f, elev_z + 0.4f, "elevator", gold, 1);
 
+    // ── GRAND PIANO — right side of lobby, the muffled piano source ──
+    {
+        int piano_mdl = find_model_asset("piano");
+        if (piano_mdl >= 0) {
+            add_model(s, 5.0f, 0, 2.0f, 1,1,1, -30, piano_mdl, MAT_WOOD, (Color){255,255,255,255});
+        } else {
+            // Fallback: simplified piano silhouette (boxes)
+            add_wall(s, 5.0f, 0.5f, 2.0f, 1.5f, 0.3f, 1.0f, PAL_BLACK);
+            set_last_material(s, MAT_WOOD);
+            // Lid propped
+            add_wall(s, 5.0f, 0.85f, 2.3f, 1.4f, 0.02f, 0.6f, PAL_BLACK);
+            set_last_material(s, MAT_WOOD);
+        }
+    }
+
     // ============================================================
     // SITTING AREA — left side of lobby
     // Two leather armchairs facing each other, side table between
@@ -1871,6 +1886,20 @@ void build_bathroom(Scene *s) {
     // Towel bar
     add_wall(s, -2.4f, 1.9f, 0.0f, 0.04f, 0.04f, 0.7f, brass);
     set_last_material(s, MAT_BRASS);
+
+    // ── BATHTUB — freestanding, the Chevalier moment ──
+    {
+        int tub_mdl = find_model_asset("bathtub");
+        if (tub_mdl >= 0) {
+            add_model(s, -1.2f, 0, -0.8f, 1,1,1, 0, tub_mdl, MAT_MARBLE, (Color){255,255,255,255});
+        } else {
+            // Fallback: simple box tub
+            add_wall(s, -1.2f, 0.3f, -0.8f, 1.4f, 0.5f, 0.6f, porcelain);
+            set_last_material(s, MAT_TILE);
+            // Rim
+            add_wall(s, -1.2f, 0.56f, -0.8f, 1.5f, 0.04f, 0.65f, porcelain);
+        }
+    }
 
     // Toiletries bag on counter near sink
     add_wall(s, 1.8f, 0.92f, 0.8f, 0.25f, 0.15f, 0.12f, (Color){60,55,50,255});
@@ -4514,6 +4543,14 @@ void build_space_suite(Scene *s) {
         // Light seam under the door — warm amber, someone was here recently
         add_wall(s, rw/2+0.05f, 0.02f, az, 0.04f, 0.04f, 1.0f, (Color){240,200,100,80});
         set_last_decal(s);
+    }
+
+    // ── BED MODEL — if available, place at bed zone origin ──
+    {
+        int bed_mdl = find_model_asset("bed");
+        if (bed_mdl >= 0) {
+            add_model(s, 0, 0, -4.5f, 1,1,1, 0, bed_mdl, MAT_FABRIC, (Color){255,255,255,255});
+        }
     }
 
     // ============================================================

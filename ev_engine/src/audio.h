@@ -68,8 +68,12 @@ typedef struct {
     // Sprint 1: Bed drone + held chord for ending
     Sound snd_bed_drone;         // low ~50Hz, 20s loop — surrender
     Sound snd_held_chord;        // C3-G3-D4 stacked fifths, 3s attack, infinite sustain
+    Sound snd_bed_ritual;        // THE composed piece — Chevalier warmth, plays once, never repeats
+    Sound snd_three_note;        // 3-note callback — fragment of held chord, ending montage
     bool bed_drone_playing;
     bool held_chord_playing;
+    bool bed_ritual_playing;
+    bool bed_ritual_played_once; // never play again after first time
 
     // Sprint 2: Per-door spatial sounds (corridor)
     Sound snd_running_water;     // filtered noise — bathroom behind door
@@ -159,6 +163,9 @@ void PlayBedDrone(EVAudio *audio);
 void StopBedDrone(EVAudio *audio);
 void PlayHeldChord(EVAudio *audio);
 void StopHeldChord(EVAudio *audio);
+void PlayBedRitual(EVAudio *audio);   // the one composed piece — plays once, never repeats
+void StopBedRitual(EVAudio *audio);
+void PlayThreeNote(EVAudio *audio);   // 3-note callback — ending montage fragment
 
 // Sprint 2: Clock rate modulation
 void SetClockRate(EVAudio *audio, float rate);

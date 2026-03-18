@@ -7,6 +7,8 @@
 // Walks too fast, then stops and waits with infinite patience.
 // He knows more than he lets on.
 #include "npc.h"
+#include "game_ctx.h"
+#include "scene.h"
 #include "raymath.h"
 #include <math.h>
 #include <stdio.h>
@@ -265,6 +267,35 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
               EVLighting *lighting) {
     if (!npc->active) return;
 
+    // ── GLB MODEL PATH — use 3D model if available ──
+    {
+        extern GameCtx g;
+        int gi = find_model_asset("gibbons");
+        if (gi >= 0 && g.model_assets[gi].loaded) {
+            ModelAsset *ma = &g.model_assets[gi];
+            float base_y_m = npc->use_physics ? npc->ground_y : (npc->pos.y - 1.6f);
+
+            // Draw the model at NPC position with NPC yaw
+            if (lighting->ready) SetMaterialId(lighting, 0);  // MAT_CONCRETE — neutral base
+            DrawModelEx(ma->model,
+                (Vector3){npc->pos.x, base_y_m, npc->pos.z},
+                (Vector3){0, 1, 0}, npc->yaw * RAD2DEG + 180,  // +180: face forward
+                (Vector3){1, 1, 1}, WHITE);
+
+            // Shadow disc
+            if (cyl_model) {
+                float sa_val = 80;
+                cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0,0,0,(unsigned char)sa_val};
+                SetMaterialId(lighting, 0);
+                DrawModelEx(*cyl_model,
+                    (Vector3){npc->pos.x, base_y_m + 0.02f, npc->pos.z},
+                    (Vector3){0,1,0}, 0, (Vector3){0.5f, 0.01f, 0.5f}, WHITE);
+            }
+            return;  // skip cube-person
+        }
+    }
+
+    // ── CUBE-PERSON FALLBACK ──
     float t = npc->bob_timer;
     float idle = npc->idle_timer;
     bool walking = !npc->waiting;

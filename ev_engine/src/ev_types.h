@@ -220,6 +220,7 @@ typedef enum {
     STATE_SPACE_CORRIDOR,
     STATE_SPACE_SUITE,
     STATE_PARIS_DREAM,
+    STATE_CLEANED_SUITE,
     STATE_RETURN_TAXI,
 } GameState;
 
@@ -229,7 +230,22 @@ typedef enum {
     SURFACE_WOOD,
 } SurfaceType;
 
-typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER, SHAPE_TORUS } ShapeType;
+typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER, SHAPE_TORUS, SHAPE_MODEL } ShapeType;
+
+// ── Model asset registry ────────────────────────────────────────────
+// Loaded 3D models (.glb/.obj) from assets/ directory.
+// Walls with SHAPE_MODEL use model_index to reference these.
+#define MAX_MODEL_ASSETS 16
+typedef struct {
+    char name[64];              // filename without extension (e.g. "taxi", "gibbons")
+    Model model;
+    bool loaded;
+    // Animation (GLB only)
+    ModelAnimation *anims;
+    int anim_count;
+    int current_anim;
+    int current_frame;
+} ModelAsset;
 
 // Procedural material types — shader generates surface detail from world position
 typedef enum {
@@ -259,6 +275,7 @@ typedef struct {
     float rotation_y;
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
     bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
+    int model_index;        // SHAPE_MODEL only: index into model_assets[]
 } Wall;
 
 typedef struct {

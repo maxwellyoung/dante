@@ -126,10 +126,30 @@ void corridor_update(float dt) {
                     0.94f * light_fade * breath, 0.82f * light_fade * breath,
                     0.47f * light_fade * breath, 4.0f * light_fade);
             } else {
+                // ── DOOR-LISTENING MECHANIC ──
+                // TV murmur goes silent if you stand near the door for 6+ seconds.
+                // They heard you. Or maybe they turned it off to sleep.
+                // The silence IS the interaction.
+                if (ddist < 2.5f) {
+                    g.interaction_timers[1] += dt;
+                } else {
+                    // Reset slowly — they turn it back on after you leave
+                    if (g.interaction_timers[1] > 0)
+                        g.interaction_timers[1] -= dt * 0.3f;
+                    if (g.interaction_timers[1] < 0) g.interaction_timers[1] = 0;
+                }
+                float listen_t = g.interaction_timers[1];
+                float tv_fade = 1.0f;
+                if (listen_t > 4.0f) {
+                    // Fade out over 2 seconds (4s→6s)
+                    tv_fade = 1.0f - fminf(1.0f, (listen_t - 4.0f) / 2.0f);
+                }
                 SetSoundVolume(g.audio.snd_running_water, dvol * 0.8f);
-                SetSoundVolume(g.audio.snd_tv_murmur, dvol);
+                SetSoundVolume(g.audio.snd_tv_murmur, dvol * tv_fade);
                 float flk = 0.6f + 0.4f * sinf(g.state_time * 8.3f)
                            * sinf(g.state_time * 13.7f);
+                // TV light also fades — they turned it off
+                flk *= tv_fade;
                 SetPointLightIdx(&g.lighting, 3,
                     g.door_positions[1].x, 0.05f, g.door_positions[1].z,
                     0.31f * flk, 0.47f * flk, 0.78f * flk, 3.0f * flk);
