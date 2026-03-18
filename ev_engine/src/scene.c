@@ -1498,47 +1498,114 @@ void build_balcony(Scene *s) {
     Color gold = PAL_BRASS;
     Color hull = PAL_HULL;
 
-    // Floor + back wall (hull interior, but warm)
-    add_wall(s, 0, -0.1f, 0, 5, 0.2f, 3, stone);
-    set_last_material(s, MAT_MARBLE);
-    add_wall(s, 0, 2, 1.5f, 5, 4, 0.3f, (Color){200,175,120,255});
-    set_last_material(s, MAT_WALLPAPER);
-    add_wall(s, 0, 2.8f, 1.35f, 1.8f, 0.12f, 0.06f, gold);
+    // Floor — dark hull grating with brass drainage strips
+    float bw = 8, bd = 6;
+    add_wall(s, 0, -0.1f, 0, bw, 0.2f, bd, hull);
+    set_last_material(s, MAT_TILE);
+    // Drainage strips
+    for (int i = 0; i < 5; i++) {
+        float dz = -bd/2 + 0.5f + i * (bd/5.0f);
+        add_wall(s, 0, 0.01f, dz, bw-0.4f, 0.02f, 0.06f, gold);
+        set_last_material(s, MAT_BRASS);
+        set_last_decal(s);
+    }
+    // Perimeter floor lighting (blue-white, recessed)
+    add_wall(s, 0, 0.01f, -bd/2+0.2f, bw-0.4f, 0.01f, 0.08f, (Color){120,160,220,100});
+    set_last_decal(s);
+    add_wall(s, -bw/2+0.2f, 0.01f, 0, 0.08f, 0.01f, bd-0.4f, (Color){120,160,220,80});
+    set_last_decal(s);
+    add_wall(s, bw/2-0.2f, 0.01f, 0, 0.08f, 0.01f, bd-0.4f, (Color){120,160,220,80});
+    set_last_decal(s);
+
+    // Back wall — suite exterior hull with door
+    add_wall(s, 0, 2.5f, bd/2, bw, 5, 0.3f, hull);
+    set_last_material(s, MAT_CONCRETE);
+    // Hull panel seams
+    add_wall(s, -2, 2.5f, bd/2-0.14f, 0.04f, 4.5f, 0.02f, (Color){85,90,100,255});
+    add_wall(s, 2, 2.5f, bd/2-0.14f, 0.04f, 4.5f, 0.02f, (Color){85,90,100,255});
+    // Door back to suite — warm light spilling through
+    add_door_frame(s, 0, 0, bd/2-0.15f, 1.2f, 2.6f, 0.1f, gold);
+    add_light_panel(s, 0, 1.3f, bd/2-0.2f, 1.0f, 2.4f, 0.02f, (Color){240,220,175,60});
+    // Emergency airlock panel
+    add_wall(s, 3.0f, 1.2f, bd/2-0.14f, 0.3f, 0.4f, 0.04f, (Color){180,40,40,200});
+    add_wall(s, 3.0f, 1.2f, bd/2-0.12f, 0.26f, 0.36f, 0.02f, hull);
+
+    // Side hull walls with external pipes
+    add_wall(s, -bw/2, 2.5f, 0, 0.3f, 5, bd+0.6f, hull);
+    set_last_material(s, MAT_CONCRETE);
+    add_wall(s, bw/2, 2.5f, 0, 0.3f, 5, bd+0.6f, hull);
+    set_last_material(s, MAT_CONCRETE);
+    // Conduit pipes on hull walls
+    add_cylinder(s, -bw/2-0.1f, 3.5f, 0, 0.04f, bd, (Color){90,85,80,255});
+    add_cylinder(s, bw/2+0.1f, 3.8f, 0, 0.03f, bd, (Color){90,85,80,255});
+    add_cylinder(s, -bw/2-0.15f, 1.5f, 0, 0.05f, bd, (Color){100,95,90,255});
+    // Navigation lights
+    add_sphere(s, -bw/2-0.2f, 4.5f, -bd/2, 0.12f, (Color){255,40,40,200}); // port red
+    add_sphere(s, bw/2+0.2f, 4.5f, -bd/2, 0.12f, (Color){40,255,40,200});  // starboard green
+
+    // Railing — detailed: posts, top rail, mid rail, glass infill
+    // Front railing
+    add_wall(s, 0, 1.0f, -bd/2, bw, 0.06f, 0.06f, gold);
     set_last_material(s, MAT_BRASS);
-    add_wall(s, -0.95f, 1.5f, 1.35f, 0.06f, 2.8f, 0.06f, gold);
+    add_wall(s, 0, 0.5f, -bd/2, bw, 0.04f, 0.04f, gold);
     set_last_material(s, MAT_BRASS);
-    add_wall(s, 0.95f, 1.5f, 1.35f, 0.06f, 2.8f, 0.06f, gold);
+    for (int i = 0; i <= 8; i++) {
+        float px = -bw/2 + i * (bw/8.0f);
+        add_cylinder(s, px, 0.5f, -bd/2, 0.03f, 0.56f, gold);
+    }
+    // Glass infill panels
+    for (int i = 0; i < 8; i++) {
+        float px = -bw/2 + 0.5f + i * (bw/8.0f);
+        add_wall(s, px, 0.75f, -bd/2+0.01f, bw/8.0f-0.1f, 0.44f, 0.02f, (Color){140,180,220,20});
+        set_last_material(s, MAT_GLASS);
+    }
+    // Side railings
+    add_wall(s, -bw/2, 1.0f, -bd/4, 0.06f, 0.06f, bd/2, gold);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, bw/2, 1.0f, -bd/4, 0.06f, 0.06f, bd/2, gold);
     set_last_material(s, MAT_BRASS);
 
-    // Railing — the only thing between you and the void
-    add_wall(s, 0, 0.95f, -1.5f, 5, 0.06f, 0.08f, railing);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, 0, 0.5f, -1.5f, 5, 0.04f, 0.06f, railing);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -2.5f, 0.95f, 0, 0.08f, 0.06f, 3, railing);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, 2.5f, 0.95f, 0, 0.08f, 0.06f, 3, railing);
-    set_last_material(s, MAT_BRASS);
+    // TWO CHAIRS — side by side, facing the void. The emotional gut-punch.
+    // Chair 1 (left)
+    add_wall(s, -1.0f, 0.42f, -1.0f, 0.5f, 0.06f, 0.5f, PAL_WOOD);   // seat
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, -1.0f, 0.72f, -0.73f, 0.5f, 0.55f, 0.06f, PAL_WOOD);  // back
+    set_last_material(s, MAT_LEATHER);
+    add_cylinder(s, -1.22f, 0.21f, -1.22f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    add_cylinder(s, -0.78f, 0.21f, -1.22f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    add_cylinder(s, -1.22f, 0.21f, -0.78f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    add_cylinder(s, -0.78f, 0.21f, -0.78f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    // Chair 2 (right) — identical, empty
+    add_wall(s, 1.0f, 0.42f, -1.0f, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 1.0f, 0.72f, -0.73f, 0.5f, 0.55f, 0.06f, PAL_WOOD);
+    set_last_material(s, MAT_LEATHER);
+    add_cylinder(s, 0.78f, 0.21f, -1.22f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    add_cylinder(s, 1.22f, 0.21f, -1.22f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    add_cylinder(s, 0.78f, 0.21f, -0.78f, 0.03f, 0.42f, PAL_WOOD_DARK);
+    add_cylinder(s, 1.22f, 0.21f, -0.78f, 0.03f, 0.42f, PAL_WOOD_DARK);
 
-    // Side hull walls — the observation deck is a cutout in the station hull
-    add_wall(s, -2.7f, 2, 0, 0.3f, 4, 3.2f, hull);
-    add_wall(s, 2.7f, 2, 0, 0.3f, 4, 3.2f, hull);
+    // Side table between chairs — ashtray, two wine glasses
+    add_wall(s, 0, 0.45f, -0.8f, 0.4f, 0.03f, 0.4f, gold);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, 0, 0.22f, -0.8f, 0.04f, 0.45f, gold);
+    // Wine glass 1
+    add_cylinder(s, -0.1f, 0.49f, -0.7f, 0.02f, 0.1f, (Color){210,210,215,160});
+    add_wall(s, -0.1f, 0.55f, -0.7f, 0.04f, 0.05f, 0.04f, (Color){210,210,215,160});
+    // Wine glass 2
+    add_cylinder(s, 0.1f, 0.49f, -0.9f, 0.02f, 0.1f, (Color){210,210,215,160});
+    add_wall(s, 0.1f, 0.55f, -0.9f, 0.04f, 0.05f, 0.04f, (Color){210,210,215,160});
+    // Ashtray
+    add_cylinder(s, 0, 0.49f, -0.8f, 0.1f, 0.03f, (Color){140,135,130,255});
+    add_object(s, 0, 0.55f, -0.8f, "cigarette", (Color){200,195,185,255}, 1);
 
-    // Wine + chair — same luxury, absurd context
-    add_wall(s, -1.5f, 0.45f, -0.5f, 0.45f, 0.04f, 0.45f, (Color){120,100,70,255});
-    add_wall(s, -1.5f, 0.22f, -0.5f, 0.05f, 0.45f, 0.05f, (Color){100,85,60,255});
-    add_wall(s, -1.5f, 0.49f, -0.5f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160});
-    add_wall(s, -1.5f, 0.52f, -0.5f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200});
-    add_wall(s, -1.5f, 0.22f, 0.2f, 0.45f, 0.44f, 0.45f, (Color){120,100,70,255});
-    add_wall(s, -1.5f, 0.58f, 0.42f, 0.45f, 0.4f, 0.06f, (Color){120,100,70,255});
-
-    // Second wine glass
-    add_wall(s, -1.0f, 0.49f, -0.8f, 0.05f, 0.12f, 0.05f, (Color){210,210,215,160});
-    add_wall(s, -1.0f, 0.52f, -0.8f, 0.035f, 0.05f, 0.035f, (Color){140,35,45,200});
-
-    // Ashtray with cigarette on railing table
-    add_cylinder(s, -1.5f, 0.49f, -0.3f, 0.12f, 0.04f, (Color){140,135,130,255});
-    add_object(s, -1.5f, 0.55f, -0.3f, "cigarette", (Color){200,195,185,255}, 1);
+    // Distant station modules (tiny lit rectangles)
+    add_wall(s, -30, 5, -50, 1.5f, 0.8f, 0.3f, (Color){140,150,165,80});
+    add_wall(s, -30, 5.2f, -50, 0.8f, 0.3f, 0.1f, (Color){240,220,150,60});
+    add_wall(s, 25, 8, -60, 1.2f, 0.6f, 0.3f, (Color){130,140,155,60});
+    add_wall(s, 25, 8.1f, -60, 0.5f, 0.2f, 0.1f, (Color){200,210,230,40});
+    // Connecting truss
+    add_wall(s, -2.5f, 6.5f, -55, 55, 0.04f, 0.04f, (Color){100,105,115,30});
 
     // ============================================================
     // EARTH — Rothko fields, not a ball.
