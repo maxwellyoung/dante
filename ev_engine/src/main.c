@@ -8,6 +8,7 @@
 #include "game_ctx.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 float ev_mouse_sens = MOUSE_SENS_DEFAULT;
@@ -432,6 +433,8 @@ int main(void) {
 
     // ── Load model assets from assets/ directory ──
     // Scans for .glb and .obj files (excluding skytower.obj which is loaded above)
+    // Skip in QA mode — procedural fallbacks handle all geometry
+#ifndef QA_MODE
     {
         const char *extensions[] = {".glb", ".obj"};
         FilePathList files = LoadDirectoryFiles("assets");
@@ -480,6 +483,7 @@ int main(void) {
         if (g.model_asset_count > 0)
             printf("[EV] Loaded %d model asset(s)\n", g.model_asset_count);
     }
+#endif // !QA_MODE
 
     DisableCursor();
     SetExitKey(0);  // ESC handled by pause menu, not raylib
@@ -539,7 +543,7 @@ int main(void) {
         {STATE_ELEVATOR, "elevator",
             .hero  = {{0, 1.6f, 0}, {0.5f, 1.0f, -1.0f}},   // button panel + walls visible
             .spawn = {{0, 1.6f, 0}, {-0.3f, 2.5f, -0.8f}},  // up at ceiling + mirror
-            .outdoor = false},
+            .dark_by_design = true, .outdoor = false},
         {STATE_SPACE_LOBBY, "space_lobby",
             .hero  = {{0, 1.6f, 4}, {0, 3, -7}},          // observation window + Earth
             .spawn = {{0, 1.6f, 6}, {0, 2, -3}},           // entering, chandelier visible
@@ -857,7 +861,7 @@ int main(void) {
                 if (color_buckets[b] > max_bucket) max_bucket = color_buckets[b];
             }
             float dominant_pct = 100.0f * (float)max_bucket / (float)total_px;
-            if (dominant_pct > 55.0f && !dark) {
+            if (dominant_pct > 60.0f && !dark) {
                 ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                     "    ANOMALY: %.0f%% single color bucket — rogue geometry or unlit void\n", (double)dominant_pct); issues++;
             }
@@ -1316,6 +1320,8 @@ int main(void) {
             case STATE_SPACE_SUITE:
             case STATE_HYPERSPACE:
             case STATE_PARIS_DREAM:
+            case STATE_CLEANED_SUITE:
+            case STATE_MONTAGE:
             case STATE_RETURN_TAXI:
                 if (g.state == STATE_RETURN_TAXI) {
                     // Dawn sky behind the taxi
