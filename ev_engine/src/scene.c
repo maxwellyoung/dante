@@ -565,6 +565,21 @@ void build_hotel_exterior(Scene *s) {
     // Water surface — MAT_WATER: dark reflective, animated ripple sells it
     add_wall(s, 0, -0.5f, 35, 80, 0.05f, 25, (Color){8, 14, 28, 255});
     set_last_material(s, MAT_WATER);
+    // City light reflections — stretched vertical bars on water (light columns)
+    // These are bright MAT_WATER decals: the ripple animation distorts them
+    add_wall_decal(s, -8, -0.46f, 32, 0.8f, 0.02f, 4.0f, (Color){50, 42, 22, 255});
+    set_last_material(s, MAT_WATER);
+    add_wall_decal(s, -6, -0.46f, 34, 0.5f, 0.02f, 5.0f, (Color){55, 48, 25, 255});
+    set_last_material(s, MAT_WATER);
+    add_wall_decal(s, 5, -0.46f, 33, 0.6f, 0.02f, 3.5f, (Color){50, 42, 22, 255});
+    set_last_material(s, MAT_WATER);
+    add_wall_decal(s, 15, -0.46f, 35, 0.4f, 0.02f, 3.0f, (Color){50, 42, 22, 255});
+    set_last_material(s, MAT_WATER);
+    add_wall_decal(s, -20, -0.46f, 36, 0.3f, 0.02f, 2.5f, (Color){55, 45, 24, 255});
+    set_last_material(s, MAT_WATER);
+    // Sky Tower reflection — taller, brighter, centered
+    add_wall_decal(s, -5.5f, -0.46f, 30, 0.6f, 0.02f, 8.0f, (Color){60, 52, 28, 255});
+    set_last_material(s, MAT_WATER);
     // Harbor Bridge — distant silhouette, arc shape approximated
     add_wall(s, -15, 3, 45, 35, 0.3f, 0.5f, (Color){20, 22, 30, 255});
     // Bridge lights — dotted line of amber
@@ -3155,15 +3170,18 @@ void build_space_lobby(Scene *s) {
     // Atmosphere rim
     add_sphere(s, 4, lh/2+2, -ld/2-18, 8.6f, (Color){120, 170, 220, 255});
 
-    // Earth glow flooding the floor — wide, bright, unmistakable
-    add_wall(s, 0, 0.02f, -ld/2+3, 20, 0.02f, 8, (Color){60, 130, 200, 180});
+    // Earth glow on floor — subtle pools, not a flood
+    // Closest to window: brightest but narrow
+    add_wall(s, 0, 0.02f, -ld/2+3, 12, 0.02f, 5, (Color){30, 65, 110, 50});
     set_last_decal(s);
-    add_wall(s, 0, 0.02f, -ld/2+8, 26, 0.02f, 6, (Color){45, 100, 180, 80});
+    // Mid-range: wider but fainter
+    add_wall(s, 0, 0.02f, -ld/2+8, 18, 0.02f, 4, (Color){20, 50, 90, 25});
     set_last_decal(s);
-    add_wall(s, 0, 0.02f, -ld/2+12, 30, 0.02f, 4, (Color){30, 70, 150, 40});
+    // Far: barely there gradient
+    add_wall(s, 0, 0.02f, -ld/2+12, 22, 0.02f, 3, (Color){15, 35, 70, 12});
     set_last_decal(s);
-    // Earth glow on ceiling — reflected blue
-    add_wall(s, 0, lh-0.05f, -ld/2+4, 16, 0.02f, 6, (Color){45, 100, 180, 25});
+    // Earth glow on ceiling — faint reflected blue
+    add_wall(s, 0, lh-0.05f, -ld/2+4, 12, 0.02f, 4, (Color){20, 45, 80, 15});
     set_last_decal(s);
 
     // LEFT WALL — observation glass wall with tall windows (trimmed for corner overlap)

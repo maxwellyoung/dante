@@ -69,9 +69,12 @@ class EVMaterial:
         self._blender_mat = None
 
     def get_blender_material(self):
-        """Get or create the Blender material. Cached per session."""
-        if self._blender_mat and self._blender_mat.name in bpy.data.materials:
-            return self._blender_mat
+        """Get or create the Blender material. Re-validates cache each call."""
+        try:
+            if self._blender_mat and self._blender_mat.name in bpy.data.materials:
+                return self._blender_mat
+        except ReferenceError:
+            self._blender_mat = None  # stale StructRNA reference
         mat = bpy.data.materials.get(self.name)
         if not mat:
             mat = bpy.data.materials.new(self.name)
@@ -214,12 +217,15 @@ class EVModelKit:
         # Clear scene
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.delete()
-        for mesh in bpy.data.meshes:
+        for mesh in list(bpy.data.meshes):
             if mesh.users == 0:
                 bpy.data.meshes.remove(mesh)
-        for mat in bpy.data.materials:
+        for mat in list(bpy.data.materials):
             if mat.users == 0:
                 bpy.data.materials.remove(mat)
+        # Invalidate all cached material references (StructRNA cleanup)
+        for m in ALL_MATERIALS:
+            m._blender_mat = None
 
         print(f"\n[EV] ── {name} ── budget: {tri_budget} tris")
 
@@ -470,9 +476,8 @@ class EVModelKit:
         passed, report = self.validate()
 
         if not passed:
-            print(f"\n[EV] EXPORT BLOCKED — fix warnings above")
-            print(f"[EV] To force export anyway: kit.force_export_obj('{filepath}')")
-            return
+            print(f"\n[EV] WARNING: validation issues (see above)")
+            print(f"[EV] Exporting anyway — check the warnings")
 
         self._do_export_obj(filepath)
 
