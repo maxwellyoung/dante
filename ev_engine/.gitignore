@@ -4,3 +4,4 @@ endearing_void
 endearing_void_release
 endearing_void_playtest
 .build_mode
+*.o
