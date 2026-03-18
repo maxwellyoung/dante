@@ -12,7 +12,6 @@ typedef enum {
     DRONE_SPACE_LOBBY,
     DRONE_SPACE_CORRIDOR,
     DRONE_SPACE_SUITE,
-    DRONE_PARIS_DREAM,
 } DroneType;
 
 typedef enum {
@@ -46,7 +45,6 @@ typedef struct {
     Sound drone_space_lobby;
     Sound drone_space_corridor;
     Sound drone_space_suite;
-    Sound drone_paris_dream;
     DroneType current_drone;
     bool ambient_playing;
 
@@ -67,20 +65,9 @@ typedef struct {
     bool distant_voices_playing;
     bool footsteps_above_playing;
 
-    // Space corridor through-wall replacements (not Paris audio)
-    Sound snd_muffled_machinery;  // life support hum — replaces piano in space
-    Sound snd_comms_chatter;      // radio voice — replaces distant voices in space
-    bool muffled_machinery_playing;
-    bool comms_chatter_playing;
-
-    // Muffled couple — laughter through a wall, someone's actually living in there
-    Sound snd_muffled_laughter;
-    bool muffled_laughter_playing;
-
     // Sprint 1: Bed drone + held chord for ending
     Sound snd_bed_drone;         // low ~50Hz, 20s loop — surrender
     Sound snd_held_chord;        // C3-G3-D4 stacked fifths, 3s attack, infinite sustain
-    Sound snd_music_fragment;    // three-note ghost — the suite music returns as memory
     bool bed_drone_playing;
     bool held_chord_playing;
 
@@ -108,24 +95,11 @@ typedef struct {
     bool elevator_whoosh_playing;
     bool earth_presence_playing;
 
-    // Dream-specific audio — Paris sequence
-    Sound snd_dream_rain;        // filtered noise — rain on a Parisian window
-    Sound snd_dream_traffic;     // distant muffled city — through a window
-    bool dream_rain_playing;
-    bool dream_traffic_playing;
-
-    // Taxi radio — warm song, cuts off at hyperspace
-    Sound snd_taxi_radio;        // procedural melody — lullaby-jazz through car speakers
-    bool taxi_radio_playing;
-
     // Clock rate — for pitch modulation
     float clock_rate;            // 1.0 = normal, 0.0 = stopped
 
     // File-based music — Maxwell's compositions, played once
-    Music music_suite;           // Path A: ambient drone
-    Music music_suite_alt;       // Path B: her song
-    bool suite_alt_loaded;
-    int suite_track_choice;      // 0=A, 1=B
+    Music music_suite;           // "lighthouse" — the one composed piece, triggered once
     Music music_balcony;         // "unsaid" — melancholy, the void outside
     Music music_corridor;        // "stt" — the long walk
     Music music_title;           // "ambient1" — title screen atmosphere
@@ -180,22 +154,11 @@ void StopDistantVoices(EVAudio *audio);
 void PlayFootstepsAbove(EVAudio *audio);
 void StopFootstepsAbove(EVAudio *audio);
 
-// Muffled couple — laughter through a wall
-void PlayMuffledLaughter(EVAudio *audio);
-void StopMuffledLaughter(EVAudio *audio);
-
-// Space corridor through-wall sounds
-void PlayMuffledMachinery(EVAudio *audio);
-void StopMuffledMachinery(EVAudio *audio);
-void PlayCommsChatter(EVAudio *audio);
-void StopCommsChatter(EVAudio *audio);
-
 // Sprint 1: Ending sounds
 void PlayBedDrone(EVAudio *audio);
 void StopBedDrone(EVAudio *audio);
 void PlayHeldChord(EVAudio *audio);
 void StopHeldChord(EVAudio *audio);
-void PlayMusicFragment(EVAudio *audio);
 
 // Sprint 2: Clock rate modulation
 void SetClockRate(EVAudio *audio, float rate);
@@ -220,16 +183,6 @@ void PlayBedImpact(EVAudio *audio);
 void PlayBalconyGust(EVAudio *audio);
 void PlayTitleBreath(EVAudio *audio);
 void PlayHardCutPunch(EVAudio *audio);
-
-// Dream-specific audio — Paris sequence
-void PlayDreamRain(EVAudio *audio);
-void StopDreamRain(EVAudio *audio);
-void PlayDreamTraffic(EVAudio *audio);
-void StopDreamTraffic(EVAudio *audio);
-
-// Taxi radio — warm song on the car radio
-void PlayTaxiRadio(EVAudio *audio);
-void StopTaxiRadio(EVAudio *audio);
 
 // Earth presence — sub-bass drone near observation window
 void PlayEarthPresence(EVAudio *audio);

@@ -23,4 +23,8 @@ const char *npc_current_dialogue(NPC *npc);
 
 void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model, EVLighting *lighting);
 
+// Interest points — Gibbons notices sounds in the room
+// A brief yaw adjustment. Professional awareness. Not investigation.
+void npc_post_interest(NPC *npc, Vector3 pos, float lifetime);
+
 #endif

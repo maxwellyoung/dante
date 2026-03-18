@@ -1,29 +1,23 @@
+// config.h — Build constants extracted from inline defines
 #ifndef EV_CONFIG_H
 #define EV_CONFIG_H
-#include <math.h>
-#ifndef PI
-#define PI 3.14159265358979f
-#endif
-#ifndef DEG2RAD
-#define DEG2RAD 0.017453293f
-#endif
-#define PARIS_TASK_COUNT 5
-#define SPACE_TASK_COUNT 5
+
 #define FADE_SPEED_DEFAULT 2.0f
-#define TRANSITION_HOLD_DEFAULT 0.3f
-#define MAX_RAIN 60
-#define MENU_MAX_ITEMS 5
+#define TRANSITION_HOLD_DEFAULT 0.15f
+#define MAX_RAIN 200
+#define MENU_MAX_ITEMS 8
 #define PAUSE_ITEM_COUNT 3
 #define SETTINGS_ITEM_COUNT 5
+
+// Spring defaults (Kowalski)
 #define SPRING_K 280.0f
 #define SPRING_D 26.0f
 #define SPRING_M 0.9f
-#define POSTFX_DEFAULT_GRAIN 0.5f
-#define POSTFX_DEFAULT_SATURATION 0.92f
-#define POSTFX_DEFAULT_CA 2.5f
-#define HARD_CUT_FLASH_DURATION 0.12f
+
+// Hard cut flash (Blendo-style)
+#define HARD_CUT_FLASH_DURATION 0.08f
 #define HARD_CUT_FLASH_R 1.0f
 #define HARD_CUT_FLASH_G 0.95f
 #define HARD_CUT_FLASH_B 0.85f
-#define SAMPLE_RATE 44100
+
 #endif

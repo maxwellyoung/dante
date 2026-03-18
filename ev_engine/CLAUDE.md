@@ -31,8 +31,46 @@ Dev mode defaults to `STATE_SPACE_LOBBY` if no SCENE given. QA outputs to `qa/sc
 
 ## Architecture
 
-### State Machine (`main.c`)
-Central `load_state(GameState)` handles all scene setup: builds geometry, sets lighting preset, starts audio, initializes NPCs, resets timers. Transitions use `transition_to()` (fade-to-black), `transition_to_slow()` (custom speed), or `hard_cut_to()` (Blendo-style instant cut with warm white flash).
+### Overview
+All mutable game state lives in a single `GameCtx g` struct (`game_ctx.h`). Scene logic is split into per-scene .c files with `load()` and `update()` functions, wired through a function-pointer registry (`scene_registry.c`). This keeps each file small enough for LLMs to work with efficiently.
+
+### File Map
+```
+game_ctx.h          — GameCtx struct (all state), SceneDesc typedef
+scene_registry.c    — const SceneDesc scene_descs[] table (one entry per GameState)
+
+scene_splash.c      — STATE_TITLE
+scene_taxi.c        — STATE_CAR, STATE_DRIVING, STATE_RETURN_TAXI
+scene_exterior.c    — STATE_HOTEL_EXT
+scene_lobby.c       — STATE_LOBBY
+scene_elevator.c    — STATE_ELEVATOR
+scene_hotel.c       — STATE_HALLWAY, STATE_ROOM, STATE_BATHROOM
+scene_space_lobby.c — STATE_SPACE_LOBBY
+scene_corridor.c    — STATE_SPACE_CORRIDOR
+scene_suite.c       — STATE_SPACE_SUITE (tasks, wrongness, interactions)
+scene_balcony.c     — STATE_BALCONY
+scene_endings.c     — STATE_BED, STATE_STARS, STATE_HYPERSPACE, STATE_PARIS_DREAM
+
+main.c              — game loop, render pipeline, menu, transitions, debug
+scene.c             — geometry builders (add_wall, build_lobby, etc.)
+audio.c             — procedural audio synthesis
+render.c            — rendering + post-FX shaders
+lighting.c          — GLSL lighting + per-scene presets
+player.c            — Quake-style movement/physics
+npc.c               — Gibbons NPC
+ui.c / ui.h         — Spring physics, icons, UI components
+config.h            — centralized constants (PI, SAMPLE_RATE, task counts, etc.)
+```
+
+### Adding a New Scene
+1. Add `STATE_NEW_SCENE` to the `GameState` enum in `ev_types.h`
+2. Create `src/scene_newscene.c` with `newscene_load()` and `newscene_update(float dt)`
+3. Add entry to `scene_descs[]` in `scene_registry.c`
+4. Add geometry builder to `scene.c` / `scene.h` if needed
+5. `make` — the Makefile wildcards pick up new .c files automatically
+
+### State Machine
+`load_state()` in main.c handles common reset (stop audio, clear state), then dispatches to the scene's `load()` function via the registry. Transitions use `transition_to()` (fade-to-black) or `hard_cut_to()` (Blendo-style instant cut with warm white flash).
 
 ```
 TITLE → CAR → DRIVING → HOTEL_EXT → LOBBY → ELEVATOR → HYPERSPACE
