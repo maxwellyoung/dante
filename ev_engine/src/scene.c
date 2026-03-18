@@ -2662,7 +2662,10 @@ void build_taxi_ride(Scene *s) {
         if (driver_mdl >= 0) {
             // GLB model — smooth, subdivided, proper silhouette
             // Position at origin (model already has driver at correct position)
-            add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_CONCRETE, (Color){255,255,255,255});
+            // Model axes: Blender Z-up → Raylib Y-up via export_yup.
+            // But model was built with Y as height (wrong for Blender).
+            // Rotate 90° on X to fix, and position at driver seat.
+            add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_FABRIC, (Color){200,180,140,255});
         } else {
             // Fallback: procedural cube-person
             Color driver_collar = {225, 220, 210, 255};
@@ -3200,9 +3203,9 @@ void build_space_lobby(Scene *s) {
     // FRONT WALL — entry side, hull with corridor exits
     add_wall(s, 0, lh/2, ld/2, lw, lh, 0.5f, hull);
     set_last_material(s, MAT_CONCRETE);
-    // Cream paneling on front wall lower half
-    add_wall(s, 0, lh*0.2f, ld/2-0.26f, lw-4, lh*0.4f, 0.06f, cream);
-    set_last_material(s, MAT_WALLPAPER);
+    // Wood paneling on front wall lower half — warm contrast to hull
+    add_wall(s, 0, lh*0.2f, ld/2-0.26f, lw-4, lh*0.4f, 0.06f, (Color){105, 78, 48, 255});
+    set_last_material(s, MAT_WOOD);
 
     // Recessed wall panels — industrial-meets-luxury on all hull walls
     add_recessed_panel(s, -14, lh*0.6f, -ld/2+0.3f, 4, 3, 0.1f, hull);
@@ -3437,15 +3440,15 @@ void build_space_lobby(Scene *s) {
     // Implies the hotel has more floors. Brass railing, inaccessible but visible.
     // ================================================================
     // Main platform — wraps around three sides (not the observation window wall)
-    // Left mezzanine
-    add_wall(s, -lw/2+2.5f, 6.0f, 0, 5, 0.12f, ld-4, hull_lt);
-    set_last_material(s, MAT_CONCRETE);
-    // Right mezzanine
-    add_wall(s, lw/2-2.5f, 6.0f, 0, 5, 0.12f, ld-4, hull_lt);
-    set_last_material(s, MAT_CONCRETE);
-    // Front mezzanine (connecting bridge)
-    add_wall(s, 0, 6.0f, ld/2-2.5f, lw-10, 0.12f, 5, hull_lt);
-    set_last_material(s, MAT_CONCRETE);
+    // Left mezzanine — dark wood parquet flooring
+    add_wall(s, -lw/2+2.5f, 6.0f, 0, 5, 0.12f, ld-4, (Color){110, 82, 52, 255});
+    set_last_material(s, MAT_PARQUET);
+    // Right mezzanine — herringbone
+    add_wall(s, lw/2-2.5f, 6.0f, 0, 5, 0.12f, ld-4, (Color){120, 88, 55, 255});
+    set_last_material(s, MAT_HERRINGBONE);
+    // Front mezzanine (connecting bridge) — wood
+    add_wall(s, 0, 6.0f, ld/2-2.5f, lw-10, 0.12f, 5, (Color){105, 78, 48, 255});
+    set_last_material(s, MAT_WOOD);
 
     // Brass railings — inner edge
     // Left railing
@@ -3783,6 +3786,23 @@ void build_space_lobby(Scene *s) {
     // Interactive objects
     add_object(s, -11, 1.18f, -3.5f, "bell", (Color){200,195,180,255}, 1);
     add_object(s, 8, 2.2f, -5, "wineglass", (Color){210,210,215,255}, 1);
+
+    // ================================================================
+    // MATERIAL VARIETY — additional elements for visual richness
+    // ================================================================
+    // Velvet curtains flanking observation window — deep navy, luxury hotel feel
+    add_wall(s, -14.5f, lh/2, -ld/2+0.4f, 0.6f, lh-1, 0.08f, navy);
+    set_last_material(s, MAT_VELVET);
+    add_wall(s, 14.5f, lh/2, -ld/2+0.4f, 0.6f, lh-1, 0.08f, navy);
+    set_last_material(s, MAT_VELVET);
+
+    // Carpet runner — central path from elevator to observation window
+    add_wall_decal(s, 0, 0.02f, -4, 2.0f, 0.01f, 16, navy);
+    set_last_material(s, MAT_CARPET);
+
+    // Tile accent — bathroom-style tile border near reception desk
+    add_wall(s, -12, 0.02f, -6.5f, 7, 0.01f, 1.0f, cream);
+    set_last_material(s, MAT_TILE);
 
     tag_materials_by_color(s);
 
