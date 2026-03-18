@@ -3457,315 +3457,168 @@ void build_space_corridor(Scene *s) {
 
 void build_space_suite(Scene *s) {
     memset(s, 0, sizeof(Scene));
-    // BOUNDS: 14m x 12m, fully enclosed — the Glass Elevator suite
-    // Dahl's space hotel room: absurd luxury in zero gravity
+    // ============================================================
+    // THE GLASS ELEVATOR SUITE — Orbital Hotel, Room 2046
+    // Hotel Chevalier meets 2001. A room for two where only one arrived.
+    // 60% of playtime happens here. Every surface earns its keep.
+    // ============================================================
     s->surface = SURFACE_WOOD;
 
-    Color hull = PAL_HULL;
-    Color brass = PAL_BRASS;
-    Color cream = PAL_CREAM;
-    Color white = PAL_WHITE;
-    Color void_black = PAL_PORTHOLE;
-    Color gold = PAL_GOLD;
-    Color wood = PAL_WOOD_DARK;
+    Color hull      = PAL_HULL;
+    Color hull_lt   = PAL_HULL_LIGHT;
+    Color brass     = PAL_BRASS;
+    Color cream     = PAL_CREAM;
+    Color white     = PAL_WHITE;
+    Color void_black= PAL_PORTHOLE;
+    Color gold      = PAL_GOLD;
+    Color wood      = PAL_WOOD_DARK;
     Color dark_wood = {105, 78, 48, 255};
-    Color warm_light = PAL_LIGHT_WARM;
-    Color earth_glow = PAL_EARTH_GLOW;
-    Color navy = PAL_NAVY;
+    Color warm_light= PAL_LIGHT_WARM;
+    Color earth_glow= PAL_EARTH_GLOW;
+    Color navy      = PAL_NAVY;
+    Color charcoal  = PAL_CHARCOAL;
+    Color glass_clr = {200,210,220,140};
 
     s->fog_color = PAL_FOG_STATION;
     s->fog_density = 0.001f;
 
-    float rw = 14, rd = 12, rh = 5;  // taller than Paris room — double height
+    // Room dimensions: 14m wide (X), 12m deep (Z), 5m tall (Y)
+    // Left wall (X-) = window wall, Right wall (X+) = service wall
+    // Back wall (Z-) = bed wall, Front wall (Z+) = entry wall
+    float rw = 14, rd = 12, rh = 5;
 
-    // Floor — single plane, herringbone wood
+    // ============================================================
+    // 1. FLOOR — herringbone wood with area rug
+    // ============================================================
     add_wall(s, 0, -0.05f, 0, rw, 0.1f, rd, wood);
     set_last_material(s, MAT_HERRINGBONE);
 
-    // Ceiling — hull, thinner
+    // Living area rug — deep red with brass border, defines the zone
+    add_rug(s, -3, 0, 2.5f, 5.0f, 4.0f, (Color){120,35,30,255}, brass);
+
+    // ============================================================
+    // 2. CEILING — hull panels with structural ribs
+    // ============================================================
     add_wall(s, 0, rh, 0, rw, 0.2f, rd, hull);
     set_last_material(s, MAT_CONCRETE);
-    // 2 thin brass trim lines — not heavy ribs
-    for (int i = 0; i < 2; i++) {
-        float rz = -rd/2 + 3 + i * (rd/2.0f);
-        add_wall(s, 0, rh-0.05f, rz, rw, 0.1f, 0.06f, brass);
+
+    // 3 longitudinal ceiling ribs — structural, not decorative
+    for (int i = 0; i < 3; i++) {
+        float rz = -rd/2 + 3 + i * (rd/4.0f);
+        add_wall(s, 0, rh-0.05f, rz, rw, 0.1f, 0.08f, brass);
         set_last_material(s, MAT_BRASS);
     }
+    // 2 transverse ribs — cross-bracing
+    add_wall(s, -rw/4, rh-0.05f, 0, 0.08f, 0.1f, rd, hull_lt);
+    add_wall(s, rw/4, rh-0.05f, 0, 0.08f, 0.1f, rd, hull_lt);
 
-    // Walls — hull exterior, cream paneling interior (80% height — luxury, not bunker)
-    // Back wall — behind bed
+    // Dropped ceiling with warm light — above bed area
+    add_dropped_ceiling(s, 0, rh, -4.5f, 5, 4, 0.25f, hull, warm_light);
+
+    // Recessed light strip along window wall ceiling
+    add_light_panel(s, -rw/2+0.5f, rh-0.12f, 0, 0.15f, 0.06f, rd*0.7f, warm_light);
+
+    // ============================================================
+    // 3. WALLS — hull exterior, cream wallpaper interior
+    // ============================================================
+
+    // BACK WALL (Z-) — behind bed
     add_wall(s, 0, rh/2, -rd/2, rw, rh, 0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, rh*0.4f, -rd/2+0.17f, rw-1, rh*0.8f, 0.04f, cream);
     set_last_material(s, MAT_WALLPAPER);
-    // Front wall
+    // Wainscoting on back wall — proper panels, not just a line
+    add_wainscoting(s, 0, 0, -rd/2+0.2f, rw-1.5f, 1.2f, false, cream, brass);
+
+    // FRONT WALL (Z+) — entry
     add_wall(s, 0, rh/2, rd/2, rw, rh, 0.3f, hull);
     set_last_material(s, MAT_CONCRETE);
     add_wall(s, 0, rh*0.4f, rd/2-0.17f, rw-1, rh*0.8f, 0.04f, cream);
     set_last_material(s, MAT_WALLPAPER);
-    // Side walls
+    // Wainscoting on front wall
+    add_wainscoting(s, 0, 0, rd/2-0.2f, rw-1.5f, 1.2f, false, cream, brass);
+
+    // LEFT WALL (X-) — window wall (mostly glass, cream above/below)
     add_wall(s, -rw/2, rh/2, 0, 0.3f, rh, rd, hull);
     set_last_material(s, MAT_CONCRETE);
+    // Cream panel only on solid sections (above/below window, and ends)
+    add_wall(s, -rw/2+0.17f, rh*0.4f, -rd/2+1.5f, 0.04f, rh*0.8f, 2.5f, cream);
+    set_last_material(s, MAT_WALLPAPER);
+    add_wall(s, -rw/2+0.17f, rh*0.4f, rd/2-1.5f, 0.04f, rh*0.8f, 2.5f, cream);
+    set_last_material(s, MAT_WALLPAPER);
+
+    // RIGHT WALL (X+) — service wall (bathroom door, wardrobe, desk)
     add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd, hull);
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, -rw/2+0.17f, rh*0.4f, 0, 0.04f, rh*0.8f, rd-1, cream);
-    set_last_material(s, MAT_WALLPAPER);
     add_wall(s, rw/2-0.17f, rh*0.4f, 0, 0.04f, rh*0.8f, rd-1, cream);
     set_last_material(s, MAT_WALLPAPER);
+    // Wainscoting on right wall
+    add_wainscoting(s, rw/2-0.2f, 0, 0, rd-1.5f, 1.2f, true, cream, brass);
 
-    // Wainscoting trim — brass line
-    add_wall(s, 0, rh*0.5f, -rd/2+0.19f, rw-1, 0.04f, 0.02f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, 0, rh*0.5f, rd/2-0.19f, rw-1, 0.04f, 0.02f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -rw/2+0.19f, rh*0.5f, 0, 0.02f, 0.04f, rd-1, brass);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, rw/2-0.19f, rh*0.5f, 0, 0.02f, 0.04f, rd-1, brass);
-    set_last_material(s, MAT_BRASS);
+    // ============================================================
+    // 4. FLOOR-TO-CEILING WINDOW — left wall, the Glass Elevator view
+    //    Massive void panel, brass mullions, Earth glow pooling in
+    // ============================================================
 
-    // FLOOR-TO-CEILING WINDOW — left wall, the Glass Elevator view
-    // Massive void panel with thin brass frame
-    add_wall(s, -rw/2+0.08f, rh/2, -1, 0.06f, rh-1, 5, void_black);
+    // Main glass pane — 7m wide, nearly floor-to-ceiling
+    float win_w = 7.0f, win_cz = -0.5f;
+    add_wall(s, -rw/2+0.08f, rh/2, win_cz, 0.06f, rh-0.8f, win_w, void_black);
     set_last_material(s, MAT_GLASS);
-    // Brass frame
-    add_wall(s, -rw/2+0.1f, rh-0.4f, -1, 0.04f, 0.15f, 5.3f, brass);   // top
+
+    // Brass frame — top, bottom, left, right
+    add_wall(s, -rw/2+0.1f, rh-0.3f, win_cz, 0.04f, 0.15f, win_w+0.3f, brass);
     set_last_material(s, MAT_BRASS);
-    add_wall(s, -rw/2+0.1f, 0.4f, -1, 0.04f, 0.15f, 5.3f, brass);      // bottom
+    add_wall(s, -rw/2+0.1f, 0.3f, win_cz, 0.04f, 0.15f, win_w+0.3f, brass);
     set_last_material(s, MAT_BRASS);
-    add_wall(s, -rw/2+0.1f, rh/2, -3.65f, 0.04f, rh-0.8f, 0.15f, brass); // left
+    add_wall(s, -rw/2+0.1f, rh/2, win_cz-win_w/2-0.1f, 0.04f, rh-0.6f, 0.15f, brass);
     set_last_material(s, MAT_BRASS);
-    add_wall(s, -rw/2+0.1f, rh/2, 1.65f, 0.04f, rh-0.8f, 0.15f, brass);  // right
-    set_last_material(s, MAT_BRASS);
-    // Mullions — horizontal brass bars
-    add_wall(s, -rw/2+0.12f, rh*0.33f, -1, 0.03f, 0.06f, 5, brass);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -rw/2+0.12f, rh*0.66f, -1, 0.03f, 0.06f, 5, brass);
+    add_wall(s, -rw/2+0.1f, rh/2, win_cz+win_w/2+0.1f, 0.04f, rh-0.6f, 0.15f, brass);
     set_last_material(s, MAT_BRASS);
 
-    // Earth glow on floor from window
-    add_wall(s, -rw/2+3, 0.02f, -1, 4, 0.02f, 4, earth_glow);
+    // Vertical mullions — 3 brass bars dividing the window
+    for (int i = 1; i <= 3; i++) {
+        float mz = win_cz - win_w/2 + i * (win_w/4.0f);
+        add_wall(s, -rw/2+0.11f, rh/2, mz, 0.03f, rh-0.9f, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+    }
+    // Horizontal mullion — one at 1/3 height
+    add_wall(s, -rw/2+0.12f, rh*0.33f, win_cz, 0.03f, 0.06f, win_w, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // Window sill — brass ledge at bottom of glass
+    add_wall(s, -rw/2+0.15f, 0.22f, win_cz, 0.12f, 0.04f, win_w+0.2f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // Earth glow on floor — the emotional anchor
+    add_wall(s, -rw/2+3.5f, 0.02f, win_cz, 5, 0.02f, 5, earth_glow);
+    set_last_decal(s);
+    // Earth glow reflected on ceiling — subtle
+    add_wall(s, -rw/2+2.5f, rh-0.1f, win_cz, 3.5f, 0.02f, 3.5f, (Color){45,100,180,30});
+    set_last_decal(s);
+    // Light shaft across floor — blue-white band from window
+    add_wall(s, -rw/2+5, 0.02f, win_cz, 6, 0.02f, 3, (Color){60,130,200,80});
     set_last_decal(s);
 
-    // Stars outside the window
-    for (int i = 0; i < 12; i++) {
-        float sx = -rw/2 - 3 - (i*7)%10;
-        float sy = 1 + (i*13)%5;
-        float sz = -3 + (i*11)%7;
+    // Stars outside the window — scattered points of light
+    for (int i = 0; i < 16; i++) {
+        float sx = -rw/2 - 3 - (i*7)%12;
+        float sy = 0.5f + (i*13)%5;
+        float sz = win_cz - 4 + (i*11)%9;
         add_wall(s, sx, sy, sz, 0.08f, 0.08f, 0.08f,
-                 (Color){240,238,232,(unsigned char)(120+(i*29)%100)});
+                 (Color){240,238,232,(unsigned char)(100+(i*29)%120)});
     }
 
-    // PORTHOLE — right wall, circular
-    add_sphere(s, rw/2-0.15f, rh*0.55f, 0, 1.5f, void_black);
-    add_cylinder(s, rw/2-0.13f, rh*0.55f, 0, 1.7f, 0.08f, brass);
+    // ============================================================
+    // 5. PORTHOLE — right wall, circular window with deep brass ring
+    // ============================================================
+    add_sphere(s, rw/2-0.15f, rh*0.55f, -1.5f, 1.5f, void_black);
+    add_cylinder(s, rw/2-0.13f, rh*0.55f, -1.5f, 1.7f, 0.08f, brass);
+    // Inner ring — depth
+    add_cylinder(s, rw/2-0.12f, rh*0.55f, -1.5f, 1.4f, 0.04f, dark_wood);
 
     // ============================================================
-    // FURNITURE — grounded luxury with floating accents
+    // 6. CLERESTORY WINDOW — above bed, infinity when you lie down
     // ============================================================
-
-    // BED — same composition as Paris, but headboard is taller (double height room)
-    add_wall(s, 0, 0.2f, -4.5f, 3.4f, 0.4f, 2.0f, dark_wood);       // frame
-    set_last_material(s, MAT_WOOD);
-    add_wall(s, 0, 0.5f, -4.5f, 3.2f, 0.25f, 1.8f, white);           // mattress
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, -0.6f, 0.68f, -5.2f, 0.7f, 0.2f, 0.4f, white);       // pillow L
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 0.6f, 0.68f, -5.2f, 0.7f, 0.2f, 0.4f, white);        // pillow R
-    set_last_material(s, MAT_FABRIC);
-    // Headboard — tall navy panel (Godard blue relative)
-    add_wall(s, 0, 1.8f, -5.5f, 3.6f, 2.8f, 0.12f, navy);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 0, 3.25f, -5.48f, 3.7f, 0.05f, 0.06f, brass);        // brass cap
-    set_last_material(s, MAT_BRASS);
-
-    // Nightstands — floating 2cm above floor
-    add_wall(s, -2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
-    set_last_material(s, MAT_WOOD);
-    add_wall(s, 2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
-    set_last_material(s, MAT_WOOD);
-
-    // Bedside lamps
-    add_cylinder(s, -2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
-    add_cylinder(s, -2.5f, 0.76f, -4.8f, 0.03f, 0.2f, brass);
-    add_cone(s, -2.5f, 0.92f, -4.8f, 0.18f, 0.14f, cream);
-    add_light_panel(s, -2.5f, 0.87f, -4.8f, 0.2f, 0.35f, 0.2f, warm_light);
-    add_cylinder(s, 2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
-    add_cylinder(s, 2.5f, 0.76f, -4.8f, 0.03f, 0.2f, brass);
-    add_cone(s, 2.5f, 0.92f, -4.8f, 0.18f, 0.14f, cream);
-    add_light_panel(s, 2.5f, 0.87f, -4.8f, 0.2f, 0.35f, 0.2f, warm_light);
-
-    // DESK — against right wall
-    add_wall(s, 5.5f, 0.4f, -2, 2.5f, 0.8f, 0.9f, wood);
-    set_last_material(s, MAT_WOOD);
-    add_wall(s, 5.5f, 0.82f, -2, 2.6f, 0.03f, 0.95f, brass);
-    set_last_material(s, MAT_BRASS);
-
-    // SOFA — facing window (the view IS the television)
-    add_wall(s, -3, 0.25f, 2, 2.4f, 0.5f, 0.9f, navy);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, -3, 0.6f, 2.45f, 2.4f, 0.6f, 0.15f, navy);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, -4.2f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, -1.8f, 0.4f, 2, 0.08f, 0.45f, 0.9f, navy);
-    set_last_material(s, MAT_FABRIC);
-
-    // Throw pillow on sofa — Godard red against navy
-    add_wall(s, -3.5f, 0.55f, 1.8f, 0.35f, 0.30f, 0.30f, PAL_RED);
-    set_last_material(s, MAT_FABRIC);
-
-    // Coffee table — brass, low
-    add_wall(s, -3, 0.35f, 3.5f, 1.2f, 0.03f, 0.7f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_cylinder(s, -3.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
-    add_cylinder(s, -2.5f, 0.17f, 3.2f, 0.025f, 0.33f, brass);
-    // Book on coffee table — bold blue spine, cream pages
-    add_wall(s, -3.1f, 0.37f, 3.5f, 0.3f, 0.04f, 0.2f, PAL_BLUE);
-    set_last_material(s, MAT_LEATHER);
-    add_cylinder(s, -3.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
-    add_cylinder(s, -2.5f, 0.17f, 3.8f, 0.025f, 0.33f, brass);
-
-    // ============================================================
-    // FLOATING OBJECTS — zero gravity storytelling
-    // ============================================================
-
-    // Bathrobe hovering — Dahl absurdity, golden fabric catching light
-    add_wall(s, 5.5f, 2.8f, 1, 0.8f, 1.6f, 0.1f, (Color){240,220,50,255});
-
-    // Pen floating above desk — tiny brass cylinder, spinning implied
-    add_cylinder(s, 5.8f, 1.6f, -2.2f, 0.02f, 0.2f, brass);
-
-    // Champagne glass inverted near ceiling — the absurd detail
-    add_cone(s, -5, 4.2f, -2, 0.08f, 0.1f, (Color){210,210,215,160});
-    add_cylinder(s, -5, 4.05f, -2, 0.02f, 0.12f, (Color){210,210,215,160});
-    // Champagne droplets — gold spheres drifting (scaled for 480x300 visibility)
-    add_sphere(s, -4.8f, 3.8f, -1.8f, 0.18f, gold);
-    add_sphere(s, -5.1f, 3.5f, -2.2f, 0.14f, gold);
-    add_sphere(s, -4.6f, 3.3f, -1.6f, 0.16f, gold);
-
-    // Photograph floating face-down — same as Paris (you can't flip it here either)
-    add_wall(s, 3, 2.5f, 0, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
-
-    // Book open, pages fanned — floating near sofa
-    add_wall(s, -2, 1.5f, 3, 0.6f, 0.04f, 0.4f, white);
-    add_wall(s, -2.05f, 1.53f, 3, 0.55f, 0.02f, 0.38f, (Color){30,30,35,255});
-
-    // ============================================================
-    // STORYTELLING OBJECTS — the previous guest's traces
-    // Someone was here. They left in a hurry. Or they didn't.
-    // ============================================================
-
-    // Half-packed suitcase by the door — lid propped open, clothes spilling
-    add_wall(s, 5, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, 5, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
-    set_last_material(s, MAT_BRASS);
-    set_last_decal(s);
-    add_wall(s, 5, 0.34f, 4.72f, 0.68f, 0.15f, 0.02f, dark_wood);
-    set_last_material(s, MAT_LEATHER);
-    // Shirt spilling out of suitcase — blue fabric draped over edge
-    add_wall(s, 5.3f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
-    set_last_material(s, MAT_FABRIC);
-
-    // Shoes by the bed — placed neatly, toes facing out
-    add_wall(s, -1.8f, 0.06f, -3.5f, 0.12f, 0.12f, 0.28f, (Color){35,30,28,255});
-    add_wall(s, -1.55f, 0.06f, -3.5f, 0.12f, 0.12f, 0.28f, (Color){35,30,28,255});
-
-    // Postcard face-down on nightstand — you can't read it
-    add_wall(s, 2.5f, 0.64f, -4.6f, 0.16f, 0.005f, 0.11f, cream);
-    set_last_decal(s);
-
-    // HALF-WRITTEN LETTER on desk — pen left mid-sentence
-    add_wall(s, 5.3f, 0.85f, -2.2f, 0.3f, 0.005f, 0.22f, (Color){245,242,235,255});
-    set_last_decal(s);
-    // Pen — resting at an angle across the letter
-    add_cylinder(s, 5.45f, 0.86f, -2.1f, 0.015f, 0.16f, (Color){30,28,25,255});
-    set_last_rotation(s, 35.0f);
-
-    // Wine glass with lipstick mark on coffee table
-    // Stem
-    add_cylinder(s, -3.2f, 0.4f, 3.3f, 0.02f, 0.12f, (Color){210,210,215,160});
-    // Bowl
-    add_wall(s, -3.2f, 0.49f, 3.3f, 0.05f, 0.06f, 0.05f, (Color){210,210,215,160});
-    // Lipstick mark — tiny red crescent on the rim
-    add_wall(s, -3.18f, 0.52f, 3.28f, 0.02f, 0.02f, 0.01f, (Color){180,45,55,220});
-
-    // Photo turned face-down — you cannot see who's in it
-    add_wall(s, -2.5f, 0.64f, -4.5f, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
-
-    // Scarf draped over sofa arm — someone sat here
-    add_wall(s, -4.2f, 0.7f, 2.0f, 0.08f, 0.4f, 0.3f, (Color){200,50,45,200});
-    set_last_material(s, MAT_FABRIC);
-
-    // ============================================================
-    // RECESSED PANELS — depth on hull walls
-    // ============================================================
-    add_recessed_panel(s, -3, rh*0.6f, -rd/2+0.2f, 2.5f, 1.5f, 0.08f, hull);
-    add_recessed_panel(s, 3, rh*0.6f, -rd/2+0.2f, 2.5f, 1.5f, 0.08f, hull);
-    add_recessed_panel(s, 5, rh*0.6f, rd/2-0.2f, 3, 1.8f, 0.08f, hull);
-
-    // Light shaft from window across floor
-    add_wall(s, -rw/2+4, 0.02f, -1, 5, 0.02f, 3, (Color){60,130,200,100});
-    set_last_decal(s);
-    // Secondary earth glow — warm band on ceiling reflected
-    add_wall(s, -rw/2+2, rh-0.1f, -1, 3, 0.02f, 3, (Color){45,100,180,30});
-    set_last_decal(s);
-
-    // DROPPED CEILING with warm light — above bed area
-    add_dropped_ceiling(s, 0, rh, -4, 5, 4, 0.2f, hull, warm_light);
-
-    // ============================================================
-    // ARCHITECTURAL DETAIL — Space Suite
-    // ============================================================
-
-    // Picture frames above bed — Earth photography, brass frames
-    add_picture_frame(s, -1.5f, 3.8f, -rd/2+0.2f, 0.8f, 0.6f, brass, (Color){35,75,140,255});
-    add_picture_frame(s, 1.5f, 3.8f, -rd/2+0.2f, 0.8f, 0.6f, brass, (Color){60,130,200,255});
-
-    // Bookshelf on side wall — 3 rows, cream shelves
-    add_bookshelf(s, rw/2-0.2f, 1.6f, 0.02f, 1.4f, 1.2f, 3, cream);
-
-    // Baseboards — all 4 walls (brass, matching station trim)
-    add_baseboard(s, 0, 0, -rd/2+0.08f, rw, 0, brass);
-    add_baseboard(s, 0, 0, rd/2-0.08f, rw, 0, brass);
-    add_baseboard(s, -rw/2+0.08f, 0, 0, rd, 1.0f, brass);
-    add_baseboard(s, rw/2-0.08f, 0, 0, rd, 1.0f, brass);
-
-    // Crown moldings at ceiling — brass
-    add_crown_molding(s, 0, rh, -rd/2+0.08f, rw, 0, brass);
-    add_crown_molding(s, 0, rh, rd/2-0.08f, rw, 0, brass);
-    add_crown_molding(s, -rw/2+0.08f, rh, 0, rd, 1.0f, brass);
-    add_crown_molding(s, rw/2-0.08f, rh, 0, rd, 1.0f, brass);
-
-    // Corner reinforcement — prevent room escape
-    add_wall(s, -rw/2+0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
-    add_wall(s, rw/2-0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
-    add_wall(s, -rw/2+0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
-    add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
-
-    // ── P5: Non-interactive storytelling objects ──
-    // Half-packed suitcase by door — someone arrived but hasn't settled
-    add_wall(s, 4.5f, 0.15f, 4.0f, 0.6f, 0.3f, 0.4f, dark_wood);  // open case
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, 4.5f, 0.31f, 4.2f, 0.55f, 0.02f, 0.15f, cream);   // fabric draped over edge
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 4.5f, 0.08f, 4.0f, 0.35f, 0.08f, 0.25f, navy);    // folded shirt inside
-    set_last_material(s, MAT_FABRIC);
-
-    // Postcard face-down on nightstand — unread, unknowable
-    add_wall(s, -2.3f, 0.88f, -4.5f, 0.18f, 0.005f, 0.12f, cream);
-    set_last_rotation(s, 8.0f);
-
-    // Shoes by door — two small dark boxes, slightly angled
-    add_wall(s, 5.2f, 0.04f, 3.5f, 0.12f, 0.08f, 0.22f, (Color){35,30,25,255});
-    set_last_material(s, MAT_LEATHER);
-    set_last_rotation(s, -5.0f);
-    add_wall(s, 5.5f, 0.04f, 3.4f, 0.12f, 0.08f, 0.22f, (Color){35,30,25,255});
-    set_last_material(s, MAT_LEATHER);
-    set_last_rotation(s, 12.0f);
-
-    // ── Clerestory window above bed — stars peek in above the headboard ──
-    // When you lie down, you see infinity above you
     add_wall(s, 0, rh-0.5f, -rd/2+0.1f, 6, 0.8f, 0.06f, (Color){4,5,12,255});
     set_last_material(s, MAT_GLASS);
     add_wall(s, 0, rh-0.08f, -rd/2+0.12f, 6.2f, 0.06f, 0.04f, brass);
@@ -3773,65 +3626,460 @@ void build_space_suite(Scene *s) {
     add_wall(s, 0, rh-0.92f, -rd/2+0.12f, 6.2f, 0.06f, 0.04f, brass);
     set_last_material(s, MAT_BRASS);
 
-    // ── Furniture detail in suite ──
-    // Bed pillows — two small boxes at head
-    add_wall(s, -0.5f, 0.72f, -5.3f, 0.5f, 0.12f, 0.35f, white);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 0.5f, 0.72f, -5.3f, 0.5f, 0.12f, 0.35f, white);
+    // ============================================================
+    // 7. DOORS — bathroom, adjoining room, entry
+    // ============================================================
+
+    // ENTRY DOOR — front wall, right of center
+    add_door_frame(s, 3, 1.3f, rd/2-0.15f, 1.2f, 2.6f, 0.3f, brass);
+    add_wall(s, 3, 1.3f, rd/2-0.18f, 1.1f, 2.5f, 0.06f, dark_wood);
+    set_last_material(s, MAT_WOOD);
+    // Room number plate — "2046" (a brass rectangle)
+    add_wall(s, 3, 2.7f, rd/2-0.12f, 0.3f, 0.12f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // BATHROOM DOOR — right wall, toward front
+    add_door_frame(s, rw/2-0.15f, 1.3f, 2.5f, 1.2f, 2.6f, 0.3f, brass);
+    add_wall(s, rw/2-0.18f, 1.3f, 2.5f, 0.06f, 2.5f, 1.1f, white);
+    set_last_material(s, MAT_WOOD);
+    // Towel bar visible on bathroom door frame
+    add_cylinder(s, rw/2-0.08f, 1.4f, 2.5f, 0.02f, 0.6f, brass);
+
+    // ADJOINING DOOR — right wall, toward back (leads to darkness)
+    add_door_frame(s, rw/2-0.15f, 1.3f, -3.5f, 1.2f, 2.6f, 0.3f, brass);
+    add_wall(s, rw/2-0.18f, 1.3f, -3.5f, 0.06f, 2.5f, 1.1f, cream);
+    set_last_material(s, MAT_WOOD);
+    // Brass door handle — you can almost reach through
+    add_sphere(s, rw/2-0.1f, 1.1f, -3.1f, 0.08f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Through the crack: darkness with a single pillow visible
+    add_wall(s, rw/2+0.2f, 0.4f, -3.5f, 0.4f, 0.15f, 0.3f, white);
     set_last_material(s, MAT_FABRIC);
 
-    // Wardrobe slightly ajar — door box rotated 15°
-    add_wall(s, rw/2-0.5f, 1.2f, -3.0f, 0.6f, 2.2f, 0.5f, dark_wood);
+    // ============================================================
+    // 8. BED ZONE — back-center, the emotional core
+    // ============================================================
+
+    // Bed frame — dark wood, generous
+    add_wall(s, 0, 0.18f, -4.5f, 3.4f, 0.36f, 2.2f, dark_wood);
     set_last_material(s, MAT_WOOD);
-    add_wall(s, rw/2-0.82f, 1.2f, -2.75f, 0.04f, 2.1f, 0.45f, dark_wood);
+    // Mattress
+    add_wall(s, 0, 0.48f, -4.5f, 3.2f, 0.28f, 2.0f, white);
+    set_last_material(s, MAT_FABRIC);
+
+    // TWO PILLOWS — the room is for two
+    add_wall(s, -0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
+    set_last_material(s, MAT_FABRIC);
+
+    // Duvet — slightly rumpled, cream with folded edge
+    add_wall(s, 0, 0.66f, -4.2f, 3.0f, 0.06f, 1.4f, cream);
+    set_last_material(s, MAT_FABRIC);
+    // Folded edge at top — darker strip
+    add_wall(s, 0, 0.68f, -4.8f, 3.0f, 0.04f, 0.3f, (Color){215,210,200,255});
+    set_last_material(s, MAT_FABRIC);
+
+    // HEADBOARD — tall navy velvet panel (Godard blue)
+    add_wall(s, 0, 1.8f, -5.55f, 3.6f, 2.8f, 0.12f, navy);
+    set_last_material(s, MAT_VELVET);
+    // Brass cap on headboard
+    add_wall(s, 0, 3.25f, -5.52f, 3.7f, 0.06f, 0.08f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // LEFT NIGHTSTAND — her side
+    add_wall(s, -2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
+    set_last_material(s, MAT_WOOD);
+    // Drawer pull — brass line
+    add_wall(s, -2.5f, 0.25f, -4.49f, 0.25f, 0.02f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
+    // HER BOOK on left nightstand — dog-eared, blue cover
+    add_wall(s, -2.6f, 0.64f, -4.9f, 0.25f, 0.04f, 0.18f, PAL_BLUE);
+    set_last_material(s, MAT_LEATHER);
+
+    // RIGHT NIGHTSTAND — his side
+    add_wall(s, 2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, 2.5f, 0.25f, -4.49f, 0.25f, 0.02f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
+    // PHOTOGRAPH FACE-DOWN on right nightstand — you cannot see who's in it
+    add_wall(s, 2.5f, 0.64f, -4.6f, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
+    set_last_decal(s);
+    // Postcard — unread, unknowable
+    add_wall(s, 2.3f, 0.65f, -4.9f, 0.16f, 0.005f, 0.11f, cream);
+    set_last_decal(s);
+    set_last_rotation(s, 8.0f);
+
+    // BEDSIDE LAMPS — matching pair, warm pools
+    // Left lamp
+    add_cylinder(s, -2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
+    add_cylinder(s, -2.5f, 0.76f, -4.8f, 0.03f, 0.2f, brass);
+    add_cone(s, -2.5f, 0.92f, -4.8f, 0.2f, 0.16f, cream);
+    add_light_panel(s, -2.5f, 0.87f, -4.8f, 0.25f, 0.4f, 0.25f, warm_light);
+    // Right lamp
+    add_cylinder(s, 2.5f, 0.64f, -4.8f, 0.08f, 0.04f, brass);
+    add_cylinder(s, 2.5f, 0.76f, -4.8f, 0.03f, 0.2f, brass);
+    add_cone(s, 2.5f, 0.92f, -4.8f, 0.2f, 0.16f, cream);
+    add_light_panel(s, 2.5f, 0.87f, -4.8f, 0.25f, 0.4f, 0.25f, warm_light);
+
+    // Towel swan on bed — the universal hotel welcome
+    add_wall(s, 0, 0.66f, -4.0f, 0.22f, 0.16f, 0.14f, white);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 0, 0.80f, -3.9f, 0.07f, 0.14f, 0.05f, white);
+    set_last_material(s, MAT_FABRIC);
+
+    // Slippers by bed — still wrapped, placed neatly
+    add_wall(s, -0.6f, 0.03f, -3.4f, 0.12f, 0.05f, 0.22f, cream);
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, -0.4f, 0.03f, -3.4f, 0.12f, 0.05f, 0.22f, cream);
+    set_last_material(s, MAT_FABRIC);
+
+    // Sock under bed — barely visible, navy
+    add_wall(s, 1.2f, 0.02f, -3.8f, 0.08f, 0.02f, 0.15f, navy);
+    set_last_material(s, MAT_FABRIC);
+    set_last_decal(s);
+
+    // Mint on left nightstand
+    add_wall(s, -2.3f, 0.64f, -4.7f, 0.06f, 0.01f, 0.06f, (Color){120,180,100,255});
+
+    // Water carafe + glass — clear, formal
+    add_cylinder(s, -2.4f, 0.72f, -4.4f, 0.07f, 0.16f, glass_clr);
+    set_last_material(s, MAT_GLASS);
+    add_cylinder(s, -2.25f, 0.68f, -4.4f, 0.05f, 0.10f, (Color){200,210,220,120});
+    set_last_material(s, MAT_GLASS);
+
+    // Picture frames above bed — Earth photography, brass frames
+    add_picture_frame(s, -1.5f, 3.8f, -rd/2+0.22f, 0.8f, 0.6f, brass, (Color){35,75,140,255});
+    add_picture_frame(s, 0, 3.4f, -rd/2+0.22f, 0.5f, 0.5f, brass, (Color){60,90,50,255});
+    add_picture_frame(s, 1.5f, 3.8f, -rd/2+0.22f, 0.8f, 0.6f, brass, (Color){60,130,200,255});
+
+    // ============================================================
+    // 9. LIVING ZONE — left-center, facing window (the view IS the TV)
+    // ============================================================
+
+    // SOFA — navy, facing window
+    add_sofa(s, -3, 0, 2.0f, -90.0f, navy);
+
+    // Throw pillow — Godard red against navy
+    add_wall(s, -3.5f, 0.52f, 1.6f, 0.35f, 0.30f, 0.30f, PAL_RED);
+    set_last_material(s, MAT_VELVET);
+    // Second throw pillow — blue (her favorite color)
+    add_wall(s, -2.4f, 0.48f, 1.7f, 0.30f, 0.28f, 0.28f, PAL_BLUE);
+    set_last_material(s, MAT_VELVET);
+    set_last_rotation(s, 12.0f);
+
+    // Scarf draped over sofa arm — someone sat here
+    add_wall(s, -4.1f, 0.72f, 2.0f, 0.08f, 0.45f, 0.35f, (Color){200,50,45,200});
+    set_last_material(s, MAT_FABRIC);
+
+    // COFFEE TABLE — brass and glass, low
+    add_wall(s, -3, 0.35f, 3.5f, 1.4f, 0.04f, 0.8f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Glass top
+    add_wall(s, -3, 0.37f, 3.5f, 1.3f, 0.02f, 0.7f, (Color){210,215,220,80});
+    set_last_material(s, MAT_GLASS);
+    // 4 legs
+    add_cylinder(s, -3.6f, 0.17f, 3.15f, 0.03f, 0.33f, brass);
+    add_cylinder(s, -2.4f, 0.17f, 3.15f, 0.03f, 0.33f, brass);
+    add_cylinder(s, -3.6f, 0.17f, 3.85f, 0.03f, 0.33f, brass);
+    add_cylinder(s, -2.4f, 0.17f, 3.85f, 0.03f, 0.33f, brass);
+
+    // Book on coffee table — blue spine (geometry textbook)
+    add_wall(s, -3.2f, 0.39f, 3.5f, 0.35f, 0.04f, 0.22f, PAL_BLUE);
+    set_last_material(s, MAT_LEATHER);
+
+    // TWO CHAMPAGNE GLASSES on tray — one poured, one empty
+    // Tray — brass oval
+    add_wall(s, -2.7f, 0.39f, 3.3f, 0.5f, 0.02f, 0.3f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Glass 1 — half full (golden liquid inside)
+    add_cylinder(s, -2.8f, 0.44f, 3.3f, 0.03f, 0.14f, glass_clr);
+    set_last_material(s, MAT_GLASS);
+    add_wall(s, -2.8f, 0.44f, 3.3f, 0.04f, 0.07f, 0.04f, gold);
+    // Glass 2 — empty, tilted
+    add_cylinder(s, -2.6f, 0.44f, 3.35f, 0.03f, 0.14f, glass_clr);
+    set_last_material(s, MAT_GLASS);
+    set_last_rotation(s, 5.0f);
+
+    // Wine glass with lipstick mark
+    add_cylinder(s, -3.3f, 0.42f, 3.6f, 0.03f, 0.14f, (Color){210,210,215,160});
+    add_wall(s, -3.3f, 0.51f, 3.6f, 0.06f, 0.06f, 0.06f, (Color){210,210,215,160});
+    // Lipstick mark — red crescent on rim
+    add_wall(s, -3.28f, 0.54f, 3.58f, 0.03f, 0.02f, 0.01f, (Color){180,45,55,220});
+
+    // TWO CHAIRS — angled toward each other, for watching Earth together
+    add_chair(s, -5.2f, 0, 0.5f, 45.0f, dark_wood, navy);
+    add_chair(s, -5.2f, 0, 2.5f, -30.0f, dark_wood, navy);
+    // Small side table between chairs
+    add_wall(s, -5.5f, 0.45f, 1.5f, 0.4f, 0.04f, 0.4f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, -5.5f, 0.22f, 1.5f, 0.04f, 0.44f, brass);
+
+    // ============================================================
+    // 10. DESK ZONE — right wall, work/writing area
+    // ============================================================
+
+    // Desk — against right wall
+    add_desk(s, rw/2-1.2f, 0, -1.5f, 90.0f, wood);
+
+    // Desk lamp — wall-mounted above, brass arm
+    add_wall(s, rw/2-0.2f, 1.6f, -1.5f, 0.06f, 0.04f, 0.5f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cone(s, rw/2-0.4f, 1.55f, -1.5f, 0.18f, 0.12f, cream);
+    add_light_panel(s, rw/2-0.4f, 1.4f, -1.5f, 0.25f, 0.3f, 0.25f, warm_light);
+
+    // HALF-WRITTEN LETTER on desk
+    add_wall(s, rw/2-1.0f, S_DESK_H+0.02f, -1.5f, 0.3f, 0.005f, 0.22f, (Color){245,242,235,255});
+    set_last_decal(s);
+    // Geometry textbook open
+    add_wall(s, rw/2-1.3f, S_DESK_H+0.02f, -1.2f, 0.4f, 0.04f, 0.3f, (Color){180,40,35,255});
+    set_last_material(s, MAT_LEATHER);
+
+    // Desk chair
+    add_chair(s, rw/2-2.0f, 0, -1.5f, -90.0f, dark_wood, (Color){60,55,50,255});
+
+    // ============================================================
+    // 11. ENTRY ZONE — front wall area
+    // ============================================================
+
+    // SUITCASE — half-packed, by the door
+    add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
+    set_last_material(s, MAT_LEATHER);
+    // Suitcase brass trim
+    add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Lid propped open
+    add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
+    set_last_material(s, MAT_LEATHER);
+    // Shirt spilling out — blue fabric
+    add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
+    set_last_material(s, MAT_FABRIC);
+    // Folded shirt inside
+    add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
+    set_last_material(s, MAT_FABRIC);
+
+    // Luggage rack — brass frame near entry
+    add_wall(s, 5.5f, 0.5f, 4.8f, 1.0f, 0.04f, 0.5f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, 5.0f, 0.25f, 4.6f, 0.03f, 0.5f, brass);
+    add_cylinder(s, 6.0f, 0.25f, 4.6f, 0.03f, 0.5f, brass);
+    add_cylinder(s, 5.0f, 0.25f, 5.0f, 0.03f, 0.5f, brass);
+    add_cylinder(s, 6.0f, 0.25f, 5.0f, 0.03f, 0.5f, brass);
+
+    // Shoes by door — placed neatly, his
+    add_wall(s, 3.8f, 0.04f, 4.8f, 0.12f, 0.08f, 0.24f, (Color){35,30,25,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_rotation(s, -5.0f);
+    add_wall(s, 4.05f, 0.04f, 4.7f, 0.12f, 0.08f, 0.24f, (Color){35,30,25,255});
+    set_last_material(s, MAT_LEATHER);
+    set_last_rotation(s, 8.0f);
+
+    // Coat hooks — brass, by entry door
+    add_wall(s, 2, 1.8f, rd/2-0.15f, 0.8f, 0.04f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_sphere(s, 1.7f, 1.75f, rd/2-0.12f, 0.05f, brass);
+    add_sphere(s, 2.0f, 1.75f, rd/2-0.12f, 0.05f, brass);
+    add_sphere(s, 2.3f, 1.75f, rd/2-0.12f, 0.05f, brass);
+    // ONE BATHROBE hung on coat hook
+    add_wall(s, 2.0f, 1.2f, rd/2-0.18f, 0.5f, 1.0f, 0.08f, white);
+    set_last_material(s, MAT_FABRIC);
+
+    // Mirror near entry — brass-framed
+    add_wall(s, 1, 1.6f, rd/2-0.14f, 0.6f, 0.9f, 0.02f, (Color){180,185,190,200});
+    set_last_material(s, MAT_GLASS);
+    // Mirror frame
+    add_wall(s, 1, 2.1f, rd/2-0.13f, 0.7f, 0.04f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, 1, 1.1f, rd/2-0.13f, 0.7f, 0.04f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, 0.65f, 1.6f, rd/2-0.13f, 0.04f, 0.9f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, 1.35f, 1.6f, rd/2-0.13f, 0.04f, 0.9f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // Light switch panel by entry door
+    add_wall(s, 3.6f, 1.2f, rd/2-0.14f, 0.12f, 0.16f, 0.02f, cream);
+    // Light switch panel by bed
+    add_wall(s, -1.9f, 0.7f, -rd/2+0.22f, 0.12f, 0.16f, 0.02f, cream);
+
+    // ============================================================
+    // 12. WARDROBE — right wall, slightly ajar
+    // ============================================================
+    add_wall(s, rw/2-0.5f, 1.2f, -0.2f, 0.6f, 2.4f, 0.8f, dark_wood);
+    set_last_material(s, MAT_WOOD);
+    // Door ajar — rotated panel
+    add_wall(s, rw/2-0.82f, 1.2f, 0.05f, 0.04f, 2.3f, 0.75f, dark_wood);
     set_last_material(s, MAT_WOOD);
     set_last_rotation(s, 15.0f);
+    // Brass handles on wardrobe
+    add_sphere(s, rw/2-0.85f, 1.2f, 0.0f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
 
-    // ── Turn-down service — someone prepared this room for you ──
-    // Towel swan on bed — the universal hotel welcome gesture
-    add_wall(s, 0, 0.66f, -4.0f, 0.2f, 0.15f, 0.12f, white);       // body
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 0, 0.78f, -3.9f, 0.06f, 0.12f, 0.04f, white);      // neck
-    set_last_material(s, MAT_FABRIC);
-    // Slippers by bed — aligned, waiting
-    add_wall(s, -0.6f, 0.03f, -3.5f, 0.1f, 0.04f, 0.2f, cream);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, -0.4f, 0.03f, -3.5f, 0.1f, 0.04f, 0.2f, cream);
-    set_last_material(s, MAT_FABRIC);
-    // Robe on bathroom door hook — draped fabric
-    add_wall(s, rw/2-0.2f, 1.8f, 2.0f, 0.04f, 0.8f, 0.3f, white);
-    set_last_material(s, MAT_FABRIC);
-    // Mint on nightstand — small bright green square
-    add_wall(s, -2.3f, 0.86f, -4.7f, 0.06f, 0.01f, 0.06f, (Color){120,180,100,255});
-    // Water carafe + glass — clear, formal
-    add_cylinder(s, -2.5f, 0.92f, -4.3f, 0.06f, 0.14f, (Color){200,210,220,140});
-    set_last_material(s, MAT_GLASS);
-    add_cylinder(s, -2.35f, 0.88f, -4.3f, 0.04f, 0.08f, (Color){200,210,220,120});
-    set_last_material(s, MAT_GLASS);
+    // ============================================================
+    // 13. MINI-BAR — small refrigerator, right wall near bathroom
+    // ============================================================
+    add_wall(s, rw/2-0.3f, 0.35f, 3.5f, 0.5f, 0.7f, 0.45f, charcoal);
+    set_last_material(s, MAT_LEATHER);
+    // Handle
+    add_wall(s, rw/2-0.57f, 0.45f, 3.5f, 0.02f, 0.2f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
 
-    // ── Leading line — brass floor inlay guides eye to window ──
-    // Narrow brass strip from entrance toward the left-wall window
-    add_wall(s, -2, 0.01f, 0, 0.08f, 0.02f, rd*0.6f, brass);
+    // ============================================================
+    // 14. BOOKSHELF — right wall
+    // ============================================================
+    add_bookshelf(s, rw/2-0.2f, 1.6f, 0.8f, 1.2f, 1.0f, 3, cream);
+
+    // ============================================================
+    // 15. INFRASTRUCTURE — pipes, vents, panels (the hotel IS a station)
+    // ============================================================
+
+    // Air vents — brass grilles near ceiling (4 locations)
+    add_wall(s, -3, rh-0.2f, -rd/2+0.15f, 0.6f, 0.3f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, 4, rh-0.2f, -rd/2+0.15f, 0.6f, 0.3f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, -3, rh-0.2f, rd/2-0.15f, 0.6f, 0.3f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, 4, rh-0.2f, rd/2-0.15f, 0.6f, 0.3f, 0.04f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // Pipe conduits — running along ceiling-wall junction (right wall)
+    add_cylinder(s, rw/2-0.2f, rh-0.15f, 0, 0.06f, rd*0.8f, hull_lt);
+    add_cylinder(s, rw/2-0.2f, rh-0.3f, 0, 0.04f, rd*0.8f, hull_lt);
+    // Pipe conduit — back wall
+    add_cylinder(s, 0, rh-0.15f, -rd/2+0.15f, 0.05f, rw*0.6f, hull_lt);
+
+    // Pipe bracket supports — every 3m
+    for (int i = -1; i <= 1; i++) {
+        add_wall(s, rw/2-0.18f, rh-0.22f, i*3.0f, 0.08f, 0.2f, 0.08f, hull);
+    }
+
+    // Fire sprinkler head — center ceiling
+    add_cylinder(s, 0, rh-0.05f, 1, 0.04f, 0.06f, brass);
+    add_sphere(s, 0, rh-0.1f, 1, 0.06f, (Color){200,60,50,255});
+
+    // Smoke detector — near entry
+    add_cylinder(s, 2, rh-0.05f, 3, 0.08f, 0.03f, white);
+
+    // Thermostat on wall — 22 degrees (the compromise)
+    add_wall(s, rw/2-0.14f, 1.4f, 1.0f, 0.04f, 0.12f, 0.08f, white);
+    // Temperature display — small warm rectangle
+    add_wall(s, rw/2-0.12f, 1.4f, 1.0f, 0.02f, 0.06f, 0.04f, (Color){200,220,180,200});
+
+    // ============================================================
+    // 16. RECESSED PANELS — depth articulation on walls
+    // ============================================================
+
+    // Back wall panels — flanking the headboard
+    add_recessed_panel(s, -4, rh*0.6f, -rd/2+0.2f, 2.0f, 1.2f, 0.08f, hull);
+    add_recessed_panel(s, 4, rh*0.6f, -rd/2+0.2f, 2.0f, 1.2f, 0.08f, hull);
+    // Front wall panel — above entry
+    add_recessed_panel(s, 0, rh*0.7f, rd/2-0.2f, 4, 1.2f, 0.08f, hull);
+    // Right wall panels — between doors
+    add_recessed_panel(s, rw/2-0.2f, rh*0.65f, -0.5f, 1.5f, 1.0f, 0.06f, hull);
+    add_recessed_panel(s, rw/2-0.2f, rh*0.65f, 4.5f, 1.5f, 1.0f, 0.06f, hull);
+
+    // Wall sconces — brass, flanking headboard
+    add_cylinder(s, -2.8f, 2.2f, -rd/2+0.22f, 0.06f, 0.04f, brass);
+    add_cone(s, -2.8f, 2.3f, -rd/2+0.22f, 0.12f, 0.1f, cream);
+    add_light_panel(s, -2.8f, 2.3f, -rd/2+0.25f, 0.15f, 0.2f, 0.15f, warm_light);
+    add_cylinder(s, 2.8f, 2.2f, -rd/2+0.22f, 0.06f, 0.04f, brass);
+    add_cone(s, 2.8f, 2.3f, -rd/2+0.22f, 0.12f, 0.1f, cream);
+    add_light_panel(s, 2.8f, 2.3f, -rd/2+0.25f, 0.15f, 0.2f, 0.15f, warm_light);
+
+    // ============================================================
+    // 17. BASEBOARDS AND CROWN MOLDING — every edge
+    // ============================================================
+
+    // Baseboards — all 4 walls (brass)
+    add_baseboard(s, 0, 0, -rd/2+0.08f, rw, 0, brass);
+    add_baseboard(s, 0, 0, rd/2-0.08f, rw, 0, brass);
+    add_baseboard(s, -rw/2+0.08f, 0, 0, rd, 1.0f, brass);
+    add_baseboard(s, rw/2-0.08f, 0, 0, rd, 1.0f, brass);
+
+    // Crown moldings — brass
+    add_crown_molding(s, 0, rh, -rd/2+0.08f, rw, 0, brass);
+    add_crown_molding(s, 0, rh, rd/2-0.08f, rw, 0, brass);
+    add_crown_molding(s, -rw/2+0.08f, rh, 0, rd, 1.0f, brass);
+    add_crown_molding(s, rw/2-0.08f, rh, 0, rd, 1.0f, brass);
+
+    // ============================================================
+    // 18. CORNER REINFORCEMENT — prevent room escape + visual mass
+    // ============================================================
+    add_wall(s, -rw/2+0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
+    add_wall(s, rw/2-0.1f, rh/2, -rd/2+0.1f, 0.5f, rh, 0.5f, hull);
+    add_wall(s, -rw/2+0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
+    add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
+
+    // ============================================================
+    // 19. FLOATING OBJECTS — zero gravity storytelling
+    // ============================================================
+
+    // BATHROBE floating mid-room — white fabric, arms spread
+    add_wall(s, 2, 2.6f, 1, 0.7f, 1.4f, 0.08f, white);
+    set_last_material(s, MAT_FABRIC);
+    // Sleeve — extended
+    add_wall(s, 2.5f, 2.8f, 1, 0.5f, 0.15f, 0.08f, white);
+    set_last_material(s, MAT_FABRIC);
+    set_last_rotation(s, 20.0f);
+
+    // PEN floating above desk — brass cylinder, drifting
+    add_cylinder(s, rw/2-1.5f, 1.6f, -1.8f, 0.025f, 0.2f, brass);
+    set_last_rotation(s, 25.0f);
+
+    // CHAMPAGNE GLASS inverted near ceiling — the absurd detail
+    add_cone(s, -4.5f, 4.2f, 1.5f, 0.1f, 0.12f, (Color){210,210,215,160});
+    add_cylinder(s, -4.5f, 4.05f, 1.5f, 0.025f, 0.14f, (Color){210,210,215,160});
+    // Gold droplets drifting
+    add_sphere(s, -4.3f, 3.8f, 1.3f, 0.18f, gold);
+    add_sphere(s, -4.6f, 3.5f, 1.7f, 0.14f, gold);
+    add_sphere(s, -4.1f, 3.3f, 1.1f, 0.16f, gold);
+    add_sphere(s, -4.8f, 4.0f, 1.9f, 0.10f, gold);
+
+    // PHOTOGRAPH floating face-down — mid-room, slowly tumbling
+    add_wall(s, 3, 2.5f, 0, 0.22f, 0.01f, 0.16f, (Color){240,238,230,255});
+    set_last_rotation(s, 15.0f);
+
+    // BOOK open, pages fanned — floating near sofa area
+    add_wall(s, -2, 1.5f, 3, 0.6f, 0.04f, 0.4f, white);
+    add_wall(s, -2.05f, 1.53f, 3, 0.55f, 0.02f, 0.38f, (Color){30,30,35,255});
+    set_last_rotation(s, -8.0f);
+
+    // ============================================================
+    // 20. LEADING LINES — brass floor inlays
+    // ============================================================
+
+    // Brass strip from entry toward window
+    add_wall(s, -2, 0.01f, 0, 0.06f, 0.02f, rd*0.6f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    // Second strip — perpendicular, toward bed
+    add_wall(s, 0, 0.01f, -2, rw*0.4f, 0.02f, 0.06f, brass);
     set_last_material(s, MAT_BRASS);
     set_last_decal(s);
 
-    // Interactive objects
+    // ============================================================
+    // 21. INTERACTIVE OBJECTS
+    // ============================================================
     add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);
-    add_object(s, 5.5f, 1.0f, -2, "desk", (Color){200,155,90,255}, 2);
+    add_object(s, rw/2-1.2f, 1.0f, -1.5f, "desk", (Color){200,155,90,255}, 2);
     add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 2);
     add_object(s, 0, 0.8f, -4.5f, "bed", white, 2);
+
+    // ============================================================
+    // 22. THE MOTIF: cigarette
+    // On the coffee table, unlit. From the previous guest.
+    // You could light it. You won't.
+    // ============================================================
+    add_cylinder(s, -2.8f, 0.39f, 3.2f, 0.01f, 0.05f, (Color){230,225,215,220});
 
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 4};
     s->has_exit = false;
-
-    // ── THE MOTIF: cigarette ──
-    // On the coffee table, unlit. From the previous guest's effects.
-    // You could light it. You won't.
-    add_cylinder(s, -2.8f, 0.36f, 3.2f, 0.008f, 0.04f, (Color){230,225,215,220});
-
 }
+
 
 // ============================================================
 // COMPOSITION HELPERS — Rich furniture from simple primitives
