@@ -7,6 +7,7 @@ extern GameCtx g;
 
 void set_exposure(float exp);
 void hard_cut_to(GameState s);
+void show_text(const char *text);
 InteractSoundType get_interact_sound_ext(const char *name);
 
 void suite_load(void) {
@@ -31,23 +32,31 @@ void suite_load(void) {
     SetSceneLighting(&g.lighting, LightingPreset_SpaceSuite());
     set_exposure(-0.1f);
     SetPostFXGrain(&g.postfx, 0.35f);
-    // Gibbons
+    // Gibbons — gestures you in at threshold, walks to sofa, sits
+    // "He bows. He deactivates." (Master Plan)
     {
         Vector3 suite_wps[] = {
-            {0, 1.6f, 2},
-            {-2.0f, 1.6f, 1},
+            {0, 1.6f, 3.5f},    // threshold — pauses, gestures "after you"
+            {0, 1.6f, 1},       // steps inside
+            {-2.0f, 1.6f, 1},   // toward sofa
         };
-        init_npc(&g.gibbons, (Vector3){0, 1.6f, 5}, suite_wps, 2, 2.5f, 3.0f);
+        init_npc(&g.gibbons, (Vector3){0, 1.6f, 5.5f}, suite_wps, 3, 2.0f, 3.0f);
+        g.gibbons.behavior = NPC_GESTURING;  // starts gesturing at door
         static const char *suite_lines[] = {
+            "After you.",
             "Make yourself comfortable. It's yours.",
             "Three hours. You'd be surprised what fits.",
         };
-        npc_set_dialogue(&g.gibbons, suite_lines, 2, 3.5f);
+        npc_set_dialogue(&g.gibbons, suite_lines, 3, 3.5f);
     }
     // Thermostat — interactable (changes room warmth)
     add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 3);
     // Adjoining door — interactable (opens to empty room)
     add_object(&g.scene, 6.86f, 1.5f, 3.5f, "adjoining_door", (Color){140,105,65,255}, 1);
+    // Photograph — face-down on nightstand, turnable
+    add_object(&g.scene, -2.5f, 0.64f, -4.5f, "photograph", (Color){240,238,230,255}, 1);
+    // Wine glass with lipstick — examine
+    add_object(&g.scene, -3.2f, 0.52f, 3.3f, "wineglass", (Color){210,210,215,255}, 1);
 }
 
 void suite_update(float dt) {
@@ -184,6 +193,55 @@ void suite_update(float dt) {
                         // One pillow visible through doorway
                         add_wall(&g.scene, 8.0f, 0.68f, 3.0f, 0.5f, 0.15f, 0.3f, (Color){240,238,232,255});
                         set_last_material(&g.scene, MAT_FABRIC);
+                        obj->done = true;
+                        break;
+                    }
+
+                    // Photograph — turn it face-up. The two of you. Paris.
+                    if (strcmp(obj->name, "photograph") == 0) {
+                        // Flip the photo — find the face-down wall and change its color
+                        for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                            Wall *w = &g.scene.walls[wi];
+                            if (fabsf(w->pos.y - 0.64f) < 0.1f &&
+                                w->size.y < 0.02f && w->size.x < 0.25f &&
+                                w->color.r > 230) {
+                                // Flip to photo side — warm sepia with red accent
+                                w->color = (Color){210,195,170,255};
+                                break;
+                            }
+                        }
+                        // Add a tiny red dot — her dress in the photo
+                        add_wall(&g.scene, -2.48f, 0.645f, -4.48f, 0.03f, 0.003f, 0.02f, (Color){190,50,45,200});
+                        set_last_decal(&g.scene);
+                        g.photograph_flipped = true;
+                        show_text("Paris. Before all this.");
+                        obj->done = true;
+                        break;
+                    }
+                    // Wardrobe — open to see her robe. Yours and hers, side by side.
+                    if (strcmp(obj->name, "wardrobe") == 0 && obj->step == 1) {
+                        // Slide wardrobe door open — reveal robes inside
+                        add_wall(&g.scene, -5.2f, 1.2f, 3.3f, 0.05f, 1.8f, 0.5f, (Color){225,215,200,255});
+                        set_last_material(&g.scene, MAT_FABRIC); // her robe
+                        add_wall(&g.scene, -5.4f, 1.2f, 3.3f, 0.05f, 1.8f, 0.5f, (Color){50,55,80,255});
+                        set_last_material(&g.scene, MAT_FABRIC); // his robe (navy)
+                        show_text("Two robes. Different sizes.");
+                        obj->done = true;
+                        break;
+                    }
+                    // Wine glass — pick up, examine the lipstick mark
+                    if (strcmp(obj->name, "wineglass") == 0 && obj->step == 1) {
+                        show_text("Not your shade.");
+                        obj->done = true;
+                        break;
+                    }
+                    // Bathroom — run the bath (the Chevalier moment)
+                    if (strcmp(obj->name, "bathroom") == 0 && obj->step == 1) {
+                        // Steam appears on the window — Earth blurs through fog
+                        add_wall(&g.scene, -6.8f, 2.0f, -1.0f, 0.1f, 3.0f, 4.0f, (Color){200,210,220,25});
+                        add_wall(&g.scene, -6.6f, 2.5f, -0.5f, 0.08f, 2.0f, 3.0f, (Color){200,210,220,15});
+                        // Water sound would play here
+                        show_text("Big enough for two.");
                         obj->done = true;
                         break;
                     }

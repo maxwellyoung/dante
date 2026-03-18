@@ -69,6 +69,10 @@ typedef struct {
     Model skytower_model;
     bool skytower_loaded;
 
+    // ── Model assets (loaded from assets/*.glb, assets/*.obj) ──
+    ModelAsset model_assets[MAX_MODEL_ASSETS];
+    int model_asset_count;
+
     // ── Render targets ──
     RenderTexture2D render_target;
     RenderTexture2D postfx_target;
@@ -106,6 +110,9 @@ typedef struct {
 
     // ── NPC ──
     NPC gibbons;
+    bool gibbons_glanced;   // lobby: Gibbons looks behind you once (Commandment 9)
+    bool photograph_flipped; // suite: photograph turned face-up once
+    bool three_note_played;  // ending: 3-note callback plays once in stars
 
     // ── Clock deceleration ──
     float bed_clock_rate;

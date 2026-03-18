@@ -973,6 +973,8 @@ static Sound gen_footsteps_above(void) {
 // Forward declarations for sounds defined below InitEVAudio
 static Sound gen_bed_drone(void);
 static Sound gen_held_chord(void);
+static Sound gen_bed_ritual(void);
+static Sound gen_three_note(void);
 static Sound gen_running_water(void);
 static Sound gen_tv_murmur(void);
 static Sound gen_hyperspace_tone(void);
@@ -1023,6 +1025,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->snd_footsteps_above = gen_footsteps_above();
     audio->snd_bed_drone = gen_bed_drone();
     audio->snd_held_chord = gen_held_chord();
+    audio->snd_bed_ritual = gen_bed_ritual();
+    audio->snd_three_note = gen_three_note();
     audio->snd_running_water = gen_running_water();
     audio->snd_tv_murmur = gen_tv_murmur();
     audio->snd_hyperspace_tone = gen_hyperspace_tone();
@@ -1046,6 +1050,8 @@ void InitEVAudio(EVAudio *audio) {
     audio->footsteps_above_playing = false;
     audio->bed_drone_playing = false;
     audio->held_chord_playing = false;
+    audio->bed_ritual_playing = false;
+    audio->bed_ritual_played_once = false;
     audio->hyperspace_tone_playing = false;
     audio->hyperspace_riser_playing = false;
     audio->elevator_whoosh_playing = false;
@@ -1087,6 +1093,8 @@ void InitEVAudio(EVAudio *audio) {
     SetSoundVolume(audio->snd_footsteps_above, 0.02f);   // thuds — felt more than heard
     SetSoundVolume(audio->snd_bed_drone, 0.04f);         // low hum — felt, not heard
     SetSoundVolume(audio->snd_held_chord, 0.05f);        // credits chord — present but gentle
+    SetSoundVolume(audio->snd_bed_ritual, 0.06f);        // THE piece — warm, present, emotional center
+    SetSoundVolume(audio->snd_three_note, 0.04f);        // callback fragment — ghostly, brief
     SetSoundVolume(audio->snd_running_water, 0.015f);    // behind door — muffled
     SetSoundVolume(audio->snd_tv_murmur, 0.015f);        // behind door — muffled
     SetSoundVolume(audio->snd_hyperspace_tone, 0.06f);   // rising tone — builds tension
@@ -1124,6 +1132,7 @@ void UnloadEVAudio(EVAudio *audio) {
     UnloadSound(audio->snd_muffled_piano); UnloadSound(audio->snd_distant_voices);
     UnloadSound(audio->snd_footsteps_above);
     UnloadSound(audio->snd_bed_drone); UnloadSound(audio->snd_held_chord);
+    UnloadSound(audio->snd_bed_ritual); UnloadSound(audio->snd_three_note);
     UnloadSound(audio->snd_running_water); UnloadSound(audio->snd_tv_murmur);
     UnloadSound(audio->snd_hyperspace_tone);
     UnloadSound(audio->snd_hyperspace_riser);
@@ -1472,6 +1481,153 @@ void StopHeldChord(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_held_chord);
     audio->held_chord_playing = false;
+}
+
+// ── Bed Ritual — THE composed piece ──────────────────────────────────
+// Chevalier warmth + Beau Is Afraid energy. A happy love song in a sad place.
+// Plays ONCE in the bed scene. Never repeats. The emotional center of the game.
+// Major key melody over warm chord bed — bittersweet because of WHERE it plays.
+static Sound gen_bed_ritual(void) {
+    int len = SAMPLE_RATE * 32;  // 32 seconds — long enough to hold, short enough to ache
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    // Key of D major — warm, open, the key of hope
+    // Chord progression: D - A/C# - Bm - G (I - V/vii - vi - IV)
+    // Each chord held 8 seconds
+    float chord_freqs[4][4] = {
+        {146.83f, 220.00f, 293.66f, 440.00f},  // D: D3, A3, D4, A4
+        {138.59f, 220.00f, 277.18f, 440.00f},  // A/C#: C#3, A3, C#4, A4
+        {123.47f, 185.00f, 246.94f, 369.99f},  // Bm: B2, F#3, B3, F#4
+        {98.00f, 196.00f, 246.94f, 392.00f},   // G: G2, G3, B3, G4
+    };
+
+    // Melody — simple, singable, the kind of tune you'd hum in a hotel room
+    // Pentatonic fragments over each chord change
+    float melody_freqs[] = {
+        587.33f, 659.26f, 493.88f, 440.00f,  // D5, E5, B4, A4 (over D)
+        554.37f, 493.88f, 440.00f, 369.99f,  // C#5, B4, A4, F#4 (over A/C#)
+        493.88f, 440.00f, 369.99f, 329.63f,  // B4, A4, F#4, E4 (over Bm)
+        440.00f, 493.88f, 587.33f, 659.26f,  // A4, B4, D5, E5 (over G — lifts)
+    };
+    float melody_times[] = {
+        0.0f, 2.0f, 4.5f, 6.0f,
+        8.0f, 10.5f, 12.5f, 14.0f,
+        16.0f, 18.0f, 20.5f, 22.0f,
+        24.0f, 26.0f, 28.0f, 30.0f,
+    };
+
+    unsigned int rng = 42;
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+
+        // Global envelope — 4s fade in, sustain, 4s fade out
+        float env = 1.0f;
+        if (t < 4.0f) env = t / 4.0f;
+        if (lt > 0.875f) env = (1.0f - lt) / 0.125f;
+
+        // Chord bed — warm string ensemble with chorus detuning
+        int chord_idx = (int)(t / 8.0f);
+        if (chord_idx > 3) chord_idx = 3;
+        float chord_blend = fmodf(t, 8.0f) / 8.0f;
+        float chord = 0;
+        for (int n = 0; n < 4; n++) {
+            float f = chord_freqs[chord_idx][n];
+            // Crossfade between chords at boundaries
+            if (chord_blend < 0.05f && chord_idx > 0) {
+                float prev_f = chord_freqs[chord_idx-1][n];
+                float xf = chord_blend / 0.05f;
+                f = prev_f * (1.0f - xf) + f * xf;
+            }
+            // String ensemble — fundamental + chorus + harmonics
+            chord += sinf(2 * PI * f * t) * 0.15f;
+            chord += sinf(2 * PI * f * 1.002f * t) * 0.05f;  // chorus
+            chord += sinf(2 * PI * f * 0.998f * t) * 0.05f;
+            chord += sinf(2 * PI * f * 2.0f * t) * 0.03f;    // octave
+        }
+
+        // Melody — bell-like tone, clear above the bed
+        float melody = 0;
+        for (int m = 0; m < 16; m++) {
+            float mt = t - melody_times[m];
+            if (mt >= 0 && mt < 3.0f) {
+                float menv = expf(-1.5f * mt);  // bell decay
+                float mf = melody_freqs[m];
+                melody += sinf(2 * PI * mf * t) * menv * 0.2f;
+                melody += sinf(2 * PI * mf * 2.0f * t) * menv * 0.04f;  // shimmer
+            }
+        }
+
+        // Gentle breathing modulation — the room inhales
+        float breath = 0.9f + 0.1f * sinf(t * 0.25f);
+
+        // Subtle noise texture — warmth, not digital
+        float noise = (ev_randf(&rng) * 2.0f - 1.0f) * 0.005f;
+
+        d[i] = (short)((chord + melody + noise) * env * breath * 4000);
+    }
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+// ── Three-note callback — the piece returns as a ghost ───────────────
+// Three notes of the bed ritual melody. Then silence. The game's last music.
+static Sound gen_three_note(void) {
+    int len = SAMPLE_RATE * 6;  // 6 seconds — 3 notes + reverb tail
+    Wave w = gen_wave(len);
+    short *d = (short *)w.data;
+
+    // The first three melody notes from the ritual: D5, E5, B4
+    // Played slower, more fragile — a memory of the melody
+    float notes[] = {587.33f, 659.26f, 493.88f};
+    float times[] = {0.5f, 2.0f, 3.5f};
+
+    int reverb_delay = (int)(SAMPLE_RATE * 0.3f);
+
+    for (int i = 0; i < len; i++) {
+        float t = (float)i / SAMPLE_RATE;
+        float lt = (float)i / len;
+        float env = 1.0f;
+        if (lt > 0.8f) env = (1.0f - lt) / 0.2f;
+
+        float tone = 0;
+        for (int n = 0; n < 3; n++) {
+            float nt = t - times[n];
+            if (nt >= 0 && nt < 2.5f) {
+                float nenv = expf(-1.0f * nt);  // slower decay than ritual — lingering
+                float f = notes[n];
+                // Thinner timbre — solo, exposed, vulnerable
+                tone += sinf(2 * PI * f * t) * nenv * 0.25f;
+                tone += sinf(2 * PI * f * 1.003f * t) * nenv * 0.06f;
+                tone += sinf(2 * PI * f * 0.997f * t) * nenv * 0.06f;
+            }
+        }
+        d[i] = (short)(tone * env * 4500);
+    }
+    // Reverb tail — the notes linger in the void
+    for (int i = reverb_delay; i < len; i++)
+        d[i] += (short)(d[i - reverb_delay] * 0.25f);
+
+    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+}
+
+void PlayBedRitual(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (audio->bed_ritual_played_once) return;  // NEVER again
+    if (!audio->bed_ritual_playing) {
+        PlaySound(audio->snd_bed_ritual);
+        audio->bed_ritual_playing = true;
+        audio->bed_ritual_played_once = true;
+    }
+}
+void StopBedRitual(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_bed_ritual);
+    audio->bed_ritual_playing = false;
+}
+void PlayThreeNote(EVAudio *audio) {
+    if (!audio->initialized) return;
+    PlaySound(audio->snd_three_note);
 }
 
 // ── Sprint 2: Clock rate modulation ────────────────────────────────
@@ -2103,6 +2259,7 @@ void StopAllAudio(EVAudio *audio) {
     StopFootstepsAbove(audio);
     StopBedDrone(audio);
     StopHeldChord(audio);
+    StopBedRitual(audio);
     StopHyperspaceTone(audio);
     StopHyperspaceRiser(audio);
     StopElevatorWhoosh(audio);
@@ -2112,3 +2269,5 @@ void StopAllAudio(EVAudio *audio) {
     StopCorridorMusic(audio);
     StopTitleMusic(audio);
 }
+
+// ── Bed ritual music — placeholder warm chord progression ──

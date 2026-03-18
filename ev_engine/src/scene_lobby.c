@@ -44,6 +44,31 @@ void lobby_update(float dt) {
     update_player(&g.player, &g.scene, dt);
     UpdateEVAudio(&g.audio, g.player.moving, g.player.sprinting, g.scene.surface, dt);
     update_npc(&g.gibbons, g.player.camera.position, &g.scene, dt);
+
+    // ── THE GLANCE — Commandment 9 ──
+    // Gibbons looks behind you. Just once. Then catches himself.
+    // He was expecting two. He sees one.
+    // Perfect composure from then on. Bolaño politeness.
+    if (!g.gibbons_glanced && g.gibbons.waiting && g.gibbons.current_waypoint == 0) {
+        float dist = Vector3Distance(g.player.camera.position, g.gibbons.pos);
+        if (dist < 5.0f) {
+            // Look past the player — behind them, where she would be
+            Vector3 behind = Vector3Subtract(g.player.camera.position, g.gibbons.pos);
+            behind = Vector3Normalize(behind);
+            g.gibbons.yaw_target = atan2f(behind.x, behind.z);
+            g.gibbons_glanced = true;
+            g.done_pause = -1.5f; // timer: look behind for 1.5s, then snap back
+        }
+    }
+    // After the glance: smoothly return to facing player
+    if (g.gibbons_glanced && g.done_pause < 0) {
+        g.done_pause += dt;
+        if (g.done_pause >= 0) {
+            // He caught himself. Back to professional.
+            g.done_pause = 0;
+        }
+    }
+
     // Chandelier sway
     {
         float sway = sinf(g.state_time * 0.7f) * 0.3f;
