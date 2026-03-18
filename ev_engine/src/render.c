@@ -491,21 +491,35 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
 
     // Draw walls — two passes: solids first, then decals with polygon offset
     // This prevents z-fighting on overlay geometry (rugs, floor details, trim)
+    // Distance culling: skip walls > 80m from camera (saves draw calls in dense scenes)
+    float cam_x = player->camera.position.x;
+    float cam_y = player->camera.position.y;
+    float cam_z = player->camera.position.z;
+    float cull_dist_sq = 80.0f * 80.0f;
+
     bool has_decals = false;
+    int drawn = 0, culled = 0;
     for (int pass = 0; pass < 2; pass++) {
         if (pass == 1) {
             if (!has_decals) break;
-            // Enable polygon offset for decal pass — biases depth to prevent z-fighting
-            rlDrawRenderBatchActive();  // flush before GL state change
+            rlDrawRenderBatchActive();
             glEnable(GL_POLYGON_OFFSET_FILL);
             glPolygonOffset(-1.0f, -1.0f);
         }
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
             if (!w->active) continue;
-            // Pass 0: skip decals. Pass 1: only decals.
             if (pass == 0 && w->is_decal) { has_decals = true; continue; }
             if (pass == 1 && !w->is_decal) continue;
+
+            // Distance culling — skip walls far from camera
+            float dx = w->pos.x - cam_x;
+            float dy = w->pos.y - cam_y;
+            float dz = w->pos.z - cam_z;
+            float dist_sq = dx*dx + dy*dy + dz*dz;
+            // Don't cull very large walls (size > 10m — floors, ceilings, skyboxes)
+            float max_dim = w->size.x > w->size.y ? (w->size.x > w->size.z ? w->size.x : w->size.z) : (w->size.y > w->size.z ? w->size.y : w->size.z);
+            if (dist_sq > cull_dist_sq && max_dim < 10.0f) { culled++; continue; }
 
             if (lighting->ready) {
                 SetMaterialId(lighting, (int)w->material);
