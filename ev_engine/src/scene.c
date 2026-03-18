@@ -573,6 +573,39 @@ void build_hotel_exterior(Scene *s) {
     add_wall(s, -8, 1.5f, 0.95f, 3, 3, 0.06f, (Color){45, 48, 55, 255});
     set_last_material(s, MAT_CONCRETE);
 
+    // Additional street density
+    // Parking meter
+    add_cylinder(s, 6, 0.6f, -4, 0.05f, 1.2f, (Color){70,70,75,255});
+    add_wall(s, 6, 1.3f, -4, 0.15f, 0.2f, 0.1f, (Color){80,80,85,255});
+    // Fire hydrant
+    add_cylinder(s, -10, 0.25f, -2, 0.12f, 0.5f, (Color){180,40,40,255});
+    add_cylinder(s, -10, 0.55f, -2, 0.18f, 0.08f, (Color){180,40,40,255});
+    // Bench on sidewalk
+    add_wall(s, 5, 0.25f, -1, 1.5f, 0.06f, 0.5f, PAL_WOOD_DARK);
+    set_last_material(s, MAT_WOOD);
+    add_wall(s, 5, 0.55f, -0.73f, 1.5f, 0.5f, 0.06f, PAL_WOOD_DARK);
+    set_last_material(s, MAT_WOOD);
+    add_cylinder(s, 4.3f, 0.12f, -1, 0.04f, 0.25f, (Color){60,60,65,255});
+    add_cylinder(s, 5.7f, 0.12f, -1, 0.04f, 0.25f, (Color){60,60,65,255});
+    // Curb edge
+    add_wall(s, 0, 0.05f, -7, 24, 0.1f, 0.2f, (Color){100,98,95,255});
+    // Road center line dashes
+    for (int i = 0; i < 8; i++) {
+        add_wall(s, 0, -0.04f, -10-i*3.0f, 0.15f, 0.01f, 1.5f, (Color){220,210,60,100});
+        set_last_decal(s);
+    }
+    // Newspaper box
+    add_wall(s, -4, 0.5f, -2.5f, 0.4f, 1.0f, 0.35f, (Color){35,55,140,255});
+    // Doorman's umbrella stand
+    add_cylinder(s, 1.8f, 0.3f, 0.3f, 0.15f, 0.6f, PAL_BRASS);
+    set_last_material(s, MAT_BRASS);
+    // Potted plant by entrance
+    add_cylinder(s, -2.0f, 0.35f, 0.3f, 0.3f, 0.7f, PAL_BRASS);
+    set_last_material(s, MAT_BRASS);
+    add_sphere(s, -2.0f, 0.85f, 0.3f, 0.5f, (Color){30,55,30,255});
+
+    tag_materials_by_color(s);
+
     s->spawn = (Vector3){0, 1.6f, -4};
     s->exit_pos = (Vector3){0, 1.6f, 0.5f};
     s->has_exit = true;
