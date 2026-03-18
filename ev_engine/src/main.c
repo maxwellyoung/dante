@@ -1029,9 +1029,9 @@ int main(void) {
 #else  // normal game
 
 #ifdef DEV_START
-    load_state(g, DEV_START);
+    load_state(DEV_START);
 #else
-    load_state(g, STATE_TITLE);
+    load_state(STATE_TITLE);
 #endif
 
     while (!WindowShouldClose()) {
@@ -1058,8 +1058,8 @@ int main(void) {
             if (g.interact_lean < 0) { g.interact_lean = 0; g.interact_lean_vel = 0; }
         }
 
-        update_menu_springs(g, dt);
-        bool menu_active = update_pause_menu(g);
+        update_menu_springs(dt);
+        bool menu_active = update_pause_menu();
         if (!menu_active) {
             g.state_time += dt;
             g.total_time += dt;
@@ -1596,7 +1596,7 @@ int main(void) {
         }
 
         // Vignette text overlay
-        draw_vignette_text(g);
+        draw_vignette_text();
 
         // Pause menu overlay — drawn into 480x300, gets film grain treatment
         if (g.menu_mode != MENU_NONE) draw_pause_menu();
