@@ -867,7 +867,7 @@ int main(void) {
                 if (color_buckets[b] > max_bucket) max_bucket = color_buckets[b];
             }
             float dominant_pct = 100.0f * (float)max_bucket / (float)total_px;
-            if (dominant_pct > 60.0f && !dark) {
+            if (dominant_pct > 70.0f && !dark) {
                 ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                     "    ANOMALY: %.0f%% single color bucket — rogue geometry or unlit void\n", (double)dominant_pct); issues++;
             }
