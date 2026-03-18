@@ -3065,42 +3065,86 @@ void build_space_corridor(Scene *s) {
         add_wall(s, vx, VH, vz, VW, 0.15f, 8.0f, (Color){15,16,22,255});
         set_last_material(s, MAT_CONCRETE);
 
-        // CATWALKS — wall-runnable platforms at various heights
-        // Level 1 (3m) — first jump target
-        add_wall(s, vx - 1.5f, 3.0f, vz, 1.2f, 0.08f, 4.0f, (Color){55,52,48,255});
+        // ── CLIMBING PLAYGROUND ──────────────────────────────────
+        // Teaches wall-climb: jump at wall, press jump again to grab
+        // ledge. Progression spirals up the shaft walls.
+        // Low gravity (0.4) makes everything floatier and forgiving.
+
+        Color catwalk = {55,52,48,255};
+        Color pipe_c  = {70,65,58,255};
+        Color shelf_c = {45,43,50,255};  // wall shelves — darker than catwalks
+
+        // ── GROUND LEVEL: the invitation ──
+        // A crate against the left wall. Easy jump. You land on it.
+        // Then you see the shelf above — too high to jump, close to the wall.
+        // Jump at the wall, press jump = wall climb. First lesson.
+        add_wall(s, vx - VW/2 + 1.0f, 0.75f, vz, 1.5f, 1.5f, 1.5f, catwalk);
+        set_last_material(s, MAT_CONCRETE);  // chunky crate
+
+        // ── LEVEL 1 (3m): wall shelf — first climb target ──
+        // Shelf on left wall, reachable by wall-climb from the crate
+        add_wall(s, vx - VW/2 + 0.6f, 3.0f, vz, 1.2f, 0.15f, 2.5f, shelf_c);
         set_last_material(s, MAT_BRASS);
-        // Level 2 (5.5m) — wall run from level 1
-        add_wall(s, vx + 1.5f, 5.5f, vz - 1.0f, 1.2f, 0.08f, 3.0f, (Color){55,52,48,255});
+        // Bracket supports — visual "this is a ledge" signal
+        add_wall(s, vx - VW/2 + 0.15f, 2.0f, vz - 0.8f, 0.08f, 2.0f, 0.08f, pipe_c);
         set_last_material(s, MAT_BRASS);
-        // Level 3 (8m) — mantle ledge
-        add_wall(s, vx - 0.5f, 8.0f, vz + 1.0f, 2.0f, 0.08f, 2.0f, (Color){55,52,48,255});
+        add_wall(s, vx - VW/2 + 0.15f, 2.0f, vz + 0.8f, 0.08f, 2.0f, 0.08f, pipe_c);
         set_last_material(s, MAT_BRASS);
 
-        // Vertical pipes — wall-runnable surfaces
-        add_cylinder(s, vx - VW/2 + 0.3f, VH/2, vz - 1.5f, 0.12f, VH, (Color){70,65,58,255});
+        // ── LEVEL 2 (5m): catwalk bridge — jump across to right wall ──
+        // From the L1 shelf, jump to this mid-air catwalk
+        add_wall(s, vx, 5.0f, vz, 1.8f, 0.12f, 2.0f, catwalk);
         set_last_material(s, MAT_BRASS);
-        add_cylinder(s, vx + VW/2 - 0.3f, VH/2, vz + 1.0f, 0.12f, VH, (Color){70,65,58,255});
+        // Railing — visual anchor, also wall-climbable
+        add_wall(s, vx + 0.85f, 5.5f, vz, 0.08f, 1.0f, 2.0f, pipe_c);
         set_last_material(s, MAT_BRASS);
-        add_cylinder(s, vx - 1.0f, VH/2, vz - 3.5f, 0.10f, VH, (Color){65,60,55,255});
-        set_last_material(s, MAT_BRASS);
-
-        // Horizontal pipes — mantle targets
-        add_cylinder(s, vx, 4.2f, vz - 3.0f, 0.08f, VW - 1.0f, (Color){60,58,52,255});
-        set_last_rotation(s, 90.0f);
-        set_last_material(s, MAT_BRASS);
-        add_cylinder(s, vx, 7.0f, vz + 2.0f, 0.08f, VW - 2.0f, (Color){60,58,52,255});
-        set_last_rotation(s, 90.0f);
+        add_wall(s, vx - 0.85f, 5.5f, vz, 0.08f, 1.0f, 2.0f, pipe_c);
         set_last_material(s, MAT_BRASS);
 
-        // Reward at the top — a small observation window showing Earth
-        add_wall(s, vx, 9.5f, vz - 3.9f, 1.5f, 1.0f, 0.06f, void_black);
+        // ── LEVEL 3 (7m): right wall shelf — climb from catwalk ──
+        // Jump at right wall from catwalk, wall-climb to this shelf
+        add_wall(s, vx + VW/2 - 0.6f, 7.0f, vz + 0.5f, 1.2f, 0.15f, 2.0f, shelf_c);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, vx + VW/2 - 0.15f, 5.5f, vz + 0.5f, 0.08f, 3.0f, 0.08f, pipe_c);
+        set_last_material(s, MAT_BRASS);
+
+        // ── LEVEL 4 (9m): left shelf — final climb ──
+        // Cross back to left wall for the last pull-up
+        add_wall(s, vx - VW/2 + 0.8f, 9.0f, vz - 0.5f, 1.5f, 0.15f, 2.5f, shelf_c);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, vx - VW/2 + 0.15f, 7.5f, vz - 0.5f, 0.08f, 3.0f, 0.08f, pipe_c);
+        set_last_material(s, MAT_BRASS);
+
+        // ── TOP PLATFORM (10.5m): the reward ──
+        // Wide landing at the top — you made it
+        add_wall(s, vx, 10.5f, vz, VW - 1.0f, 0.15f, 3.0f, catwalk);
+        set_last_material(s, MAT_BRASS);
+
+        // Vertical pipes — visual rhythm, wall-runnable
+        add_cylinder(s, vx - VW/2 + 0.3f, VH/2, vz - 1.5f, 0.14f, VH, pipe_c);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, vx + VW/2 - 0.3f, VH/2, vz + 1.0f, 0.14f, VH, pipe_c);
+        set_last_material(s, MAT_BRASS);
+
+        // ── REWARD: Earth window — bigger, unmissable ──
+        // The whole back wall at the top opens to space
+        add_wall(s, vx, 10.5f, vz - 3.9f, 3.0f, 2.0f, 0.06f, void_black);
         set_last_material(s, MAT_GLASS);
-        // Earth glow through the window
-        add_wall(s, vx, 9.5f, vz - 5.0f, 0.5f, 0.5f, 0.5f, (Color){60,120,200,120});
+        // Brass frame
+        add_wall(s, vx, 11.6f, vz - 3.9f, 3.2f, 0.12f, 0.08f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, vx, 9.4f, vz - 3.9f, 3.2f, 0.12f, 0.08f, brass);
+        set_last_material(s, MAT_BRASS);
+        // Earth — large, close, emotional
+        add_sphere(s, vx, 10.0f, vz - 12.0f, 8.0f, (Color){30, 60, 140, 100});
+        add_sphere(s, vx, 10.0f, vz - 12.0f, 8.5f, (Color){80, 140, 220, 25});
 
-        // Dim ambient light — emergency lighting only
-        add_light_panel(s, vx, 0.3f, vz, 0.3f, 0.05f, 0.3f, (Color){180,100,60,80});
-        add_light_panel(s, vx, 6.0f, vz - 3.8f, 0.2f, 0.05f, 0.2f, (Color){100,80,60,60});
+        // Emergency lighting — one per level, orange
+        add_light_panel(s, vx - VW/2 + 0.3f, 0.3f, vz, 0.3f, 0.05f, 0.3f, (Color){180,100,60,80});
+        add_light_panel(s, vx - VW/2 + 0.3f, 3.3f, vz, 0.2f, 0.05f, 0.2f, (Color){150,90,50,60});
+        add_light_panel(s, vx + VW/2 - 0.3f, 5.3f, vz, 0.2f, 0.05f, 0.2f, (Color){150,90,50,60});
+        add_light_panel(s, vx + VW/2 - 0.3f, 7.3f, vz, 0.2f, 0.05f, 0.2f, (Color){120,80,50,50});
+        add_light_panel(s, vx, 10.8f, vz - 3.5f, 0.3f, 0.05f, 0.3f, (Color){60,100,180,80});
     }
 
     // ============================================================
@@ -3520,9 +3564,41 @@ void build_space_suite(Scene *s) {
     add_wall(s, 4.8f, 0.04f, 5.0f, 0.22f, 0.06f, 0.1f, white);
     set_last_material(s, MAT_FABRIC);
 
-    // SECOND PILLOW indent — her side shows a slight depression
-    // The left pillow is slightly lower, slightly misshapen
-    // (we already have two pillows; adjust left one to show indent)
+    // ============================================================
+    // BOLAÑO OBJECTS — the abstract-mundane
+    // Don't explain them. They resist interpretation.
+    // ============================================================
+
+    // GEOMETRY TEXTBOOK open on desk — spine cracked, orbital mechanics
+    // Someone was studying for a conversation that never happened. (2666)
+    add_wall(s, 5.2f, 0.86f, -1.6f, 0.25f, 0.04f, 0.18f, (Color){65,90,55,255});
+    set_last_material(s, MAT_LEATHER);
+    // Pages fanned open
+    add_wall(s, 5.2f, 0.885f, -1.6f, 0.23f, 0.01f, 0.16f, (Color){245,242,235,255});
+    set_last_decal(s);
+
+    // THERMOSTAT — 22°, a compromise temperature
+    // Slightly too warm for you, slightly too cool for her.
+    // You can change it. The room adjusts. Nothing stops you.
+    add_wall(s, rw/2-0.15f, 1.4f, -3.0f, 0.06f, 0.1f, 0.04f, cream);
+    set_last_material(s, MAT_GLASS);
+    // Temperature indicator — tiny brass pointer
+    add_wall(s, rw/2-0.14f, 1.4f, -3.0f, 0.02f, 0.02f, 0.02f, brass);
+    set_last_material(s, MAT_BRASS);
+
+    // ADJOINING DOOR — leads to a second room. Also booked. Also empty.
+    // Her room? A room you'd share? The hotel doesn't know the trip changed.
+    add_wall(s, rw/2-0.14f, rh*0.4f, 3.5f, 0.04f, rh*0.75f, 1.2f, wood);
+    set_last_material(s, MAT_WOOD);
+    // Door frame — brass
+    add_wall(s, rw/2-0.12f, rh*0.775f, 2.9f, 0.06f, rh*0.75f+0.1f, 0.1f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, rw/2-0.12f, rh*0.775f, 4.1f, 0.06f, rh*0.75f+0.1f, 0.1f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_wall(s, rw/2-0.12f, rh*0.78f, 3.5f, 0.06f, 0.1f, 1.2f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Door handle — brass, visible
+    add_cylinder(s, rw/2-0.18f, 1.0f, 3.1f, 0.03f, 0.08f, brass);
 
     // ============================================================
     // RECESSED PANELS — depth on hull walls

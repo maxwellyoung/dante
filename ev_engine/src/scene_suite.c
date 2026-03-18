@@ -44,6 +44,10 @@ void suite_load(void) {
         };
         npc_set_dialogue(&g.gibbons, suite_lines, 2, 3.5f);
     }
+    // Thermostat — interactable (changes room warmth)
+    add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 3);
+    // Adjoining door — interactable (opens to empty room)
+    add_object(&g.scene, 6.86f, 1.5f, 3.5f, "adjoining_door", (Color){140,105,65,255}, 1);
 }
 
 void suite_update(float dt) {
@@ -154,6 +158,35 @@ void suite_update(float dt) {
                     g.interact_freeze = 0.05f;
                     g.interact_lean = 0.5f;
                     g.interact_lean_vel = 0;
+
+                    // Thermostat — each step changes warmth. Not a task.
+                    if (strcmp(obj->name, "thermostat") == 0) {
+                        float warmth_step = obj->step * 0.15f;
+                        SetPostFXWarmth(&g.postfx, warmth_step);
+                        if (obj->step >= obj->max_steps) obj->step = 0; // cycles
+                        obj->done = false; // never "done" — keep cycling
+                        break;
+                    }
+                    // Adjoining door — opens to reveal empty room
+                    if (strcmp(obj->name, "adjoining_door") == 0 && obj->step == 1) {
+                        // Deactivate the door panel — reveal void behind
+                        for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                            Wall *w = &g.scene.walls[wi];
+                            if (w->material == MAT_WOOD &&
+                                fabsf(w->pos.x - 6.86f) < 0.2f &&
+                                fabsf(w->pos.z - 3.5f) < 0.3f &&
+                                w->size.y > 2.0f) {
+                                w->active = false; // door slides open
+                            }
+                        }
+                        // Dark rectangle behind — the empty room
+                        add_wall(&g.scene, 7.5f, 2.0f, 3.5f, 2.0f, 4.0f, 3.0f, (Color){8,8,12,255});
+                        // One pillow visible through doorway
+                        add_wall(&g.scene, 8.0f, 0.68f, 3.0f, 0.5f, 0.15f, 0.3f, (Color){240,238,232,255});
+                        set_last_material(&g.scene, MAT_FABRIC);
+                        obj->done = true;
+                        break;
+                    }
 
                     if (strcmp(obj->name, "lamp") == 0 && obj->step == 1) {
                         add_wall(&g.scene, -2.5f, 1.0f, -4.65f, 0.15f, 0.25f, 0.15f, (Color){220,210,185,180});

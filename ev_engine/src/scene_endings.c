@@ -172,11 +172,42 @@ void paris_dream_load(void) {
     init_player(&g.player, g.scene.spawn);
     g.player.control_mult = 0.5f;
     g.player.gravity_mult = 0.7f;
+
+    // ── HER PRESENCE — she was just here ──
+    // The Paris dream is a memory. The last good trip.
+
+    // Her coat on the chair — draped, not hung. She'll be right back.
+    add_wall(&g.scene, 2.0f, 0.8f, -2.0f, 0.5f, 0.7f, 0.08f, (Color){55,45,40,220});
+    set_last_material(&g.scene, MAT_FABRIC);
+
+    // Coffee for two — one cup half-drunk, one untouched
+    add_cylinder(&g.scene, -1.5f, 0.48f, 0.5f, 0.05f, 0.08f, (Color){220,215,205,230});
+    add_cylinder(&g.scene, -1.5f, 0.44f, 0.5f, 0.04f, 0.04f, (Color){45,30,20,200});
+    add_cylinder(&g.scene, -1.2f, 0.48f, 0.7f, 0.05f, 0.08f, (Color){220,215,205,230});
+    add_cylinder(&g.scene, -1.2f, 0.45f, 0.7f, 0.04f, 0.06f, (Color){45,30,20,200});
+
+    // Fresh pillow indent — her side
+    add_wall(&g.scene, -0.4f, 0.56f, -3.6f, 0.45f, 0.06f, 0.3f, (Color){235,232,225,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+
+    // THE RED OBJECT — one color survives the B&W.
+    // A scarf on the bed. Godard red. Memory preserves color selectively.
+    add_wall(&g.scene, 0.3f, 0.62f, -3.2f, 0.6f, 0.02f, 0.15f, (Color){200,50,45,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+
+    // Eiffel Tower silhouette through window
     add_object(&g.scene, -2.5f, 0.62f, -3.5f, "photograph", (Color){240,238,230,255}, 1);
     add_object(&g.scene, -5.5f, 1.5f, -1.0f, "window", (Color){120,150,220,100}, 1);
     add_wall(&g.scene, -6.5f, 2.5f, -1.0f, 0.06f, 2.0f, 0.06f, (Color){40,35,30,60});
     add_wall(&g.scene, -6.5f, 3.5f, -1.0f, 0.6f, 0.04f, 0.04f, (Color){40,35,30,40});
     add_wall(&g.scene, -6.5f, 3.0f, -1.0f, 0.35f, 0.04f, 0.04f, (Color){40,35,30,45});
+
+    // Dream geometry compression — proportions wrong, memory distorts
+    for (int i = 0; i < g.scene.wall_count; i++) {
+        g.scene.walls[i].pos.x *= 0.85f;
+        g.scene.walls[i].size.x *= 0.85f;
+    }
+
     StopAmbient(&g.audio);
     StopClockAmbient(&g.audio);
     StopWindAmbient(&g.audio);
