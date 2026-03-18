@@ -295,7 +295,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
             // ── LUGGAGE CART — separate object, follows with delay ──
             // If assets/cart.obj or assets/suitcase.obj exists, draw it trailing behind
             {
-                int cart_i = find_model_asset("suitcase");
+                int cart_i = find_model_asset("cart");
                 if (cart_i >= 0 && g.model_assets[cart_i].loaded) {
                     // Cart follows 1.2m behind Gibbons (opposite his facing direction)
                     float behind_x = npc->pos.x + sinf(npc->yaw) * 1.2f;
