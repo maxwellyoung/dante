@@ -603,16 +603,15 @@ SceneLighting LightingPreset_Exterior(void) {
 SceneLighting LightingPreset_Lobby(void) {
     // Grand lobby — one dominant chandelier, deep shadows elsewhere
     // Wes Anderson symmetry: light pools on marble, dark wood walls
-    // Half-Lambert note: key pulled back 40%, ambient halved — wrap prevents pitch black
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){-0.3f, -0.9f, -0.4f}),
-        .keyColor = {1.4f, 1.0f, 0.55f},          // chandelier — pulled back, half-Lambert wraps it
+        .keyColor = {0.9f, 0.65f, 0.35f},          // chandelier — steep, concentrated
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.4f}),
-        .fillColor = {0.08f, 0.06f, 0.04f},       // warm counter — dimmer
-        .ambient = {0.04f, 0.03f, 0.02f},          // VERY low — pools must pop
-        // Tight pools — dark between fixtures
+        .fillColor = {0.04f, 0.03f, 0.02f},        // barely visible counter bounce
+        .ambient = {0.02f, 0.015f, 0.01f},          // near-black — only light pools illuminate
+        // Main chandelier HOT, peripherals cold and dim — creates drama
         .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}, {0, 3.5f, -5}},
-        .pointColor = {{1.8f, 1.3f, 0.7f}, {0.3f, 0.22f, 0.12f}, {0.3f, 0.22f, 0.12f}, {0.45f, 0.32f, 0.18f}},
+        .pointColor = {{1.4f, 1.0f, 0.55f}, {0.15f, 0.12f, 0.06f}, {0.15f, 0.12f, 0.06f}, {0.30f, 0.22f, 0.12f}},
         .pointRadius = {7.0f, 5.0f, 5.0f, 4.0f},
     };
 }
@@ -664,32 +663,33 @@ SceneLighting LightingPreset_Hallway(void) {
 
 SceneLighting LightingPreset_Room(void) {
     // The hotel room — the emotional core
-    // 2AM: strong overhead pool + bedside warmth vs dark corners
+    // 2AM: hot overhead pool vs dark corners. Bedside warmth for the bed area.
+    // Contrast comes from key being DIRECTIONAL (steep angle) not from darkness.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.85f, -0.3f}),
-        .keyColor = {1.0f, 0.82f, 0.52f},        // golden — pulled back for half-Lambert
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.92f, -0.2f}),  // very steep — dramatic floor pools
+        .keyColor = {0.85f, 0.65f, 0.38f},        // golden — enough to read surfaces
         .fillDir = Vector3Normalize((Vector3){0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.06f, 0.08f, 0.12f},      // cool blue night — subtler
-        .ambient = {0.03f, 0.025f, 0.02f},        // VERY LOW — corners dark, wrap handles the rest
-        // Tight ceiling pool + warm bedside lamps
+        .fillColor = {0.02f, 0.03f, 0.05f},       // barely-there night blue
+        .ambient = {0.02f, 0.018f, 0.015f},        // low but not black
+        // HOT ceiling pool (wide) + warm bedside lamps (tight)
         .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
-        .pointColor = {{0.9f, 0.65f, 0.38f}, {0.6f, 0.45f, 0.25f}, {0.6f, 0.45f, 0.25f}},
-        .pointRadius = {6.0f, 3.5f, 3.5f},
+        .pointColor = {{1.0f, 0.72f, 0.40f}, {0.65f, 0.48f, 0.26f}, {0.65f, 0.48f, 0.26f}},
+        .pointRadius = {7.0f, 3.5f, 3.5f},
     };
 }
 
 SceneLighting LightingPreset_Bathroom(void) {
-    // Harsh overhead, clinical white, slight blue-green tinge
-    // Mirror's Edge bathroom energy
+    // Harsh overhead, clinical white — Mirror's Edge energy
+    // Strong angled key casts visible shadows on tub edge and basin
     return (SceneLighting){
         .keyDir = Vector3Normalize((Vector3){0.3f, -0.9f, -0.2f}),
-        .keyColor = {1.0f, 0.95f, 0.90f},       // harsh but pulled back — half-Lambert wraps enough
+        .keyColor = {0.65f, 0.62f, 0.58f},       // clinical white — moderate
         .fillDir = Vector3Normalize((Vector3){-0.3f, 0.5f, 0.2f}),
-        .fillColor = {0.04f, 0.05f, 0.06f},     // minimal cool bounce
-        .ambient = {0.03f, 0.035f, 0.04f},       // very low — stark shadows
-        // Ando slot window
+        .fillColor = {0.02f, 0.03f, 0.04f},      // minimal cool
+        .ambient = {0.015f, 0.018f, 0.022f},      // near-black — stark shadows under fixtures
+        // Ando slot window — the ONE bright element
         .pointPos = {{0, 2.6f, -1.88f}},
-        .pointColor = {{0.8f, 0.78f, 0.75f}},
+        .pointColor = {{0.7f, 0.68f, 0.65f}},
         .pointRadius = {3.0f},
     };
 }
