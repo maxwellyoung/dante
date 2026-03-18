@@ -1313,6 +1313,43 @@ void build_hallway(Scene *s) {
     add_cylinder(s, (W/2-0.1f)*0.95f - 0.1f, 0.1f, -3.5f - 2*4.5f, 0.08f, 0.1f, (Color){240,238,234,255});
     add_wall(s, (W/2-0.1f)*0.95f + 0.1f, 0.06f, -3.5f - 2*4.5f, 0.2f, 0.02f, 0.2f, (Color){240,238,234,255});
 
+    // ── Infrastructure density ──
+    // Fire extinguisher on right wall
+    add_cylinder(s, W/2-0.12f, 0.6f, -8, 0.06f, 0.4f, (Color){180,40,40,255});
+    // Exit sign at far end
+    add_wall(s, 0, H-0.3f, -L+0.5f, 0.3f, 0.12f, 0.04f, (Color){180,40,40,200});
+    // Smoke detectors on ceiling
+    add_cylinder(s, 0, H-0.05f, -5, 0.06f, 0.02f, cream);
+    add_cylinder(s, 0, H-0.05f, -15, 0.06f, 0.02f, cream);
+    // Room numbers on doors
+    for (int i = 0; i < 4; i++) {
+        float z = -3.5f - i*4.5f;
+        float side = (i%2==0) ? -(W/2-0.1f)-0.01f : (W/2-0.1f)+0.01f;
+        add_wall(s, side, 2.5f, z, 0.12f, 0.06f, 0.02f, gold);
+        set_last_material(s, MAT_BRASS);
+    }
+    // Wall sconces between doors
+    for (int i = 0; i < 3; i++) {
+        float z = -5.75f - i*4.5f;
+        add_wall(s, -(W/2-0.08f), 2.0f, z, 0.06f, 0.12f, 0.08f, gold);
+        set_last_material(s, MAT_BRASS);
+        add_light_panel(s, -(W/2-0.06f), 1.9f, z, 0.04f, 0.15f, 0.06f, warm_amber);
+        add_wall(s, (W/2-0.08f), 2.0f, z, 0.06f, 0.12f, 0.08f, gold);
+        set_last_material(s, MAT_BRASS);
+        add_light_panel(s, (W/2-0.06f), 1.9f, z, 0.04f, 0.15f, 0.06f, warm_amber);
+    }
+    // Umbrella stand near entrance
+    add_cylinder(s, W/2-0.3f, 0.25f, -0.5f, 0.12f, 0.5f, gold);
+    set_last_material(s, MAT_BRASS);
+    // Peephole on each door
+    for (int i = 0; i < 4; i++) {
+        float z = -3.5f - i*4.5f;
+        float side = (i%2==0) ? -(W/2-0.1f)-0.01f : (W/2-0.1f)+0.01f;
+        add_sphere(s, side, 1.6f, z, 0.03f, gold);
+    }
+
+    tag_materials_by_color(s);
+
     s->spawn = (Vector3){0, 1.6f, -1};
     s->exit_pos = (Vector3){0, 1.6f, -L+1};
     s->has_exit = true;
@@ -2006,6 +2043,26 @@ void build_bathroom(Scene *s) {
 
     // Door interact object — return to room
     add_object(s, 0, 1.2f, bd/2-0.3f, "door", (Color){200,195,188,255}, 1);
+
+    // Extra density
+    // Soap dish on tub rim
+    add_wall(s, -1.8f, 0.58f, -1.0f, 0.1f, 0.02f, 0.08f, porcelain);
+    add_wall(s, -1.8f, 0.6f, -1.0f, 0.06f, 0.02f, 0.04f, (Color){200,180,140,255}); // soap
+    // Toothbrush glass by sink
+    add_cylinder(s, 1.6f, 0.92f, 0.3f, 0.04f, 0.08f, (Color){210,215,220,180});
+    add_cylinder(s, 1.58f, 0.98f, 0.3f, 0.012f, 0.12f, (Color){60,140,180,255}); // toothbrush
+    // Shower head on wall
+    add_cylinder(s, -1.2f, 2.5f, -1.45f, 0.08f, 0.03f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, -1.2f, 2.3f, -1.42f, 0.02f, 0.25f, brass);
+    set_last_material(s, MAT_BRASS);
+    // Exhaust vent on ceiling
+    add_wall(s, 1.5f, bh-0.02f, 0, 0.3f, 0.02f, 0.3f, (Color){140,138,135,255});
+    // Bathmat on floor
+    add_wall(s, -0.5f, 0.02f, 0.2f, 0.6f, 0.02f, 0.4f, (Color){200,195,188,255});
+    set_last_material(s, MAT_FABRIC);
+
+    tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 1.0f};
     s->exit_pos = (Vector3){0, 1.6f, bd/2-0.2f};
