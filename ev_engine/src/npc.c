@@ -392,24 +392,25 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
         head_wander = sinf(idle * 0.4f) * 3.0f;  // slow horizontal look
     }
 
-    // ── Proportions — Gravity Bone style: big head, chunky limbs ──
-    // Total ~1.72m but stylized: head is ~30% of height, limbs are thick
-    float shoe_h = 0.08f, shoe_w = 0.22f, shoe_d = 0.28f;
-    float shin_h = 0.24f, shin_w = 0.18f;
-    float thigh_h = 0.24f, thigh_w = 0.20f;
-    float body_w = 0.52f, body_h = 0.48f, body_d = 0.32f;
-    float shoulder_w = 0.62f, shoulder_h = 0.10f;
-    float upper_arm_h = 0.22f, upper_arm_w = 0.16f;
-    float forearm_h = 0.20f, forearm_w = 0.14f;
-    float hand_s = 0.10f;
-    float head_w = 0.36f, head_h = 0.38f, head_d = 0.32f;  // BIG head — reads at distance
-    float cap_w = 0.42f, cap_h = 0.10f;                      // bigger cap — the signature
-    float neck_w = 0.16f, neck_h = 0.05f;
-    float tie_w = 0.12f, tie_h = 0.28f;
-    float lapel_w = 0.08f, lapel_h = 0.32f;
-    float pocket_w = 0.12f, pocket_h = 0.07f;
+    // ── Proportions — Gravity Bone CHUNKY: big head, thick limbs ──
+    // Total ~1.72m. Every part must be 3+ pixels wide at 960x600.
+    // Limbs are THICK — these are vinyl toy proportions, not human.
+    float shoe_h = 0.10f, shoe_w = 0.26f, shoe_d = 0.32f;   // bigger shoes — ground the character
+    float shin_h = 0.22f, shin_w = 0.24f;                    // was 0.18 — way too thin at distance
+    float thigh_h = 0.22f, thigh_w = 0.26f;                  // was 0.20 — chunky
+    float body_w = 0.54f, body_h = 0.46f, body_d = 0.34f;    // slightly wider/deeper
+    float shoulder_w = 0.66f, shoulder_h = 0.10f;             // wider shoulders — authority
+    float upper_arm_h = 0.20f, upper_arm_w = 0.20f;          // was 0.16 — chunky tubes
+    float forearm_h = 0.18f, forearm_w = 0.18f;              // was 0.14 — visible at distance
+    float hand_s = 0.12f;                                     // was 0.10 — bigger mitts
+    float head_w = 0.38f, head_h = 0.40f, head_d = 0.34f;   // slightly bigger head
+    float cap_w = 0.44f, cap_h = 0.12f;                      // bigger cap — THE beacon
+    float neck_w = 0.18f, neck_h = 0.05f;
+    float tie_w = 0.14f, tie_h = 0.30f;                      // wider tie — reads as red strip
+    float lapel_w = 0.10f, lapel_h = 0.34f;                  // wider lapels
+    float pocket_w = 0.14f, pocket_h = 0.08f;
     float belt_h = 0.06f;
-    float case_w = 0.34f, case_h = 0.24f, case_d = 0.12f;   // bigger briefcase
+    float case_w = 0.36f, case_h = 0.26f, case_d = 0.14f;   // bigger briefcase
 
     // ── Derived Y positions ──
     float foot_y = base_y;
@@ -424,8 +425,8 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
 
     // Walk cycle
     float phase = t * 1.5f;
-    float leg_swing = walking ? sinf(phase) * 0.18f : 0;
-    float arm_swing = walking ? sinf(phase) * 0.12f : 0;
+    float leg_swing = walking ? sinf(phase) * 0.22f : 0;   // was 0.18 — chunkier stride
+    float arm_swing = walking ? sinf(phase) * 0.16f : 0;   // was 0.12 — bigger arm swing
     float tie_adjust = 0;
     if (!walking && idle > 2.0f) {
         float cycle = fmodf(idle - 2.0f, 4.0f);
@@ -447,7 +448,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     #define DRAWCYL(px,py,pz, diam,h) DrawModelEx(*cyl_model, P(px,py,pz), \
         (Vector3){0,1,0}, yaw*RAD2DEG, (Vector3){diam,h,diam}, WHITE)
 
-    float ls = body_w * 0.28f;  // leg spread from center
+    float ls = body_w * 0.32f;  // wider leg spread for chunky legs
 
     // ── SHOES — dark, distinct from legs ──
     D(m, DC(35, 30, 25, 255),8);  // MAT_LEATHER
