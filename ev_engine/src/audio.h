@@ -122,7 +122,10 @@ typedef struct {
     float clock_rate;            // 1.0 = normal, 0.0 = stopped
 
     // File-based music — Maxwell's compositions, played once
-    Music music_suite;           // TBD (placeholder: lighthouse) — triggered once on bed ritual
+    Music music_suite;           // Path A: ambient drone
+    Music music_suite_alt;       // Path B: her song
+    bool suite_alt_loaded;
+    int suite_track_choice;      // 0=A, 1=B
     Music music_balcony;         // "unsaid" — melancholy, the void outside
     Music music_corridor;        // "stt" — the long walk
     Music music_title;           // "ambient1" — title screen atmosphere

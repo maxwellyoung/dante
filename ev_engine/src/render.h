@@ -48,7 +48,7 @@ typedef struct {
     int volNearPlaneLoc;
     int volFarPlaneLoc;
     bool bloomReady;
-    bool ready;
+    bool ready; int irisRadiusLoc; int irisCenterLoc; int letterboxLoc;
 } EVPostFX;
 
 // Visual style presets — Shift+number keys
@@ -79,6 +79,8 @@ void SetPostFXWarmth(EVPostFX *pfx, float warmth);
 void SetPostFXExposure(EVPostFX *pfx, float exposure);
 void SetPostFXGrain(EVPostFX *pfx, float grain);
 void SetPostFXFlash(EVPostFX *pfx, float intensity, float r, float g, float b);
+static inline void SetPostFXIris(EVPostFX *pfx, float r, float cx, float cy) { (void)pfx; (void)r; (void)cx; (void)cy; }
+static inline void SetPostFXLetterbox(EVPostFX *pfx, float amount) { (void)pfx; (void)amount; }
 void SetPostFXSaturation(EVPostFX *pfx, float saturation);
 void SetPostFXCA(EVPostFX *pfx, float caAmount);
 void SetPostFXContrast(EVPostFX *pfx, float contrast);

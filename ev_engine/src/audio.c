@@ -2602,6 +2602,13 @@ void StopTaxiRadio(EVAudio *audio) {
 
 void LoadFileMusic(EVAudio *audio) {
     audio->music_suite = LoadMusicStream("assets/audio/lighthouse.wav");
+    audio->suite_alt_loaded = false;
+    if (FileExists("assets/audio/suite_alt.wav")) {
+        audio->music_suite_alt = LoadMusicStream("assets/audio/suite_alt.wav");
+        audio->music_suite_alt.looping = false;
+        audio->suite_alt_loaded = true;
+    }
+    audio->suite_track_choice = 0;
     audio->music_balcony = LoadMusicStream("assets/audio/ambient4.wav");
     audio->music_corridor = LoadMusicStream("assets/audio/ambient1_icloud.wav");
     audio->music_title = LoadMusicStream("assets/audio/ambient3.wav");
@@ -2620,6 +2627,7 @@ void LoadFileMusic(EVAudio *audio) {
 void UnloadFileMusic(EVAudio *audio) {
     if (!audio->music_loaded) return;
     UnloadMusicStream(audio->music_suite);
+    if (audio->suite_alt_loaded) UnloadMusicStream(audio->music_suite_alt);
     UnloadMusicStream(audio->music_balcony);
     UnloadMusicStream(audio->music_corridor);
     UnloadMusicStream(audio->music_title);
@@ -2628,7 +2636,11 @@ void UnloadFileMusic(EVAudio *audio) {
 
 void UpdateFileMusic(EVAudio *audio) {
     if (!audio->music_loaded) return;
-    if (audio->suite_music_playing) UpdateMusicStream(audio->music_suite);
+    if (audio->suite_music_playing) {
+        if (audio->suite_track_choice == 1 && audio->suite_alt_loaded)
+            UpdateMusicStream(audio->music_suite_alt);
+        else UpdateMusicStream(audio->music_suite);
+    }
     if (audio->balcony_music_playing) UpdateMusicStream(audio->music_balcony);
     if (audio->corridor_music_playing) UpdateMusicStream(audio->music_corridor);
     if (audio->title_music_playing) UpdateMusicStream(audio->music_title);
@@ -2636,13 +2648,19 @@ void UpdateFileMusic(EVAudio *audio) {
 
 void PlaySuiteMusic(EVAudio *audio) {
     if (!audio->music_loaded || audio->suite_music_playing) return;
-    SetMusicVolume(audio->music_suite, 0.35f);  // sits under procedural audio
-    PlayMusicStream(audio->music_suite);
+    if (audio->suite_track_choice == 1 && audio->suite_alt_loaded) {
+        SetMusicVolume(audio->music_suite_alt, 0.35f);
+        PlayMusicStream(audio->music_suite_alt);
+    } else {
+        SetMusicVolume(audio->music_suite, 0.35f);
+        PlayMusicStream(audio->music_suite);
+    }
     audio->suite_music_playing = true;
 }
 void StopSuiteMusic(EVAudio *audio) {
     if (!audio->music_loaded) return;
     StopMusicStream(audio->music_suite);
+    if (audio->suite_alt_loaded) StopMusicStream(audio->music_suite_alt);
     audio->suite_music_playing = false;
 }
 

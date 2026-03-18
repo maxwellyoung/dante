@@ -19,6 +19,13 @@
 #include <string.h>
 
 float ev_mouse_sens = MOUSE_SENS_DEFAULT;
+#define PARIS_TASK_COUNT 5
+#define SPACE_TASK_COUNT 5
+static void draw_splash(float t) { (void)t; }
+static void reset_splash_state(void) { }
+void draw_intertitle(const char *text, float alpha, Color color, bool fullscreen) {
+    (void)text; (void)alpha; (void)color; (void)fullscreen;
+}
 
 static GameState state = STATE_SPLASH;
 static GameState previous_state = STATE_SPLASH;  // where we came from — disambiguates elevator, spawn positions
@@ -2318,6 +2325,13 @@ int main(void) {
                 // Reapply exposure with new style bias
                 SetPostFXExposure(&postfx, scene_exposure + visual_styles[current_style].exposure_bias);
                 show_text(visual_styles[current_style].name);
+            }
+            if (IsKeyPressed(KEY_M)) {
+                if (audio.suite_alt_loaded) {
+                    audio.suite_track_choice = 1 - audio.suite_track_choice;
+                    show_text(audio.suite_track_choice == 0 ? "Track A" : "Track B");
+                    if (audio.suite_music_playing) { StopSuiteMusic(&audio); PlaySuiteMusic(&audio); }
+                } else { show_text("No suite_alt.wav"); }
             }
         } else {
         // Dev scene jumps — number keys for instant room testing (no shift held)
@@ -5005,3 +5019,4 @@ int main(void) {
     return 0;
 #endif  // QA_MODE
 }
+// MARKER_TEST
