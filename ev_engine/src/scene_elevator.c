@@ -22,6 +22,23 @@ void elevator_load(void) {
     StopMuffledPiano(&g.audio); StopDistantVoices(&g.audio); StopFootstepsAbove(&g.audio);
     StopEarthPresence(&g.audio);
     PlayElevatorHum(&g.audio);
+
+    // Gibbons — Hotel Chevalier energy. Two people in a small space
+    // with unspoken knowledge. He adjusts his tie. Professional silence.
+    if (g.elevator_to_corridor) {
+        Vector3 elev_wps[] = { {0, 1.6f, -0.5f} };
+        init_npc(&g.gibbons, (Vector3){0.5f, 1.6f, -0.5f}, elev_wps, 1, 0.5f, 2.0f);
+        g.gibbons.behavior = NPC_WAITING;
+        static const char *elev_lines[] = { "Almost there." };
+        npc_set_dialogue(&g.gibbons, elev_lines, 1, 3.0f);
+    } else {
+        Vector3 elev_wps[] = { {0.5f, 1.6f, 0} };
+        init_npc(&g.gibbons, (Vector3){0.5f, 1.6f, 0}, elev_wps, 1, 0.5f, 2.0f);
+        g.gibbons.behavior = NPC_WAITING;
+        static const char *elev_lines[] = { "Going up." };
+        npc_set_dialogue(&g.gibbons, elev_lines, 1, 2.5f);
+    }
+
     if (g.elevator_to_corridor) {
         PlayDoorThud(&g.audio);
         g.player.gravity_mult = 0.4f;
@@ -38,6 +55,13 @@ void elevator_load(void) {
 }
 
 void elevator_update(float dt) {
+    // Gibbons rides with you — professional silence, small space
+    update_npc(&g.gibbons, g.player.camera.position, &g.scene, dt);
+    // Gibbons rises with the elevator
+    if (g.elevator_to_corridor) {
+        g.gibbons.pos.y = g.player.camera.position.y - 0.0f;
+    }
+
     if (g.elevator_to_corridor) {
         // SPACE ELEVATOR
         {

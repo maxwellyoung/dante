@@ -87,6 +87,7 @@ void draw_dawn_sky(float time);
 void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target);
 void draw_dust_motes(Camera3D camera, float time);
 void draw_zero_g_sparkles(Camera3D camera, float time);
+void draw_rain(Camera3D camera, float time);
 void draw_text_box(const char *text, int y, int font_size, Color text_color);
 
 #endif

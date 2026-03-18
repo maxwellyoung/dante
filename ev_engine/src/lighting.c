@@ -242,28 +242,44 @@ static const char *fs_source =
     "    }\n"
     "    else if (materialId == 14) {\n"
     "        // WATER — dark reflective surface with animated ripple\n"
-    "        // Slow sine ripple distorts the normal for moving specular highlights\n"
-    "        float ripple1 = sin(wp.x * 1.5 + time * 0.4) * cos(wp.z * 2.0 + time * 0.3);\n"
-    "        float ripple2 = sin(wp.x * 3.0 - time * 0.5 + 1.7) * cos(wp.z * 1.2 + time * 0.2);\n"
-    "        float ripple = (ripple1 + ripple2 * 0.5) * 0.08;\n"
-    "        // Perturb normal — creates moving specular on a flat surface\n"
+    "        // Multi-octave ripple for organic movement\n"
+    "        float r1 = sin(wp.x * 1.5 + time * 0.4) * cos(wp.z * 2.0 + time * 0.3);\n"
+    "        float r2 = sin(wp.x * 3.0 - time * 0.5 + 1.7) * cos(wp.z * 1.2 + time * 0.2);\n"
+    "        float r3 = noise(surfUV * 4.0 + time * 0.1) * 0.5;\n"
+    "        float ripple = (r1 + r2 * 0.5 + r3 * 0.3) * 0.06;\n"
     "        norm = normalize(norm + vec3(ripple, 0.0, ripple * 0.7));\n"
-    "        // Dark base — near-black with slight blue shift\n"
-    "        baseColor = baseColor * 0.3 + vec3(0.01, 0.02, 0.04);\n"
-    "        specMult = 0.7;\n"
+    "        // Dark base with depth — near-black, slight blue-green shift\n"
+    "        baseColor = baseColor * 0.2 + vec3(0.008, 0.015, 0.03);\n"
+    "        // Animated caustic highlight — faint moving bright patches\n"
+    "        float caustic = noise(surfUV * 6.0 + time * 0.15);\n"
+    "        caustic = smoothstep(0.6, 0.8, caustic) * 0.08;\n"
+    "        baseColor += vec3(caustic * 0.5, caustic * 0.7, caustic);\n"
+    "        // View-angle reflection — brighter at glancing angles\n"
+    "        float NdotV = max(dot(norm, normalize(viewPos - fragPosition)), 0.0);\n"
+    "        float waterFresnel = pow(1.0 - NdotV, 3.0) * 0.3;\n"
+    "        baseColor += vec3(waterFresnel * 0.3, waterFresnel * 0.4, waterFresnel * 0.6);\n"
+    "        specMult = 0.8;\n"
     "    }\n"
     "    else if (materialId == 15) {\n"
-    "        // PUDDLE — thin wet film on ground, picks up nearby light\n"
-    "        // Subtle noise-based distortion for wet sheen, no animation\n"
-    "        float wet = noise(surfUV * 3.0);\n"
-    "        float edge = smoothstep(0.3, 0.7, wet);\n"
-    "        // Darken the ground color, add slight reflective sheen\n"
-    "        baseColor = baseColor * 0.25 + vec3(0.01, 0.015, 0.025);\n"
-    "        // Fresnel-like view-dependent reflection on the puddle\n"
+    "        // PUDDLE — thin wet film, organic edges, picks up nearby light\n"
+    "        // Edge dissolve — noise breaks the rectangle into an irregular blob\n"
+    "        float edgeNoise = fbm(surfUV * 2.0);\n"
+    "        // Map UV to 0-1 range within the puddle, then dissolve at edges\n"
+    "        vec2 puv = fract(surfUV * 0.5);\n"
+    "        float edgeDist = min(min(puv.x, 1.0 - puv.x), min(puv.y, 1.0 - puv.y));\n"
+    "        float dissolve = smoothstep(0.0, 0.15, edgeDist + edgeNoise * 0.2 - 0.1);\n"
+    "        if (dissolve < 0.05) discard;\n"
+    "        // Dark reflective film\n"
+    "        baseColor = baseColor * 0.2 + vec3(0.008, 0.012, 0.022);\n"
+    "        // Fresnel — bright at glancing angles\n"
     "        float NdotV = max(dot(norm, normalize(viewPos - fragPosition)), 0.0);\n"
-    "        float pudFresnel = pow(1.0 - NdotV, 4.0) * 0.4;\n"
-    "        baseColor += vec3(pudFresnel) * edge;\n"
-    "        specMult = 0.55;\n"
+    "        float pudFresnel = pow(1.0 - NdotV, 4.0) * 0.5;\n"
+    "        baseColor += vec3(pudFresnel) * dissolve;\n"
+    "        // Faint ripple from raindrops — small animated circles\n"
+    "        float drop = sin(length(surfUV * 8.0 - vec2(time * 0.3, time * 0.2)) * 12.0);\n"
+    "        drop = smoothstep(0.7, 1.0, drop) * 0.04 * dissolve;\n"
+    "        baseColor += vec3(drop);\n"
+    "        specMult = 0.6;\n"
     "    }\n"
     "\n"
     "    // Shadow\n"
@@ -711,18 +727,18 @@ SceneLighting LightingPreset_Balcony(void) {
 }
 
 SceneLighting LightingPreset_SpaceLobby(void) {
-    // Grand station lobby — chandelier + elevator shaft glow
-    // Cold starlight from observation window, warm brass interior
+    // Grand station lobby — warm brass vs cool Earth blue
+    // Half-Lambert note: ambient raised so hull walls read, key warmer for brass
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.8f, -0.4f}),    // steep overhead
-        .keyColor = {0.35f, 0.42f, 0.55f},         // Earth blue — pulled back
-        .fillDir = Vector3Normalize((Vector3){0.2f, 0.5f, 0.3f}),
-        .fillColor = {0.08f, 0.12f, 0.18f},        // cool blue bounce
-        .ambient = {0.04f, 0.05f, 0.07f},           // LOW — dramatic pools
-        // Chandelier + Earth glow on floor
+        .keyDir = Vector3Normalize((Vector3){-0.3f, -0.7f, -0.4f}),
+        .keyColor = {0.65f, 0.50f, 0.32f},          // warm brass chandelier — NOT blue
+        .fillDir = Vector3Normalize((Vector3){0.2f, 0.6f, -0.5f}),
+        .fillColor = {0.18f, 0.22f, 0.32f},          // cool Earth bounce from window — boosted
+        .ambient = {0.20f, 0.21f, 0.25f},             // hull walls MUST read — space is never pitch black
+        // Chandelier (warm) + side window accents (cool) + Earth glow (cold blue)
         .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}, {0, 0.5f, -6.0f}},
-        .pointColor = {{0.6f, 0.45f, 0.28f}, {0.2f, 0.30f, 0.45f}, {0.2f, 0.30f, 0.45f}, {0.3f, 0.45f, 0.65f}},
-        .pointRadius = {14.0f, 10.0f, 10.0f, 12.0f},
+        .pointColor = {{0.9f, 0.65f, 0.35f}, {0.25f, 0.35f, 0.50f}, {0.25f, 0.35f, 0.50f}, {0.20f, 0.35f, 0.55f}},
+        .pointRadius = {16.0f, 12.0f, 12.0f, 10.0f},
     };
 }
 

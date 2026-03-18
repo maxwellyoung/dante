@@ -3165,10 +3165,11 @@ void build_space_lobby(Scene *s) {
     add_wall(s, 0, lh/2, -ld/2+0.16f, 28, 0.08f, 0.06f, brass);
     set_last_material(s, MAT_BRASS);
 
-    // Earth — the emotional anchor. Massive blue sphere behind the glass.
-    add_sphere(s, 4, lh/2+2, -ld/2-18, 8.0f, (Color){35, 75, 140, 255});
-    // Atmosphere rim
-    add_sphere(s, 4, lh/2+2, -ld/2-18, 8.6f, (Color){120, 170, 220, 255});
+    // Earth — the emotional anchor. Blue pushed hard to survive warm key light.
+    // Key is {0.65, 0.50, 0.32} — blue gets ×0.32, so we need blue >> red, green.
+    add_sphere(s, 4, lh/2+2, -ld/2-18, 8.0f, (Color){30, 80, 250, 255});
+    // Atmosphere rim — blue-white, blue channel maxed
+    add_sphere(s, 4, lh/2+2, -ld/2-18, 8.6f, (Color){100, 170, 255, 255});
 
     // Earth glow on floor — subtle pools, not a flood
     // Closest to window: brightest but narrow
@@ -3197,8 +3198,8 @@ void build_space_lobby(Scene *s) {
         set_last_material(s, MAT_BRASS);
         add_wall(s, -lw/2+0.22f, lh*0.45f-3.6f, pz, 0.06f, 0.14f, 2.1f, brass);
         set_last_material(s, MAT_BRASS);
-        // Earth glow from side windows
-        add_wall(s, -lw/2+4, 0.02f, pz, 3.0f, 0.02f, 2.0f, (Color){45, 100, 180, 35});
+        // Earth glow from side windows — subtle, not a flood
+        add_wall(s, -lw/2+4, 0.02f, pz, 2.0f, 0.02f, 1.5f, (Color){25, 55, 100, 15});
         set_last_decal(s);
     }
 
@@ -3214,7 +3215,7 @@ void build_space_lobby(Scene *s) {
         set_last_material(s, MAT_BRASS);
         add_wall(s, lw/2-0.22f, lh*0.45f-3.6f, pz, 0.06f, 0.14f, 2.1f, brass);
         set_last_material(s, MAT_BRASS);
-        add_wall(s, lw/2-4, 0.02f, pz, 3.0f, 0.02f, 2.0f, (Color){45, 100, 180, 35});
+        add_wall(s, lw/2-4, 0.02f, pz, 2.0f, 0.02f, 1.5f, (Color){25, 55, 100, 15});
         set_last_decal(s);
     }
 

@@ -677,6 +677,10 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
     if (indoor) {
         draw_dust_motes(player->camera, time);
     }
+    // Rain in outdoor scenes (exterior only — not space)
+    if (!indoor && player->camera.position.y < 50.0f) {
+        draw_rain(player->camera, time);
+    }
 
     // Interactive objects — diegetic, not game-y
     // "No hand-holding" — the architecture guides, not glowing beacons.
@@ -1254,6 +1258,46 @@ void draw_zero_g_sparkles(Camera3D camera, float time) {
         unsigned char a = (unsigned char)(80.0f * alpha_f);
 
         DrawSphere((Vector3){px, py, pz}, radius, (Color){220, 230, 255, a});
+    }
+}
+
+// ── Rain — thin falling lines, Auckland 2AM ──
+void draw_rain(Camera3D camera, float time) {
+    // Rain around the camera — short white lines falling at slight angle
+    for (int i = 0; i < MAX_RAIN; i++) {
+        // Deterministic seed per drop, wrapping in a volume around camera
+        float seed_x = sinf((float)i * 7.3f + 0.5f) * 15.0f;
+        float seed_z = cosf((float)i * 4.1f + 1.7f) * 15.0f;
+
+        // Anchor to camera grid so rain moves with you
+        float anchor_x = floorf(camera.position.x / 8.0f) * 8.0f;
+        float anchor_z = floorf(camera.position.z / 8.0f) * 8.0f;
+
+        float px = anchor_x + seed_x;
+        float pz = anchor_z + seed_z;
+
+        // Cycling fall: each drop falls from 8m to ground, loops
+        float phase = fmodf((float)i * 0.17f, 1.0f);
+        float fall_speed = 6.0f + fmodf((float)i * 0.31f, 2.0f);
+        float py = 8.0f - fmodf(time * fall_speed + phase * 8.0f, 8.0f);
+
+        // Distance cull
+        float dx = px - camera.position.x;
+        float dz = pz - camera.position.z;
+        float dist = sqrtf(dx * dx + dz * dz);
+        if (dist > 18.0f) continue;
+
+        // Rain streak — short line, slight wind angle
+        float len = 0.3f + fmodf((float)i * 0.23f, 0.2f);
+        float wind_x = 0.04f;  // slight eastward lean
+        float alpha_f = 1.0f - (dist / 18.0f);
+        unsigned char a = (unsigned char)(35.0f * alpha_f);
+
+        DrawLine3D(
+            (Vector3){px, py, pz},
+            (Vector3){px + wind_x, py - len, pz},
+            (Color){180, 190, 210, a}
+        );
     }
 }
 

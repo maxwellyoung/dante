@@ -251,7 +251,12 @@ void paris_dream_load(void) {
     StopAmbient(&g.audio);
     StopClockAmbient(&g.audio);
     StopWindAmbient(&g.audio);
+    StopMuffledPiano(&g.audio);
+    StopDistantVoices(&g.audio);
     StartAmbient(&g.audio, DRONE_ROOM);
+    // B&W sonic palette — rain on glass, distant traffic below
+    PlayDreamRain(&g.audio);
+    PlayDreamTraffic(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_ParisDream());
     set_exposure(0.1f);
     // B&W. Godard grain. High contrast.

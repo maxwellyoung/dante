@@ -63,6 +63,12 @@ void suite_load(void) {
     add_object(&g.scene, -3.2f, 0.52f, 3.3f, "wineglass", (Color){210,210,215,255}, 1);
     // Her book on left nightstand — pick up to see boarding pass bookmark
     add_object(&g.scene, -2.6f, 0.64f, -4.9f, "book", (Color){50,80,175,255}, 1);
+    // Bolaño objects — the abstract-mundane. Resist interpretation.
+    add_object(&g.scene, 1.2f, 0.02f, -3.8f, "sock", (Color){45,40,55,230}, 1);
+    add_object(&g.scene, -2.5f, 0.4f, 3.6f, "roomservice", (Color){245,242,235,255}, 1);
+    add_object(&g.scene, 2.3f, 0.65f, -4.9f, "postcard", (Color){245,240,232,255}, 1);
+    // Bathroom — run the bath
+    add_object(&g.scene, 6.85f, 1.3f, 2.5f, "bathroom", (Color){225,222,218,255}, 1);
 }
 
 void suite_update(float dt) {
@@ -279,6 +285,22 @@ void suite_update(float dt) {
                     // Her book — pick up, see boarding pass bookmark
                     if (strcmp(obj->name, "book") == 0 && obj->step == 1) {
                         show_text("Her bookmark. A boarding pass.");
+                        obj->done = true;
+                        break;
+                    }
+                    // Bolaño objects — resist interpretation
+                    if (strcmp(obj->name, "sock") == 0 && obj->step == 1) {
+                        show_text("Not yours.");
+                        obj->done = true;
+                        break;
+                    }
+                    if (strcmp(obj->name, "roomservice") == 0 && obj->step == 1) {
+                        show_text("Two handwritings. A disagreement about the cheese plate.");
+                        obj->done = true;
+                        break;
+                    }
+                    if (strcmp(obj->name, "postcard") == 0 && obj->step == 1) {
+                        show_text("Addressed to no one.");
                         obj->done = true;
                         break;
                     }

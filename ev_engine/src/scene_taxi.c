@@ -8,6 +8,8 @@ extern GameCtx g;
 void set_exposure(float exp);
 void show_text(const char *text);
 void hide_text(void);
+void show_choice(const char *question, const char *a, const char *b);
+int poll_choice(void);
 void transition_to(GameState s);
 void hard_cut_to(GameState s);
 
@@ -110,25 +112,65 @@ void taxi_update(float dt) {
         g.player.camera.fovy = 70.0f + ramp * 20.0f;
     }
 
-    // Dialogue
-    if (g.state_time > 1.5f && g.state_time < 2.0f) show_text("Auckland. 2:47 AM.");
-    if (g.state_time > 4.0f && g.state_time < 4.5f) hide_text();
-    if (g.state_time > 5.5f && g.state_time < 6.0f) show_text("You going up to the tower?");
-    if (g.state_time > 8.0f && g.state_time < 8.5f) hide_text();
-    if (g.state_time > 9.0f && g.state_time < 9.5f) show_text("They say there's a hotel up there now.");
-    if (g.state_time > 12.0f && g.state_time < 12.5f) hide_text();
-    if (g.state_time > 12.5f && g.state_time < 13.0f) show_text("Three hours to kill.");
+    // ── Option B: taxi choices — internal, diegetic ──
+    // The driver talks. You answer inside your head.
+    // The choices don't change the game. They change the player.
+    {
+        float t = g.state_time;
 
-    // Hard cut to hyperspace
-    if (g.state_time > 13.5f) {
-        g.player.camera.fovy = 70.0f;
-        SetPostFXCA(&g.postfx, 2.5f);
-        hard_cut_to(STATE_HYPERSPACE);
-    }
-    if (IsKeyPressed(KEY_ENTER) && g.state_time > 3) {
-        g.player.camera.fovy = 70.0f;
-        SetPostFXCA(&g.postfx, 2.5f);
-        hard_cut_to(STATE_HYPERSPACE);
+        // Beat 1: Location
+        if (t > 1.5f && t < 2.0f) show_text("Auckland. 2:47 AM.");
+        if (t > 4.0f && t < 4.5f) hide_text();
+
+        // Beat 2: "You going up to the tower?"
+        if (t > 5.0f && t < 5.5f && g.backstory_phase == 0) {
+            show_text("You going up to the tower?");
+        }
+        if (t > 7.0f && g.backstory_phase == 0) {
+            hide_text();
+            show_choice("", "She wanted to.", "I need to be somewhere.");
+            g.backstory_phase = 1;
+        }
+        if (g.backstory_phase == 1 && poll_choice() >= 0) {
+            g.backstory_phase = 2;
+            hide_text();
+        }
+
+        // Beat 3: "They say there's a hotel up there now."
+        if (g.backstory_phase == 2 && t > 9.0f && g.backstory_phase < 3) {
+            show_text("They say there's a hotel up there now.");
+            g.backstory_phase = 3;
+        }
+        if (g.backstory_phase == 3 && t > 11.0f) {
+            hide_text();
+            show_choice("", "We booked it months ago.", "I heard.");
+            g.backstory_phase = 4;
+        }
+        if (g.backstory_phase == 4 && poll_choice() >= 0) {
+            g.backstory_phase = 5;
+            hide_text();
+        }
+
+        // Beat 4: "Three hours to kill."
+        if (g.backstory_phase >= 5 && t > 13.0f && g.backstory_phase < 6) {
+            show_text("Three hours to kill.");
+            g.backstory_phase = 6;
+        }
+
+        // Hard cut to hyperspace — slightly later to accommodate choices
+        if (g.backstory_phase >= 5 && t > 15.0f) {
+            hide_text();
+            g.player.camera.fovy = 70.0f;
+            SetPostFXCA(&g.postfx, 2.5f);
+            hard_cut_to(STATE_HYPERSPACE);
+        }
+        // Skip (Enter) — only after first choice answered
+        if (IsKeyPressed(KEY_ENTER) && !g.choice_active && g.backstory_phase >= 2 && t > 5) {
+            hide_text();
+            g.player.camera.fovy = 70.0f;
+            SetPostFXCA(&g.postfx, 2.5f);
+            hard_cut_to(STATE_HYPERSPACE);
+        }
     }
 }
 
@@ -172,9 +214,22 @@ void return_taxi_load(void) {
     SetPostFXCA(&g.postfx, 1.5f);
     SetPostFXVignette(&g.postfx, 1.0f);
     SetPostFXContrast(&g.postfx, 1.0f);
+
+    // Gibbons — in the passenger seat, going home.
+    // Brief eye contact. He adjusts his tie. He knew the whole time.
+    {
+        Vector3 taxi_wps[] = { {-0.5f, 0.8f, -0.3f} };
+        init_npc(&g.gibbons, (Vector3){-0.5f, 0.8f, -0.3f}, taxi_wps, 1, 0.3f, 2.0f);
+        g.gibbons.behavior = NPC_SITTING;
+        static const char *taxi_lines[] = {
+            "Good hotel?",
+        };
+        npc_set_dialogue(&g.gibbons, taxi_lines, 1, 8.0f);
+    }
 }
 
 void return_taxi_update(float dt) {
+    update_npc(&g.gibbons, g.player.camera.position, &g.scene, dt);
     // Mouse look only
     Vector2 md_r = GetMouseDelta();
     float ry = -md_r.x * ev_mouse_sens;
@@ -205,8 +260,7 @@ void return_taxi_update(float dt) {
     // Dialogue
     if (g.state_time > 3.0f && g.state_time < 3.5f) show_text("Auckland. 5:52 AM.");
     if (g.state_time > 6.0f && g.state_time < 6.5f) hide_text();
-    if (g.state_time > 8.0f && g.state_time < 8.5f) show_text("Good hotel?");
-    if (g.state_time > 11.0f && g.state_time < 11.5f) hide_text();
+    // "Good hotel?" is now Gibbons' NPC dialogue
 
     // Saturation drain
     {

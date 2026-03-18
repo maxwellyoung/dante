@@ -14,6 +14,7 @@ void exterior_load(void) {
     StopClockAmbient(&g.audio);
     PlayCityAmbient(&g.audio);
     PlayWindAmbient(&g.audio);
+    PlayRain(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_Exterior());
     set_exposure(0.0f);
     SetPostFXWarmth(&g.postfx, 0.05f);

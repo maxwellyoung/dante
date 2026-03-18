@@ -18,6 +18,7 @@ void lobby_load(void) {
     StopClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);
     StopWindAmbient(&g.audio);
+    StopRain(&g.audio);
     StopMuffledPiano(&g.audio); StopDistantVoices(&g.audio); StopFootstepsAbove(&g.audio);
     PlayDistantVoices(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_Lobby());
