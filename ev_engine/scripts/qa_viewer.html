@@ -151,11 +151,96 @@ if (modelFile) {
     const centerY = (scaledBox.max.y - scaledBox.min.y) * 0.5;
     setCameraAngle(angle, 1.0, centerY);
 
-    // Stats
-    document.getElementById('stats').innerHTML =
+    // ── AUTOMATED SCORING ──
+    const scores = {};
+    const volume = size.x * size.y * size.z;
+
+    // 1. Tri density — tris per cubic meter (target: 2000-8000)
+    const triDensity = tris / Math.max(volume, 0.001);
+    if (triDensity < 500) scores.triDensity = { score: 20, note: `${Math.round(triDensity)}/m³ — way too low` };
+    else if (triDensity < 1500) scores.triDensity = { score: 50, note: `${Math.round(triDensity)}/m³ — low` };
+    else if (triDensity < 3000) scores.triDensity = { score: 75, note: `${Math.round(triDensity)}/m³ — ok` };
+    else if (triDensity < 8000) scores.triDensity = { score: 95, note: `${Math.round(triDensity)}/m³ — good` };
+    else scores.triDensity = { score: 80, note: `${Math.round(triDensity)}/m³ — high (wasteful?)` };
+
+    // 2. Smooth shading ratio — % of faces with smooth normals
+    let smoothFaces = 0, totalFaces = 0;
+    model.traverse(c => {
+      if (c.isMesh && c.geometry) {
+        const norm = c.geometry.attributes.normal;
+        const idx = c.geometry.index;
+        if (norm && idx) {
+          for (let i = 0; i < idx.count; i += 3) {
+            totalFaces++;
+            const i0 = idx.getX(i), i1 = idx.getX(i+1), i2 = idx.getX(i+2);
+            // Check if normals are shared (smooth) vs face-aligned (flat)
+            const n0x = norm.getX(i0), n0y = norm.getY(i0), n0z = norm.getZ(i0);
+            const n1x = norm.getX(i1), n1y = norm.getY(i1), n1z = norm.getZ(i1);
+            const dot = n0x*n1x + n0y*n1y + n0z*n1z;
+            if (dot > 0.95) smoothFaces++;
+          }
+        }
+      }
+    });
+    const smoothRatio = totalFaces > 0 ? smoothFaces / totalFaces : 0;
+    if (smoothRatio > 0.7) scores.smoothing = { score: 90, note: `${(smoothRatio*100).toFixed(0)}% smooth` };
+    else if (smoothRatio > 0.4) scores.smoothing = { score: 65, note: `${(smoothRatio*100).toFixed(0)}% smooth — some faceting` };
+    else scores.smoothing = { score: 30, note: `${(smoothRatio*100).toFixed(0)}% smooth — very faceted` };
+
+    // 3. Proportions — flag extreme aspect ratios
+    const aspectXZ = Math.max(size.x, size.z) / Math.max(Math.min(size.x, size.z), 0.01);
+    const aspectY = size.y / Math.max(Math.max(size.x, size.z), 0.01);
+    let propScore = 90;
+    let propNote = 'balanced';
+    if (aspectXZ > 5 || aspectY > 5) { propScore = 40; propNote = `extreme ratio ${aspectXZ.toFixed(1)}:1 / ${aspectY.toFixed(1)}:1`; }
+    else if (aspectXZ > 3 || aspectY > 3) { propScore = 65; propNote = `stretched ${aspectXZ.toFixed(1)}:1`; }
+    scores.proportions = { score: propScore, note: propNote };
+
+    // 4. Material variety — at least 2 materials for furniture
+    if (meshCount >= 2) scores.materials = { score: 90, note: `${meshCount} meshes — good separation` };
+    else if (meshCount === 1) scores.materials = { score: 50, note: '1 mesh — no material variety' };
+    else scores.materials = { score: 30, note: 'no meshes?' };
+
+    // 5. Scale sanity — real-world dimensions check
+    const maxSize = Math.max(size.x, size.y, size.z);
+    const minSize = Math.min(size.x, size.y, size.z);
+    if (maxSize > 10) scores.scale = { score: 30, note: `${maxSize.toFixed(1)}m — too large` };
+    else if (maxSize < 0.05) scores.scale = { score: 30, note: `${maxSize.toFixed(3)}m — too small` };
+    else if (minSize < 0.01) scores.scale = { score: 50, note: `thin dimension: ${minSize.toFixed(3)}m` };
+    else scores.scale = { score: 90, note: `${maxSize.toFixed(2)}m max — realistic` };
+
+    // 6. Absolute tri count — HL2 benchmarks
+    if (tris < 200) scores.triCount = { score: 30, note: `${Math.round(tris)} — placeholder quality` };
+    else if (tris < 500) scores.triCount = { score: 55, note: `${Math.round(tris)} — simple prop` };
+    else if (tris < 1000) scores.triCount = { score: 70, note: `${Math.round(tris)} — basic furniture` };
+    else if (tris < 2000) scores.triCount = { score: 85, note: `${Math.round(tris)} — good furniture` };
+    else if (tris < 4000) scores.triCount = { score: 95, note: `${Math.round(tris)} — hero quality` };
+    else scores.triCount = { score: 75, note: `${Math.round(tris)} — possibly over-budget` };
+
+    // Weighted total
+    const weights = { triDensity: 20, smoothing: 25, proportions: 15, materials: 10, scale: 10, triCount: 20 };
+    let totalScore = 0, totalWeight = 0;
+    for (const [k, w] of Object.entries(weights)) {
+      if (scores[k]) { totalScore += scores[k].score * w; totalWeight += w; }
+    }
+    const finalScore = Math.round(totalScore / totalWeight);
+
+    // Version threshold (passed via URL param)
+    const version = parseInt(params.get('version') || '1');
+    const threshold = Math.min(55 + version * 5, 90); // v1=60, v2=65, v3=70, ...
+    const pass = finalScore >= threshold;
+
+    // Stats display
+    let statsHtml =
       `${Math.round(tris).toLocaleString()} tris · ${meshCount} meshes<br>` +
       `${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} m<br>` +
-      `angle: ${angle}`;
+      `angle: ${angle}<br><br>` +
+      `<b style="color:${pass ? '#4f4' : '#f44'};font-size:16px">SCORE: ${finalScore}/100 ${pass ? 'PASS' : 'FAIL'}</b> (v${version} threshold: ${threshold})<br>`;
+    for (const [k, v] of Object.entries(scores)) {
+      const col = v.score >= 80 ? '#4f4' : v.score >= 60 ? '#ff4' : '#f44';
+      statsHtml += `<span style="color:${col}">${k}: ${v.score}</span> ${v.note}<br>`;
+    }
+    document.getElementById('stats').innerHTML = statsHtml;
 
     // Render a couple frames then signal ready
     let frames = 0;
@@ -163,7 +248,7 @@ if (modelFile) {
       renderer.render(scene, camera);
       frames++;
       if (frames < 5) requestAnimationFrame(renderLoop);
-      else document.title = `READY ${Math.round(tris)} tris`;
+      else document.title = `READY ${Math.round(tris)} tris score:${finalScore} ${pass ? 'PASS' : 'FAIL'}`;
     }
     renderLoop();
 

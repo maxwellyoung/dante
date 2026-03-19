@@ -33,15 +33,16 @@ trap "kill $SERVER_PID 2>/dev/null; rm -rf $SERVE_DIR" EXIT
 sleep 0.5
 
 ANGLES="front side quarter top"
+VERSION="${VERSION:-1}"  # pass VERSION=3 to increase threshold
 
 for GLB_FILE in "$@"; do
     MODEL_NAME="$(basename "$GLB_FILE" .glb)"
-    echo "═══ $MODEL_NAME ═══"
+    echo "═══ $MODEL_NAME (v${VERSION}) ═══"
 
     # Copy GLB to serve directory
     cp "$ENGINE_DIR/$GLB_FILE" "$SERVE_DIR/${MODEL_NAME}.glb"
 
-    # Screenshot each angle
+    # Screenshot each angle + score
     node -e "
 const { chromium } = require('playwright');
 (async () => {
@@ -49,9 +50,10 @@ const { chromium } = require('playwright');
     args: ['--use-gl=angle', '--use-angle=swiftshader'],
   });
   const angles = '${ANGLES}'.split(' ');
+  let finalTitle = '';
   for (const angle of angles) {
     const page = await browser.newPage({ viewport: { width: 1200, height: 1200 } });
-    await page.goto('http://localhost:${PORT}/index.html?model=${MODEL_NAME}.glb&angle=' + angle);
+    await page.goto('http://localhost:${PORT}/index.html?model=${MODEL_NAME}.glb&angle=' + angle + '&version=${VERSION}');
     try {
       await page.waitForFunction(() => document.title.startsWith('READY'), { timeout: 20000 });
     } catch (e) {
@@ -62,18 +64,18 @@ const { chromium } = require('playwright');
     await page.waitForTimeout(200);
     const outPath = '${QA_DIR}/${MODEL_NAME}_qa_' + angle + '.png';
     await page.screenshot({ path: outPath });
+    finalTitle = await page.title();
     console.log('  ✓ ' + angle);
     await page.close();
   }
-  // Print stats from last page
-  const statsPage = await browser.newPage({ viewport: { width: 1200, height: 1200 } });
-  await statsPage.goto('http://localhost:${PORT}/index.html?model=${MODEL_NAME}.glb&angle=quarter');
-  try {
-    await statsPage.waitForFunction(() => document.title.startsWith('READY'), { timeout: 15000 });
-    const title = await statsPage.title();
-    console.log('  ' + title);
-  } catch(e) {}
-  await statsPage.close();
+  // Parse and display score
+  const match = finalTitle.match(/score:(\d+)\s+(PASS|FAIL)/);
+  if (match) {
+    const [, score, result] = match;
+    const icon = result === 'PASS' ? '✅' : '❌';
+    console.log('  ' + icon + ' Score: ' + score + '/100 (' + result + ')');
+  }
+  console.log('  ' + finalTitle);
   await browser.close();
 })();
 " 2>&1
