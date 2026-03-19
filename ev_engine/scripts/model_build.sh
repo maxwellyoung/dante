@@ -47,17 +47,16 @@ fi
 # 3. Deploy
 echo ""
 echo "▸ Deploying to assets/..."
-scp -q "$MINI:/tmp/${MODEL_NAME}*.glb" "$ENGINE_DIR/assets/${MODEL_NAME}.glb" 2>/dev/null || \
-scp -q "$MINI:/tmp/$(echo "$MODEL_NAME" | sed 's/_v[0-9]*//')*.glb" "$ENGINE_DIR/assets/${MODEL_NAME}.glb" 2>/dev/null || {
-    # Try exact name from export path in the script
-    EXPORT_NAME=$(grep -oP "filepath=['\"].*?\.glb" "$SCRIPT" | head -1 | grep -oP '[^/]+\.glb' | sed 's/\.glb//')
-    if [ -n "$EXPORT_NAME" ]; then
-        scp -q "$MINI:/tmp/${EXPORT_NAME}.glb" "$ENGINE_DIR/assets/${MODEL_NAME}.glb"
-    else
+# Find the GLB export path from the script
+EXPORT_PATH=$(grep "filepath=" "$SCRIPT" | grep "\.glb" | head -1 | sed "s/.*filepath=['\"]//;s/['\"].*//" )
+if [ -n "$EXPORT_PATH" ]; then
+    scp -q "$MINI:$EXPORT_PATH" "$ENGINE_DIR/assets/${MODEL_NAME}.glb"
+else
+    scp -q "$MINI:/tmp/${MODEL_NAME}*.glb" "$ENGINE_DIR/assets/${MODEL_NAME}.glb" 2>/dev/null || {
         echo "❌ Could not find GLB on Mini"
         exit 1
-    fi
-}
+    }
+fi
 echo "  ✓ assets/${MODEL_NAME}.glb ($(stat -f%z "$ENGINE_DIR/assets/${MODEL_NAME}.glb") bytes)"
 
 # 4. QA Score
