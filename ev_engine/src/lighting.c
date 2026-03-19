@@ -104,9 +104,9 @@ static const char *fs_source =
     "    vec3 proj = lsPos.xyz / lsPos.w;\n"
     "    proj = proj * 0.5 + 0.5;\n"
     "    if (proj.z > 1.0) return 0.0;\n"
-    "    float bias = 0.005;\n"
+    "    float bias = 0.002;\n"
     "    float shadow = 0.0;\n"
-    "    vec2 texelSize = 1.0 / vec2(2048.0);\n"
+    "    vec2 texelSize = 1.0 / vec2(2048.0) * 1.3;\n"
     "    for (int x = -1; x <= 1; x++) {\n"
     "        for (int y = -1; y <= 1; y++) {\n"
     "            float d = texture(shadowMap, proj.xy + vec2(x,y)*texelSize).r;\n"
@@ -140,7 +140,7 @@ static const char *fs_source =
     "        // Normal detail — rough pitted surface catches light at micro scale\n"
     "        float nx = noise(surfUV * 4.0 + vec2(0.5, 0.0)) - 0.5;\n"
     "        float nz = noise(surfUV * 4.0 + vec2(0.0, 0.5)) - 0.5;\n"
-    "        norm = normalize(norm + vec3(nx, 0.0, nz) * 0.06);\n"
+    "        norm = normalize(norm + vec3(nx, 0.0, nz) * 0.10);\n"
     "        specMult = 0.05;\n"
     "    }\n"
     "    else if (materialId == 1) {\n"
@@ -151,8 +151,8 @@ static const char *fs_source =
     "        // Subtle polish irregularity — makes specular highlights wobble\n"
     "        float mx = noise(surfUV * 6.0) - 0.5;\n"
     "        float mz = noise(surfUV * 6.0 + vec2(3.7, 1.2)) - 0.5;\n"
-    "        norm = normalize(norm + vec3(mx, 0.0, mz) * 0.03);\n"
-    "        specMult = 0.4;\n"
+    "        norm = normalize(norm + vec3(mx, 0.0, mz) * 0.05);\n"
+    "        specMult = 0.45;\n"
     "    }\n"
     "    else if (materialId == 2) {\n"
     "        // WOOD — grain color + grain normal ridges\n"
@@ -160,7 +160,7 @@ static const char *fs_source =
     "        grain = smoothstep(0.35, 0.65, grain);\n"
     "        baseColor *= 0.90 + grain * 0.10;\n"
     "        // Grain ridges — subtle bumps along grain direction\n"
-    "        float grainBump = cos(surfUV.y * 24.0 + noise(surfUV * 3.0) * 4.0) * 0.04;\n"
+    "        float grainBump = cos(surfUV.y * 24.0 + noise(surfUV * 3.0) * 4.0) * 0.06;\n"
     "        norm = normalize(norm + vec3(0.0, 0.0, grainBump));\n"
     "        specMult = 0.12;\n"
     "    }\n"
@@ -171,7 +171,7 @@ static const char *fs_source =
     "        // Pile direction — random micro-normal for soft scattering\n"
     "        float cx = noise(surfUV * 8.0) - 0.5;\n"
     "        float cz = noise(surfUV * 8.0 + vec2(2.1, 0.7)) - 0.5;\n"
-    "        norm = normalize(norm + vec3(cx, 0.0, cz) * 0.10);\n"
+    "        norm = normalize(norm + vec3(cx, 0.0, cz) * 0.14);\n"
     "        specMult = 0.02;\n"
     "    }\n"
     "    else if (materialId == 4) {\n"
@@ -185,9 +185,8 @@ static const char *fs_source =
     "        vec2 tileUV = fract(surfUV * 3.0);\n"
     "        float grout = smoothstep(0.03, 0.08, tileUV.x) * smoothstep(0.03, 0.08, tileUV.y);\n"
     "        baseColor *= mix(0.80, 1.0, grout);\n"
-    "        // Grout recesses depress the normal, tiles are slightly convex\n"
-    "        float tileCenter = (tileUV.x - 0.5) * (tileUV.y - 0.5);\n"
-    "        norm = normalize(norm + vec3(tileUV.x - 0.5, 0.0, tileUV.y - 0.5) * grout * 0.05);\n"
+    "        // Grout recesses — tiles dome outward, grout sinks\n"
+    "        norm = normalize(norm + vec3(sin((tileUV.x-0.5)*3.14), 0.0, sin((tileUV.y-0.5)*3.14)) * grout * 0.08);\n"
     "        specMult = 0.25;\n"
     "    }\n"
     "    else if (materialId == 6) {\n"
@@ -211,8 +210,8 @@ static const char *fs_source =
     "        baseColor *= 0.94 + n * 0.08;\n"
     "        // Pebble bumps — cellular noise for organic leather grain\n"
     "        float v = voronoi(surfUV * 8.0);\n"
-    "        norm = normalize(norm + vec3(v - 0.5, 0.0, v - 0.5) * 0.07);\n"
-    "        specMult = 0.18;\n"
+    "        norm = normalize(norm + vec3(v - 0.5, 0.0, v - 0.5) * 0.11);\n"
+    "        specMult = 0.22;\n"
     "    }\n"
     "    else if (materialId == 9) {\n"
     "        // FABRIC — soft, nearly flat with subtle noise\n"
@@ -224,7 +223,7 @@ static const char *fs_source =
     "        // CHECKERBOARD — two-tone with per-tile slight normal tilt\n"
     "        vec2 checker = floor(surfUV * 2.0);\n"
     "        float check = mod(checker.x + checker.y, 2.0);\n"
-    "        baseColor *= mix(0.75, 1.0, check);\n"
+    "        baseColor *= mix(0.62, 1.0, check);\n"
     "        // Each tile has a very slight random tilt — broken perfection\n"
     "        float tiltX = noise(checker) - 0.5;\n"
     "        float tiltZ = noise(checker + vec2(7.3, 2.1)) - 0.5;\n"
@@ -266,7 +265,7 @@ static const char *fs_source =
     "    else if (materialId == 13) {\n"
     "        // VELVET — view-dependent sheen + micro-fiber normal scatter\n"
     "        float NdotV = max(dot(norm, normalize(viewPos - fragPosition)), 0.0);\n"
-    "        float sheen = pow(1.0 - NdotV, 2.0) * 0.2;\n"
+    "        float sheen = pow(1.0 - NdotV, 1.8) * 0.35;\n"
     "        baseColor *= 0.90 + sheen;\n"
     "        // Micro-fiber scatter — random per-pixel normal tilt\n"
     "        float fx = noise(surfUV * 16.0) - 0.5;\n"
@@ -443,7 +442,7 @@ static const char *fs_source =
     "    // ── Rim light — edge catch, architectural silhouette ──\n"
     "    // Uses mix of key + fill for per-scene color variation.\n"
     "    float rim = 1.0 - viewDot;\n"
-    "    rim = pow(rim, 2.0) * 0.35;\n"
+    "    rim = pow(rim, 2.5) * 0.22;\n"
     "    vec3 rimTint = mix(lightColor, fillColor, 0.4);\n"
     "    vec3 rimColor = rimTint * rim;\n"
     "\n"
@@ -451,19 +450,19 @@ static const char *fs_source =
     "    // Variable hardness: rough materials = broad soft highlight,\n"
     "    // smooth materials = tight sharp highlight.\n"
     "    float specPower = 32.0;\n"
-    "    if (materialId == 6) specPower = 48.0;\n"       // brass — tight
-    "    else if (materialId == 7) specPower = 64.0;\n"  // glass — very tight
+    "    if (materialId == 6) specPower = 72.0;\n"       // brass — razor sharp
+    "    else if (materialId == 7) specPower = 96.0;\n"  // glass — mirror tight
     "    else if (materialId == 1) specPower = 48.0;\n"  // marble — polished
     "    else if (materialId == 2) specPower = 16.0;\n"  // wood — broad
     "    else if (materialId == 3) specPower = 4.0;\n"   // carpet — almost none
     "    else if (materialId == 9) specPower = 6.0;\n"   // fabric — almost none
     "    else if (materialId == 13) specPower = 8.0;\n"  // velvet — soft sheen
     "    else if (materialId == 8) specPower = 12.0;\n"  // leather — broad
-    "    else if (materialId == 14) specPower = 128.0;\n" // water — razor-sharp sun glint
+    "    else if (materialId == 14) specPower = 180.0;\n" // water — razor sun glint
     "    else if (materialId == 15) specPower = 96.0;\n"  // puddle — tight wet highlight
     "    vec3 halfDir = normalize(-lightDir + viewDir);\n"
     "    float spec = pow(max(dot(norm, halfDir), 0.0), specPower);\n"
-    "    vec3 specColor = lightColor * spec * specMult;\n"
+    "    vec3 specColor = lightColor * spec * specMult * 1.3;\n"
     "\n"
     "    // ── Ambient Occlusion — multi-factor ──\n"
     "    // 1) Normal vs up — downward-facing surfaces darken\n"

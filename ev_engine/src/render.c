@@ -141,7 +141,7 @@ static const char *postfx_fs =
     "    float b = texture(texture0, uv - caOffset).b;\n"
     "    vec3 col = vec3(r, g, b);\n"
     "    // Blend FXAA — smooth edges while preserving CA character\n"
-    "    col = mix(col, fxaa, 0.5);\n"
+    "    col = mix(col, fxaa, 0.3);\n"
     "\n"
     "    // --- Sharpening — unsharp mask ---\n"
     "    if (sharpenAmt > 0.0) {\n"
@@ -185,8 +185,8 @@ static const char *postfx_fs =
     "        float neighbor_luma = dot(texture(texture0, uv + offset).rgb, vec3(0.299, 0.587, 0.114));\n"
     "        ao_accum += max(0.0, center_luma - neighbor_luma);\n"
     "    }\n"
-    "    float ssao = 1.0 - ao_accum * 0.45;\n"
-    "    col *= max(ssao, 0.55);\n"
+    "    float ssao = 1.0 - ao_accum * 0.28;\n"
+    "    col *= max(ssao, 0.65);\n"
     "\n"
     "    // --- Exposure ---\n"
     "    col *= exp2(exposure);\n"
@@ -256,8 +256,8 @@ static const char *postfx_fs =
     "    }\n"
     "\n"
     "    // --- Vignette — gentle, not crushing ---\n"
-    "    float vig = 1.0 - dot((uv - 0.5) * 0.85, (uv - 0.5) * 0.85);\n"
-    "    vig = clamp(pow(vig, 0.8), 0.0, 1.0);\n"
+    "    float vig = 1.0 - dot((uv - 0.5) * 1.0, (uv - 0.5) * 1.0);\n"
+    "    vig = clamp(pow(vig, 0.7), 0.0, 1.0);\n"
     "    float vigDark = mix(0.85, 1.0, vig);\n"
     "    col *= mix(1.0, vigDark, vignetteAmt);\n"
     "\n"
@@ -1202,14 +1202,14 @@ void draw_dust_motes(Camera3D camera, float time) {
         float dx = px - camera.position.x;
         float dz = pz - camera.position.z;
         float dist = sqrtf(dx * dx + dz * dz);
-        if (dist > 8.0f) continue;
+        if (dist > 12.0f) continue;
 
         // Slight size variation
-        float radius = 0.015f + fmodf((float)i * 0.13f, 0.015f);
+        float radius = 0.018f + fmodf((float)i * 0.13f, 0.018f);
 
         // Fade with distance
-        float alpha_f = 1.0f - (dist / 8.0f);
-        unsigned char a = (unsigned char)(60.0f * alpha_f);
+        float alpha_f = 1.0f - (dist / 12.0f);
+        unsigned char a = (unsigned char)(70.0f * alpha_f);
 
         DrawSphere((Vector3){px, py, pz}, radius, (Color){240, 235, 225, a});
     }
@@ -1415,10 +1415,10 @@ void draw_earth(Camera3D camera, float time,
         float glow_y = (float)RENDER_H * 0.7f;
         float glow_h = (float)RENDER_H * 0.3f;
         float pulse = 0.7f + 0.3f * sinf(time * 0.6f);
-        unsigned char ga = (unsigned char)(10.0f * pulse);
+        unsigned char ga = (unsigned char)(20.0f * pulse);
         EndMode3D();
         DrawRectangle(0, (int)glow_y, RENDER_W, (int)glow_h,
-                      (Color){35, 90, 190, ga});
+                      (Color){50, 110, 220, ga});
         BeginMode3D(camera);
     }
 
