@@ -325,7 +325,11 @@ void paris_dream_update(float dt) {
                     if (strcmp(obj->name, "photograph") == 0) {
                         obj->step++; obj->done = true;
                         kick_camera(&g.player, -0.04f, 0.02f);
-                        show_text("It's blank.");
+                        // Memory fails — the photo empties
+                        if (g.backstory[0] == 1)  // "After" — you can't remember what you were trying to save
+                            show_text("You can't remember her face.");
+                        else
+                            show_text("It's blank.");
                         g.done_pause = -2.0f;
                     } else if (strcmp(obj->name, "window") == 0) {
                         obj->step++; obj->done = true;

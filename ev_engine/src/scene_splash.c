@@ -16,19 +16,19 @@ void transition_to(GameState s);
 
 // ── Option A: prologue questions ──
 static const char *prologue_questions[] = {
-    "The hotel was booked in",
+    "The booking was made",
     "You packed",
-    "The second ticket is",
+    "The second ticket",
 };
 static const char *prologue_a[] = {
-    "January. Before everything.",
+    "Before.",
     "Light. One bag.",
-    "In your pocket.",
+    "Is in your pocket.",
 };
 static const char *prologue_b[] = {
-    "March. After she left.",
-    "Everything she forgot.",
-    "On the seat beside you.",
+    "After.",
+    "Everything she left behind.",
+    "Is on the seat beside you.",
 };
 #define PROLOGUE_COUNT 3
 

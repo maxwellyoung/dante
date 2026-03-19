@@ -33,11 +33,11 @@ void lobby_load(void) {
         };
         init_npc(&g.gibbons, (Vector3){-3, 1.6f, -7}, lobby_wps, 3, 2.0f, 4.0f);
         static const char *lobby_lines[] = {
-            "You made it. I had a feeling.",
-            "I've been here... a while. The building settles at night.",
-            "The elevator. It goes further than you'd think.",
+            "Ah. We have your reservation.",
+            "The building makes sounds at night. They're structural.",
+            "The elevator knows the way.",
         };
-        npc_set_dialogue(&g.gibbons, lobby_lines, 3, 3.0f);
+        npc_set_dialogue(&g.gibbons, lobby_lines, 3, 3.5f);
     }
 }
 
@@ -108,9 +108,5 @@ void lobby_update(float dt) {
             }
         }
     }
-    // Gibbons dialogue
-    {
-        const char *line = npc_current_dialogue(&g.gibbons);
-        if (line) show_text(line);
-    }
+    // Gibbons dialogue — handled by main.c dialogue system
 }

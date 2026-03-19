@@ -46,12 +46,12 @@ void space_lobby_load(void) {
         };
         init_npc(&g.gibbons, (Vector3){2, 1.6f, 4}, lobby_wps, 4, 2.5f, 3.5f);
         static const char *lobby_lines[] = {
-            "There you are. I was beginning to worry.",
-            "The window. You should see it before...",
-            "This way. I'll take you up.",
-            "After you. I insist.",
+            "The room's been ready for some time.",
+            "The window. Most people need a moment.",
+            "The corridor's longer than it looks.",
+            "I'll be nearby.",
         };
-        npc_set_dialogue(&g.gibbons, lobby_lines, 4, 3.0f);
+        npc_set_dialogue(&g.gibbons, lobby_lines, 4, 3.5f);
     }
 }
 

@@ -226,6 +226,7 @@ typedef enum {
     STATE_CLEANED_SUITE,
     STATE_MONTAGE,
     STATE_RETURN_TAXI,
+    STATE_SHELL_TEST,   // dev-only: shell system validation
 } GameState;
 
 typedef enum {

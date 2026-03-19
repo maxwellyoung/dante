@@ -22,6 +22,8 @@ from mathutils import Vector, Matrix, Euler
 # CLEANUP
 # ─────────────────────────────────────────────────────────────────────
 
+if bpy.context.active_object and bpy.context.active_object.mode != 'OBJECT':
+    bpy.ops.object.mode_set(mode='OBJECT')
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete()
 for m in list(bpy.data.meshes):
@@ -75,30 +77,65 @@ ALL_MATS = [MAT_HEAD, MAT_JACKET, MAT_TROUSERS, MAT_BUTTONS, MAT_HALO,
 
 parts = []  # (obj, material, bone_name)
 
-def add_cube(name, loc, scale, mat, bone):
-    """Add a cube part. loc/scale are (x, y, z) in Blender coords."""
+def smooth(obj):
+    """Apply smooth shading without operator context issues."""
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+
+def ensure_object_mode():
+    if bpy.context.active_object and bpy.context.active_object.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+def add_cube(name, loc, scale, mat, bone, bevel=0.02, subdiv=0):
+    """Beveled cube — reads as manufactured, not raw Minecraft box."""
+    ensure_object_mode()
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
     obj = bpy.context.active_object
     obj.name = name
     obj.scale = scale
     bpy.ops.object.transform_apply(scale=True)
+    if bevel > 0:
+        mod = obj.modifiers.new("Bevel", "BEVEL")
+        mod.width = bevel
+        mod.segments = 2
+        mod.limit_method = 'ANGLE'
+        bpy.ops.object.modifier_apply(modifier="Bevel")
+    if subdiv > 0:
+        mod = obj.modifiers.new("Subsurf", "SUBSURF")
+        mod.levels = subdiv
+        mod.render_levels = subdiv
+        bpy.ops.object.modifier_apply(modifier="Subsurf")
+    smooth(obj)
     parts.append((obj, mat, bone))
     return obj
 
-def add_cylinder(name, loc, radius, depth, mat, bone, verts=8, rot=(0,0,0)):
-    """Add a cylinder part."""
+def add_cylinder(name, loc, radius, depth, mat, bone, verts=12, rot=(0,0,0)):
+    """Smooth cylinder."""
     bpy.ops.mesh.primitive_cylinder_add(
         radius=radius, depth=depth, vertices=verts,
         location=loc, rotation=rot
     )
     obj = bpy.context.active_object
     obj.name = name
+    smooth(obj)
     parts.append((obj, mat, bone))
     return obj
 
-# ── Proportions (Blender Z-up, scaled to 1.30m total) ──
-# Chunkier than cube-person: bigger head ratio, thicker limbs
-# Think Brendon Chung characters crossed with vinyl toys
+def add_sphere(name, loc, radius, mat, bone, segments=12, rings=8):
+    """UV sphere for head, etc."""
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        radius=radius, segments=segments, ring_count=rings,
+        location=loc
+    )
+    obj = bpy.context.active_object
+    obj.name = name
+    smooth(obj)
+    parts.append((obj, mat, bone))
+    return obj
+
+# ── Proportions (Blender Z-up, ~1.30m total) ──
+# Vinyl toy meets Gravity Bone. Chunky but SMOOTH.
+# Beveled edges, subdivided organics, smooth shading throughout.
 
 shoe_h = 0.07;  shoe_w = 0.18;  shoe_d = 0.22
 shin_h = 0.15;  shin_w = 0.17
@@ -107,10 +144,10 @@ body_w = 0.40;  body_h = 0.32;  body_d = 0.26
 shoulder_w = 0.48; shoulder_h = 0.07
 upper_arm_w = 0.14; upper_arm_h = 0.14
 forearm_w = 0.13; forearm_h = 0.13
-hand_s = 0.09
-head_w = 0.30; head_h = 0.32; head_d = 0.26
-cap_w = 0.34; cap_h = 0.09
-neck_w = 0.13; neck_h = 0.04
+hand_s = 0.10
+head_r = 0.22   # BIGGER head — Pixar proportions
+cap_w = 0.38; cap_h = 0.10
+neck_w = 0.14; neck_h = 0.04
 tie_w = 0.10; tie_h = 0.22
 
 # ── Vertical stack (Z-up in Blender) ──
@@ -121,107 +158,124 @@ hip_z = knee_z + thigh_h
 torso_mid_z = hip_z + body_h / 2
 shoulder_z = hip_z + body_h
 neck_top_z = shoulder_z + shoulder_h + neck_h
-head_z = neck_top_z + head_h / 2
-cap_z = neck_top_z + head_h + cap_h / 2
+head_z = neck_top_z + head_r  # sphere center
+cap_z = neck_top_z + head_r * 2 + cap_h / 2
 
-total_h = neck_top_z + head_h + cap_h
+total_h = neck_top_z + head_r * 2 + cap_h
 print(f"[GIBBONS] Total height: {total_h:.3f}m (target: 1.30m)")
 
-leg_spread = body_w * 0.30  # lateral spread
+leg_spread = body_w * 0.30
 
-# ── SHOES ──
-add_cube("Shoe_L", (-leg_spread, 0.02, foot_z + shoe_h/2), (shoe_w, shoe_d, shoe_h), MAT_SHOES, "Foot_L")
-add_cube("Shoe_R", ( leg_spread, 0.02, foot_z + shoe_h/2), (shoe_w, shoe_d, shoe_h), MAT_SHOES, "Foot_R")
+# ── SHOES — rounded, grounded ──
+add_cube("Shoe_L", (-leg_spread, 0.02, foot_z + shoe_h/2), (shoe_w, shoe_d, shoe_h), MAT_SHOES, "Foot_L", bevel=0.015)
+add_cube("Shoe_R", ( leg_spread, 0.02, foot_z + shoe_h/2), (shoe_w, shoe_d, shoe_h), MAT_SHOES, "Foot_R", bevel=0.015)
 
-# ── SHINS ──
-add_cube("Shin_L", (-leg_spread, 0, ankle_z + shin_h/2), (shin_w, shin_w, shin_h), MAT_TROUSERS, "Shin_L")
-add_cube("Shin_R", ( leg_spread, 0, ankle_z + shin_h/2), (shin_w, shin_w, shin_h), MAT_TROUSERS, "Shin_R")
-
-# ── THIGHS ──
-add_cube("Thigh_L", (-leg_spread, 0, knee_z + thigh_h/2), (thigh_w, thigh_w, thigh_h), MAT_TROUSERS, "Thigh_L")
-add_cube("Thigh_R", ( leg_spread, 0, knee_z + thigh_h/2), (thigh_w, thigh_w, thigh_h), MAT_TROUSERS, "Thigh_R")
+# ── LEGS — cylinders for organic limb feel ──
+add_cylinder("Shin_L", (-leg_spread, 0, ankle_z + shin_h/2), shin_w/2, shin_h, MAT_TROUSERS, "Shin_L")
+add_cylinder("Shin_R", ( leg_spread, 0, ankle_z + shin_h/2), shin_w/2, shin_h, MAT_TROUSERS, "Shin_R")
+add_cylinder("Thigh_L", (-leg_spread, 0, knee_z + thigh_h/2), thigh_w/2, thigh_h, MAT_TROUSERS, "Thigh_L")
+add_cylinder("Thigh_R", ( leg_spread, 0, knee_z + thigh_h/2), thigh_w/2, thigh_h, MAT_TROUSERS, "Thigh_R")
 
 # ── BELT ──
 belt_h = 0.04
-add_cube("Belt", (0, 0, hip_z + belt_h/2), (body_w + 0.02, body_d + 0.01, belt_h), MAT_BELT, "Spine")
-# Belt buckle
-add_cube("Buckle", (0, -body_d/2 - 0.01, hip_z + belt_h/2), (0.04, 0.02, 0.04), MAT_BUTTONS, "Spine")
+add_cube("Belt", (0, 0, hip_z + belt_h/2), (body_w + 0.02, body_d + 0.01, belt_h), MAT_BELT, "Spine", bevel=0.008)
+add_cube("Buckle", (0, -body_d/2 - 0.01, hip_z + belt_h/2), (0.04, 0.02, 0.04), MAT_BUTTONS, "Spine", bevel=0.005)
 
-# ── TORSO ──
-add_cube("Torso", (0, 0, torso_mid_z), (body_w, body_d, body_h), MAT_JACKET, "Spine")
+# ── TORSO — beveled + subdivided for soft volume ──
+add_cube("Torso", (0, 0, torso_mid_z), (body_w, body_d, body_h), MAT_JACKET, "Spine", bevel=0.03, subdiv=1)
 
 # ── TIE ──
-add_cube("Tie", (0, -body_d/2 - 0.005, torso_mid_z + 0.04), (tie_w, 0.02, tie_h), MAT_TIE, "Chest")
+add_cube("Tie", (0, -body_d/2 - 0.005, torso_mid_z + 0.04), (tie_w, 0.02, tie_h), MAT_TIE, "Chest", bevel=0.008)
 
 # ── LAPELS ──
 lapel_w = 0.07; lapel_h = 0.24
 add_cube("Lapel_L", (-body_w/2 + lapel_w/2 + 0.02, -body_d/2 - 0.004, torso_mid_z + 0.06),
-         (lapel_w, 0.015, lapel_h), MAT_CUFF, "Chest")
+         (lapel_w, 0.015, lapel_h), MAT_CUFF, "Chest", bevel=0.005)
 add_cube("Lapel_R", ( body_w/2 - lapel_w/2 - 0.02, -body_d/2 - 0.004, torso_mid_z + 0.06),
-         (lapel_w, 0.015, lapel_h), MAT_CUFF, "Chest")
+         (lapel_w, 0.015, lapel_h), MAT_CUFF, "Chest", bevel=0.005)
 
 # ── POCKET SQUARE ──
 add_cube("Pocket", (-body_w/2 + 0.08, -body_d/2 - 0.004, shoulder_z - 0.07),
-         (0.10, 0.012, 0.06), MAT_HEAD, "Chest")
+         (0.10, 0.012, 0.06), MAT_HEAD, "Chest", bevel=0.003)
 
-# ── BUTTONS (4) ──
+# ── BUTTONS — small spheres ──
 for i, bz in enumerate([torso_mid_z + 0.10, torso_mid_z - 0.04]):
     for j, bx in enumerate([0.06, -0.06]):
-        add_cube(f"Button_{i}_{j}", (bx, -body_d/2 - 0.008, bz),
-                 (0.035, 0.015, 0.035), MAT_BUTTONS, "Chest")
+        add_sphere(f"Button_{i}_{j}", (bx, -body_d/2 - 0.012, bz),
+                   0.018, MAT_BUTTONS, "Chest", segments=8, rings=6)
 
-# ── SHOULDERS ──
-add_cube("Shoulders", (0, 0, shoulder_z + shoulder_h/2), (shoulder_w, body_d, shoulder_h), MAT_JACKET, "Chest")
+# ── SHOULDERS — rounded ──
+add_cube("Shoulders", (0, 0, shoulder_z + shoulder_h/2), (shoulder_w, body_d, shoulder_h), MAT_JACKET, "Chest", bevel=0.02)
 
-# ── ARMS ──
+# ── ARMS — cylinders for proper limb read ──
 arm_x = shoulder_w/2 + upper_arm_w/2
 
-# Left arm
-add_cube("UpperArm_L", (-arm_x, 0, shoulder_z - upper_arm_h/2), (upper_arm_w, upper_arm_w, upper_arm_h), MAT_JACKET, "UpperArm_L")
-add_cube("Forearm_L", (-arm_x, 0, shoulder_z - upper_arm_h - forearm_h/2), (forearm_w, forearm_w, forearm_h), MAT_CUFF, "Forearm_L")
-add_cube("Hand_L", (-arm_x, 0, shoulder_z - upper_arm_h - forearm_h - hand_s/2), (hand_s, hand_s, hand_s), MAT_HEAD, "Hand_L")
+add_cylinder("UpperArm_L", (-arm_x, 0, shoulder_z - upper_arm_h/2), upper_arm_w/2, upper_arm_h, MAT_JACKET, "UpperArm_L")
+add_cylinder("Forearm_L",  (-arm_x, 0, shoulder_z - upper_arm_h - forearm_h/2), forearm_w/2, forearm_h, MAT_CUFF, "Forearm_L")
+add_sphere("Hand_L", (-arm_x, 0, shoulder_z - upper_arm_h - forearm_h - hand_s/2), hand_s/2, MAT_HEAD, "Hand_L", segments=8, rings=6)
 
-# Right arm
-add_cube("UpperArm_R", ( arm_x, 0, shoulder_z - upper_arm_h/2), (upper_arm_w, upper_arm_w, upper_arm_h), MAT_JACKET, "UpperArm_R")
-add_cube("Forearm_R", ( arm_x, 0, shoulder_z - upper_arm_h - forearm_h/2), (forearm_w, forearm_w, forearm_h), MAT_CUFF, "Forearm_R")
-add_cube("Hand_R", ( arm_x, 0, shoulder_z - upper_arm_h - forearm_h - hand_s/2), (hand_s, hand_s, hand_s), MAT_HEAD, "Hand_R")
+add_cylinder("UpperArm_R", ( arm_x, 0, shoulder_z - upper_arm_h/2), upper_arm_w/2, upper_arm_h, MAT_JACKET, "UpperArm_R")
+add_cylinder("Forearm_R",  ( arm_x, 0, shoulder_z - upper_arm_h - forearm_h/2), forearm_w/2, forearm_h, MAT_CUFF, "Forearm_R")
+add_sphere("Hand_R", ( arm_x, 0, shoulder_z - upper_arm_h - forearm_h - hand_s/2), hand_s/2, MAT_HEAD, "Hand_R", segments=8, rings=6)
 
-# ── BRIEFCASE (left hand) ──
+# ── BRIEFCASE — beveled leather ──
 case_w = 0.26; case_h = 0.18; case_d = 0.10
 case_z = shoulder_z - upper_arm_h - forearm_h - hand_s - case_h/2
-add_cube("Briefcase", (-arm_x, 0, case_z), (case_d, case_w, case_h), MAT_CASE, "Hand_L")
-# Briefcase latch
-add_cube("Latch", (-arm_x, -case_w/2 - 0.008, case_z + case_h * 0.3), (0.03, 0.02, 0.04), MAT_BUTTONS, "Hand_L")
-# Briefcase handle
-add_cube("CaseHandle", (-arm_x, 0, case_z + case_h/2 + 0.015), (0.02, 0.08, 0.02), MAT_BELT, "Hand_L")
+add_cube("Briefcase", (-arm_x, 0, case_z), (case_d, case_w, case_h), MAT_CASE, "Hand_L", bevel=0.01)
+add_cube("Latch", (-arm_x, -case_w/2 - 0.008, case_z + case_h * 0.3), (0.03, 0.02, 0.04), MAT_BUTTONS, "Hand_L", bevel=0.004)
+add_cube("CaseHandle", (-arm_x, 0, case_z + case_h/2 + 0.015), (0.02, 0.08, 0.02), MAT_BELT, "Hand_L", bevel=0.003)
 
-# ── NECK ──
-add_cylinder("Neck", (0, 0, shoulder_z + shoulder_h + neck_h/2), neck_w/2, neck_h, MAT_HEAD, "Neck", verts=8)
+# ── NECK — smooth cylinder ──
+add_cylinder("Neck", (0, 0, shoulder_z + shoulder_h + neck_h/2), neck_w/2, neck_h, MAT_HEAD, "Neck")
 
-# ── HEAD ──
-add_cube("Head", (0, 0, head_z), (head_w, head_d, head_h), MAT_HEAD, "Head")
+# ── HEAD — SPHERE (the signature vinyl toy look) ──
+add_sphere("Head", (0, 0, head_z), head_r, MAT_HEAD, "Head", segments=16, rings=12)
 
-# ── EYES ──
-eye_z = head_z + head_h * 0.08
-eye_x = head_w * 0.24
-eye_y = -head_d/2 - 0.006
-add_cube("Eye_L", (-eye_x, eye_y, eye_z), (0.055, 0.015, 0.04), MAT_EYES, "Head")
-add_cube("Eye_R", ( eye_x, eye_y, eye_z), (0.055, 0.015, 0.04), MAT_EYES, "Head")
+# ── EYES — bigger, more expressive ──
+eye_z = head_z + head_r * 0.15
+eye_x = head_r * 0.40
+eye_y = -head_r * 0.88
+add_sphere("Eye_L", (-eye_x, eye_y, eye_z), 0.038, MAT_EYES, "Head", segments=10, rings=8)
+add_sphere("Eye_R", ( eye_x, eye_y, eye_z), 0.038, MAT_EYES, "Head", segments=10, rings=8)
+# Pupils — dark dots inside eyes
+MAT_PUPIL = make_mat("EV_Gibbons_Pupil", 15, 12, 10, 0.0, 0.90)
+add_sphere("Pupil_L", (-eye_x, eye_y - 0.02, eye_z), 0.018, MAT_PUPIL, "Head", segments=6, rings=4)
+add_sphere("Pupil_R", ( eye_x, eye_y - 0.02, eye_z), 0.018, MAT_PUPIL, "Head", segments=6, rings=4)
 
-# ── MOUTH ──
-add_cube("Mouth", (0, eye_y, head_z - head_h * 0.20), (0.08, 0.015, 0.02), MAT_MOUTH, "Head")
+# ── EYEBROWS — expressive, on face bones ──
+brow_z = eye_z + 0.045
+brow_y = eye_y + 0.005
+add_cube("Brow_L", (-eye_x, brow_y, brow_z), (0.05, 0.012, 0.015), MAT_BELT, "Brow_L", bevel=0.004)
+add_cube("Brow_R", ( eye_x, brow_y, brow_z), (0.05, 0.012, 0.015), MAT_BELT, "Brow_R", bevel=0.004)
 
-# ── CAP — THE BEACON ──
-add_cube("Cap", (0, 0, cap_z), (cap_w, cap_w, cap_h), MAT_CAP, "Head")
-# Cap brim
-add_cube("Brim", (0, -head_d * 0.25, cap_z - cap_h * 0.35),
-         (cap_w + 0.08, cap_w * 0.5, 0.025), MAT_CAP, "Head")
-# Cap band — gold
-add_cube("CapBand", (0, 0, cap_z - cap_h * 0.30), (cap_w + 0.015, cap_w + 0.015, 0.028), MAT_HALO, "Head")
+# ── NOSE — small sphere, reads as character ──
+nose_z = head_z - head_r * 0.05
+nose_y = -head_r * 0.95
+add_sphere("Nose", (0, nose_y, nose_z), 0.025, MAT_HEAD, "Head", segments=8, rings=6)
 
-# ── HALO — gold ring floating above cap ──
-add_cylinder("Halo", (0, 0, cap_z + cap_h/2 + 0.06), 0.20, 0.02, MAT_HALO, "Head", verts=16)
-# Inner cutout approximated by smaller cylinder (will read as ring at distance)
+# ── MOUTH — on jaw bone for open/close ──
+mouth_z = head_z - head_r * 0.40
+add_cube("Mouth", (0, eye_y - 0.01, mouth_z), (0.06, 0.01, 0.015), MAT_MOUTH, "Jaw", bevel=0.003)
+
+# ── CAP — beveled, sits on sphere head ──
+add_cube("Cap", (0, 0, neck_top_z + head_r * 1.6), (cap_w, cap_w, cap_h), MAT_CAP, "Head", bevel=0.015)
+# Cap brim — forward overhang
+brim_z = neck_top_z + head_r * 1.6 - cap_h * 0.35
+add_cube("Brim", (0, -head_r * 0.6, brim_z),
+         (cap_w + 0.08, cap_w * 0.5, 0.025), MAT_CAP, "Head", bevel=0.008)
+# Cap band — gold trim
+add_cube("CapBand", (0, 0, brim_z), (cap_w + 0.015, cap_w + 0.015, 0.028), MAT_HALO, "Head", bevel=0.005)
+
+# ── HALO — torus ring floating above cap ──
+bpy.ops.mesh.primitive_torus_add(
+    major_radius=0.18, minor_radius=0.012,
+    major_segments=24, minor_segments=8,
+    location=(0, 0, neck_top_z + head_r * 2 + cap_h + 0.04)
+)
+halo = bpy.context.active_object
+halo.name = "Halo"
+smooth(halo)
+parts.append((halo, MAT_HALO, "Head"))
 
 print(f"[GIBBONS] {len(parts)} parts created")
 
@@ -262,7 +316,8 @@ for obj, mat, bone in parts:
             face.material_index = mi
 
 # Step 2: Join
-bpy.ops.object.select_all(action='DESELECT')
+ensure_object_mode()
+ensure_object_mode(); bpy.ops.object.select_all(action='DESELECT')
 for obj, mat, bone in parts:
     obj.select_set(True)
 bpy.context.view_layer.objects.active = main_obj
@@ -328,7 +383,12 @@ add_bone("Hips",    (0, 0, root_z), (0, 0, root_z + 0.05), "Root", True)
 add_bone("Spine",   (0, 0, root_z + 0.05), (0, 0, torso_mid_z), "Hips", True)
 add_bone("Chest",   (0, 0, torso_mid_z), (0, 0, shoulder_z), "Spine", True)
 add_bone("Neck",    (0, 0, shoulder_z + shoulder_h), (0, 0, neck_top_z), "Chest")
-add_bone("Head",    (0, 0, neck_top_z), (0, 0, neck_top_z + head_h + cap_h), "Neck", True)
+add_bone("Head",    (0, 0, neck_top_z), (0, 0, neck_top_z + head_r * 2 + cap_h), "Neck", True)
+
+# Face bones — expressions
+add_bone("Brow_L",  (-eye_x, 0, brow_z), (-eye_x, 0, brow_z + 0.03), "Head")
+add_bone("Brow_R",  ( eye_x, 0, brow_z), ( eye_x, 0, brow_z + 0.03), "Head")
+add_bone("Jaw",     (0, 0, mouth_z),      (0, 0, mouth_z - 0.03), "Head")
 
 # Left leg
 add_bone("Thigh_L", (-leg_spread, 0, hip_z),    (-leg_spread, 0, knee_z), "Hips")
@@ -420,7 +480,7 @@ for v in mesh.vertices:
     elif vz < hip_z + 0.02 and abs(vx) > 0.02:
         bone = "Thigh_L" if vx < 0 else "Thigh_R"
     # ── Head region ──
-    elif vz > neck_top_z - 0.02 and abs(vx) < head_w:
+    elif vz > neck_top_z - 0.02 and abs(vx) < head_r * 2:
         bone = "Head"
     # ── Neck ──
     elif vz > shoulder_z + shoulder_h - 0.01 and vz < neck_top_z + 0.02 and abs(vx) < neck_w:
@@ -548,6 +608,16 @@ key_bone_rot("Chest", 48, (0, 0, 0))
 key_bone_rot("Head",  48, (0, 0, 0))
 key_bone_loc("Root",  48, (0, 0, 0))
 
+# Bow expressions: humble pleased smile, brows up
+key_bone_rot("Brow_L", 1, (0, 0, 0)); key_bone_rot("Brow_R", 1, (0, 0, 0))
+key_bone_rot("Jaw", 1, (0, 0, 0))
+key_bone_rot("Brow_L", 12, (15, 0, 0)); key_bone_rot("Brow_R", 12, (15, 0, 0))  # brows up — humble
+key_bone_rot("Jaw", 12, (-5, 0, 0))  # slight smile
+key_bone_rot("Brow_L", 36, (10, 0, 0)); key_bone_rot("Brow_R", 36, (10, 0, 0))
+key_bone_rot("Jaw", 36, (-3, 0, 0))
+key_bone_rot("Brow_L", 48, (0, 0, 0)); key_bone_rot("Brow_R", 48, (0, 0, 0))
+key_bone_rot("Jaw", 48, (0, 0, 0))
+
 print("[GIBBONS] A_Bow action created (48 frames)")
 
 # ── ACTION 2: "B_Gesture" (anim index 1) ──
@@ -582,6 +652,16 @@ key_bone_rot("Forearm_R",  36, (0, 0, 0))
 key_bone_rot("Chest",      36, (0, 0, 0))
 key_bone_rot("Head",       36, (0, 0, 0))
 
+# Gesture expressions: encouraging, one brow up, mouth open
+key_bone_rot("Brow_L", 1, (0, 0, 0)); key_bone_rot("Brow_R", 1, (0, 0, 0))
+key_bone_rot("Jaw", 1, (0, 0, 0))
+key_bone_rot("Brow_L", 10, (8, 0, 0)); key_bone_rot("Brow_R", 10, (20, 0, 0))  # asymmetric — character!
+key_bone_rot("Jaw", 10, (-8, 0, 0))  # mouth open — "right this way"
+key_bone_rot("Brow_L", 24, (8, 0, 0)); key_bone_rot("Brow_R", 24, (20, 0, 0))
+key_bone_rot("Jaw", 24, (-6, 0, 0))
+key_bone_rot("Brow_L", 36, (0, 0, 0)); key_bone_rot("Brow_R", 36, (0, 0, 0))
+key_bone_rot("Jaw", 36, (0, 0, 0))
+
 print("[GIBBONS] B_Gesture action created (36 frames)")
 
 # ── ACTION 3: "C_Idle" (anim index 2) ──
@@ -593,27 +673,43 @@ reset_pose()
 
 for f in range(1, 97, 4):
     t = (f - 1) / 96.0  # 0..1
-    # Breathing — subtle spine expansion
-    breathe = math.sin(t * 2 * PI * 3) * 1.5  # 3 breath cycles
-    # Weight shift — slow lateral lean
-    weight = math.sin(t * 2 * PI) * 2.0
-    # Head wander — slow look around
-    head_y = math.sin(t * 2 * PI * 0.7) * 4.0
-    head_x = math.sin(t * 2 * PI * 1.3) * 2.0
+    # Breathing — exaggerated, visible
+    breathe = math.sin(t * 2 * PI * 3) * 3.0
+    # Weight shift — BIG lateral lean (floppy, alive)
+    weight = math.sin(t * 2 * PI) * 5.0
+    # Head wander — looking around with personality
+    head_y = math.sin(t * 2 * PI * 0.7) * 8.0
+    head_x = math.sin(t * 2 * PI * 1.3) * 4.0
 
-    key_bone_rot("Spine", f, (breathe, 0, weight * 0.3))
-    key_bone_rot("Chest", f, (breathe * 0.5, 0, -weight * 0.2))
-    key_bone_rot("Head",  f, (head_x, head_y, 0))
-    key_bone_rot("Hips",  f, (0, 0, weight * 0.5))
-    key_bone_loc("Root",  f, (weight * 0.003, 0, breathe * 0.001))
+    key_bone_rot("Spine", f, (breathe, 0, weight * 0.5))
+    key_bone_rot("Chest", f, (breathe * 0.5, 0, -weight * 0.3))
+    key_bone_rot("Head",  f, (head_x, head_y, weight * 0.2))
+    key_bone_rot("Hips",  f, (0, 0, weight * 0.8))
+    key_bone_loc("Root",  f, (weight * 0.005, 0, breathe * 0.002))
 
-    # Tie fidget — right arm lifts slightly every ~2 seconds
+    # Tie fidget — right arm lifts, more dramatic
     tie_fidget = 0
-    cycle = (t * 4) % 1.0  # 4 fidget opportunities per loop
+    cycle = (t * 4) % 1.0
     if 0.3 < cycle < 0.5:
-        tie_fidget = math.sin((cycle - 0.3) / 0.2 * PI) * 15
-    key_bone_rot("UpperArm_R", f, (tie_fidget * 0.3, 0, 0))
-    key_bone_rot("Forearm_R",  f, (tie_fidget, 0, 0))
+        tie_fidget = math.sin((cycle - 0.3) / 0.2 * PI) * 25
+    key_bone_rot("UpperArm_R", f, (tie_fidget * 0.4, 0, -tie_fidget * 0.1))
+    key_bone_rot("Forearm_R",  f, (tie_fidget * 1.2, 0, 0))
+
+    # Left arm briefcase sway
+    case_sway = math.sin(t * 2 * PI * 0.5) * 5
+    key_bone_rot("UpperArm_L", f, (case_sway, 0, 0))
+
+    # Face — contemplative baseline, occasional surprise
+    brow_base = math.sin(t * 2 * PI * 0.4) * 3  # slow gentle brow movement
+    # Surprise spike at ~75% through loop
+    surprise = 0
+    if 0.7 < t < 0.8:
+        surprise = math.sin((t - 0.7) / 0.1 * PI) * 18
+    key_bone_rot("Brow_L", f, (brow_base + surprise, 0, 0))
+    key_bone_rot("Brow_R", f, (brow_base + surprise * 0.8, 0, 0))  # asymmetric
+    # Jaw — slight movements, opens on surprise
+    jaw_move = math.sin(t * 2 * PI * 0.6) * 2 + surprise * 0.4
+    key_bone_rot("Jaw", f, (-jaw_move, 0, 0))
 
 print("[GIBBONS] C_Idle action created (96 frames)")
 
@@ -628,40 +724,55 @@ for f in range(1, 25):
     t = (f - 1) / 24.0  # 0..1
     phase = t * 2 * PI
 
-    # Legs — opposing swing
-    leg_swing = 25  # degrees
+    # Legs — BIG opposing swing (Pixar walk — exaggerated, bouncy)
+    leg_swing = 40  # degrees — really kick those legs
     l_thigh = math.sin(phase) * leg_swing
     r_thigh = math.sin(phase + PI) * leg_swing
-    # Shins bend back on lift
-    l_shin = max(0, math.sin(phase) * 20)
-    r_shin = max(0, math.sin(phase + PI) * 20)
+    # Shins bend back dramatically on lift
+    l_shin = max(0, math.sin(phase) * 35)
+    r_shin = max(0, math.sin(phase + PI) * 35)
+    # Feet flex
+    l_foot = math.sin(phase) * 12
+    r_foot = math.sin(phase + PI) * 12
 
     key_bone_rot("Thigh_L", f, (l_thigh, 0, 0))
     key_bone_rot("Shin_L",  f, (-l_shin, 0, 0))
+    key_bone_rot("Foot_L",  f, (l_foot, 0, 0))
     key_bone_rot("Thigh_R", f, (r_thigh, 0, 0))
     key_bone_rot("Shin_R",  f, (-r_shin, 0, 0))
+    key_bone_rot("Foot_R",  f, (r_foot, 0, 0))
 
-    # Arms — counter-swing to legs
-    arm_swing = 18
+    # Arms — big counter-swing with forearm lag
+    arm_swing = 30
     key_bone_rot("UpperArm_L", f, (math.sin(phase + PI) * arm_swing, 0, 0))
+    key_bone_rot("Forearm_L",  f, (max(0, math.sin(phase + PI)) * 15, 0, 0))
     key_bone_rot("UpperArm_R", f, (math.sin(phase) * arm_swing, 0, 0))
+    key_bone_rot("Forearm_R",  f, (max(0, math.sin(phase)) * 15, 0, 0))
 
-    # Torso counter-rotation
-    twist = math.sin(phase) * 4
+    # Torso counter-rotation — more twist
+    twist = math.sin(phase) * 8
     key_bone_rot("Spine", f, (0, 0, twist))
-    key_bone_rot("Chest", f, (0, 0, -twist * 0.5))
+    key_bone_rot("Chest", f, (0, 0, -twist * 0.6))
 
-    # Hip sway
-    hip_sway = math.sin(phase) * 3
+    # Hip sway — exaggerated waddle
+    hip_sway = math.sin(phase) * 6
     key_bone_rot("Hips", f, (0, 0, hip_sway))
 
-    # Head bob — vertical bounce at double freq
-    bob = abs(math.sin(phase * 2)) * 2
-    key_bone_rot("Head", f, (-bob, 0, 0))
+    # Head bob + look direction — bouncy, alive
+    bob = abs(math.sin(phase * 2)) * 4
+    head_look = math.sin(phase * 0.5) * 3  # slow look side to side
+    key_bone_rot("Head", f, (-bob, head_look, 0))
+    key_bone_rot("Neck", f, (0, 0, -hip_sway * 0.3))
 
-    # Root bounce
-    bounce = abs(math.sin(phase * 2)) * 0.015
-    key_bone_loc("Root", f, (0, 0, bounce))
+    # Root bounce — big, cartoon-y
+    bounce = abs(math.sin(phase * 2)) * 0.03
+    lateral = math.sin(phase) * 0.01  # side-to-side waddle
+    key_bone_loc("Root", f, (lateral, 0, bounce))
+
+    # Walk face — determined, slight frown, jaw set
+    key_bone_rot("Brow_L", f, (-5, 0, 0))  # brows down — focused
+    key_bone_rot("Brow_R", f, (-5, 0, 0))
+    key_bone_rot("Jaw", f, (-2, 0, 0))  # mouth slightly open from effort
 
 print("[GIBBONS] D_Walk action created (24 frames)")
 
@@ -686,28 +797,10 @@ for action in bpy.data.actions:
 
 print(f"[GIBBONS] {len(bpy.data.actions)} actions pushed to NLA (unmuted)")
 
-# ── PRE-ROTATE TO Y-UP ──
-# Raylib's GLB loader ignores the glTF Y-up root node rotation.
-# Fix: rotate everything -90° X in Blender (Z-up → Y-up), apply, then export raw.
-bpy.ops.object.select_all(action='SELECT')
-bpy.context.view_layer.objects.active = arm_obj
-
-# Rotate armature (mesh follows as child)
-arm_obj.rotation_euler = (math.radians(-90), 0, 0)
-bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-
-# Also apply to mesh (in case parenting didn't propagate)
-bpy.context.view_layer.objects.active = gibbons_mesh
-gibbons_mesh.rotation_euler = (0, 0, 0)  # should already be identity
-bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-
-print("[GIBBONS] Pre-rotated to Y-up")
-
-# ── EXPORT ──
+# ── EXPORT (raw Z-up — engine handles coord conversion) ──
 export_path = "/Users/klaus/gibbons.glb"
 
-# Select armature and mesh for export
-bpy.ops.object.select_all(action='DESELECT')
+ensure_object_mode(); bpy.ops.object.select_all(action='DESELECT')
 gibbons_mesh.select_set(True)
 arm_obj.select_set(True)
 bpy.context.view_layer.objects.active = arm_obj
@@ -720,7 +813,7 @@ bpy.ops.export_scene.gltf(
     export_animations=True,
     export_skins=True,
     export_morph=False,
-    export_yup=False,      # Already Y-up from pre-rotation
+    export_yup=False,      # Raw Z-up — engine applies -90° X rotation
     export_nla_strips=True,
     export_nla_strips_merged_animation_name="",
 )

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Emotion:** Wonder and melancholy, not horror. Arrival, not escape.
 **References:** Godard (Contempt, Pierrot le Fou), Hotel Chevalier, Bioshock Infinite opening, Mirror's Edge, Gravity Bone / Thirty Flights of Loving.
-**Rendering:** 960×600 native resolution. Procedural materials, film grain, post-FX.
+**Rendering:** 1920×1200 native resolution. Procedural materials, film grain, post-FX.
 
 ## Commands
 
@@ -64,6 +64,7 @@ config.h            — centralized constants (PI, SAMPLE_RATE, task counts, etc
 assets/skytower.obj — Sky Tower 3D model (first external mesh)
 assets/*.glb, *.obj — Auto-loaded model assets (ModelAsset registry)
 scripts/blender_send.py — Blender MCP socket helper (model/rig/export)
+scripts/ev_shell_workbench.py — Blender level editor for room shells (Gehry workflow)
 ```
 
 ### 3D Model Asset System
@@ -105,6 +106,37 @@ scp mini-ts:~/taxi.glb assets/
 make run  # auto-loads new model
 ```
 
+### Shell System (Gehry-esque Environments)
+
+For organic/deconstructivist architecture where code-placed boxes won't cut it. The visual mesh is a GLB from Blender; collision uses invisible AABB walls.
+
+**Engine functions:**
+```c
+// Visual shell — renders GLB mesh, no collision (pair with collision walls)
+add_shell(s, "lounge_shell", 0, 0, 0, 1,1,1, 0, MAT_CONCRETE, WHITE);
+
+// Invisible collision volumes — player physics only
+add_collision_wall(s, 0, 0, 0, 16, 0.05, 14);   // floor
+add_collision_wall(s, -8, 3, 0, 0.15, 6, 14);    // left wall
+add_collision_floor(s, 0, 0, 0, 16, 14);          // shorthand
+add_collision_ceiling(s, 0, 5, 0, 16, 14);        // shorthand
+```
+
+**Blender workflow** (`scripts/ev_shell_workbench.py`):
+```python
+exec(open('scripts/ev_shell_workbench.py').read())
+shell_setup("gehry_lounge", width=16, depth=14, height=6)
+# Model curves in 'Shell' collection...
+collision_floor(y=0)
+collision_walls()
+collision_curve("swooping_wall", center=(0,0,0), radius=6, height=5)
+collision_ramp("entry_ramp", start_pos=(-5,0,6), end_pos=(-5,2,0), width=3)
+shell_preview()   # renders + prints stats
+shell_export()    # GLB + complete C code to paste
+```
+
+**Pattern:** Gehry buildings have crazy shells but regular interiors. The titanium swoops are the architecture; inside, you still place furniture with `add_sofa()`, `add_desk()`, etc. Shell = visual envelope. Code = everything inside.
+
 ### Adding a New Scene
 1. Add `STATE_NEW_SCENE` to the `GameState` enum in `ev_types.h`
 2. Create `src/scene_newscene.c` with `newscene_load()` and `newscene_update(float dt)`
@@ -124,14 +156,14 @@ Orphaned (dev keys 3/4/6): HALLWAY, ROOM, BATHROOM (Paris hotel)
 
 ### Rendering Pipeline
 ```
-960×600 RenderTexture (render_target)
+1920×1200 RenderTexture (render_target)
   ├─ Shadow pass: depth-only FBO (512×512) from key light perspective
   ├─ Earth pass: procedural sphere behind scene geometry (space scenes)
   ├─ Scene pass: lighting shader (key+fill+4 point lights+shadows+materials)
   ├─ Dust motes / zero-g sparkles
   └─ HUD (spring-scaled crosshair + pixel icons)
         ↓
-960×600 RenderTexture (postfx_target)
+1920×1200 RenderTexture (postfx_target)
   └─ Post-FX shader (CA, grain, bloom, SSAO, dither, scanlines, vignette...)
         ↓
 Window (nearest-neighbor upscale, aspect-ratio letterboxed)
@@ -173,7 +205,7 @@ Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, 
 
 ## Key Conventions
 
-- **960×600 visibility rule**: If it's not 3+ pixels at render resolution, scale it up or remove it. See `scale.h` for canonical dimensions.
+- **1920×1200 visibility rule**: If it's not 3+ pixels at render resolution, scale it up or remove it. See `scale.h` for canonical dimensions.
 - **Color palette**: `palette.h` defines `PAL_*` constants. Neutral warm whites + specific accents (French red, French blue, brass gold).
 - **Warmth progression**: `SetPostFXWarmth()` ranges 0→1 as the player completes tasks. The room literally warms.
 - **Interaction = visible consequence**: Every E-press must change geometry or lighting, not just set a flag.
@@ -209,7 +241,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 
 - Horror vibes — wonder, not dread
 - Creepy ambient drones — if it sounds scary, it IS scary
-- Tiny detail objects at 960×600 — invisible, scale up or remove
+- Tiny detail objects at 1920×1200 — invisible, scale up or remove
 - Yellow-tinting everything — neutral base, SPECIFIC accent colors
 - Shader-only interaction feedback — must be visible in a screenshot
 - Grey-on-grey in space — hull must pop against void
@@ -219,7 +251,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 ## Design Principles
 
 - **Ethical reduction** (Rams): Remove until it breaks, add back one thing
-- **Bold shapes** (Rodkin): Details must be BIG at 960×600
+- **Bold shapes** (Rodkin): Details must be BIG at 1920×1200
 - **Diegetic interaction** (Remo): Sounds from objects, not UI
 - **Visible consequence** (Chung): Every interaction changes the world
 - **The void is the point** (Wreden): The game is about waiting, not completing

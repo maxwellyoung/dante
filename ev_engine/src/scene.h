@@ -63,6 +63,15 @@ void add_crown_molding_detailed(Scene *s, float x, float y, float z,
 void add_corridor_door(Scene *s, float x, float y, float z,
                        float side, Color door_color, Color frame_color);
 
+// ── Shell system — Gehry-esque environments ──
+// Visual: GLB mesh (organic curves, deconstructivist forms)
+// Collision: invisible AABB walls defining walkable space
+void add_collision_wall(Scene *s, float x, float y, float z, float w, float h, float d);
+void add_shell(Scene *s, const char *model_name, float x, float y, float z,
+               float sx, float sy, float sz, float rotation_deg, MaterialType mat, Color c);
+void add_collision_floor(Scene *s, float x, float y, float z, float w, float d);
+void add_collision_ceiling(Scene *s, float x, float y, float z, float w, float d);
+
 void build_lobby(Scene *s);
 void build_hallway(Scene *s);
 void build_hotel_room(Scene *s);

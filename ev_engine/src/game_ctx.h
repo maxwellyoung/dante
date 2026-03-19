@@ -152,13 +152,22 @@ typedef struct {
     bool nudge_mode;
     int nudge_selected;
 
-    // ── Vignette text ──
+    // ── Vignette text (legacy — system messages) ──
     const char *vig_text;
     float text_y_offset;
     float text_y_velocity;
     float text_scale;
     float text_scale_vel;
     float text_scale_target;
+
+    // ── Dialogue system ──
+    const char *dlg_speaker;      // speaker name (NULL = narration)
+    const char *dlg_text;         // full line text
+    float dlg_timer;              // time since line started (drives typewriter)
+    float dlg_chars_per_sec;      // typewriter speed (default 30)
+    float dlg_hold_timer;         // time to hold after fully revealed
+    float dlg_fade;               // 0..1 fade in/out
+    bool dlg_active;              // dialogue visible
 
     // ── Rain ──
     Raindrop rain[MAX_RAIN];
@@ -194,7 +203,7 @@ typedef struct {
     const char *choice_b;         // option 1
     int choice_result;            // what they picked (0 or 1), -1 if not yet
     // Backstory storage — persists across scenes, colors the experience
-    int backstory[4];             // results of up to 4 choices (-1 = unanswered)
+    int backstory[6];             // results of up to 6 choices (-1 = unanswered)
     int backstory_count;          // how many choices completed
     int backstory_phase;          // which choice we're on (pre-title or taxi)
 
@@ -224,9 +233,10 @@ static inline void game_ctx_init(GameCtx *g) {
     g->bed_clock_rate = 1.0f;
     g->nudge_selected = -1;
     g->text_y_offset = 20.0f;
+    g->dlg_chars_per_sec = 28.0f;
     g->ambient_fade = 1.0f;
     g->setting_master_vol = 1.0f;
-    for (int i = 0; i < 4; i++) g->backstory[i] = -1;
+    for (int i = 0; i < 6; i++) g->backstory[i] = -1;
 }
 
 // Scene registry — extern, defined in scene_registry.c

@@ -167,6 +167,40 @@ void set_last_hinge(Scene *s, float closed_angle, float open_angle) {
     }
 }
 
+// ── Shell system — Gehry-esque environments ──
+// Invisible collision-only wall (no render, just physics)
+void add_collision_wall(Scene *s, float x, float y, float z, float w, float h, float d) {
+    if (s->wall_count >= MAX_WALLS) return;
+    s->walls[s->wall_count++] = (Wall){
+        .pos = {x, y, z}, .size = {w, h, d},
+        .color = (Color){0, 0, 0, 0},  // invisible
+        .active = true, .shape = SHAPE_CUBE,
+    };
+}
+
+// Invisible floor plane (thin collision slab)
+void add_collision_floor(Scene *s, float x, float y, float z, float w, float d) {
+    add_collision_wall(s, x, y - 0.025f, z, w, 0.05f, d);
+}
+
+// Invisible ceiling plane (thin collision slab)
+void add_collision_ceiling(Scene *s, float x, float y, float z, float w, float d) {
+    add_collision_wall(s, x, y + 0.025f, z, w, 0.05f, d);
+}
+
+// Shell model — visual GLB mesh with no_collide (pair with add_collision_wall)
+void add_shell(Scene *s, const char *model_name, float x, float y, float z,
+               float sx, float sy, float sz, float rotation_deg, MaterialType mat, Color c) {
+    int mi = find_model_asset(model_name);
+    if (mi < 0) {
+        fprintf(stderr, "[EV] WARNING: shell model '%s' not found\n", model_name);
+        return;
+    }
+    add_model(s, x, y, z, sx, sy, sz, rotation_deg, mi, mat, c);
+    // Shell meshes don't collide — use add_collision_wall() for physics
+    s->walls[s->wall_count - 1].no_collide = true;
+}
+
 // ── P5: Enhanced geometry helpers ──
 
 // Arched doorframe — rectangular frame + semicircle of boxes at top

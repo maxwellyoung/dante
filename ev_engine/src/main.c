@@ -72,44 +72,57 @@ static void draw_dialogue(void) {
     memcpy(buf, g.dlg_text, len);
     buf[len] = '\0';
 
-    int font_dlg = 14;
-    int font_speaker = 12;
-    int pad_x = 24;
-    int pad_y = 12;
+    // ── House of Cards lower-third — left-aligned, minimal, elegant ──
+    // Sized for Steam Deck / couch readability
+    int font_dlg = 20;
+    int font_speaker = 14;
+    int margin_left = 60;
+    int margin_bottom = 50;
 
-    // Box at bottom of screen
-    int box_h = font_dlg + pad_y * 2 + (g.dlg_speaker ? font_speaker + 6 : 0);
-    int box_y = RENDER_H - box_h - 16;
-    int box_x = RENDER_W / 8;
-    int box_w = RENDER_W - box_x * 2;
+    // Speaker name positioned above dialogue line — small caps feel
+    int line_y = RENDER_H - margin_bottom;
+    int speaker_y = line_y - font_dlg - 4;
+    if (g.dlg_speaker) speaker_y -= font_speaker + 2;
 
-    // Semi-transparent dark box with slight rounding feel (drawn as rect)
-    unsigned char bg_a = (unsigned char)(200 * fade);
-    DrawRectangle(box_x, box_y, box_w, box_h, (Color){12, 12, 16, bg_a});
-    // Subtle border — warm white hairline
-    unsigned char border_a = (unsigned char)(40 * fade);
-    DrawRectangleLines(box_x, box_y, box_w, box_h, (Color){180, 175, 165, border_a});
+    // Subtle gradient scrim at bottom (not a box — cinematic)
+    int scrim_h = 120;
+    for (int sy = RENDER_H - scrim_h; sy < RENDER_H; sy++) {
+        float t = (float)(sy - (RENDER_H - scrim_h)) / (float)scrim_h;
+        unsigned char sa = (unsigned char)(140 * t * t * fade);  // quadratic ramp
+        DrawRectangle(0, sy, RENDER_W, 1, (Color){5, 5, 8, sa});
+    }
 
-    int text_x = box_x + pad_x;
-    int text_y = box_y + pad_y;
+    int text_x = margin_left;
+    int text_y = speaker_y;
 
-    // Speaker name — small, warm gold
+    // Speaker name — small, spaced, warm gold (House of Cards chapter titles)
     if (g.dlg_speaker) {
-        unsigned char sa = (unsigned char)(200 * fade);
-        DrawText(g.dlg_speaker, text_x, text_y, font_speaker, (Color){210, 185, 130, sa});
+        unsigned char sa = (unsigned char)(180 * fade);
+        // Draw with letter spacing by iterating chars
+        char spaced[128];
+        int si = 0;
+        for (int i = 0; g.dlg_speaker[i] && si < 126; i++) {
+            spaced[si++] = g.dlg_speaker[i];
+            if (g.dlg_speaker[i+1]) spaced[si++] = ' ';  // space between each char
+        }
+        spaced[si] = '\0';
+        DrawText(spaced, text_x, text_y, font_speaker, (Color){195, 170, 120, sa});
+        // Thin gold rule under speaker name
+        int rule_w = MeasureText(spaced, font_speaker);
+        DrawRectangle(text_x, text_y + font_speaker + 1, rule_w, 1,
+                      (Color){195, 170, 120, (unsigned char)(80 * fade)});
         text_y += font_speaker + 6;
     }
 
-    // Dialogue text — warm white, typewriter revealed
-    unsigned char ta = (unsigned char)(240 * fade);
-    // Shadow
-    DrawText(buf, text_x + 1, text_y + 1, font_dlg, (Color){0, 0, 0, (unsigned char)(180 * fade)});
-    DrawText(buf, text_x, text_y, font_dlg, (Color){248, 245, 238, ta});
+    // Dialogue text — warm white, typewriter
+    unsigned char ta = (unsigned char)(230 * fade);
+    DrawText(buf, text_x + 1, text_y + 1, font_dlg, (Color){0, 0, 0, (unsigned char)(160 * fade)});
+    DrawText(buf, text_x, text_y, font_dlg, (Color){245, 242, 235, ta});
 
-    // Blinking cursor at end of revealed text (while still typing)
-    if (revealed < total_chars && ((int)(g.dlg_timer * 3) % 2 == 0)) {
+    // Thin blinking cursor
+    if (revealed < total_chars && ((int)(g.dlg_timer * 2.5f) % 2 == 0)) {
         int cursor_x = text_x + MeasureText(buf, font_dlg) + 2;
-        DrawRectangle(cursor_x, text_y + 2, 2, font_dlg - 4, (Color){248, 245, 238, ta});
+        DrawRectangle(cursor_x, text_y + 2, 1, font_dlg - 4, (Color){245, 242, 235, ta});
     }
 }
 
@@ -1386,6 +1399,7 @@ int main(void) {
         if (IsKeyPressed(KEY_EIGHT)) load_state(STATE_SPACE_CORRIDOR);
         if (IsKeyPressed(KEY_NINE))  load_state(STATE_SPACE_SUITE);
         if (IsKeyPressed(KEY_ZERO))  load_state(STATE_CAR);
+        if (IsKeyPressed(KEY_MINUS)) load_state(STATE_SHELL_TEST);
         }
 #endif // PLAYTEST
 
@@ -1528,6 +1542,7 @@ int main(void) {
             case STATE_CLEANED_SUITE:
             case STATE_MONTAGE:
             case STATE_RETURN_TAXI:
+            case STATE_SHELL_TEST:
                 if (g.state == STATE_RETURN_TAXI) {
                     // Dawn sky (GPU skybox)
                     ClearBackground((Color){45, 38, 32, 255});
@@ -1552,7 +1567,8 @@ int main(void) {
                     ClearBackground((Color){2, 2, 6, 255});
                     DrawSkybox(&g.skybox, g.player.camera, SKY_HYPERSPACE, g.state_time, 1.0f, 0);
                 } else if (g.state == STATE_BALCONY || g.state == STATE_SPACE_LOBBY
-                           || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE) {
+                           || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE
+                           || g.state == STATE_SHELL_TEST) {
                     ClearBackground((Color){4, 5, 12, 255});
                     DrawSkybox(&g.skybox, g.player.camera, SKY_SPACE_VOID, g.state_time, 0, 0);
                     // Procedural Earth — positioned per g.scene so it's visible through windows

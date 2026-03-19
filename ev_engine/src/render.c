@@ -530,6 +530,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
             if (!w->active) continue;
+            if (w->color.a == 0) continue;  // invisible collision wall
             if (pass == 0 && w->is_decal) { has_decals = true; continue; }
             if (pass == 1 && !w->is_decal) continue;
 
@@ -650,7 +651,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         int shadow_count = 0;
         for (int i = 0; i < scene->wall_count && shadow_count < 40; i++) {
             Wall *w = &scene->walls[i];
-            if (!w->active || w->shape != SHAPE_CUBE) continue;
+            if (!w->active || w->shape != SHAPE_CUBE || w->color.a == 0) continue;
             float bot = w->pos.y - w->size.y / 2;
             if (bot > 0.08f && bot < 2.0f && w->size.x < 4.0f && w->size.z < 4.0f
                 && w->size.y > 0.1f) {

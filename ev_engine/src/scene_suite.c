@@ -17,7 +17,6 @@ void suite_load(void) {
     printf("[DBG-SUITE] spawn=(%.1f,%.1f,%.1f) walls=%d objs=%d\n",
            g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z,
            g.scene.wall_count, g.scene.object_count);
-    SetPostFXWarmth(&g.postfx, 0.0f);
     // Particle emitters — dust, smoke, debris
     particle_clear(&g.particles);
     particle_add_emitter(&g.particles, (Vector3){-3.5f, 1.5f, -0.5f}, EMIT_DUST, 2.0f, 2.0f);   // window light shaft
@@ -43,8 +42,9 @@ void suite_load(void) {
     SetSoundPitch(g.audio.snd_clock, 1.0f);
     g.agency_removal_timer = 0;
     SetSceneLighting(&g.lighting, LightingPreset_SpaceSuite());
-    set_exposure(-0.1f);
-    SetPostFXGrain(&g.postfx, 0.35f);
+    set_exposure(0.05f);           // slight lift — see the room, not a cave
+    SetPostFXGrain(&g.postfx, 0.25f);    // 16mm stock, not VHS
+    SetPostFXWarmth(&g.postfx, 0.08f);   // hint of warmth even before tasks — someone was here
     // Gibbons — gestures you in at threshold, walks to sofa, sits
     // "He bows. He deactivates." (Master Plan)
     {
@@ -56,11 +56,11 @@ void suite_load(void) {
         init_npc(&g.gibbons, (Vector3){0, 1.6f, 5.5f}, suite_wps, 3, 2.0f, 3.0f);
         g.gibbons.behavior = NPC_GESTURING;  // starts gesturing at door
         static const char *suite_lines[] = {
-            "After you.",
-            "Make yourself comfortable. It's yours.",
-            "Three hours. You'd be surprised what fits.",
+            "Everything as specified.",
+            "The champagne was in the booking.",
+            "Three hours passes differently up here.",
         };
-        npc_set_dialogue(&g.gibbons, suite_lines, 3, 3.5f);
+        npc_set_dialogue(&g.gibbons, suite_lines, 3, 4.0f);
     }
     // Thermostat — interactable (changes room warmth)
     add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 3);
@@ -76,6 +76,10 @@ void suite_load(void) {
     add_object(&g.scene, 1.2f, 0.02f, -3.8f, "sock", (Color){45,40,55,230}, 1);
     add_object(&g.scene, -2.5f, 0.4f, 3.6f, "roomservice", (Color){245,242,235,255}, 1);
     add_object(&g.scene, 2.3f, 0.65f, -4.9f, "postcard", (Color){245,240,232,255}, 1);
+    // Phone on desk — playlist still queued
+    add_object(&g.scene, 5.6f, 0.86f, -2.2f, "phone", (Color){20,20,25,255}, 1);
+    // Suitcase by the door — hers, never opened
+    add_object(&g.scene, 1.5f, 0.25f, 4.8f, "suitcase", (Color){120,85,45,255}, 1);
     // Bathroom — run the bath
     add_object(&g.scene, 6.85f, 1.3f, 2.5f, "bathroom", (Color){225,222,218,255}, 1);
 }
@@ -279,7 +283,11 @@ void suite_update(float dt) {
                         add_wall(&g.scene, -2.48f, 0.645f, -4.48f, 0.03f, 0.003f, 0.02f, (Color){190,50,45,200});
                         set_last_decal(&g.scene);
                         g.photograph_flipped = true;
-                        show_text("Paris. Before all this.");
+                        // Choice colors interpretation — "Before" vs "After"
+                        if (g.backstory[0] == 1)  // "After" — booked after she left
+                            show_text("Paris. The trip that was supposed to fix things.");
+                        else
+                            show_text("Paris. Before all this.");
                         obj->done = true;
                         break;
                     }
@@ -319,6 +327,22 @@ void suite_update(float dt) {
                     }
                     if (strcmp(obj->name, "postcard") == 0 && obj->step == 1) {
                         show_text("Addressed to no one.");
+                        obj->done = true;
+                        break;
+                    }
+                    // Phone — her playlist, still queued
+                    if (strcmp(obj->name, "phone") == 0 && obj->step == 1) {
+                        show_text("47 songs. Her queue. Still counting down.");
+                        obj->done = true;
+                        break;
+                    }
+                    // Suitcase — hers, by the door
+                    if (strcmp(obj->name, "suitcase") == 0 && obj->step == 1) {
+                        // Choice colors interpretation — what did you pack?
+                        if (g.backstory[1] == 1)  // "Everything she left behind"
+                            show_text("Everything she left. You brought it anyway.");
+                        else
+                            show_text("Packed for two weeks. Never opened.");
                         obj->done = true;
                         break;
                     }
@@ -475,8 +499,8 @@ void suite_update(float dt) {
             g.gibbons.waypoint_count = 1;
             g.gibbons.current_waypoint = 0;
             g.gibbons.target_pos = g.gibbons.waypoints[0];
-            static const char *exit_line[] = {"Time's up."};
-            npc_set_dialogue(&g.gibbons, exit_line, 1, 2.0f);
+            static const char *exit_line[] = {"Time."};
+            npc_set_dialogue(&g.gibbons, exit_line, 1, 3.0f);
         }
         if (g.done_pause > 0.5f) {
             StopClockAmbient(&g.audio);

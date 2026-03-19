@@ -30,6 +30,24 @@ void corridor_load(void) {
     SetSceneLighting(&g.lighting, LightingPreset_SpaceCorridor());
     set_exposure(0.08f);
     SetPostFXGrain(&g.postfx, 0.35f);
+    // Room service tray outside Door 2 (Room Six) — two plates, one untouched
+    // "The gentleman in Six orders for two. Every night. Sends half back."
+    {
+        float tx = 3.5f, tz = 7.2f;  // just outside door 2
+        // Silver tray
+        add_wall(&g.scene, tx - 1.0f, 0.02f, tz, 0.5f, 0.02f, 0.3f, (Color){190, 185, 180, 220});
+        set_last_material(&g.scene, MAT_BRASS);
+        set_last_decal(&g.scene);
+        // Left plate — eaten, slightly tilted
+        add_cylinder(&g.scene, tx - 1.15f, 0.05f, tz - 0.05f, 0.1f, 0.015f, (Color){240, 238, 232, 230});
+        // Right plate — untouched, silver dome still on
+        add_cylinder(&g.scene, tx - 0.85f, 0.05f, tz + 0.05f, 0.1f, 0.015f, (Color){240, 238, 232, 230});
+        add_sphere(&g.scene, tx - 0.85f, 0.12f, tz + 0.05f, 0.1f, (Color){190, 185, 180, 200});
+        set_last_material(&g.scene, MAT_BRASS);
+    }
+    // Do Not Disturb sign on Door 3 (the dark door)
+    add_wall(&g.scene, -3.5f + 0.03f, 1.3f, 11.6f, 0.15f, 0.08f, 0.005f, (Color){240, 238, 232, 200});
+    set_last_decal(&g.scene);
     // Gibbons
     {
         Vector3 corr_wps[] = {
@@ -39,11 +57,11 @@ void corridor_load(void) {
         };
         init_npc(&g.gibbons, g.scene.spawn, corr_wps, 3, 3.5f, 4.0f);
         static const char *corr_lines[] = {
-            "The walls are thin. You hear things.",
-            "I could tell you stories about this floor.",
-            "Last door on the left. Your neighbor's quiet.",
+            "Someone in Four plays that same nocturne every evening.",
+            "The gentleman in Six orders for two. Every night. Sends half back.",
+            "Yours is at the end. I left the curtains open.",
         };
-        npc_set_dialogue(&g.gibbons, corr_lines, 3, 3.5f);
+        npc_set_dialogue(&g.gibbons, corr_lines, 3, 4.0f);
     }
 }
 

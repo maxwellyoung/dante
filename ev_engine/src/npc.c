@@ -274,7 +274,10 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
         int gi = find_model_asset("gibbons");
         if (gi >= 0 && g.model_assets[gi].loaded) {
             ModelAsset *ma = &g.model_assets[gi];
+            // GLB model origin is at feet — place at ground level
             float base_y_m = npc->use_physics ? npc->ground_y : (npc->pos.y - 1.6f);
+            // Scale: model is 1.25m, needs to read big in the world
+            float model_scale = 1.5f;
 
             // Animation dispatch
             if (ma->anims && ma->anim_count > 0) {
@@ -302,10 +305,18 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
                 if (lighting->ready) SetMaterialId(lighting, 0);
             }
 
-            DrawModelEx(ma->model,
-                (Vector3){npc->pos.x, base_y_m, npc->pos.z},
-                (Vector3){0, 1, 0}, npc->yaw * RAD2DEG + 180,
-                (Vector3){1, 1, 1}, WHITE);
+            // Draw with compound rotation: Z-up→Y-up (-90° X) + yaw (Y)
+            {
+                Matrix orig_transform = ma->model.transform;
+                float s = model_scale;
+                Matrix m = MatrixScale(s, s, s);
+                m = MatrixMultiply(m, MatrixRotateX(-PI / 2.0f));      // Z-up → Y-up
+                m = MatrixMultiply(m, MatrixRotateY(npc->yaw + PI));   // face direction
+                m = MatrixMultiply(m, MatrixTranslate(npc->pos.x, base_y_m, npc->pos.z));
+                ma->model.transform = m;
+                DrawModel(ma->model, (Vector3){0, 0, 0}, 1.0f, WHITE);
+                ma->model.transform = orig_transform;
+            }
 
             // Shadow disc
             if (cyl_model) {

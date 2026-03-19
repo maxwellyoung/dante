@@ -122,13 +122,13 @@ void taxi_update(float dt) {
         if (t > 1.5f && t < 2.0f) show_text("Auckland. 2:47 AM.");
         if (t > 4.0f && t < 4.5f) hide_text();
 
-        // Beat 2: "You going up to the tower?"
+        // Beat 2: "The tower, yeah?"
         if (t > 5.0f && t < 5.5f && g.backstory_phase == 0) {
-            show_text("You going up to the tower?");
+            show_text("The tower, yeah?");
         }
         if (t > 7.0f && g.backstory_phase == 0) {
             hide_text();
-            show_choice("", "She wanted to.", "I need to be somewhere.");
+            show_choice("", "She wanted to see it.", "I have a reservation.");
             g.backstory_phase = 1;
         }
         if (g.backstory_phase == 1 && poll_choice() >= 0) {
@@ -136,14 +136,14 @@ void taxi_update(float dt) {
             hide_text();
         }
 
-        // Beat 3: "They say there's a hotel up there now."
+        // Beat 3: "They put a hotel up there. Three hours, in and out."
         if (g.backstory_phase == 2 && t > 9.0f && g.backstory_phase < 3) {
-            show_text("They say there's a hotel up there now.");
+            show_text("They put a hotel up there. Three hours, in and out.");
             g.backstory_phase = 3;
         }
         if (g.backstory_phase == 3 && t > 11.0f) {
             hide_text();
-            show_choice("", "We booked it months ago.", "I heard.");
+            show_choice("", "We booked it months ago.", "So I hear.");
             g.backstory_phase = 4;
         }
         if (g.backstory_phase == 4 && poll_choice() >= 0) {
@@ -151,9 +151,9 @@ void taxi_update(float dt) {
             hide_text();
         }
 
-        // Beat 4: "Three hours to kill."
+        // Beat 4: "At this hour, you've got the whole city to yourself."
         if (g.backstory_phase >= 5 && t > 13.0f && g.backstory_phase < 6) {
-            show_text("Three hours to kill.");
+            show_text("At this hour, you've got the whole city to yourself.");
             g.backstory_phase = 6;
         }
 
@@ -260,7 +260,19 @@ void return_taxi_update(float dt) {
     // Dialogue
     if (g.state_time > 3.0f && g.state_time < 3.5f) show_text("Auckland. 5:52 AM.");
     if (g.state_time > 6.0f && g.state_time < 6.5f) hide_text();
-    // "Good hotel?" is now Gibbons' NPC dialogue
+    // "Good hotel?" — Gibbons' NPC dialogue. After it shows, offer the final choice.
+    // The last words of the game. The simplest question deserves the simplest answer.
+    if (g.gibbons.line_showing && g.gibbons.current_line == 0) {
+        // Gibbons is asking. Wait for his line to finish, then offer response.
+    }
+    if (!g.gibbons.line_showing && g.gibbons.current_line >= 1 && g.backstory_phase < 10) {
+        show_choice("", "Yeah.", "...");
+        g.backstory_phase = 10;
+    }
+    if (g.backstory_phase == 10 && poll_choice() >= 0) {
+        g.backstory_phase = 11;
+        hide_text();
+    }
 
     // Saturation drain
     {
