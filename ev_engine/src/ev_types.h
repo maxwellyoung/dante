@@ -5,8 +5,9 @@
 #include "raylib.h"
 #include <stdbool.h>
 
-#define RENDER_W 960
-#define RENDER_H 600
+#define RENDER_W 1920
+#define RENDER_H 1200
+#define UI_SCALE 2        // HUD/text scale factor (RENDER_W / 960)
 #define MOUSE_SENS_DEFAULT 0.003f
 extern float ev_mouse_sens;
 #define MAX_OBJECTS 64

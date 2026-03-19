@@ -248,9 +248,10 @@ static void draw_pause_menu(void) {
         }
     }
     const char *hint = (g.menu_mode == MENU_SETTINGS) ? "ARROWS TO ADJUST  /  ESC BACK" : "ESC TO RESUME";
-    int hw = MeasureText(hint, 8);
-    DrawText(hint, RENDER_W/2 - hw/2 + 1, RENDER_H - 23, 8, (Color){0,0,0,120});
-    DrawText(hint, RENDER_W/2 - hw/2, RENDER_H - 24, 8, (Color){130,126,120,120});
+    int hfs = 8 * UI_SCALE;
+    int hw = MeasureText(hint, hfs);
+    DrawText(hint, RENDER_W/2 - hw/2 + 1, RENDER_H - 23*UI_SCALE, hfs, (Color){0,0,0,120});
+    DrawText(hint, RENDER_W/2 - hw/2, RENDER_H - 24*UI_SCALE, hfs, (Color){130,126,120,120});
 }
 
 void transition_to(GameState s) {
@@ -562,6 +563,13 @@ int main(void) {
                 ma->loaded = true;
                 printf("[EV] Model asset '%s' loaded — %d meshes, %d mats, %d anims\n",
                        ma->name, ma->model.meshCount, ma->model.materialCount, ma->anim_count);
+                // Bounding box diag for character models
+                if (strcmp(ma->name, "gibbons") == 0) {
+                    BoundingBox bb = GetModelBoundingBox(ma->model);
+                    printf("[GIBBONS DIAG] BB min=(%.3f,%.3f,%.3f) max=(%.3f,%.3f,%.3f) size=(%.3f,%.3f,%.3f)\n",
+                           bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z,
+                           bb.max.x-bb.min.x, bb.max.y-bb.min.y, bb.max.z-bb.min.z);
+                }
                 fflush(stdout);
                 g.model_asset_count++;
             } else {
@@ -1769,27 +1777,30 @@ int main(void) {
                 "PARIS_DREAM", "RETURN_TAXI"
             };
             const char *sn = (g.state >= 0 && g.state < 18) ? state_names[g.state] : "???";
-            DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 20, GREEN);
-            DrawText(TextFormat("Walls: %d  %s", g.scene.wall_count, sn), 10, 35, 20, GREEN);
+            int dfs = 20 * UI_SCALE;  // debug font size
+            int dsp = 25 * UI_SCALE;  // debug line spacing
+            int dm = 10 * UI_SCALE;   // debug margin
+            DrawText(TextFormat("FPS: %d", GetFPS()), dm, dm, dfs, GREEN);
+            DrawText(TextFormat("Walls: %d  %s", g.scene.wall_count, sn), dm, dm + dsp, dfs, GREEN);
             DrawText(TextFormat("Pos: %.1f %.1f %.1f",
                 g.player.camera.position.x, g.player.camera.position.y, g.player.camera.position.z),
-                10, 60, 20, GREEN);
+                dm, dm + dsp*2, dfs, GREEN);
 
             // ── Physics debug ──
             float hspd = g.player.speed_current;
             float spd_norm = player_speed_normalized(&g.player);
             // Speedometer bar
-            int bar_w = 120, bar_h = 8;
-            int bar_x = 10, bar_y = 88;
+            int bar_w = 120 * UI_SCALE, bar_h = 8 * UI_SCALE;
+            int bar_x = dm, bar_y = dm + dsp*3 + 3*UI_SCALE;
             DrawRectangle(bar_x, bar_y, bar_w, bar_h, (Color){40,40,40,180});
             int fill = (int)(spd_norm * bar_w);
             Color bar_col = spd_norm > 0.7f ? (Color){255,80,80,220} :
                            spd_norm > 0.3f ? (Color){255,200,60,220} : (Color){80,220,80,220};
             DrawRectangle(bar_x, bar_y, fill, bar_h, bar_col);
-            DrawText(TextFormat("%.1f u/s", hspd), bar_x + bar_w + 5, bar_y - 2, 20, GREEN);
+            DrawText(TextFormat("%.1f u/s", hspd), bar_x + bar_w + 5*UI_SCALE, bar_y - 2, dfs, GREEN);
 
             // Movement g.state flags
-            int fy = 102;
+            int fy = dm + dsp*4 + 6*UI_SCALE;
             const char *mstate = g.player.dashing ? "DASH" :
                                 g.player.wall_running ? "WALLRUN" :
                                 g.player.mantling ? "MANTLE" :
@@ -1801,22 +1812,22 @@ int main(void) {
                       g.player.wall_running ? (Color){100,200,255,255} :
                       g.player.sliding ? (Color){255,200,60,255} :
                       !g.player.grounded ? (Color){200,200,255,255} : GREEN;
-            DrawText(mstate, 10, fy, 20, mc);
+            DrawText(mstate, dm, fy, dfs, mc);
 
             // Stamina / cooldowns
-            DrawText(TextFormat("stam:%.0f%%", g.player.sprint_stamina * 100), 100, fy, 20,
+            DrawText(TextFormat("stam:%.0f%%", g.player.sprint_stamina * 100), 100*UI_SCALE, fy, dfs,
                 g.player.sprint_stamina < 0.2f ? (Color){255,80,80,200} : (Color){100,200,100,140});
             if (g.player.dash_cooldown_timer > 0)
-                DrawText(TextFormat("dash:%.1f", g.player.dash_cooldown_timer), 210, fy, 20, (Color){200,150,255,180});
+                DrawText(TextFormat("dash:%.1f", g.player.dash_cooldown_timer), 210*UI_SCALE, fy, dfs, (Color){200,150,255,180});
 
             int tm = (int)g.total_time / 60, ts = (int)g.total_time % 60;
             DrawText(TextFormat("Runtime: %d:%02d  Scene: %.1fs", tm, ts, g.state_time),
-                10, fy + 20, 20, (Color){255,200,60,220});
+                dm, fy + dsp, dfs, (Color){255,200,60,220});
             DrawText(TextFormat("Style: %s (Shift+1-9)", visual_styles[g.current_style].name),
-                10, fy + 40, 20, (Color){100,200,100,180});
-            DrawText("1-9: rooms  F4: noclip  F5: nudge  Q: dash", 10, fy + 60, 20, (Color){100,200,100,140});
-            if (g.player.noclip) DrawText("NOCLIP", 10, fy + 60, 20, YELLOW);
-            if (g.wireframe) DrawText("WIREFRAME", 10, fy + 80, 20, YELLOW);
+                dm, fy + dsp*2, dfs, (Color){100,200,100,180});
+            DrawText("1-9: rooms  F4: noclip  F5: nudge  Q: dash", dm, fy + dsp*3, dfs, (Color){100,200,100,140});
+            if (g.player.noclip) DrawText("NOCLIP", dm, fy + dsp*3, dfs, YELLOW);
+            if (g.wireframe) DrawText("WIREFRAME", dm, fy + dsp*4, dfs, YELLOW);
         }
 
         // Nudge mode overlay — drawn on top of everything

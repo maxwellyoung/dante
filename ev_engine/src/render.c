@@ -483,10 +483,11 @@ void ApplyVisualStyle(EVPostFX *pfx, int style_index) {
 
 void draw_text_box(const char *text, int y, int font_size, Color text_color) {
     if (!text) return;
-    if (font_size < 12) font_size = 12;
+    font_size *= UI_SCALE;
+    if (font_size < 12 * UI_SCALE) font_size = 12 * UI_SCALE;
     int tw = MeasureText(text, font_size);
     int tx = RENDER_W / 2 - tw / 2;
-    int pad = 12;
+    int pad = 12 * UI_SCALE;
     // Fully opaque dark bar — readable on ANY background
     DrawRectangle(0, y - pad, RENDER_W, font_size + pad * 2,
                   (Color){8, 8, 10, 245});
@@ -747,6 +748,10 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
 // Susan Kare pixel icons — 5x5 or 7x7 symbols for each object type
 static void draw_pixel_icon(int cx, int cy, const char *name, unsigned char a) {
     Color c = {248, 245, 238, a};
+    // At higher res, each "pixel" becomes a UI_SCALE×UI_SCALE block
+    #define DP(px, py) DrawRectangle((px), (py), UI_SCALE, UI_SCALE, c)
+    #undef DrawPixel
+    #define DrawPixel(px, py, col) DP(px, py)
 
     if (strcmp(name, "lamp") == 0) {
         // Lightbulb: 3px top, 1px stem, 2px base
@@ -818,6 +823,8 @@ static void draw_pixel_icon(int cx, int cy, const char *name, unsigned char a) {
         DrawPixel(cx-1, cy, c); DrawPixel(cx+1, cy, c);
         DrawPixel(cx, cy-1, c); DrawPixel(cx, cy+1, c);
     }
+    #undef DrawPixel
+    #undef DP
 }
 
 // Crosshair spring state (scales up when targeting interactable)
@@ -843,12 +850,12 @@ void draw_hud(Player *player, Scene *scene) {
                 target_scale = 3.0f;
 
                 // Pixel icon below crosshair — replaces text label
-                draw_pixel_icon(RENDER_W/2, RENDER_H/2 + 10, obj->name, icon_a);
+                draw_pixel_icon(RENDER_W/2, RENDER_H/2 + 10 * UI_SCALE, obj->name, icon_a);
 
                 // "E" prompt — small, below icon
                 const char *prompt = "E";
-                int pw = MeasureText(prompt, 10);
-                DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H/2 + 22, 10,
+                int pw = MeasureText(prompt, 10 * UI_SCALE);
+                DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H/2 + 22 * UI_SCALE, 10 * UI_SCALE,
                          (Color){220, 215, 205, icon_a});
             }
         }
@@ -879,9 +886,9 @@ void draw_hud(Player *player, Scene *scene) {
     if (crosshair_scale < 0.5f) crosshair_scale = 0.5f;
 
     // Draw spring-scaled crosshair dot
-    int cs = (int)(crosshair_scale + 0.5f);
-    if (cs < 1) cs = 1;
-    unsigned char ca = (cs > 1) ? 120 : 60;
+    int cs = (int)(crosshair_scale * UI_SCALE + 0.5f);
+    if (cs < UI_SCALE) cs = UI_SCALE;
+    unsigned char ca = (cs > UI_SCALE) ? 120 : 60;
     DrawCircle(RENDER_W/2, RENDER_H/2, cs, (Color){220, 215, 205, ca});
 }
 
@@ -939,9 +946,9 @@ void draw_title(void) {
         unsigned char ua = (unsigned char)(255 * a);
 
         // Framing lines — top and bottom, golden, cinematic aspect ratio
-        int frame_inset = 80;
-        int line_top = cy - 45;
-        int line_bot = cy + 45;
+        int frame_inset = 80 * UI_SCALE;
+        int line_top = cy - 45 * UI_SCALE;
+        int line_bot = cy + 45 * UI_SCALE;
         DrawRectangle(frame_inset, line_top, RENDER_W - frame_inset * 2, 1,
                       (Color){178, 155, 107, (unsigned char)(140 * a)});
         DrawRectangle(frame_inset, line_bot, RENDER_W - frame_inset * 2, 1,
@@ -949,13 +956,14 @@ void draw_title(void) {
 
         // Studio name — warm gold, generous tracking
         const char *studio = "NINETYNINE DIGITAL";
-        int sw = MeasureText(studio, 12);
-        DrawText(studio, cx - sw / 2, cy - 6, 12,
+        int sfs = 12 * UI_SCALE;
+        int sw = MeasureText(studio, sfs);
+        DrawText(studio, cx - sw / 2, cy - 6 * UI_SCALE, sfs,
                  (Color){210, 185, 120, ua});
 
         // Small decorative dot above and below name (Zoetrope motif)
-        DrawCircle(cx, line_top + 6, 2, (Color){178, 155, 107, (unsigned char)(100 * a)});
-        DrawCircle(cx, line_bot - 6, 2, (Color){178, 155, 107, (unsigned char)(100 * a)});
+        DrawCircle(cx, line_top + 6*UI_SCALE, 2*UI_SCALE, (Color){178, 155, 107, (unsigned char)(100 * a)});
+        DrawCircle(cx, line_bot - 6*UI_SCALE, 2*UI_SCALE, (Color){178, 155, 107, (unsigned char)(100 * a)});
 
         return;
     }
@@ -967,8 +975,8 @@ void draw_title(void) {
 
         // Moon — large white disc, slightly off-center (cinematic framing)
         int moon_x = cx;
-        int moon_y = cy - 10;
-        int moon_r = 55;
+        int moon_y = cy - 10 * UI_SCALE;
+        int moon_r = 55 * UI_SCALE;
 
         // Moon fades in
         float moon_a = fminf(1.0f, mt / 0.8f);
@@ -1103,7 +1111,7 @@ void draw_title(void) {
         unsigned char ta = (unsigned char)(255 * title_a);
 
         const char *title = "ENDEARING VOID";
-        int font_size = 30;
+        int font_size = 30 * UI_SCALE;
         int tw = MeasureText(title, font_size);
         int tx = cx - tw / 2;
         int ty = (int)(RENDER_H * 0.40f);
@@ -1116,8 +1124,8 @@ void draw_title(void) {
             float rule_a = fminf(1.0f, (title_a - 0.2f) / 0.3f);
             int rule_w = tw;
             int rule_x = cx - rule_w / 2;
-            int rule_y = ty + font_size + 6;
-            DrawRectangle(rule_x, rule_y, rule_w, 2,
+            int rule_y = ty + font_size + 6 * UI_SCALE;
+            DrawRectangle(rule_x, rule_y, rule_w, 2 * UI_SCALE,
                           (Color){godard_red.r, godard_red.g, godard_red.b,
                            (unsigned char)(220 * rule_a)});
         }
@@ -1155,10 +1163,11 @@ void draw_title(void) {
             unsigned char ea = (unsigned char)(220 * sc);
             float pulse = 0.88f + 0.12f * sinf(t * 1.8f);
             ea = (unsigned char)((float)ea * pulse);
-            int ey = RENDER_H - 50 + (int)title_enter_y_offset;
+            int ey = RENDER_H - 50*UI_SCALE + (int)(title_enter_y_offset * UI_SCALE);
             const char *prompt = "PRESS ENTER";
-            int pw = MeasureText(prompt, 10);
-            DrawText(prompt, cx - pw / 2, ey, 10,
+            int pfs = 10 * UI_SCALE;
+            int pw = MeasureText(prompt, pfs);
+            DrawText(prompt, cx - pw / 2, ey, pfs,
                      (Color){200, 198, 190, ea});
         }
     }
