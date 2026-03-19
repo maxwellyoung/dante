@@ -166,8 +166,8 @@ print(f'MATERIALS: {len(mat_names)} ({", ".join(sorted(mat_names))})')
 print(f'DIMENSIONS: {dims[0]:.2f} x {dims[1]:.2f} x {dims[2]:.2f} m')
 
 # Budget check
-budget_ok = total_tris <= 800
-print(f'BUDGET: {\"PASS\" if budget_ok else \"OVER\"} ({total_tris}/800 tris)')
+budget_ok = total_tris <= 1600
+print(f'BUDGET: {\"PASS\" if budget_ok else \"OVER\"} ({total_tris}/1600 tris)')
 "
 
     # Render 4 angles (front, side, 3/4, top)

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Grand piano — Lobby centrepiece.
-Through-wall muffled piano comes from here. ~250 tris.
+Through-wall muffled piano comes from here. ~500 tris.
 Glossy black body, ivory keys, brass pedals, burgundy velvet bench.
+At 1920x1200, the curved body needs subdiv 2.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -9,14 +10,14 @@ from ev_model_kit import *
 import math
 
 kit = EVModelKit()
-kit.begin("Piano", tri_budget=300)
+kit.begin("Piano", tri_budget=600)
 
 # Piano body is glossy black — use LEATHER_DARK for the deep black + low roughness
 PIANO_BLACK = EVMaterial("EV_Piano_Black", 20, 18, 15, 0.0, 0.30, 2, "Glossy piano body")
 
 # ── Main case (subdiv 1 — grand piano curve matters) ──
 kit.rounded_cube("Body", (0, 0.5, 0), (1.5, 0.3, 1.0),
-                 material=PIANO_BLACK, subdivisions=1)
+                 material=PIANO_BLACK, subdivisions=2)
 
 # ── Curved tail (wider at back) ──
 kit.cube("Tail", (-0.3, 0.5, 0.4), (0.8, 0.28, 0.3), material=PIANO_BLACK)

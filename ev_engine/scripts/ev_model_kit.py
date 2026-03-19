@@ -205,7 +205,7 @@ class EVModelKit:
         self.accent_count = 0
         self._started = False
 
-    def begin(self, name, tri_budget=300):
+    def begin(self, name, tri_budget=600):
         """Start a new model. Clears the scene."""
         self.model_name = name
         self.tri_budget = tri_budget
