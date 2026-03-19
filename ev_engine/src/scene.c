@@ -135,6 +135,38 @@ void add_wall_decal(Scene *s, float x, float y, float z, float w, float h, float
     set_last_decal(s);
 }
 
+// Mark most recent wall as pushable — nudge physics
+void set_last_pushable(Scene *s, float mass, float damping) {
+    if (s->wall_count > 0) {
+        Wall *w = &s->walls[s->wall_count - 1];
+        w->pushable = true;
+        w->push_mass = mass;
+        w->push_damping = damping;
+        w->push_origin = w->pos;
+        w->push_vel = (Vector3){0, 0, 0};
+    }
+}
+
+void set_last_breakable(Scene *s, float health) {
+    if (s->wall_count > 0) {
+        Wall *w = &s->walls[s->wall_count - 1];
+        w->breakable = true;
+        w->health = health;
+    }
+}
+
+void set_last_hinge(Scene *s, float closed_angle, float open_angle) {
+    if (s->wall_count > 0) {
+        Wall *w = &s->walls[s->wall_count - 1];
+        w->hinge = true;
+        w->hinge_angle = closed_angle;
+        w->hinge_target = closed_angle;
+        w->hinge_vel = 0;
+        w->rotation_y = closed_angle;
+        (void)open_angle;  // stored as context — physics opens to 90
+    }
+}
+
 // ── P5: Enhanced geometry helpers ──
 
 // Arched doorframe — rectangular frame + semicircle of boxes at top
@@ -826,6 +858,7 @@ void build_lobby(Scene *s) {
     // ── Guest register (open book) ──
     add_wall(s, desk_x - 0.2f, 0.95f, desk_z, 0.5f, 0.03f, 0.35f, (Color){180,170,150,255});
     set_last_material(s, MAT_LEATHER);
+    set_last_pushable(s, 0.5f, 4.0f);
 
     // ── Key left on desk — someone checked in ──
     add_wall(s, desk_x - 0.1f, 0.95f, desk_z - 0.8f, 0.08f, 0.02f, 0.04f, gold);
@@ -955,6 +988,8 @@ void build_lobby(Scene *s) {
     // ── Vase on console table ──
     add_cylinder(s, con_x + 0.02f, 0.55f, con_z, 0.1f, 0.25f, (Color){180, 175, 165, 255});
     set_last_material(s, MAT_MARBLE);
+    set_last_pushable(s, 0.4f, 4.0f);
+    set_last_breakable(s, 1.0f);
 
     // ============================================================
     // LUGGAGE TROLLEY — near entrance, left of doors
@@ -1127,6 +1162,7 @@ void build_lobby(Scene *s) {
     // Ashtray — small brass dish (shouldn't exist in a hotel lobby)
     add_cylinder(s, con_x + 0.15f, 0.42f, con_z + 0.3f, 0.08f, 0.02f, gold);
     set_last_material(s, MAT_BRASS);
+    set_last_pushable(s, 0.3f, 4.0f);
 
     // ── Second cigarette — by the entrance, in a crack of marble ──
     add_cylinder(s, 1.8f, 0.02f, 7.0f, 0.1f, 0.45f, (Color){230,225,215,200});
@@ -1520,8 +1556,11 @@ void build_hotel_room(Scene *s) {
     add_wall(s, -3.8f, 0.52f, 1.4f, 0.5f, 0.04f, 0.36f, (Color){200,210,220,200});
     // Coffee cup — bigger, white
     add_wall(s, 4.5f, 0.86f, 0.3f, 0.16f, 0.2f, 0.16f, white);
+    set_last_pushable(s, 0.3f, 4.0f);
+    set_last_breakable(s, 1.0f);
     // Book — bright Godard red, 2x size
     add_wall(s, 3.8f, 0.95f, -0.22f, 1.0f, 0.5f, 0.2f, godard_red);
+    set_last_pushable(s, 0.5f, 4.0f);
 
     // Bathrobe — vivid yellow, hung on wall, scaled up (Rodkin)
     add_wall(s, 5.75f, 1.6f, -3.5f, 0.1f, 1.8f, 0.8f, (Color){240,220,50,255});
@@ -3165,11 +3204,8 @@ void build_space_lobby(Scene *s) {
     add_wall(s, 0, lh/2, -ld/2+0.16f, 28, 0.08f, 0.06f, brass);
     set_last_material(s, MAT_BRASS);
 
-    // Earth — the emotional anchor. Blue pushed hard to survive warm key light.
-    // Key is {0.65, 0.50, 0.32} — blue gets ×0.32, so we need blue >> red, green.
-    add_sphere(s, 4, lh/2+2, -ld/2-18, 8.0f, (Color){30, 80, 250, 255});
-    // Atmosphere rim — blue-white, blue channel maxed
-    add_sphere(s, 4, lh/2+2, -ld/2-18, 8.6f, (Color){100, 170, 255, 255});
+    // Earth rendered by draw_earth() in render.c — not scene geometry.
+    // draw_earth() uses MAT_EMISSIVE so it's immune to room lighting.
 
     // Earth glow on floor — subtle pools, not a flood
     // Closest to window: brightest but narrow
@@ -3834,6 +3870,14 @@ void build_space_lobby(Scene *s) {
         }
     }
 
+    // ── GLB PROPS — atmospheric detail near reception ──
+    {
+        int ashtray_mdl = find_model_asset("standing_ashtray");
+        if (ashtray_mdl >= 0) {
+            add_model(s, -8.5f, 0, -5.0f, 1,1,1, 0, ashtray_mdl, MAT_BRASS, gold);
+        }
+    }
+
     // Spawn facing the observation window
     s->spawn = (Vector3){0, 1.6f, 8};
     s->exit_pos = (Vector3){0, 1.6f, ld/2-1};
@@ -4023,6 +4067,7 @@ void build_space_corridor(Scene *s) {
             Color door_c = door_colors[door_idx % 3];
             // Door panel
             add_wall(s, cx + side, 1.3f, cz, 0.12f, 2.6f, 1.0f, door_c);
+            set_last_hinge(s, 0.0f, 90.0f);
             // Door frame — brass
             add_wall(s, cx + side, 2.75f, cz, 0.12f, 0.12f, 1.15f, brass);
             set_last_material(s, MAT_BRASS);
@@ -4324,6 +4369,15 @@ void build_space_corridor(Scene *s) {
     // Interactive objects
     add_object(s, mid_x + 0.5f, 2.2f, mid_z, "newspaper", (Color){235, 232, 228, 200}, 1);
 
+    // ── GLB PROPS — atmospheric floor lamp mid-corridor ──
+    {
+        int floor_lamp_mdl = find_model_asset("floor_lamp");
+        if (floor_lamp_mdl >= 0) {
+            add_model(s, mid_x - 1.5f, 0, mid_z + 2.0f, 1,1,1, 0,
+                     floor_lamp_mdl, MAT_BRASS, warm_amber);
+        }
+    }
+
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){end0_x, 1.6f, end0_z};
@@ -4509,6 +4563,8 @@ void build_space_suite(Scene *s) {
     add_wall(s, -rw/2+5, 0.02f, win_cz, 6, 0.02f, 3, (Color){60,130,200,80});
     set_last_decal(s);
 
+    // Light shafts removed — vertical planes read as flat geometry at 960x600
+
     // Stars outside the window — scattered points of light
     for (int i = 0; i < 16; i++) {
         float sx = -rw/2 - 3 - (i*7)%12;
@@ -4552,6 +4608,7 @@ void build_space_suite(Scene *s) {
     add_door_frame(s, rw/2-0.15f, 1.3f, 2.5f, 1.2f, 2.6f, 0.3f, brass);
     add_wall(s, rw/2-0.18f, 1.3f, 2.5f, 0.06f, 2.5f, 1.1f, white);
     set_last_material(s, MAT_WOOD);
+    set_last_hinge(s, 0.0f, 90.0f);
     // Towel bar visible on bathroom door frame
     add_cylinder(s, rw/2-0.08f, 1.4f, 2.5f, 0.02f, 0.6f, brass);
 
@@ -4559,6 +4616,7 @@ void build_space_suite(Scene *s) {
     add_door_frame(s, rw/2-0.15f, 1.3f, -3.5f, 1.2f, 2.6f, 0.3f, brass);
     add_wall(s, rw/2-0.18f, 1.3f, -3.5f, 0.06f, 2.5f, 1.1f, cream);
     set_last_material(s, MAT_WOOD);
+    set_last_hinge(s, 0.0f, 90.0f);
     // Brass door handle — you can almost reach through
     add_sphere(s, rw/2-0.1f, 1.1f, -3.1f, 0.08f, brass);
     set_last_material(s, MAT_BRASS);
@@ -4595,37 +4653,37 @@ void build_space_suite(Scene *s) {
         set_last_decal(s);
     }
 
-    // ── BED MODEL — if available, place at bed zone origin ──
+    // ── BED — GLB model preferred, procedural fallback ──
     {
         int bed_mdl = find_model_asset("bed");
         if (bed_mdl >= 0) {
             add_model(s, 0, 0, -4.5f, 1,1,1, 0, bed_mdl, MAT_FABRIC, (Color){255,255,255,255});
+            // Pillows on top of GLB bed — narrative props (twos motif)
+            add_wall(s, -0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
+            set_last_material(s, MAT_FABRIC);
+            // Duvet
+            add_wall(s, 0, 0.66f, -4.2f, 3.0f, 0.06f, 1.4f, cream);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 0, 0.68f, -4.8f, 3.0f, 0.04f, 0.3f, (Color){215,210,200,255});
+            set_last_material(s, MAT_FABRIC);
+        } else {
+            // Procedural fallback
+            add_wall(s, 0, 0.18f, -4.5f, 3.4f, 0.36f, 2.2f, dark_wood);
+            set_last_material(s, MAT_WOOD);
+            add_wall(s, 0, 0.48f, -4.5f, 3.2f, 0.28f, 2.0f, white);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, -0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 0, 0.66f, -4.2f, 3.0f, 0.06f, 1.4f, cream);
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 0, 0.68f, -4.8f, 3.0f, 0.04f, 0.3f, (Color){215,210,200,255});
+            set_last_material(s, MAT_FABRIC);
         }
     }
-
-    // ============================================================
-    // 8. BED ZONE — back-center, the emotional core
-    // ============================================================
-
-    // Bed frame — dark wood, generous
-    add_wall(s, 0, 0.18f, -4.5f, 3.4f, 0.36f, 2.2f, dark_wood);
-    set_last_material(s, MAT_WOOD);
-    // Mattress
-    add_wall(s, 0, 0.48f, -4.5f, 3.2f, 0.28f, 2.0f, white);
-    set_last_material(s, MAT_FABRIC);
-
-    // TWO PILLOWS — the room is for two
-    add_wall(s, -0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 0.6f, 0.68f, -5.2f, 0.65f, 0.18f, 0.4f, white);
-    set_last_material(s, MAT_FABRIC);
-
-    // Duvet — slightly rumpled, cream with folded edge
-    add_wall(s, 0, 0.66f, -4.2f, 3.0f, 0.06f, 1.4f, cream);
-    set_last_material(s, MAT_FABRIC);
-    // Folded edge at top — darker strip
-    add_wall(s, 0, 0.68f, -4.8f, 3.0f, 0.04f, 0.3f, (Color){215,210,200,255});
-    set_last_material(s, MAT_FABRIC);
 
     // HEADBOARD — tall navy velvet panel (Godard blue)
     add_wall(s, 0, 1.8f, -5.55f, 3.6f, 2.8f, 0.12f, navy);
@@ -4652,10 +4710,12 @@ void build_space_suite(Scene *s) {
     // PHOTOGRAPH FACE-DOWN on right nightstand — you cannot see who's in it
     add_wall(s, 2.5f, 0.64f, -4.6f, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
     set_last_decal(s);
+    set_last_pushable(s, 0.2f, 5.0f);
     // Postcard — unread, unknowable
     add_wall(s, 2.3f, 0.65f, -4.9f, 0.16f, 0.005f, 0.11f, cream);
     set_last_decal(s);
     set_last_rotation(s, 8.0f);
+    set_last_pushable(s, 0.1f, 3.0f);
 
     // BEDSIDE LAMPS — matching pair, warm pools
     // Left lamp
@@ -4710,9 +4770,11 @@ void build_space_suite(Scene *s) {
     // Throw pillow — Godard red against navy
     add_wall(s, -3.5f, 0.52f, 1.6f, 0.35f, 0.30f, 0.30f, PAL_RED);
     set_last_material(s, MAT_VELVET);
+    set_last_pushable(s, 0.1f, 3.0f);
     // Second throw pillow — blue (her favorite color)
     add_wall(s, -2.4f, 0.48f, 1.7f, 0.30f, 0.28f, 0.28f, PAL_BLUE);
     set_last_material(s, MAT_VELVET);
+    set_last_pushable(s, 0.1f, 3.0f);
     set_last_rotation(s, 12.0f);
 
     // Scarf draped over sofa arm — someone sat here
@@ -4734,6 +4796,7 @@ void build_space_suite(Scene *s) {
     // Book on coffee table — blue spine (geometry textbook)
     add_wall(s, -3.2f, 0.39f, 3.5f, 0.35f, 0.04f, 0.22f, PAL_BLUE);
     set_last_material(s, MAT_LEATHER);
+    set_last_pushable(s, 0.5f, 4.0f);
 
     // TWO CHAMPAGNE GLASSES on tray — one poured, one empty
     {
@@ -4741,6 +4804,8 @@ void build_space_suite(Scene *s) {
         if (glasses_mdl >= 0) {
             // Use 3D model — tray + both glasses + wine glass in one piece
             add_model(s, -2.7f, 0.39f, 3.3f, 1,1,1, 0, glasses_mdl, MAT_GLASS, glass_clr);
+            set_last_pushable(s, 0.2f, 3.0f);
+            set_last_breakable(s, 1.0f);
         } else {
             // Fallback: procedural geometry
             // Tray — brass oval
@@ -4994,38 +5059,11 @@ void build_space_suite(Scene *s) {
     add_wall(s, rw/2-0.1f, rh/2, rd/2-0.1f, 0.5f, rh, 0.5f, hull);
 
     // ============================================================
-    // 19. FLOATING OBJECTS — zero gravity storytelling
+    // 19. FLOATING OBJECTS — removed (cluttered at 960x600, hurt more than helped)
+    // Keep one subtle detail: pen floating above desk (small, brass, barely noticeable)
     // ============================================================
-
-    // BATHROBE floating mid-room — white fabric, arms spread
-    add_wall(s, 2, 2.6f, 1, 0.7f, 1.4f, 0.08f, white);
-    set_last_material(s, MAT_FABRIC);
-    // Sleeve — extended
-    add_wall(s, 2.5f, 2.8f, 1, 0.5f, 0.15f, 0.08f, white);
-    set_last_material(s, MAT_FABRIC);
-    set_last_rotation(s, 20.0f);
-
-    // PEN floating above desk — brass cylinder, drifting
     add_cylinder(s, rw/2-1.5f, 1.6f, -1.8f, 0.025f, 0.2f, brass);
     set_last_rotation(s, 25.0f);
-
-    // CHAMPAGNE GLASS inverted near ceiling — the absurd detail
-    add_cone(s, -4.5f, 4.2f, 1.5f, 0.1f, 0.12f, (Color){210,210,215,160});
-    add_cylinder(s, -4.5f, 4.05f, 1.5f, 0.025f, 0.14f, (Color){210,210,215,160});
-    // Gold droplets drifting
-    add_sphere(s, -4.3f, 3.8f, 1.3f, 0.18f, gold);
-    add_sphere(s, -4.6f, 3.5f, 1.7f, 0.14f, gold);
-    add_sphere(s, -4.1f, 3.3f, 1.1f, 0.16f, gold);
-    add_sphere(s, -4.8f, 4.0f, 1.9f, 0.10f, gold);
-
-    // PHOTOGRAPH floating face-down — mid-room, slowly tumbling
-    add_wall(s, 3, 2.5f, 0, 0.22f, 0.01f, 0.16f, (Color){240,238,230,255});
-    set_last_rotation(s, 15.0f);
-
-    // BOOK open, pages fanned — floating near sofa area
-    add_wall(s, -2, 1.5f, 3, 0.6f, 0.04f, 0.4f, white);
-    add_wall(s, -2.05f, 1.53f, 3, 0.55f, 0.02f, 0.38f, (Color){30,30,35,255});
-    set_last_rotation(s, -8.0f);
 
     // ============================================================
     // 20. LEADING LINES — brass floor inlays
@@ -5269,6 +5307,56 @@ void build_space_suite(Scene *s) {
     // Candle in brass holder — unlit
     add_cylinder(s, -rw/2+0.2f, 0.28f, win_cz+2.0f, 0.04f, 0.03f, brass);
     add_cylinder(s, -rw/2+0.2f, 0.35f, win_cz+2.0f, 0.025f, 0.1f, cream);
+
+    // ============================================================
+    // 29. GLB MODELS — placed props from Blender pipeline
+    // ============================================================
+    {
+        int floor_lamp_mdl = find_model_asset("floor_lamp");
+        if (floor_lamp_mdl >= 0) {
+            add_model(s, -5.5f, 0, -1.0f, 1,1,1, 0, floor_lamp_mdl, MAT_BRASS, brass);
+            // Emissive shade + paired point light (slots 4-5 reserved for lamp activation)
+            add_light_panel(s, -5.5f, 1.4f, -1.0f, 0.2f, 0.3f, 0.2f, warm_light);
+        }
+
+        int wine_glass_mdl = find_model_asset("wine_glass");
+        if (wine_glass_mdl >= 0) {
+            add_model(s, -3.3f, 0.39f, 3.6f, 1,1,1, 15, wine_glass_mdl, MAT_GLASS, glass_clr);
+            set_last_pushable(s, 0.15f, 3.0f);
+            set_last_breakable(s, 1.0f);
+        }
+
+        int photo_frame_mdl = find_model_asset("photograph_frame");
+        if (photo_frame_mdl >= 0) {
+            add_model(s, 2.5f, 0.64f, -4.6f, 1,1,1, 0, photo_frame_mdl, MAT_WOOD, cream);
+        }
+
+        int ashtray_mdl = find_model_asset("standing_ashtray");
+        if (ashtray_mdl >= 0) {
+            add_model(s, -4.8f, 0, 1.5f, 1,1,1, 0, ashtray_mdl, MAT_BRASS, brass);
+        }
+
+        int record_mdl = find_model_asset("record_player");
+        if (record_mdl >= 0) {
+            add_model(s, -3.5f, 0.37f, 3.8f, 1,1,1, -20, record_mdl, MAT_WOOD, dark_wood);
+        }
+
+        int tray_mdl = find_model_asset("room_service_tray");
+        if (tray_mdl >= 0) {
+            add_model(s, -2.5f, 0.37f, 3.6f, 1,1,1, 5, tray_mdl, MAT_BRASS, brass);
+        }
+
+        int desk_lamp_mdl = find_model_asset("desk_lamp");
+        if (desk_lamp_mdl >= 0) {
+            add_model(s, 6.0f, 0.45f, -1.5f, 1,1,1, -90, desk_lamp_mdl, MAT_BRASS, brass);
+            add_light_panel(s, 6.0f, 0.6f, -1.5f, 0.15f, 0.2f, 0.15f, warm_light);
+        }
+
+        int ice_bucket_mdl = find_model_asset("ice_bucket");
+        if (ice_bucket_mdl >= 0) {
+            add_model(s, -2.9f, 0.39f, 3.1f, 1,1,1, 0, ice_bucket_mdl, MAT_BRASS, brass);
+        }
+    }
 
     tag_materials_by_color(s);
 

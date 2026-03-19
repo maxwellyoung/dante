@@ -2,6 +2,7 @@
 #include "game_ctx.h"
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 
 extern GameCtx g;
 
@@ -13,7 +14,15 @@ InteractSoundType get_interact_sound_ext(const char *name);
 void suite_load(void) {
     build_space_suite(&g.scene);
     init_player(&g.player, g.scene.spawn);
+    printf("[DBG-SUITE] spawn=(%.1f,%.1f,%.1f) walls=%d objs=%d\n",
+           g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z,
+           g.scene.wall_count, g.scene.object_count);
     SetPostFXWarmth(&g.postfx, 0.0f);
+    // Particle emitters — dust, smoke, debris
+    particle_clear(&g.particles);
+    particle_add_emitter(&g.particles, (Vector3){-3.5f, 1.5f, -0.5f}, EMIT_DUST, 2.0f, 2.0f);   // window light shaft
+    particle_add_emitter(&g.particles, (Vector3){-4.8f, 0.8f, 1.5f}, EMIT_SMOKE, 1.0f, 0.3f);    // ashtray
+    particle_add_emitter(&g.particles, (Vector3){0, 2.5f, 0}, EMIT_DEBRIS, 0.5f, 8.0f);           // zero-g ambient
     StopAmbient(&g.audio);
     StopCityAmbient(&g.audio);
     StopWindAmbient(&g.audio);
@@ -124,11 +133,14 @@ void suite_update(float dt) {
     if (!g.gibbons.active && g.gibbons.current_line >= g.gibbons.line_count) {
         g.gibbons.pos.y = -100;
     }
-    // Lamp ritual
+    // Lamp ritual — bedside lamp (slot 0) + floor lamp (slot 4) fade in together
     if (g.interaction_phases[0] == 1) {
         g.interaction_timers[0] -= dt;
         float gt = fminf(1.0f, 1.0f - g.interaction_timers[0] / 1.5f);
         SetPointLightIdx(&g.lighting, 0, -2.5f, 1.2f, -4.8f, gt, gt*0.82f, gt*0.45f, gt*8.0f);
+        // Floor lamp between armchairs — warm amber, softer
+        SetPointLightIdx(&g.lighting, 4, -5.5f, 1.4f, -1.0f,
+                         gt*0.6f, gt*0.45f, gt*0.22f, gt*6.0f);
         if (g.interaction_timers[0] <= 0) g.interaction_phases[0] = 2;
     }
     // Champagne ritual
@@ -145,12 +157,15 @@ void suite_update(float dt) {
             add_sphere(&g.scene, -3.0f, 1.2f, 3.4f, 0.06f, (Color){240,210,100,140});
         }
     }
-    // Desk ritual
+    // Desk ritual — desk lamp slot 3 + model lamp slot 5
     if (g.interaction_phases[2] == 1) {
         g.interaction_timers[2] -= dt;
         float dt2 = fminf(1.0f, 1.0f - g.interaction_timers[2] / 1.2f);
         SetPointLightIdx(&g.lighting, 3, 5.5f, 1.4f, -2.0f,
                          dt2 * 0.7f, dt2 * 0.6f, dt2 * 0.3f, dt2 * 5.0f);
+        // Desk lamp model — tighter pool on desk surface
+        SetPointLightIdx(&g.lighting, 5, 6.0f, 0.6f, -1.5f,
+                         dt2 * 0.5f, dt2 * 0.4f, dt2 * 0.2f, dt2 * 4.0f);
         if (g.interaction_timers[2] <= 0) g.interaction_phases[2] = 2;
     }
     // Bed ritual — the emotional center of the game
@@ -193,6 +208,9 @@ void suite_update(float dt) {
     if (g.interaction_phases[0] == 2) {
         float flk = 0.95f + 0.05f * sinf(g.state_time * 7.3f) * sinf(g.state_time * 11.1f);
         SetPointLightIdx(&g.lighting, 0, -2.5f, 1.2f, -4.8f, flk, flk*0.82f, flk*0.45f, 8.0f);
+        // Floor lamp — gentler flicker, offset phase
+        float flk2 = 0.92f + 0.08f * sinf(g.state_time * 5.1f) * sinf(g.state_time * 8.7f);
+        SetPointLightIdx(&g.lighting, 4, -5.5f, 1.4f, -1.0f, flk2*0.6f, flk2*0.45f, flk2*0.22f, 6.0f);
     }
     if (g.interaction_phases[1] == 2) {
         float glow = 0.5f + 0.1f * sinf(g.state_time * 1.2f);
@@ -344,6 +362,8 @@ void suite_update(float dt) {
                         PlayInteract(&g.audio, INTERACT_GLASS_CLINK);
                         g.interaction_phases[1] = 1;
                         g.interaction_timers[1] = 2.0f;
+                        // Champagne pop — burst of gold sparks
+                        particle_burst(&g.particles, (Vector3){-3.1f, 0.5f, 3.5f}, EMIT_SPARKS, 20, 0.3f);
                     }
 
                     if (obj->step >= obj->max_steps) {

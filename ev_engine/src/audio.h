@@ -241,4 +241,12 @@ void StopDreamTraffic(EVAudio *audio);
 // Nuclear stop — kills every looping sound. Call at top of load_state.
 void StopAllAudio(EVAudio *audio);
 
+// Impact sounds — physics collisions
+typedef enum {
+    IMPACT_HARD,   // low thud — concrete, metal
+    IMPACT_SOFT,   // muffled — carpet, fabric
+    IMPACT_GLASS,  // high clink — glass, ceramic
+} ImpactType;
+void PlayImpactSound(EVAudio *audio, float intensity, ImpactType type);
+
 #endif

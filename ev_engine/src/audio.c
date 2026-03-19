@@ -2541,4 +2541,64 @@ void StopAllAudio(EVAudio *audio) {
     StopTitleMusic(audio);
 }
 
+// ── Impact sounds — physics collisions ──
+// All procedurally synthesized: no audio files.
+void PlayImpactSound(EVAudio *audio, float intensity, ImpactType type) {
+    if (!audio->initialized) return;
+    intensity = fminf(1.0f, fmaxf(0.05f, intensity));
+
+    int samples = (int)(SAMPLE_RATE * 0.15f);  // 150ms
+    Wave w = gen_wave(samples);
+    short *data = (short *)w.data;
+    unsigned int seed = 42 + (unsigned int)(intensity * 1000);
+
+    switch (type) {
+        case IMPACT_HARD: {
+            // Low thud — exponential decay noise + sub-bass
+            float freq = 60.0f + intensity * 30.0f;
+            for (int i = 0; i < samples; i++) {
+                float t = (float)i / SAMPLE_RATE;
+                float env = expf(-t * 20.0f);
+                float bass = sinf(2*PI * freq * t) * env;
+                float noise = (ev_randf(&seed) - 0.5f) * env * 0.3f;
+                data[i] = (short)((bass + noise) * 16000 * intensity);
+            }
+            break;
+        }
+        case IMPACT_SOFT: {
+            // Muffled thud — low-passed noise
+            float prev = 0;
+            for (int i = 0; i < samples; i++) {
+                float t = (float)i / SAMPLE_RATE;
+                float env = expf(-t * 25.0f);
+                float raw = (ev_randf(&seed) - 0.5f) * env;
+                prev = prev * 0.85f + raw * 0.15f;  // simple low-pass
+                data[i] = (short)(prev * 12000 * intensity);
+            }
+            break;
+        }
+        case IMPACT_GLASS: {
+            // High clink — metallic ring + noise burst
+            float freq = 2200.0f + intensity * 800.0f;
+            float freq2 = freq * 1.47f;
+            for (int i = 0; i < samples; i++) {
+                float t = (float)i / SAMPLE_RATE;
+                float ring_env = expf(-t * 12.0f);
+                float noise_env = expf(-t * 40.0f);
+                float ring = sinf(2*PI * freq * t) * 0.4f + sinf(2*PI * freq2 * t) * 0.3f;
+                float noise = (ev_randf(&seed) - 0.5f) * noise_env * 0.3f;
+                data[i] = (short)((ring * ring_env + noise) * 14000 * intensity);
+            }
+            break;
+        }
+    }
+
+    Sound snd = LoadSoundFromWave(w);
+    UnloadWave(w);
+    SetSoundVolume(snd, 0.4f * intensity);
+    PlaySound(snd);
+    // Note: sound plays and self-destructs in Raylib's audio thread
+    // For production: pool these. For now, this works.
+}
+
 // ── Bed ritual music — placeholder warm chord progression ──

@@ -65,27 +65,31 @@ static void update_choice_input(void) {
 static void draw_choice(void) {
     if (!g.choice_active) return;
 
-    // Question — centered, upper third
-    int qy = RENDER_H / 3;
-    draw_text_box(g.choice_question, qy, 11, (Color){248, 245, 238, 200});
+    int q_size = 16;
+    int o_size = 14;
+    int pad = 12;
+    int bar_h = o_size + pad * 2;
 
-    // Options — below question, indented
-    int oy = qy + 28;
-    unsigned char a_alpha = (g.choice_cursor == 0) ? 240 : 100;
-    unsigned char b_alpha = (g.choice_cursor == 1) ? 240 : 100;
+    // Question — centered vertically
+    int qy = RENDER_H / 2 - 50;
+    draw_text_box(g.choice_question, qy, q_size, (Color){248, 245, 238, 240});
+
+    // Options — spaced so dark bars don't overlap
+    int oy = qy + q_size + pad * 2 + 8;
+    unsigned char a_alpha = (g.choice_cursor == 0) ? 255 : 140;
+    unsigned char b_alpha = (g.choice_cursor == 1) ? 255 : 140;
     Color ca = {248, 245, 238, a_alpha};
     Color cb = {248, 245, 238, b_alpha};
 
-    // Selection indicator — small dash before selected option
-    const char *prefix_a = (g.choice_cursor == 0) ? "- " : "  ";
-    const char *prefix_b = (g.choice_cursor == 1) ? "- " : "  ";
+    const char *prefix_a = (g.choice_cursor == 0) ? "> " : "  ";
+    const char *prefix_b = (g.choice_cursor == 1) ? "> " : "  ";
 
     char buf_a[128], buf_b[128];
     snprintf(buf_a, sizeof(buf_a), "%s%s", prefix_a, g.choice_a);
     snprintf(buf_b, sizeof(buf_b), "%s%s", prefix_b, g.choice_b);
 
-    draw_text_box(buf_a, oy, 10, ca);
-    draw_text_box(buf_b, oy + 18, 10, cb);
+    draw_text_box(buf_a, oy, o_size, ca);
+    draw_text_box(buf_b, oy + bar_h + 4, o_size, cb);
 }
 
 InteractSoundType get_interact_sound_ext(const char *name) {
@@ -356,6 +360,12 @@ void load_state(GameState s) {
     g.text_scale_vel = 0.0f;
     g.text_scale_target = 0.0f;
 
+    // Clear particles — each scene starts fresh
+    particle_clear(&g.particles);
+
+    // Reset grab state — no carrying across scenes
+    physics_init(&g.grab);
+
     // Reset PostFX to current visual style baseline before per-scene overrides
     ApplyVisualStyle(&g.postfx, g.current_style);
 
@@ -452,6 +462,7 @@ int main(void) {
     g.lighting = LoadEVLighting();
     CreateShadowMap(&g.lighting);
     g.postfx = LoadEVPostFX();
+    g.skybox = LoadEVSkybox();
     InitEVAudio(&g.audio);
     LoadFileMusic(&g.audio);
 
@@ -1100,6 +1111,7 @@ int main(void) {
     }
     UnloadEVLighting(&g.lighting);
     UnloadEVPostFX(&g.postfx);
+    UnloadEVSkybox(&g.skybox);
     UnloadFileMusic(&g.audio);
     UnloadEVAudio(&g.audio);
     UnloadRenderTexture(g.render_target);
@@ -1146,10 +1158,12 @@ int main(void) {
             g.state_time += dt;
             g.total_time += dt;
 
-            // Tick model animations (GLB skeletal)
+            // Tick model animations (GLB skeletal) — skip NPC models (managed by npc.c)
             for (int mi = 0; mi < g.model_asset_count; mi++) {
                 ModelAsset *ma = &g.model_assets[mi];
                 if (ma->loaded && ma->anims && ma->anim_count > 0) {
+                    // Skip gibbons — animation driven by draw_npc()
+                    if (strcmp(ma->name, "gibbons") == 0) continue;
                     ma->current_frame++;
                     UpdateModelAnimation(ma->model, ma->anims[ma->current_anim], ma->current_frame);
                     if (ma->current_frame >= ma->anims[ma->current_anim].frameCount)
@@ -1328,6 +1342,10 @@ int main(void) {
             scene_descs[g.state].update(dt);
         }
 
+        // Physics — pushable objects, grab/carry/throw, breakables, doors
+        physics_grab_input(&g.scene, &g.player, &g.grab, dt);
+        physics_update(&g.scene, &g.player, &g.grab, dt);
+
         // Gibbons dialogue → vignette text (cross-scene concern)
         if (g.state == STATE_SPACE_LOBBY || g.state == STATE_SPACE_CORRIDOR
             || g.state == STATE_SPACE_SUITE) {
@@ -1358,15 +1376,22 @@ int main(void) {
         if (g.lighting.shadowPassRan) BindShadowMap(&g.lighting);
 
         switch (g.state) {
-            case STATE_TITLE:
-                draw_title();
+            case STATE_TITLE: {
+                // During prologue: black screen + choices only, no title animation
+                extern bool prologue_done;
+                if (!prologue_done) {
+                    ClearBackground(BLACK);
+                } else {
+                    draw_title();
+                }
                 break;
+            }
 
             case STATE_CAR:
             case STATE_DRIVING:
-                // 3D taxi g.scene with night sky
+                // 3D taxi scene with night sky (GPU skybox)
                 ClearBackground((Color){8, 12, 28, 255});
-                draw_night_sky(g.state_time);
+                DrawSkybox(&g.skybox, g.player.camera, SKY_AUCKLAND_NIGHT, g.state_time, 0, 0);
                 draw_scene_3d(&g.player, &g.scene, &g.lighting, &g.cube_model, g.cube_model_loaded,
                               &g.cyl_model, g.cyl_model_loaded,
                               &g.sphere_model, g.sphere_model_loaded,
@@ -1402,15 +1427,16 @@ int main(void) {
             case STATE_MONTAGE:
             case STATE_RETURN_TAXI:
                 if (g.state == STATE_RETURN_TAXI) {
-                    // Dawn sky behind the taxi
+                    // Dawn sky (GPU skybox)
                     ClearBackground((Color){45, 38, 32, 255});
-                    draw_dawn_sky(g.state_time);
+                    DrawSkybox(&g.skybox, g.player.camera, SKY_DAWN, g.state_time, 0, 0);
                 } else if (g.state == STATE_PARIS_DREAM) {
-                    // Golden fog — no sky, just warm haze
+                    // Golden volumetric haze (GPU skybox)
                     ClearBackground((Color){35, 28, 15, 255});
+                    DrawSkybox(&g.skybox, g.player.camera, SKY_PARIS_DREAM, g.state_time, 0, 0);
                 } else if (g.state == STATE_HOTEL_EXT) {
                     ClearBackground((Color){8, 12, 28, 255});
-                    draw_night_sky(g.state_time);
+                    DrawSkybox(&g.skybox, g.player.camera, SKY_AUCKLAND_NIGHT, g.state_time, 0, 0);
                 } else if (g.state == STATE_ELEVATOR) {
                     // Elevator transition: Auckland sky fades to void as you ascend
                     float ascent = fminf(1.0f, g.state_time / 4.0f);
@@ -1418,46 +1444,15 @@ int main(void) {
                     unsigned char bg = (unsigned char)(12 * (1.0f - ascent) + 5 * ascent);
                     unsigned char bb = (unsigned char)(28 * (1.0f - ascent) + 12 * ascent);
                     ClearBackground((Color){br, bg, bb, 255});
-                    if (ascent < 0.8f) draw_night_sky(g.state_time);
+                    if (ascent < 0.8f)
+                        DrawSkybox(&g.skybox, g.player.camera, SKY_AUCKLAND_NIGHT, g.state_time, ascent, 0);
                 } else if (g.state == STATE_HYPERSPACE) {
-                    ClearBackground((Color){2, 2, 6, 255});  // deep void tunnel
+                    ClearBackground((Color){2, 2, 6, 255});
+                    DrawSkybox(&g.skybox, g.player.camera, SKY_HYPERSPACE, g.state_time, 1.0f, 0);
                 } else if (g.state == STATE_BALCONY || g.state == STATE_SPACE_LOBBY
                            || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE) {
                     ClearBackground((Color){4, 5, 12, 255});
-                    // Void gradient — not flat black. Space has depth.
-                    // Subtle blue-purple wash from bottom (Earth-lit) to black (deep space)
-                    for (int gy = 0; gy < RENDER_H; gy++) {
-                        float gt = (float)gy / RENDER_H;
-                        // Bottom: faint Earth blue. Top: pure void.
-                        unsigned char gr = (unsigned char)(4 + gt * 3);
-                        unsigned char gg = (unsigned char)(5 + gt * 4);
-                        unsigned char gb = (unsigned char)(12 + gt * 8);
-                        if (gr > 4 || gg > 5 || gb > 12)
-                            DrawRectangle(0, RENDER_H - gy, RENDER_W, 1, (Color){gr, gg, gb, 255});
-                    }
-                    // Deep space star field — 2D pixel stars
-                    {
-                        SetRandomSeed(42);
-                        int star_count = (g.state == STATE_BALCONY) ? 140 : 70;
-                        for (int si = 0; si < star_count; si++) {
-                            int sx = GetRandomValue(0, RENDER_W);
-                            int sy = GetRandomValue(0, RENDER_H);
-                            float bri = 0.12f + (GetRandomValue(0, 88) / 100.0f);
-                            float twk = 0.6f + 0.4f * sinf(g.state_time * (0.3f + GetRandomValue(0, 10) / 10.0f) + si * 2.7f);
-                            unsigned char sr = (si % 5 == 0) ? 255 : (si % 7 == 0) ? 200 : 230;
-                            unsigned char sg = 225;
-                            unsigned char sb = (si % 5 == 0) ? 200 : (si % 7 == 0) ? 255 : 230;
-                            DrawPixel(sx, sy, (Color){sr, sg, sb, (unsigned char)(255 * bri * twk)});
-                            // Bright stars get a 3x3 glow halo
-                            if (bri > 0.7f) {
-                                unsigned char ha = (unsigned char)(30 * bri * twk);
-                                DrawPixel(sx-1, sy, (Color){sr,sg,sb,ha});
-                                DrawPixel(sx+1, sy, (Color){sr,sg,sb,ha});
-                                DrawPixel(sx, sy-1, (Color){sr,sg,sb,ha});
-                                DrawPixel(sx, sy+1, (Color){sr,sg,sb,ha});
-                            }
-                        }
-                    }
+                    DrawSkybox(&g.skybox, g.player.camera, SKY_SPACE_VOID, g.state_time, 0, 0);
                     // Procedural Earth — positioned per g.scene so it's visible through windows
                     if (g.sphere_model_loaded) {
                         Vector3 earth_pos = {0, -40, -60};  // default
@@ -1502,11 +1497,22 @@ int main(void) {
                         float yaw_deg = g.gibbons.yaw * RAD2DEG;
                         float base_y = g.gibbons.use_physics ? g.gibbons.ground_y : (g.gibbons.pos.y - 1.6f);
                         float bob = g.gibbons.waiting ? 0 : sinf(g.gibbons.bob_timer) * 0.05f;
-                        DrawModelEx(ma->model,
-                            (Vector3){g.gibbons.pos.x, base_y + bob, g.gibbons.pos.z},
-                            (Vector3){0, 1, 0}, yaw_deg + 180.0f,
-                            (Vector3){0.8f, 0.8f, 0.8f},  // scale to fit scene
-                            WHITE);
+                        // GLB may be Z-up from Blender — apply -90° X rotation + yaw
+                        Vector3 gpos = {g.gibbons.pos.x, base_y + bob, g.gibbons.pos.z};
+                        Vector3 gscale = {0.8f, 0.8f, 0.8f};
+                        Matrix xform = MatrixMultiply(
+                            MatrixMultiply(
+                                MatrixScale(gscale.x, gscale.y, gscale.z),
+                                MatrixRotateX(-90.0f * DEG2RAD)
+                            ),
+                            MatrixMultiply(
+                                MatrixRotateY((yaw_deg + 180.0f) * DEG2RAD),
+                                MatrixTranslate(gpos.x, gpos.y, gpos.z)
+                            )
+                        );
+                        ma->model.transform = xform;
+                        DrawModel(ma->model, (Vector3){0,0,0}, 1.0f, WHITE);
+                        ma->model.transform = MatrixIdentity();
                     } else {
                         // Fallback: procedural cube geometry
                         draw_npc(&g.gibbons, &g.cube_model, &g.cyl_model, &g.lighting);
@@ -1518,6 +1524,13 @@ int main(void) {
                     || g.state == STATE_SPACE_LOBBY) {
                     BeginMode3D(g.player.camera);
                     draw_zero_g_sparkles(g.player.camera, g.state_time);
+                    EndMode3D();
+                }
+                // Particle system — dust, smoke, sparks, debris
+                if (g.particles.emitter_count > 0) {
+                    particle_update(&g.particles, dt);
+                    BeginMode3D(g.player.camera);
+                    particle_draw(&g.particles, g.player.camera);
                     EndMode3D();
                 }
                 // Earthshine — blue-white shimmer on the lower screen half
@@ -1842,6 +1855,7 @@ int main(void) {
     DestroyShadowMap(&g.lighting);
     UnloadEVLighting(&g.lighting);
     UnloadEVPostFX(&g.postfx);
+    UnloadEVSkybox(&g.skybox);
     UnloadFileMusic(&g.audio);
     UnloadEVAudio(&g.audio);
     UnloadRenderTexture(g.render_target);

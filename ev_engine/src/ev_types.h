@@ -266,6 +266,7 @@ typedef enum {
     MAT_VELVET,       // 13 — directional sheen, view-dependent nap
     MAT_WATER,        // 14 — dark reflective surface, animated ripple
     MAT_PUDDLE,       // 15 — thin film on ground, picks up nearby light color
+    MAT_EMISSIVE,     // 16 — unlit, outputs baseColor directly (Earth, glow panels)
 } MaterialType;
 
 typedef struct {
@@ -279,6 +280,21 @@ typedef struct {
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
     bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
     int model_index;        // SHAPE_MODEL only: index into model_assets[]
+    // Nudge physics — authored responses with spring-back
+    bool pushable;
+    float push_mass;        // resistance (0 = immovable, 0.3 = wine glass, 1.0 = book)
+    Vector3 push_vel;       // current velocity
+    Vector3 push_origin;    // home position (springs back)
+    float push_damping;     // velocity decay rate
+    // Extended physics — freed objects, breakables, doors
+    bool freed;             // no spring-back (thrown/knocked loose)
+    float push_vy;          // vertical velocity for arcs
+    bool breakable;         // shatters on hard impact
+    float health;           // 1.0=pristine, 0=shattered
+    bool hinge;             // door: rotates around edge
+    float hinge_angle;      // current rotation
+    float hinge_target;     // target angle (open/closed)
+    float hinge_vel;        // angular velocity
 } Wall;
 
 typedef struct {

@@ -154,19 +154,26 @@ static const char *postfx_fs =
     "        col += (col - blur) * sharpenAmt * 2.0;\n"
     "    }\n"
     "\n"
-    "    // --- Bloom — bright areas bleed light ---\n"
+    "    // --- Bloom — HDR-aware, wider kernel, threshold-based ---\n"
+    "    // Two-pass Gaussian approximation in a single pass: sample at wider offsets\n"
+    "    // with Gaussian weights. Threshold isolates bright sources (lights, specular).\n"
     "    if (bloomAmt > 0.0) {\n"
     "        vec3 bloomCol = vec3(0.0);\n"
-    "        float bw = 3.0; // bloom kernel width\n"
-    "        for (int bx = -2; bx <= 2; bx++) {\n"
-    "            for (int by = -2; by <= 2; by++) {\n"
-    "                vec3 s = texture(texture0, uv + vec2(float(bx), float(by)) * px * bw).rgb;\n"
-    "                float sl = dot(s, vec3(0.299, 0.587, 0.114));\n"
-    "                bloomCol += s * smoothstep(0.5, 1.0, sl);\n"
-    "            }\n"
+    "        float totalW = 0.0;\n"
+    "        // Sample in a cross pattern at increasing distances (fake separable blur)\n"
+    "        for (int i = -6; i <= 6; i++) {\n"
+    "            float w = exp(-float(i*i) / 8.0);\n"  // Gaussian weight, sigma≈2
+    "            vec3 sH = texture(texture0, uv + vec2(float(i), 0) * px * 2.5).rgb;\n"
+    "            vec3 sV = texture(texture0, uv + vec2(0, float(i)) * px * 2.5).rgb;\n"
+    "            // Threshold — only bloom bright pixels (light sources, specular)\n"
+    "            float lH = dot(sH, vec3(0.299, 0.587, 0.114));\n"
+    "            float lV = dot(sV, vec3(0.299, 0.587, 0.114));\n"
+    "            bloomCol += sH * max(lH - 0.5, 0.0) * w;\n"
+    "            bloomCol += sV * max(lV - 0.5, 0.0) * w;\n"
+    "            totalW += w * 2.0;\n"
     "        }\n"
-    "        bloomCol /= 25.0;\n"
-    "        col += bloomCol * bloomAmt * 1.5;\n"
+    "        bloomCol /= totalW;\n"
+    "        col += bloomCol * bloomAmt * 3.0;\n"
     "    }\n"
     "\n"
     "    // --- SSAO — subtle edge darkening (light touch at 960x600) ---\n"
@@ -279,6 +286,19 @@ static const char *postfx_fs =
     "    // --- Scene-cut flash ---\n"
     "    if (flash > 0.0) {\n"
     "        col = mix(col, flashColor, flash);\n"
+    "    }\n"
+    "\n"
+    "    // --- ACES Filmic Tonemapping ---\n"
+    "    // Replaces hard clamp — preserves highlights, compresses brights naturally.\n"
+    "    // This is the single biggest visual upgrade vs naive clamping.\n"
+    "    {\n"
+    "        // ACES approximation (Krzysztof Narkowicz fit)\n"
+    "        float a = 2.51;\n"
+    "        float b = 0.03;\n"
+    "        float c = 2.43;\n"
+    "        float d = 0.59;\n"
+    "        float e = 0.14;\n"
+    "        col = (col * (a * col + b)) / (col * (c * col + d) + e);\n"
     "    }\n"
     "\n"
     "    finalColor = vec4(clamp(col, 0.0, 1.0), 1.0);\n"
@@ -485,6 +505,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                    bool indoor, float time) {
     if (lighting->ready) {
         UpdateEVLighting(lighting, player->camera, scene->fog_color, scene->fog_density, time);
+        AnimateLights(lighting, time);
     }
 
     BeginMode3D(player->camera);
@@ -503,7 +524,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
             if (!has_decals) break;
             rlDrawRenderBatchActive();
             glEnable(GL_POLYGON_OFFSET_FILL);
-            glPolygonOffset(-2.0f, -2.0f);  // stronger bias for large scenes
+            glPolygonOffset(-3.0f, -3.0f);  // strong bias — ACES tonemapping exposes subtle z-fighting
         }
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
@@ -823,7 +844,30 @@ void draw_hud(Player *player, Scene *scene) {
 
                 // Pixel icon below crosshair — replaces text label
                 draw_pixel_icon(RENDER_W/2, RENDER_H/2 + 10, obj->name, icon_a);
+
+                // "E" prompt — small, below icon
+                const char *prompt = "E";
+                int pw = MeasureText(prompt, 10);
+                DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H/2 + 22, 10,
+                         (Color){220, 215, 205, icon_a});
             }
+        }
+    }
+
+    // Check if aiming at a grabbable (pushable) wall
+    if (target_scale < 1.5f) {
+        Vector3 origin = player->camera.position;
+        Vector3 dir = Vector3Normalize(Vector3Subtract(player->camera.target, player->camera.position));
+        for (int i = 0; i < scene->wall_count; i++) {
+            Wall *w = &scene->walls[i];
+            if (!w->pushable || !w->active) continue;
+            Vector3 to_w = Vector3Subtract(w->pos, origin);
+            float along = Vector3DotProduct(to_w, dir);
+            if (along < 0 || along > 2.5f) continue;
+            Vector3 closest = Vector3Add(origin, Vector3Scale(dir, along));
+            float perp = Vector3Distance(closest, w->pos);
+            float radius = fmaxf(w->size.x, fmaxf(w->size.y, w->size.z)) * 0.6f;
+            if (perp < radius) { target_scale = 2.0f; break; }
         }
     }
 
@@ -1120,70 +1164,7 @@ void draw_title(void) {
     }
 }
 
-void draw_night_sky(float time) {
-    // Gradient from deep navy (top) to dark blue-gray (horizon)
-    for (int y = 0; y < RENDER_H; y++) {
-        float t = (float)y / RENDER_H;
-        unsigned char r = (unsigned char)(8 + t * 17);
-        unsigned char g = (unsigned char)(12 + t * 18);
-        unsigned char b = (unsigned char)(28 + t * 22);
-        DrawRectangle(0, y, RENDER_W, 1, (Color){r, g, b, 255});
-    }
-
-    // Stars — 80 dots, seeded random, subtle twinkle
-    SetRandomSeed(73);
-    for (int i = 0; i < 80; i++) {
-        int sx = GetRandomValue(0, RENDER_W);
-        int sy = GetRandomValue(0, RENDER_H * 3 / 4);
-        float bri = 0.3f + (GetRandomValue(0, 70) / 100.0f);
-        float twinkle = 0.7f + 0.3f * sinf(time * (0.8f + GetRandomValue(0, 15) / 10.0f) + i * 2.1f);
-        DrawPixel(sx, sy, (Color){230, 225, 215, (unsigned char)(255 * bri * twinkle)});
-    }
-
-    // Moon — upper right, pale with darker crescent overlay
-    int mx = RENDER_W - 50;
-    int my = 35;
-    DrawCircle(mx, my, 8, (Color){220, 218, 212, 180});
-    DrawCircle(mx + 3, my - 2, 7, (Color){15, 18, 35, 200});  // crescent shadow
-
-    // City light pollution — faint warm glow along bottom quarter
-    DrawRectangle(0, RENDER_H * 3 / 4, RENDER_W, RENDER_H / 4,
-                  (Color){60, 45, 30, 15});
-}
-
-void draw_dawn_sky(float time) {
-    (void)time;
-    // Gradient: deep blue (top) → pink → gold (horizon)
-    for (int y = 0; y < RENDER_H; y++) {
-        float t = (float)y / RENDER_H;
-        unsigned char r, g, b;
-        if (t < 0.4f) {
-            // Upper sky — deep blue to purple
-            float u = t / 0.4f;
-            r = (unsigned char)(18 + u * 30);
-            g = (unsigned char)(22 + u * 20);
-            b = (unsigned char)(55 + u * 15);
-        } else if (t < 0.7f) {
-            // Mid sky — purple to pink
-            float u = (t - 0.4f) / 0.3f;
-            r = (unsigned char)(48 + u * 120);
-            g = (unsigned char)(42 + u * 50);
-            b = (unsigned char)(70 - u * 20);
-        } else {
-            // Horizon — pink to warm gold
-            float u = (t - 0.7f) / 0.3f;
-            r = (unsigned char)(168 + u * 62);
-            g = (unsigned char)(92 + u * 68);
-            b = (unsigned char)(50 + u * 30);
-        }
-        DrawRectangle(0, y, RENDER_W, 1, (Color){r, g, b, 255});
-    }
-    // Faint cloud band near horizon
-    DrawRectangle(0, (int)(RENDER_H * 0.72f), RENDER_W, 6,
-                  (Color){220, 170, 120, 30});
-    DrawRectangle(0, (int)(RENDER_H * 0.75f), RENDER_W, 4,
-                  (Color){200, 150, 100, 20});
-}
+// draw_night_sky and draw_dawn_sky removed — replaced by GPU skybox shader (skybox.c)
 
 void draw_dust_motes(Camera3D camera, float time) {
     // ~20 small bright dots drifting near the camera in lit areas
@@ -1398,16 +1379,15 @@ void draw_earth(Camera3D camera, float time,
     Vector3 axis = {0.23f, 1, 0};  // 23.5° axial tilt
     Color saved_color = sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
 
-    // Layer 1: Planet body — rich ocean blue, catches key light
-    // One sphere, one color. The lighting shader does the rest.
-    if (lighting && lighting->ready) SetMaterialId(lighting, 0);
+    // Layer 1: Planet body — MAT_EMISSIVE bypasses room lighting entirely.
+    // Earth is in space, not in the room. What you set is what you get.
+    if (lighting && lighting->ready) SetMaterialId(lighting, 16);  // MAT_EMISSIVE
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){22, 52, 120, 255};
     DrawModelEx(*sphere_model, earth_pos, axis, rot,
                 (Vector3){earth_scale, earth_scale, earth_scale}, WHITE);
 
-    // Layer 2: Atmosphere — glass material catches rim/Fresnel
-    // Visible separation from the body. This IS the Earth's silhouette.
-    if (lighting && lighting->ready) SetMaterialId(lighting, 7);  // glass
+    // Layer 2: Atmosphere — emissive, immune to room lighting
+    if (lighting && lighting->ready) SetMaterialId(lighting, 16);  // MAT_EMISSIVE
     float atmo_scale = earth_scale * 1.04f;
     float breath = 1.0f + sinf(time * 0.4f) * 0.006f;
     atmo_scale *= breath;

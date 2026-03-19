@@ -11,6 +11,9 @@
 #include "npc.h"
 #include "player.h"
 #include "scene.h"
+#include "particle.h"
+#include "skybox.h"
+#include "physics.h"
 #include <string.h>
 
 // Rain drops for taxi scene
@@ -129,6 +132,15 @@ typedef struct {
 
     // ── Lobby memory palace ──
     int lobby_visit_count;
+
+    // ── Skybox ──
+    EVSkybox skybox;
+
+    // ── Physics / Grab ──
+    GrabSystem grab;
+
+    // ── Particles ──
+    ParticleSystem particles;
 
     // ── Debug / visual ──
     bool show_debug;

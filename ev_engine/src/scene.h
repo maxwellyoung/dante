@@ -24,6 +24,15 @@ void set_last_rotation(Scene *s, float degrees);
 // Mark as decal — polygon offset prevents z-fighting on overlay geometry
 void set_last_decal(Scene *s);
 
+// Nudge physics — mark most recent wall as pushable
+void set_last_pushable(Scene *s, float mass, float damping);
+
+// Breakable — shatters on hard impact
+void set_last_breakable(Scene *s, float health);
+
+// Hinge door — rotates around edge
+void set_last_hinge(Scene *s, float closed_angle, float open_angle);
+
 // Convenience: add_wall + auto-mark as decal (for floor overlays, light shafts, puddles)
 void add_wall_decal(Scene *s, float x, float y, float z, float w, float h, float d, Color c);
 
