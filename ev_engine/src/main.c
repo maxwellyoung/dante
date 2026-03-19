@@ -711,409 +711,729 @@ int main(void) {
     DisableCursor();
     SetExitKey(0);  // ESC handled by pause menu, not raylib
 
-#ifdef QA_MODE
+#if defined(QA_MODE) && !defined(QA_AUDIT)
     // ============================================================
-    // QA MODE — Comprehensive automated analysis pipeline
-    // Multi-angle screenshots, quadrant composition, material breakdown,
-    // object reachability, contrast ratios, anti-pattern detection.
-    // Build: make qa   |   Full pipeline: ./qa/run.sh
+    // QA MODE — Full E2E Automated Analysis Pipeline
+    // Multi-angle patrol cameras (6 per scene), game flow testing,
+    // scene timing, collision probing, object detail extraction,
+    // material analysis, anomaly detection, regression detection.
+    // Outputs rich JSON for multi-profile Python analyzer.
+    //
+    // Build: make qa          |  Basic QA (backward compat)
+    //        make qa-e2e      |  Full E2E pipeline
+    //        ./qa/run_e2e.sh  |  Full pipeline with multi-profile grades
     // ============================================================
     EnableCursor();
     SetMasterVolume(0.0f);
 
-    // ── Scene registry with per-g.scene camera angles ──
-    // Each g.scene gets a "hero" shot (best composition) and "spawn" shot (first impression)
+    // ── Camera angle definition ──
     typedef struct {
-        Vector3 pos;        // camera position (0,0,0 = use g.scene spawn)
-        Vector3 target;     // look-at target
+        Vector3 pos;
+        Vector3 target;
     } QACam;
+
+    // Up to 8 camera angles per scene
+    #define QA_MAX_ANGLES 8
     typedef struct {
         GameState gs;
         const char *name;
-        QACam hero;         // the money shot — shows g.scene at its best
-        QACam spawn;        // what the g.player actually sees first
+        QACam angles[QA_MAX_ANGLES];   // named: hero, spawn, patrol_left, patrol_right, patrol_back, detail, ceiling, overview
+        const char *angle_names[QA_MAX_ANGLES];
+        int angle_count;
         bool dark_by_design;
         bool outdoor;
+        // Game flow
+        int flow_order;     // position in canonical game flow (-1 = orphaned)
+        GameState flow_next; // expected next scene in flow
     } QAEntry;
 
-    // Camera angles tuned per-g.scene based on geometry and hero elements
+    // ── Game flow order (canonical playthrough) ──
+    // TITLE → CAR → DRIVING → HOTEL_EXT → LOBBY → ELEVATOR →
+    // HYPERSPACE → SPACE_LOBBY → SPACE_CORRIDOR → SPACE_SUITE →
+    // BALCONY → BED → STARS → PARIS_DREAM → RETURN_TAXI
+    // Orphaned: HALLWAY, ROOM, BATHROOM (Paris hotel — dev keys only)
+
     QAEntry qa_scenes[] = {
         {STATE_HOTEL_EXT, "hotel_ext",
-            .hero  = {{0, 1.6f, 8}, {0, 6, -12}},        // looking up at Sky Tower
-            .spawn = {{0, 1.6f, 8}, {0, 1.6f, -5}},      // entrance approach
-            .dark_by_design = true, .outdoor = true},
+            .angles = {
+                {{0, 1.6f, 8}, {0, 6, -12}},           // hero: looking up at Sky Tower
+                {{0, 1.6f, 8}, {0, 1.6f, -5}},          // spawn: entrance approach
+                {{-6, 1.6f, 4}, {4, 2, -8}},            // patrol_left: from sidewalk
+                {{6, 1.6f, 4}, {-4, 2, -8}},            // patrol_right: opposite side
+                {{0, 1.6f, -8}, {0, 3, 8}},             // patrol_back: looking back at street
+                {{0, 3.0f, 0}, {0, 0, -12}},            // ceiling: bird's eye
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "overview"},
+            .angle_count = 6,
+            .dark_by_design = true, .outdoor = true,
+            .flow_order = 1, .flow_next = STATE_LOBBY},
         {STATE_LOBBY, "lobby",
-            .hero  = {{0, 1.6f, 6}, {-2, 3, -8}},        // staircase + elevator + chandelier
-            .spawn = {{0, 1.6f, 8}, {0, 2, -5}},          // entering from front
-            .outdoor = false},
+            .angles = {
+                {{0, 1.6f, 6}, {-2, 3, -8}},            // hero: staircase + elevator + chandelier
+                {{0, 1.6f, 8}, {0, 2, -5}},              // spawn: entering from front
+                {{-6, 1.6f, 0}, {6, 2, -4}},             // patrol_left: reception desk angle
+                {{6, 1.6f, 0}, {-6, 2, -4}},             // patrol_right: piano angle
+                {{0, 1.6f, -6}, {0, 2, 6}},              // patrol_back: toward entrance
+                {{0, 1.6f, 2}, {0, 0.5f, -2}},           // detail: floor/rug closeup
+                {{0, 4.0f, 0}, {0, 0, -2}},              // ceiling: chandelier from below
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail", "ceiling"},
+            .angle_count = 7,
+            .outdoor = false,
+            .flow_order = 2, .flow_next = STATE_ELEVATOR},
         {STATE_HALLWAY, "hallway",
-            .hero  = {{0, 1.6f, -1}, {0, 1.5f, -20}},     // one-point perspective from spawn
-            .spawn = {{0, 1.6f, -1}, {0, 1.5f, -20}},      // same — perspective IS the hero
-            .outdoor = false},
+            .angles = {
+                {{0, 1.6f, -1}, {0, 1.5f, -20}},        // hero: one-point perspective
+                {{0, 1.6f, -1}, {0, 1.5f, -20}},         // spawn: same — perspective IS the hero
+                {{-2, 1.6f, -10}, {2, 1.5f, -20}},       // patrol_left: angled view
+                {{2, 1.6f, -10}, {-2, 1.5f, -20}},       // patrol_right: opposite angle
+                {{0, 1.6f, -18}, {0, 1.5f, 0}},          // patrol_back: from end looking back
+                {{0, 1.6f, -5}, {1, 1.3f, -6}},          // detail: door detail
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail"},
+            .angle_count = 6,
+            .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_ROOM},  // orphaned
         {STATE_ROOM, "room",
-            .hero  = {{0, 1.6f, 3}, {0, 1.2f, -3.5f}},   // toward bed + headboard
-            .spawn = {{5.5f, 1.6f, 4}, {-2, 1.2f, -2}},   // from door toward bed
-            .outdoor = false},
+            .angles = {
+                {{0, 1.6f, 3}, {0, 1.2f, -3.5f}},       // hero: toward bed + headboard
+                {{5.5f, 1.6f, 4}, {-2, 1.2f, -2}},       // spawn: from door toward bed
+                {{-4, 1.6f, 0}, {4, 1.4f, -2}},          // patrol_left: window side
+                {{4, 1.6f, 0}, {-4, 1.4f, -2}},          // patrol_right: bathroom side
+                {{0, 1.6f, -3}, {0, 1.6f, 4}},           // patrol_back: from bed toward door
+                {{0, 1.6f, 1}, {0, 0.8f, 0}},            // detail: table/objects closeup
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail"},
+            .angle_count = 6,
+            .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_BATHROOM},  // orphaned
         {STATE_BATHROOM, "bathroom",
-            .hero  = {{0, 1.6f, 1.5f}, {0, 1.5f, -1.5f}}, // bathtub + Ando window
-            .spawn = {{0, 1.6f, 1.5f}, {1.5f, 1.2f, 0}},  // toward sink/mirror
-            .dark_by_design = true,  // clinical flat-lit by design — exempt from contrast check
-            .outdoor = false},
+            .angles = {
+                {{0, 1.6f, 1.5f}, {0, 1.5f, -1.5f}},    // hero: bathtub + Ando window
+                {{0, 1.6f, 1.5f}, {1.5f, 1.2f, 0}},      // spawn: toward sink/mirror
+                {{-1.5f, 1.6f, 0}, {1.5f, 1.2f, -1}},    // patrol_left
+                {{1.5f, 1.6f, 0}, {-1.5f, 1.2f, -1}},    // patrol_right
+                {{0, 2.2f, 0}, {0, 0, 0}},                // ceiling: from above
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "ceiling"},
+            .angle_count = 5,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_BALCONY},  // orphaned
         {STATE_BALCONY, "balcony",
-            .hero  = {{0, 1.6f, 0.5f}, {0, 0.5f, -10}},   // Earth bands — Rothko
-            .spawn = {{0, 1.6f, 0.5f}, {-1, 0.8f, -1}},   // wine table foreground
-            .dark_by_design = true, .outdoor = true},
+            .angles = {
+                {{0, 1.6f, 0.5f}, {0, 0.5f, -10}},      // hero: Earth bands — Rothko
+                {{0, 1.6f, 0.5f}, {-1, 0.8f, -1}},       // spawn: wine table foreground
+                {{-2, 1.6f, 0}, {2, 0.5f, -8}},           // patrol_left: railing angle
+                {{2, 1.6f, 0}, {-2, 0.5f, -8}},           // patrol_right: opposite
+                {{0, 1.6f, 0}, {0, -1, -10}},             // detail: looking down at Earth
+                {{0, 1.6f, 0}, {0, 3, -5}},               // ceiling: looking up at stars
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "detail_earth", "ceiling_stars"},
+            .angle_count = 6,
+            .dark_by_design = true, .outdoor = true,
+            .flow_order = 8, .flow_next = STATE_BED},
         {STATE_ELEVATOR, "elevator",
-            .hero  = {{0, 1.6f, 0}, {0.5f, 1.0f, -1.0f}},   // button panel + walls visible
-            .spawn = {{0, 1.6f, 0}, {-0.3f, 2.5f, -0.8f}},  // up at ceiling + mirror
-            .dark_by_design = true, .outdoor = false},
+            .angles = {
+                {{0, 1.6f, 0}, {0.5f, 1.0f, -1.0f}},    // hero: button panel + walls
+                {{0, 1.6f, 0}, {-0.3f, 2.5f, -0.8f}},    // spawn: up at ceiling
+                {{-0.5f, 1.6f, 0.3f}, {0.5f, 1.0f, -0.5f}}, // patrol_left
+                {{0.5f, 1.6f, 0.3f}, {-0.5f, 1.0f, -0.5f}}, // patrol_right
+                {{0, 0.8f, 0}, {0, 1.6f, -0.5f}},        // detail: floor/lower
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "detail"},
+            .angle_count = 5,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = 3, .flow_next = STATE_HYPERSPACE},
         {STATE_SPACE_LOBBY, "space_lobby",
-            .hero  = {{5, 1.6f, 5}, {-5, 3, -6}},          // diagonal — window + chandelier + columns
-            .spawn = {{0, 1.6f, 6}, {0, 2, -3}},           // entering, chandelier visible
-            .outdoor = true},
+            .angles = {
+                {{5, 1.6f, 5}, {-5, 3, -6}},             // hero: diagonal — window + chandelier
+                {{0, 1.6f, 6}, {0, 2, -3}},               // spawn: entering, chandelier visible
+                {{-7, 1.6f, 0}, {7, 2, -4}},              // patrol_left: far corner
+                {{7, 1.6f, 0}, {-7, 2, -4}},              // patrol_right: opposite corner
+                {{0, 1.6f, -6}, {0, 2, 6}},               // patrol_back: from window looking in
+                {{3, 1.6f, 3}, {0, 0.5f, 0}},             // detail: floor/fountain
+                {{0, 5.0f, 0}, {0, 0, -3}},               // ceiling: chandelier from above
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail", "ceiling"},
+            .angle_count = 7,
+            .outdoor = true,
+            .flow_order = 5, .flow_next = STATE_SPACE_CORRIDOR},
         {STATE_SPACE_CORRIDOR, "space_corridor",
-            .hero  = {{0, 1.6f, 2}, {0, 1.4f, 14}},         // down corridor toward exit
-            .spawn = {{0, 1.6f, 0}, {-2, 1.6f, 4}},         // entering, first door visible
-            .dark_by_design = true,
-            .outdoor = false},
+            .angles = {
+                {{0, 1.6f, 2}, {0, 1.4f, 14}},           // hero: down corridor toward exit
+                {{0, 1.6f, 0}, {-2, 1.6f, 4}},            // spawn: entering, first door visible
+                {{-2, 1.6f, 6}, {2, 1.4f, 12}},           // patrol_left: angled hallway
+                {{2, 1.6f, 6}, {-2, 1.4f, 12}},           // patrol_right
+                {{0, 1.6f, 14}, {0, 1.6f, 0}},            // patrol_back: from end
+                {{0, 1.6f, 8}, {1, 1.3f, 8}},             // detail: door closeup
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail"},
+            .angle_count = 6,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = 6, .flow_next = STATE_SPACE_SUITE},
         {STATE_SPACE_SUITE, "space_suite",
-            .hero  = {{3, 1.6f, 0}, {-6, 2, -2}},         // from right looking at Earth window
-            .spawn = {{0, 1.6f, 5}, {0, 1.6f, -4}},        // entering, bed visible
-            .outdoor = false},
+            .angles = {
+                {{3, 1.6f, 0}, {-6, 2, -2}},             // hero: from right looking at Earth window
+                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // spawn: entering, bed visible
+                {{-5, 1.6f, 0}, {5, 1.8f, -2}},           // patrol_left: desk side
+                {{5, 1.6f, 0}, {-5, 1.8f, -2}},           // patrol_right: window side
+                {{0, 1.6f, -4}, {0, 1.6f, 5}},            // patrol_back: from window
+                {{2, 1.6f, 2}, {0, 0.8f, 0}},             // detail: objects on desk/table
+                {{0, 3.0f, 0}, {0, 0, -2}},               // ceiling: overhead view
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail", "ceiling"},
+            .angle_count = 7,
+            .outdoor = false,
+            .flow_order = 7, .flow_next = STATE_BALCONY},
         {STATE_CAR, "taxi",
-            .hero  = {{0, 0, 0}, {-0.3f, 0.9f, -1.2f}},   // driver + dashboard
-            .spawn = {{0, 0, 0}, {0, 0.9f, -2.0f}},      // forward through windshield
-            .dark_by_design = true, .outdoor = false},
+            .angles = {
+                {{0, 0, 0}, {-0.3f, 0.9f, -1.2f}},       // hero: driver + dashboard
+                {{0, 0, 0}, {0, 0.9f, -2.0f}},            // spawn: forward through windshield
+                {{0, 0, 0}, {-1, 0.8f, 0}},               // patrol_left: out left window
+                {{0, 0, 0}, {1, 0.8f, 0}},                // patrol_right: out right window
+                {{0, 0, 0}, {0, 1.2f, 0}},                // ceiling: looking up at roof
+            },
+            .angle_names = {"hero", "spawn", "left_window", "right_window", "ceiling"},
+            .angle_count = 5,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = 0, .flow_next = STATE_HOTEL_EXT},
         {STATE_HYPERSPACE, "hyperspace",
-            .hero  = {{0, 0, 0}, {0, 0, -20}},             // tunnel convergence
-            .spawn = {{0, 0, 0}, {0, 0, -20}},
-            .dark_by_design = true, .outdoor = false},
+            .angles = {
+                {{0, 0, 0}, {0, 0, -20}},                 // hero: tunnel convergence
+                {{0, 0, 0}, {0, 0, -20}},                 // spawn
+                {{0, 0, 0}, {-5, 0, -20}},                // patrol_left: off-center
+                {{0, 0, 0}, {5, 0, -20}},                 // patrol_right
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = 4, .flow_next = STATE_SPACE_LOBBY},
         {STATE_PARIS_DREAM, "paris_dream",
-            .hero  = {{0, 1.6f, 4}, {0, 1.2f, -3.5f}},      // toward bed + photograph
-            .spawn = {{0, 1.6f, 4}, {0, 1.6f, 0}},
-            .dark_by_design = false, .outdoor = false},
+            .angles = {
+                {{0, 1.6f, 4}, {0, 1.2f, -3.5f}},        // hero: toward bed + photograph
+                {{0, 1.6f, 4}, {0, 1.6f, 0}},             // spawn
+                {{-3, 1.6f, 0}, {3, 1.4f, -2}},           // patrol_left
+                {{3, 1.6f, 0}, {-3, 1.4f, -2}},           // patrol_right
+                {{0, 1.6f, -2}, {0, 1.6f, 4}},            // patrol_back
+                {{0, 1.6f, 2}, {0, 0.8f, 0}},             // detail: objects
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "patrol_back", "detail"},
+            .angle_count = 6,
+            .dark_by_design = false, .outdoor = false,
+            .flow_order = 10, .flow_next = STATE_RETURN_TAXI},
         {STATE_RETURN_TAXI, "return_taxi",
-            .hero  = {{0, 1.0f, 0}, {-0.3f, 0.9f, -1.2f}},  // driver + dashboard
-            .spawn = {{0, 1.0f, 0}, {0.5f, 0.8f, -0.5f}},
-            .dark_by_design = false, .outdoor = false},
+            .angles = {
+                {{0, 1.0f, 0}, {-0.3f, 0.9f, -1.2f}},    // hero: driver + dashboard
+                {{0, 1.0f, 0}, {0.5f, 0.8f, -0.5f}},      // spawn
+                {{0, 1.0f, 0}, {-1, 0.8f, 0}},             // patrol_left
+                {{0, 1.0f, 0}, {1, 0.8f, 0}},              // patrol_right
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .dark_by_design = false, .outdoor = false,
+            .flow_order = 11, .flow_next = STATE_TITLE},
+        // ── Additional scenes for full coverage ──
+        {STATE_BED, "bed",
+            .angles = {
+                {{0, 1.2f, 0}, {0, 2, -3}},               // hero: lying in bed, looking up
+                {{0, 1.2f, 0}, {0, 1, -2}},               // spawn
+                {{-2, 1.6f, 0}, {2, 1.2f, -2}},           // patrol_left
+                {{2, 1.6f, 0}, {-2, 1.2f, -2}},           // patrol_right
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = 9, .flow_next = STATE_STARS},
+        {STATE_STARS, "stars",
+            .angles = {
+                {{0, 0, 0}, {0, 1, -5}},                  // hero: looking up at stars
+                {{0, 0, 0}, {0, 0, -10}},                 // spawn
+                {{0, 0, 0}, {-3, 1, -5}},                 // patrol_left
+                {{0, 0, 0}, {3, 1, -5}},                  // patrol_right
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .dark_by_design = true, .outdoor = true,
+            .flow_order = -1, .flow_next = STATE_PARIS_DREAM},
+        {STATE_CLEANED_SUITE, "cleaned_suite",
+            .angles = {
+                {{3, 1.6f, 0}, {-6, 2, -2}},             // hero: same as suite for comparison
+                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // spawn
+                {{-5, 1.6f, 0}, {5, 1.8f, -2}},           // patrol_left
+                {{5, 1.6f, 0}, {-5, 1.8f, -2}},           // patrol_right
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_MONTAGE},
     };
     int qa_count = (int)(sizeof(qa_scenes)/sizeof(qa_scenes[0]));
 
+    // ── Determine mode ──
+#ifdef QA_E2E
+    const bool e2e_mode = true;
+#else
+    const bool e2e_mode = false;
+#endif
+    const char *report_path = e2e_mode ? "qa/e2e_report.json" : "qa/report.json";
+
     printf("\n[QA] ============================================================\n");
-    printf("[QA]  ENDEARING VOID — Comprehensive QA Analysis\n");
+    printf("[QA]  ENDEARING VOID — %s QA Analysis\n", e2e_mode ? "Full E2E" : "Standard");
     printf("[QA]  Scenes: %d | Render: %dx%d | MAX_WALLS: %d\n", qa_count, RENDER_W, RENDER_H, MAX_WALLS);
+    if (e2e_mode) printf("[QA]  Mode: Multi-angle patrol + flow testing + collision probes\n");
     printf("[QA] ============================================================\n\n");
 
-    FILE *jf = fopen("qa/report.json", "w");
-    if (jf) fprintf(jf, "{\n  \"render\": \"%dx%d\",\n  \"max_walls\": %d,\n  \"scenes\": [\n", RENDER_W, RENDER_H, MAX_WALLS);
+    FILE *jf = fopen(report_path, "w");
+    if (jf) {
+        fprintf(jf, "{\n  \"mode\": \"%s\",\n  \"render\": \"%dx%d\",\n  \"max_walls\": %d,\n",
+                e2e_mode ? "e2e" : "standard", RENDER_W, RENDER_H, MAX_WALLS);
+        fprintf(jf, "  \"material_names\": [\"concrete\",\"marble\",\"wood\",\"carpet\",\"wallpaper\",\"tile\",\"brass\",\"glass\",\"leather\",\"fabric\",\"checkerboard\",\"herringbone\",\"parquet\",\"velvet\",\"water\",\"puddle\",\"emissive\"],\n");
+        fprintf(jf, "  \"scenes\": [\n");
+    }
 
     int qa_total_issues = 0;
 
-    for (int qi = 0; qi < qa_count; qi++) {
-        load_state(qa_scenes[qi].gs);
-        g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+    // ── Pixel analysis helper — extracts metrics from an image ──
+    // Returns data as a struct for flexible JSON output
+    typedef struct {
+        float luma, black_pct, bright_pct, mid_pct;
+        float edge_density, contrast_ratio, color_variance;
+        float warmth, center_luma, edge_luma;
+        float lr_balance, tb_balance;
+        float quadrant_luma[4];
+        int hue_buckets;
+        float avg_rgb[3];
+        // Extended metrics
+        float saturation_avg;       // average saturation across frame
+        float brightness_std;       // stddev of pixel brightness
+        float dominant_color_pct;   // how much the single most common color dominates
+        int dark_quadrant_count;    // quadrants with luma < 15
+        float rule_of_thirds_energy; // edge energy near 1/3 and 2/3 lines
+    } PixelMetrics;
 
-        // ── Render helper: take a screenshot from a given angle ──
-        #define QA_RENDER_SHOT(cam_setup, suffix) do { \
-            if (cam_setup.pos.x != 0 || cam_setup.pos.y != 0 || cam_setup.pos.z != 0) \
-                g.player.camera.position = cam_setup.pos; \
-            g.player.camera.target = cam_setup.target; \
-            for (int _f = 0; _f < 8; _f++) { \
-                BeginTextureMode(g.render_target); \
-                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255}); \
-                draw_scene_3d(&g.player, &g.scene, &g.lighting, \
-                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded, \
-                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded, \
-                    &g.skytower_model, g.skytower_loaded, \
-                    !qa_scenes[qi].outdoor, (float)_f * 0.016f); \
-                EndTextureMode(); \
-                BeginTextureMode(g.postfx_target); ClearBackground(BLACK); \
-                draw_postfx(&g.postfx, g.render_target); EndTextureMode(); \
-                BeginDrawing(); ClearBackground(BLACK); EndDrawing(); \
+    #define QA_ANALYZE_IMAGE(img_ptr, metrics_ptr) do { \
+        Color *_px = LoadImageColors(*(img_ptr)); \
+        int _total = RENDER_W * RENDER_H; \
+        int _half_w = RENDER_W / 2, _half_h = RENDER_H / 2; \
+        long _r_sum = 0, _g_sum = 0, _b_sum = 0; \
+        int _black = 0, _bright = 0, _mid = 0; \
+        float _r_sq = 0, _g_sq = 0, _b_sq = 0; \
+        int _hues[36] = {0}; \
+        float _ql[4] = {0}; long _qr[4] = {0}, _qg[4] = {0}, _qb[4] = {0}; \
+        int _qpx = _half_w * _half_h; \
+        int _cx0 = RENDER_W/4, _cx1 = RENDER_W*3/4, _cy0 = RENDER_H/4, _cy1 = RENDER_H*3/4; \
+        float _cl = 0, _el = 0; int _cpx = 0, _epx = 0; \
+        int _edges = 0; \
+        float _sat_sum = 0; float _bri_sum = 0; float _bri_sq = 0; \
+        int _color_buckets[64] = {0}; \
+        float _thirds_energy = 0; \
+        int _third_x1 = RENDER_W/3, _third_x2 = RENDER_W*2/3; \
+        int _third_y1 = RENDER_H/3, _third_y2 = RENDER_H*2/3; \
+        for (int _p = 0; _p < _total; _p++) { \
+            unsigned char _pr = _px[_p].r, _pg = _px[_p].g, _pb = _px[_p].b; \
+            float _pl = 0.299f*_pr + 0.587f*_pg + 0.114f*_pb; \
+            _r_sum += _pr; _g_sum += _pg; _b_sum += _pb; \
+            _r_sq += (float)_pr*_pr; _g_sq += (float)_pg*_pg; _b_sq += (float)_pb*_pb; \
+            _bri_sum += _pl; _bri_sq += _pl*_pl; \
+            if (_pr < 15 && _pg < 15 && _pb < 15) _black++; \
+            else if (_pr > 230 && _pg > 230 && _pb > 230) _bright++; \
+            else if (_pl > 40 && _pl < 200) _mid++; \
+            float _rf = _pr/255.0f, _gf = _pg/255.0f, _bf = _pb/255.0f; \
+            float _cmax = _rf > _gf ? (_rf > _bf ? _rf : _bf) : (_gf > _bf ? _gf : _bf); \
+            float _cmin = _rf < _gf ? (_rf < _bf ? _rf : _bf) : (_gf < _bf ? _gf : _bf); \
+            float _delta = _cmax - _cmin; \
+            if (_delta > 0.05f) { \
+                _sat_sum += _delta / (_cmax > 0.001f ? _cmax : 0.001f); \
+                float _hue = 0; \
+                if (_cmax == _rf) _hue = 60.0f * fmodf((_gf-_bf)/_delta, 6.0f); \
+                else if (_cmax == _gf) _hue = 60.0f * ((_bf-_rf)/_delta + 2.0f); \
+                else _hue = 60.0f * ((_rf-_gf)/_delta + 4.0f); \
+                if (_hue < 0) _hue += 360.0f; \
+                _hues[(int)(_hue/10.0f) % 36]++; \
             } \
-            RenderTexture2D _disp = g.postfx.ready ? g.postfx_target : g.render_target; \
-            Image _img = LoadImageFromTexture(_disp.texture); \
-            ImageFlipVertical(&_img); \
-            char _path[256]; \
-            snprintf(_path, sizeof(_path), "qa/screenshots/%s_%s.png", qa_scenes[qi].name, suffix); \
-            ExportImage(_img, _path); \
-            UnloadImage(_img); \
-        } while(0)
+            int _px_x = _p % RENDER_W, _px_y = _p / RENDER_W; \
+            int _qi = (_px_x >= _half_w ? 1 : 0) + (_px_y >= _half_h ? 2 : 0); \
+            _qr[_qi] += _pr; _qg[_qi] += _pg; _qb[_qi] += _pb; \
+            if (_px_x >= _cx0 && _px_x < _cx1 && _px_y >= _cy0 && _px_y < _cy1) { _cl += _pl; _cpx++; } \
+            else { _el += _pl; _epx++; } \
+            if (_px_x > 0 && _px_x < RENDER_W-1) { \
+                float _ll = 0.299f*_px[_p-1].r + 0.587f*_px[_p-1].g + 0.114f*_px[_p-1].b; \
+                float _rl = 0.299f*_px[_p+1].r + 0.587f*_px[_p+1].g + 0.114f*_px[_p+1].b; \
+                float _eg = fabsf(_rl - _ll); \
+                if (_eg > 25) _edges++; \
+                if (abs(_px_x - _third_x1) < 3 || abs(_px_x - _third_x2) < 3) _thirds_energy += _eg; \
+            } \
+            if (_px_y > 0 && _px_y < RENDER_H-1) { \
+                float _al = 0.299f*_px[_p-RENDER_W].r + 0.587f*_px[_p-RENDER_W].g + 0.114f*_px[_p-RENDER_W].b; \
+                float _bl = 0.299f*_px[_p+RENDER_W].r + 0.587f*_px[_p+RENDER_W].g + 0.114f*_px[_p+RENDER_W].b; \
+                float _eg2 = fabsf(_bl - _al); \
+                if (_eg2 > 25) _edges++; \
+                if (abs(_px_y - _third_y1) < 3 || abs(_px_y - _third_y2) < 3) _thirds_energy += _eg2; \
+            } \
+            _color_buckets[(_pr >> 6) * 16 + (_pg >> 6) * 4 + (_pb >> 6)]++; \
+        } \
+        int _hc = 0; for (int _h = 0; _h < 36; _h++) if (_hues[_h] > _total/500) _hc++; \
+        float _ra = (float)_r_sum/_total, _ga = (float)_g_sum/_total, _ba = (float)_b_sum/_total; \
+        (metrics_ptr)->luma = 0.299f*_ra + 0.587f*_ga + 0.114f*_ba; \
+        (metrics_ptr)->black_pct = 100.0f*_black/_total; \
+        (metrics_ptr)->bright_pct = 100.0f*_bright/_total; \
+        (metrics_ptr)->mid_pct = 100.0f*_mid/_total; \
+        (metrics_ptr)->edge_density = 100.0f*_edges/_total; \
+        (metrics_ptr)->color_variance = (_r_sq/_total - _ra*_ra) + (_g_sq/_total - _ga*_ga) + (_b_sq/_total - _ba*_ba); \
+        (metrics_ptr)->hue_buckets = _hc; \
+        (metrics_ptr)->warmth = _ra - _ba; \
+        (metrics_ptr)->avg_rgb[0] = _ra; (metrics_ptr)->avg_rgb[1] = _ga; (metrics_ptr)->avg_rgb[2] = _ba; \
+        (metrics_ptr)->center_luma = _cpx > 0 ? _cl / _cpx : 0; \
+        (metrics_ptr)->edge_luma = _epx > 0 ? _el / _epx : 0; \
+        for (int _q = 0; _q < 4; _q++) { \
+            float _qra = (float)_qr[_q]/_qpx, _qga = (float)_qg[_q]/_qpx, _qba = (float)_qb[_q]/_qpx; \
+            (metrics_ptr)->quadrant_luma[_q] = 0.299f*_qra + 0.587f*_qga + 0.114f*_qba; \
+        } \
+        float _qlmax = (metrics_ptr)->quadrant_luma[0], _qlmin = (metrics_ptr)->quadrant_luma[0]; \
+        for (int _q = 1; _q < 4; _q++) { \
+            if ((metrics_ptr)->quadrant_luma[_q] > _qlmax) _qlmax = (metrics_ptr)->quadrant_luma[_q]; \
+            if ((metrics_ptr)->quadrant_luma[_q] < _qlmin) _qlmin = (metrics_ptr)->quadrant_luma[_q]; \
+        } \
+        (metrics_ptr)->contrast_ratio = _qlmin > 0.01f ? _qlmax / _qlmin : 999.0f; \
+        (metrics_ptr)->lr_balance = ((metrics_ptr)->quadrant_luma[0]+(metrics_ptr)->quadrant_luma[2]) > 0 ? \
+            fabsf(((metrics_ptr)->quadrant_luma[0]+(metrics_ptr)->quadrant_luma[2]) - ((metrics_ptr)->quadrant_luma[1]+(metrics_ptr)->quadrant_luma[3])) / \
+            (((metrics_ptr)->quadrant_luma[0]+(metrics_ptr)->quadrant_luma[2]+(metrics_ptr)->quadrant_luma[1]+(metrics_ptr)->quadrant_luma[3])/2.0f) : 0; \
+        (metrics_ptr)->tb_balance = ((metrics_ptr)->quadrant_luma[0]+(metrics_ptr)->quadrant_luma[1]) > 0 ? \
+            fabsf(((metrics_ptr)->quadrant_luma[0]+(metrics_ptr)->quadrant_luma[1]) - ((metrics_ptr)->quadrant_luma[2]+(metrics_ptr)->quadrant_luma[3])) / \
+            (((metrics_ptr)->quadrant_luma[0]+(metrics_ptr)->quadrant_luma[1]+(metrics_ptr)->quadrant_luma[2]+(metrics_ptr)->quadrant_luma[3])/2.0f) : 0; \
+        (metrics_ptr)->saturation_avg = _sat_sum / _total; \
+        float _bri_avg = _bri_sum / _total; \
+        (metrics_ptr)->brightness_std = sqrtf(_bri_sq / _total - _bri_avg * _bri_avg); \
+        int _max_bucket = 0; for (int _b = 0; _b < 64; _b++) { if (_color_buckets[_b] > _max_bucket) _max_bucket = _color_buckets[_b]; } \
+        (metrics_ptr)->dominant_color_pct = 100.0f * (float)_max_bucket / (float)_total; \
+        int _dqc = 0; for (int _q = 0; _q < 4; _q++) if ((metrics_ptr)->quadrant_luma[_q] < 15) _dqc++; \
+        (metrics_ptr)->dark_quadrant_count = _dqc; \
+        (metrics_ptr)->rule_of_thirds_energy = _thirds_energy / (float)(RENDER_H * 12); \
+        UnloadImageColors(_px); \
+    } while(0)
 
-        // Take hero shot — this is also the image we analyze
-        QA_RENDER_SHOT(qa_scenes[qi].hero, "hero");
+    // ── Render helper macro ──
+    #define QA_RENDER_SHOT_EX(cam_pos, cam_target, out_path, scene_idx) do { \
+        g.player.camera.position = cam_pos; \
+        g.player.camera.target = cam_target; \
+        for (int _f = 0; _f < 8; _f++) { \
+            BeginTextureMode(g.render_target); \
+            ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255}); \
+            draw_scene_3d(&g.player, &g.scene, &g.lighting, \
+                &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded, \
+                &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded, \
+                &g.skytower_model, g.skytower_loaded, \
+                !qa_scenes[scene_idx].outdoor, (float)_f * 0.016f); \
+            EndTextureMode(); \
+            BeginTextureMode(g.postfx_target); ClearBackground(BLACK); \
+            draw_postfx(&g.postfx, g.render_target); EndTextureMode(); \
+            BeginDrawing(); ClearBackground(BLACK); EndDrawing(); \
+        } \
+        RenderTexture2D _disp = g.postfx.ready ? g.postfx_target : g.render_target; \
+        Image _shot = LoadImageFromTexture(_disp.texture); \
+        ImageFlipVertical(&_shot); \
+        ExportImage(_shot, out_path); \
+        UnloadImage(_shot); \
+    } while(0)
 
-        // Capture hero image for analysis (re-render from same angle)
-        // The macro already rendered; just grab the framebuffer
-        RenderTexture2D display = g.postfx.ready ? g.postfx_target : g.render_target;
-        Image img = LoadImageFromTexture(display.texture);
-        ImageFlipVertical(&img);
-        char primary_path[256];
-        snprintf(primary_path, sizeof(primary_path), "qa/screenshots/%s.png", qa_scenes[qi].name);
-        ExportImage(img, primary_path);
+    // ── JSON helper — write pixel metrics ──
+    #define QA_WRITE_METRICS_JSON(file, m, indent) do { \
+        fprintf(file, "%s\"luma\": %.1f,\n", indent, (m)->luma); \
+        fprintf(file, "%s\"black_pct\": %.1f,\n", indent, (m)->black_pct); \
+        fprintf(file, "%s\"bright_pct\": %.1f,\n", indent, (m)->bright_pct); \
+        fprintf(file, "%s\"mid_tone_pct\": %.1f,\n", indent, (m)->mid_pct); \
+        fprintf(file, "%s\"edge_density\": %.1f,\n", indent, (m)->edge_density); \
+        fprintf(file, "%s\"contrast_ratio\": %.2f,\n", indent, (m)->contrast_ratio); \
+        fprintf(file, "%s\"color_variance\": %.1f,\n", indent, (m)->color_variance); \
+        fprintf(file, "%s\"hue_buckets\": %d,\n", indent, (m)->hue_buckets); \
+        fprintf(file, "%s\"warmth\": %.1f,\n", indent, (m)->warmth); \
+        fprintf(file, "%s\"avg_rgb\": [%.0f, %.0f, %.0f],\n", indent, (m)->avg_rgb[0], (m)->avg_rgb[1], (m)->avg_rgb[2]); \
+        fprintf(file, "%s\"center_luma\": %.1f,\n", indent, (m)->center_luma); \
+        fprintf(file, "%s\"edge_luma\": %.1f,\n", indent, (m)->edge_luma); \
+        fprintf(file, "%s\"lr_balance\": %.3f,\n", indent, (m)->lr_balance); \
+        fprintf(file, "%s\"tb_balance\": %.3f,\n", indent, (m)->tb_balance); \
+        fprintf(file, "%s\"quadrant_luma\": [%.1f, %.1f, %.1f, %.1f],\n", indent, \
+                (m)->quadrant_luma[0], (m)->quadrant_luma[1], (m)->quadrant_luma[2], (m)->quadrant_luma[3]); \
+        fprintf(file, "%s\"saturation_avg\": %.3f,\n", indent, (m)->saturation_avg); \
+        fprintf(file, "%s\"brightness_std\": %.1f,\n", indent, (m)->brightness_std); \
+        fprintf(file, "%s\"dominant_color_pct\": %.1f,\n", indent, (m)->dominant_color_pct); \
+        fprintf(file, "%s\"dark_quadrant_count\": %d,\n", indent, (m)->dark_quadrant_count); \
+        fprintf(file, "%s\"rule_of_thirds_energy\": %.1f\n", indent, (m)->rule_of_thirds_energy); \
+    } while(0)
 
-        // Take spawn shot
+    for (int qi = 0; qi < qa_count; qi++) {
+        double load_start = GetTime();
         load_state(qa_scenes[qi].gs);
         g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-        QA_RENDER_SHOT(qa_scenes[qi].spawn, "spawn");
+        double load_time_ms = (GetTime() - load_start) * 1000.0;
 
-        Color *pixels = LoadImageColors(img);
-        int total_px = RENDER_W * RENDER_H;
-        int half_w = RENDER_W / 2, half_h = RENDER_H / 2;
+        // ── Determine how many angles to shoot ──
+        int num_angles = e2e_mode ? qa_scenes[qi].angle_count : 2;  // basic mode: hero + spawn only
 
-        // ── Full-frame analysis ──
-        long r_sum = 0, g_sum = 0, b_sum = 0;
-        int black_px = 0, bright_px = 0, mid_px = 0;
-        float r_sq = 0, g_sq = 0, b_sq = 0;
-        int unique_hues[36] = {0};
-
-        // ── Quadrant analysis (TL, TR, BL, BR) ──
-        float q_luma[4] = {0};
-        long q_r[4] = {0}, q_g[4] = {0}, q_b[4] = {0};
-        int q_black[4] = {0};
-        int q_px = half_w * half_h;
-
-        // ── Center region (inner 50%) ──
-        int cx0 = RENDER_W / 4, cx1 = RENDER_W * 3 / 4;
-        int cy0 = RENDER_H / 4, cy1 = RENDER_H * 3 / 4;
-        float center_luma = 0;
-        int center_px = 0;
-        float edge_luma = 0;
-        int edge_px = 0;
-
-        // ── Edge detection (Sobel-lite: horizontal luminance gradient) ──
-        int strong_edges = 0;
-
-        for (int p = 0; p < total_px; p++) {
-            unsigned char pr = pixels[p].r, pg = pixels[p].g, pb = pixels[p].b;
-            float pl = 0.299f*pr + 0.587f*pg + 0.114f*pb;
-            r_sum += pr; g_sum += pg; b_sum += pb;
-            r_sq += (float)pr*pr; g_sq += (float)pg*pg; b_sq += (float)pb*pb;
-            if (pr < 15 && pg < 15 && pb < 15) black_px++;
-            else if (pr > 230 && pg > 230 && pb > 230) bright_px++;
-            else if (pl > 40 && pl < 200) mid_px++;
-
-            // Hue bucket
-            float rf = pr/255.0f, gf = pg/255.0f, bf = pb/255.0f;
-            float cmax = rf > gf ? (rf > bf ? rf : bf) : (gf > bf ? gf : bf);
-            float cmin = rf < gf ? (rf < bf ? rf : bf) : (gf < bf ? gf : bf);
-            float delta = cmax - cmin;
-            if (delta > 0.05f) {
-                float hue = 0;
-                if (cmax == rf) hue = 60.0f * fmodf((gf-bf)/delta, 6.0f);
-                else if (cmax == gf) hue = 60.0f * ((bf-rf)/delta + 2.0f);
-                else hue = 60.0f * ((rf-gf)/delta + 4.0f);
-                if (hue < 0) hue += 360.0f;
-                unique_hues[(int)(hue/10.0f) % 36]++;
+        // ── Take screenshots from all angles ──
+        PixelMetrics angle_metrics[QA_MAX_ANGLES] = {0};
+        for (int ai = 0; ai < num_angles; ai++) {
+            // Reload scene for each angle (clean state)
+            if (ai > 0) {
+                load_state(qa_scenes[qi].gs);
+                g.fade_alpha = 0.0f; g.fade_target = 0.0f;
             }
 
-            // Quadrant
-            int px_x = p % RENDER_W, px_y = p / RENDER_W;
-            int qi_quad = (px_x >= half_w ? 1 : 0) + (px_y >= half_h ? 2 : 0);
-            q_r[qi_quad] += pr; q_g[qi_quad] += pg; q_b[qi_quad] += pb;
-            if (pr < 15 && pg < 15 && pb < 15) q_black[qi_quad]++;
+            char shot_path[256];
+            snprintf(shot_path, sizeof(shot_path), "qa/screenshots/%s_%s.png",
+                     qa_scenes[qi].name, qa_scenes[qi].angle_names[ai]);
 
-            // Center vs edge
-            if (px_x >= cx0 && px_x < cx1 && px_y >= cy0 && px_y < cy1) {
-                center_luma += pl; center_px++;
-            } else {
-                edge_luma += pl; edge_px++;
-            }
+            QACam cam = {qa_scenes[qi].angles[ai].pos, qa_scenes[qi].angles[ai].target};
+            // If pos is 0,0,0 keep whatever spawn set (e.g., taxi backseat)
+            Vector3 cam_pos = (cam.pos.x != 0 || cam.pos.y != 0 || cam.pos.z != 0) ? cam.pos : g.player.camera.position;
 
-            // Edge detection (horizontal + vertical gradients)
-            if (px_x > 0 && px_x < RENDER_W - 1) {
-                Color left = pixels[p - 1], right = pixels[p + 1];
-                float ll = 0.299f*left.r + 0.587f*left.g + 0.114f*left.b;
-                float rl = 0.299f*right.r + 0.587f*right.g + 0.114f*right.b;
-                if (fabsf(rl - ll) > 25) strong_edges++;
-            }
-            if (px_y > 0 && px_y < RENDER_H - 1) {
-                Color above = pixels[p - RENDER_W], below = pixels[p + RENDER_W];
-                float al = 0.299f*above.r + 0.587f*above.g + 0.114f*above.b;
-                float bl2 = 0.299f*below.r + 0.587f*below.g + 0.114f*below.b;
-                if (fabsf(bl2 - al) > 25) strong_edges++;
+            QA_RENDER_SHOT_EX(cam_pos, cam.target, shot_path, qi);
+
+            // Analyze the screenshot
+            RenderTexture2D disp = g.postfx.ready ? g.postfx_target : g.render_target;
+            Image shot_img = LoadImageFromTexture(disp.texture);
+            ImageFlipVertical(&shot_img);
+            QA_ANALYZE_IMAGE(&shot_img, &angle_metrics[ai]);
+            UnloadImage(shot_img);
+        }
+
+        // Also save backward-compat aliases for basic mode
+        {
+            char alias_path[256];
+            snprintf(alias_path, sizeof(alias_path), "qa/screenshots/%s.png", qa_scenes[qi].name);
+            // Copy hero shot
+            char hero_path[256];
+            snprintf(hero_path, sizeof(hero_path), "qa/screenshots/%s_hero.png", qa_scenes[qi].name);
+            if (FileExists(hero_path)) {
+                Image hero = LoadImage(hero_path);
+                ExportImage(hero, alias_path);
+                UnloadImage(hero);
             }
         }
 
-        int hue_count = 0;
-        for (int h = 0; h < 36; h++) if (unique_hues[h] > total_px/500) hue_count++;
-
-        float r_avg = (float)r_sum/total_px, g_avg = (float)g_sum/total_px, b_avg = (float)b_sum/total_px;
-        float luma = 0.299f*r_avg + 0.587f*g_avg + 0.114f*b_avg;
-        float cvar = (r_sq/total_px - r_avg*r_avg) + (g_sq/total_px - g_avg*g_avg) + (b_sq/total_px - b_avg*b_avg);
-        float black_pct = 100.0f*black_px/total_px;
-        float bright_pct = 100.0f*bright_px/total_px;
-        float mid_pct = 100.0f*mid_px/total_px;
-        float edge_density = 100.0f*strong_edges/total_px;
-
-        // Quadrant lumas
-        for (int q = 0; q < 4; q++) {
-            float qr = (float)q_r[q]/q_px, qg = (float)q_g[q]/q_px, qb = (float)q_b[q]/q_px;
-            q_luma[q] = 0.299f*qr + 0.587f*qg + 0.114f*qb;
+        // ── Scene data extraction ──
+        int mat_counts[17] = {0};
+        int decal_count = 0, model_count = 0, pushable_count = 0, breakable_count = 0, hinge_count = 0;
+        int no_collide_count = 0;
+        float wall_volume_total = 0;  // rough total volume of all walls
+        for (int w = 0; w < g.scene.wall_count; w++) {
+            Wall *wl = &g.scene.walls[w];
+            if (wl->material < 17) mat_counts[wl->material]++;
+            if (wl->is_decal) decal_count++;
+            if (wl->shape == SHAPE_MODEL) model_count++;
+            if (wl->pushable) pushable_count++;
+            if (wl->breakable) breakable_count++;
+            if (wl->hinge) hinge_count++;
+            if (wl->no_collide) no_collide_count++;
+            wall_volume_total += wl->size.x * wl->size.y * wl->size.z;
         }
-        float q_luma_max = q_luma[0], q_luma_min = q_luma[0];
-        for (int q = 1; q < 4; q++) {
-            if (q_luma[q] > q_luma_max) q_luma_max = q_luma[q];
-            if (q_luma[q] < q_luma_min) q_luma_min = q_luma[q];
-        }
-        float contrast_ratio = q_luma_min > 0.01f ? q_luma_max / q_luma_min : 999.0f;
-        float lr_balance = (q_luma[0] + q_luma[2]) > 0 ?
-            fabsf((q_luma[0]+q_luma[2]) - (q_luma[1]+q_luma[3])) / ((q_luma[0]+q_luma[2]+q_luma[1]+q_luma[3])/2.0f) : 0;
-        float tb_balance = (q_luma[0] + q_luma[1]) > 0 ?
-            fabsf((q_luma[0]+q_luma[1]) - (q_luma[2]+q_luma[3])) / ((q_luma[0]+q_luma[1]+q_luma[2]+q_luma[3])/2.0f) : 0;
-        float center_avg = center_px > 0 ? center_luma / center_px : 0;
-        float edge_avg = edge_px > 0 ? edge_luma / edge_px : 0;
-
-        // ── Color temperature: warm (red-shifted) vs cool (blue-shifted) ──
-        float warmth = r_avg - b_avg;  // positive = warm, negative = cool
-
-        // ── Material breakdown ──
-        int mat_counts[13] = {0};  // one per MaterialType
-        for (int w = 0; w < g.scene.wall_count; w++)
-            mat_counts[g.scene.walls[w].material]++;
         int mat_types_used = 0;
-        for (int m = 0; m < 13; m++) if (mat_counts[m] > 0) mat_types_used++;
-        int mat_tagged = g.scene.wall_count - mat_counts[0];  // non-concrete
-        float mat_cov = g.scene.wall_count > 0 ? 100.0f*mat_tagged/g.scene.wall_count : 0;
-        float wall_pct = 100.0f*g.scene.wall_count/MAX_WALLS;
+        for (int m = 0; m < 17; m++) if (mat_counts[m] > 0) mat_types_used++;
+        int mat_tagged = g.scene.wall_count - mat_counts[0];
+        float mat_cov = g.scene.wall_count > 0 ? 100.0f * mat_tagged / g.scene.wall_count : 0;
+        float wall_pct = 100.0f * g.scene.wall_count / MAX_WALLS;
 
-        // ── Object reachability from spawn ──
-        int interact_count = g.scene.object_count;
-        float obj_min_dist = 999, obj_max_dist = 0;
-        int obj_unreachable = 0;  // farther than 3.0 from spawn
+        // ── Object details ──
+        int interact_count = 0, obj_unreachable = 0;
+        float obj_max_dist = 0;
         for (int oi = 0; oi < g.scene.object_count; oi++) {
             if (!g.scene.objects[oi].active) continue;
+            interact_count++;
             float dx = g.scene.objects[oi].pos.x - g.scene.spawn.x;
             float dz = g.scene.objects[oi].pos.z - g.scene.spawn.z;
             float dist = sqrtf(dx*dx + dz*dz);
-            if (dist < obj_min_dist) obj_min_dist = dist;
             if (dist > obj_max_dist) obj_max_dist = dist;
-            // Check if within reasonable walk distance (corridor is ~32m)
             if (dist > 25.0f) obj_unreachable++;
         }
 
-        // ── Print summary line ──
+        // ── Collision probe (E2E only): can the player stand at grid points? ──
+        int collision_grid_size = 0;
+        int collision_floor_hits = 0;
+        int collision_stuck_points = 0;
+        if (e2e_mode) {
+            // Probe a 11x11 grid centered on spawn, 2m spacing
+            collision_grid_size = 11;
+            float grid_spacing = 2.0f;
+            float grid_cx = g.scene.spawn.x;
+            float grid_cz = g.scene.spawn.z;
+            for (int gx = 0; gx < collision_grid_size; gx++) {
+                for (int gz = 0; gz < collision_grid_size; gz++) {
+                    float px = grid_cx + (gx - collision_grid_size/2) * grid_spacing;
+                    float pz = grid_cz + (gz - collision_grid_size/2) * grid_spacing;
+                    float py = g.scene.spawn.y;
+                    // Check if position is inside any wall (stuck) or has floor beneath
+                    bool has_floor = false;
+                    bool is_stuck = false;
+                    for (int w = 0; w < g.scene.wall_count; w++) {
+                        Wall *wl = &g.scene.walls[w];
+                        if (wl->no_collide || wl->is_decal) continue;
+                        float wx = wl->pos.x, wy = wl->pos.y, wz = wl->pos.z;
+                        float hw = wl->size.x/2, hh = wl->size.y/2, hd = wl->size.z/2;
+                        // Floor check: wall is beneath probe point and thin (floor-like)
+                        if (wl->size.y < 0.3f && py > wy - hh && py < wy + hh + 2.0f &&
+                            px > wx - hw && px < wx + hw && pz > wz - hd && pz < wz + hd) {
+                            has_floor = true;
+                        }
+                        // Stuck check: probe point is inside a thick wall
+                        if (wl->size.y > 0.5f &&
+                            px > wx - hw && px < wx + hw &&
+                            py > wy - hh && py < wy + hh &&
+                            pz > wz - hd && pz < wz + hd) {
+                            is_stuck = true;
+                        }
+                    }
+                    if (has_floor) collision_floor_hits++;
+                    if (is_stuck) collision_stuck_points++;
+                }
+            }
+        }
+
+        // ── Wall overlap detection (E2E only): find overlapping non-decal walls ──
+        int overlap_count = 0;
+        if (e2e_mode) {
+            for (int a = 0; a < g.scene.wall_count && a < 500; a++) {
+                Wall *wa = &g.scene.walls[a];
+                if (wa->is_decal || wa->no_collide) continue;
+                for (int b = a + 1; b < g.scene.wall_count && b < 500; b++) {
+                    Wall *wb = &g.scene.walls[b];
+                    if (wb->is_decal || wb->no_collide) continue;
+                    // AABB overlap check
+                    float ax0 = wa->pos.x - wa->size.x/2, ax1 = wa->pos.x + wa->size.x/2;
+                    float ay0 = wa->pos.y - wa->size.y/2, ay1 = wa->pos.y + wa->size.y/2;
+                    float az0 = wa->pos.z - wa->size.z/2, az1 = wa->pos.z + wa->size.z/2;
+                    float bx0 = wb->pos.x - wb->size.x/2, bx1 = wb->pos.x + wb->size.x/2;
+                    float by0 = wb->pos.y - wb->size.y/2, by1 = wb->pos.y + wb->size.y/2;
+                    float bz0 = wb->pos.z - wb->size.z/2, bz1 = wb->pos.z + wb->size.z/2;
+                    if (ax0 < bx1 && ax1 > bx0 && ay0 < by1 && ay1 > by0 && az0 < bz1 && az1 > bz0) {
+                        // Calculate overlap volume
+                        float ox = fminf(ax1, bx1) - fmaxf(ax0, bx0);
+                        float oy = fminf(ay1, by1) - fmaxf(ay0, by0);
+                        float oz = fminf(az1, bz1) - fmaxf(az0, bz0);
+                        float ovol = ox * oy * oz;
+                        float smaller = fminf(wa->size.x * wa->size.y * wa->size.z,
+                                              wb->size.x * wb->size.y * wb->size.z);
+                        // Only count if overlap is significant (>10% of smaller wall)
+                        if (smaller > 0.001f && ovol / smaller > 0.1f) overlap_count++;
+                    }
+                }
+            }
+        }
+
+        // ── Issue detection (on hero angle metrics) ──
+        PixelMetrics *hero = &angle_metrics[0];
         int issues = 0;
-        char ibuf[4096] = {0};
+        char ibuf[8192] = {0};
         int ib = 0;
         bool dark = qa_scenes[qi].dark_by_design;
 
-        // COMPOSITION checks
-        if (edge_density < 0.5f && !dark) {
+        // COMPOSITION
+        if (hero->edge_density < 0.5f && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COMPOSITION: edge density %.1f%% — no visible geometry/detail\n", edge_density); issues++;
+                "    COMPOSITION: edge density %.1f%% — no visible geometry\n", hero->edge_density); issues++;
         }
-        if (contrast_ratio < 1.3f && !dark) {
+        if (hero->contrast_ratio < 1.3f && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COMPOSITION: contrast ratio %.1f:1 — flat, no drama\n", contrast_ratio); issues++;
+                "    COMPOSITION: contrast ratio %.1f:1 — flat, no drama\n", hero->contrast_ratio); issues++;
         }
-        if (center_avg < 10 && edge_avg < 10 && !dark) {
+        if (hero->center_luma < 10 && hero->edge_luma < 10 && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COMPOSITION: center luma %.0f — nothing visible in frame center\n", center_avg); issues++;
-        }
-
-        // LIGHTING checks
-        if (black_pct > 85.0f && !dark) {
-            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    LIGHTING: %.0f%% black — g.scene is unlit\n", black_pct); issues++;
-        }
-        if (luma < 5.0f && !dark) {
-            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    LIGHTING: luma %.1f — nearly invisible\n", luma); issues++;
-        }
-        if (bright_pct > 60.0f) {
-            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    LIGHTING: %.0f%% blown out — over-exposed\n", bright_pct); issues++;
+                "    COMPOSITION: center luma %.0f — nothing visible\n", hero->center_luma); issues++;
         }
 
-        // MATERIAL checks
+        // LIGHTING
+        if (hero->black_pct > 85.0f && !dark) {
+            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                "    LIGHTING: %.0f%% black — scene is unlit\n", hero->black_pct); issues++;
+        }
+        if (hero->luma < 5.0f && !dark) {
+            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                "    LIGHTING: luma %.1f — nearly invisible\n", hero->luma); issues++;
+        }
+        if (hero->bright_pct > 60.0f) {
+            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                "    LIGHTING: %.0f%% blown out\n", hero->bright_pct); issues++;
+        }
+
+        // MATERIAL
         if (mat_cov < 25.0f && g.scene.wall_count > 20) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    MATERIAL: only %.0f%% non-concrete — surface monotony\n", mat_cov); issues++;
+                "    MATERIAL: only %.0f%% non-concrete\n", mat_cov); issues++;
         }
         if (mat_types_used < 3 && g.scene.wall_count > 30) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    MATERIAL: only %d types — needs variety\n", mat_types_used); issues++;
+                "    MATERIAL: only %d types\n", mat_types_used); issues++;
         }
 
-        // COLOR checks
-        if (cvar < 50.0f && !dark) {
+        // COLOR
+        if (hero->color_variance < 50.0f && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COLOR: variance %.0f — flat, no accent colors\n", cvar); issues++;
+                "    COLOR: variance %.0f — flat\n", hero->color_variance); issues++;
         }
-        if (hue_count < 2 && !dark) {
+        if (hero->hue_buckets < 2 && !dark) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    COLOR: only %d hue buckets — monotone\n", hue_count); issues++;
+                "    COLOR: only %d hue buckets — monotone\n", hero->hue_buckets); issues++;
         }
 
-        // BUDGET checks
+        // BUDGET
         if (wall_pct > 85.0f) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    BUDGET: wall budget %.0f%% (%d/%d) — near overflow\n", wall_pct, g.scene.wall_count, MAX_WALLS); issues++;
+                "    BUDGET: walls %.0f%% (%d/%d)\n", wall_pct, g.scene.wall_count, MAX_WALLS); issues++;
         }
 
-        // INTERACTION checks
+        // INTERACTION
         if (obj_unreachable > 0) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    INTERACTION: %d object(s) too far from spawn\n", obj_unreachable); issues++;
+                "    INTERACTION: %d unreachable objects\n", obj_unreachable); issues++;
         }
 
-        // ANTI-PATTERN checks
-        // Horror: blue-green dominant + low luma + high contrast
-        if (warmth < -15 && luma < 40 && !dark && contrast_ratio > 3) {
+        // ANTI-PATTERNS
+        if (hero->warmth < -15 && hero->luma < 40 && !dark && hero->contrast_ratio > 3) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    ANTI-PATTERN: reads as horror (cold %.0f, dark luma %.0f)\n", (double)warmth, (double)luma); issues++;
+                "    ANTI-PATTERN: horror vibes (cold %.0f, dark %.0f)\n", hero->warmth, hero->luma); issues++;
         }
-        // Grey-on-grey in space (space scenes should have color)
         if ((qa_scenes[qi].gs == STATE_SPACE_LOBBY || qa_scenes[qi].gs == STATE_SPACE_CORRIDOR ||
-             qa_scenes[qi].gs == STATE_SPACE_SUITE) && hue_count < 3) {
+             qa_scenes[qi].gs == STATE_SPACE_SUITE) && hero->hue_buckets < 3) {
             ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                "    ANTI-PATTERN: grey-on-grey in space — hull must pop against void\n"); issues++;
+                "    ANTI-PATTERN: grey-on-grey in space\n"); issues++;
         }
 
-        // ── ANOMALY DETECTION — catch rogue geometry, single-color floods ──
-        {
-            // Dominant color check: if >40% of pixels are one color (±5), something's blocking the view
-            int color_buckets[64] = {0};  // 4-bit per channel = 64 buckets
-            for (int p = 0; p < total_px; p++) {
-                int bucket = (pixels[p].r >> 6) * 16 + (pixels[p].g >> 6) * 4 + (pixels[p].b >> 6);
-                color_buckets[bucket]++;
-            }
-            int max_bucket = 0;
-            for (int b = 0; b < 64; b++) {
-                if (color_buckets[b] > max_bucket) max_bucket = color_buckets[b];
-            }
-            float dominant_pct = 100.0f * (float)max_bucket / (float)total_px;
-            if (dominant_pct > 70.0f && !dark) {
-                ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                    "    ANOMALY: %.0f%% single color bucket — rogue geometry or unlit void\n", (double)dominant_pct); issues++;
-            }
+        // ANOMALY
+        if (hero->dominant_color_pct > 70.0f && !dark) {
+            ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                "    ANOMALY: %.0f%% single color — rogue geometry?\n", hero->dominant_color_pct); issues++;
+        }
 
-            // Horizontal band check: if a horizontal strip is uniform, might be z-fighting
-            int band_issues = 0;
-            for (int row = RENDER_H/4; row < 3*RENDER_H/4; row += RENDER_H/8) {
-                int row_r = 0, row_g = 0, row_b = 0;
-                for (int col = 0; col < RENDER_W; col++) {
-                    Color px = pixels[row * RENDER_W + col];
-                    row_r += px.r; row_g += px.g; row_b += px.b;
-                }
-                float row_var = 0;
-                float mr = (float)row_r / RENDER_W, mg = (float)row_g / RENDER_W, mb = (float)row_b / RENDER_W;
-                for (int col = 0; col < RENDER_W; col++) {
-                    Color px = pixels[row * RENDER_W + col];
-                    float dr = (float)px.r - mr, dg = (float)px.g - mg, db = (float)px.b - mb;
-                    row_var += dr*dr + dg*dg + db*db;
-                }
-                row_var /= RENDER_W;
-                if (row_var < 5.0f && !dark) band_issues++;
-            }
-            if (band_issues >= 3) {
+        // E2E-ONLY CHECKS
+        if (e2e_mode) {
+            if (overlap_count > 5) {
                 ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                    "    ANOMALY: %d uniform horizontal bands — possible z-fighting or flat geometry\n", band_issues); issues++;
+                    "    GEOMETRY: %d wall overlaps (z-fighting risk)\n", overlap_count); issues++;
+            }
+            if (collision_stuck_points > 3) {
+                ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                    "    COLLISION: %d stuck points in grid\n", collision_stuck_points); issues++;
+            }
+            int total_grid = collision_grid_size * collision_grid_size;
+            if (total_grid > 0 && collision_floor_hits < total_grid / 4) {
+                ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                    "    COLLISION: only %d/%d floor coverage\n", collision_floor_hits, total_grid); issues++;
+            }
+            // Check angle consistency — if patrol angles see radically different scenes, flag it
+            if (num_angles >= 4) {
+                float luma_min = 999, luma_max = 0;
+                for (int ai = 0; ai < num_angles; ai++) {
+                    if (angle_metrics[ai].luma < luma_min) luma_min = angle_metrics[ai].luma;
+                    if (angle_metrics[ai].luma > luma_max) luma_max = angle_metrics[ai].luma;
+                }
+                if (!dark && luma_max > 0 && luma_min / luma_max < 0.1f) {
+                    ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
+                        "    CONSISTENCY: luma range %.0f-%.0f across angles — uneven lighting\n", luma_min, luma_max); issues++;
+                }
             }
         }
 
-        // ── REGRESSION DETECTION — compare against baseline if available ──
+        // ── REGRESSION DETECTION ──
+        float regression_pct = 0;
         {
             char baseline_path[256];
             snprintf(baseline_path, sizeof(baseline_path), "qa/baseline/%s_hero.png", qa_scenes[qi].name);
@@ -1121,117 +1441,209 @@ int main(void) {
                 Image baseline = LoadImage(baseline_path);
                 if (baseline.width == RENDER_W && baseline.height == RENDER_H) {
                     Color *base_px = LoadImageColors(baseline);
+                    // Re-grab hero image for comparison
+                    char hero_path[256];
+                    snprintf(hero_path, sizeof(hero_path), "qa/screenshots/%s_hero.png", qa_scenes[qi].name);
+                    Image hero_img = LoadImage(hero_path);
+                    Color *hero_px = LoadImageColors(hero_img);
+                    int total_px = RENDER_W * RENDER_H;
                     long diff_sum = 0;
                     int changed_px = 0;
                     for (int p = 0; p < total_px; p++) {
-                        int dr = (int)pixels[p].r - (int)base_px[p].r;
-                        int dg = (int)pixels[p].g - (int)base_px[p].g;
-                        int db = (int)pixels[p].b - (int)base_px[p].b;
+                        int dr = (int)hero_px[p].r - (int)base_px[p].r;
+                        int dg = (int)hero_px[p].g - (int)base_px[p].g;
+                        int db = (int)hero_px[p].b - (int)base_px[p].b;
                         int d2 = dr*dr + dg*dg + db*db;
                         diff_sum += d2;
-                        if (d2 > 900) changed_px++;  // >30 per channel = significant change
+                        if (d2 > 900) changed_px++;
                     }
-                    float avg_diff = sqrtf((float)diff_sum / total_px);
-                    float change_pct = 100.0f * (float)changed_px / (float)total_px;
-                    if (change_pct > 25.0f) {
+                    regression_pct = 100.0f * (float)changed_px / (float)total_px;
+                    if (regression_pct > 25.0f) {
+                        float avg_diff = sqrtf((float)diff_sum / total_px);
                         ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
-                            "    REGRESSION: %.0f%% pixels changed vs baseline (avg diff %.1f)\n",
-                            (double)change_pct, (double)avg_diff); issues++;
+                            "    REGRESSION: %.0f%% pixels changed (avg diff %.1f)\n",
+                            (double)regression_pct, (double)avg_diff); issues++;
                     }
                     // Save diff image
                     Image diff_img = GenImageColor(RENDER_W, RENDER_H, BLACK);
-                    Color *diff_px = LoadImageColors(diff_img);
                     for (int p = 0; p < total_px; p++) {
-                        int dr = abs((int)pixels[p].r - (int)base_px[p].r);
-                        int dg = abs((int)pixels[p].g - (int)base_px[p].g);
-                        int db = abs((int)pixels[p].b - (int)base_px[p].b);
+                        int dr = abs((int)hero_px[p].r - (int)base_px[p].r);
+                        int dg = abs((int)hero_px[p].g - (int)base_px[p].g);
+                        int db = abs((int)hero_px[p].b - (int)base_px[p].b);
                         int d = (dr + dg + db) * 3;
                         if (d > 255) d = 255;
-                        diff_px[p] = (Color){(unsigned char)d, (unsigned char)(d/2), 0, 255};
-                    }
-                    // Write diff pixels back and export
-                    for (int p = 0; p < total_px; p++) {
-                        ((Color *)diff_img.data)[p] = diff_px[p];
+                        ((Color *)diff_img.data)[p] = (Color){(unsigned char)d, (unsigned char)(d/2), 0, 255};
                     }
                     char diff_path[256];
                     snprintf(diff_path, sizeof(diff_path), "qa/diffs/%s_diff.png", qa_scenes[qi].name);
                     ExportImage(diff_img, diff_path);
-                    UnloadImageColors(diff_px);
                     UnloadImage(diff_img);
+                    UnloadImageColors(hero_px);
+                    UnloadImage(hero_img);
                     UnloadImageColors(base_px);
                 }
                 UnloadImage(baseline);
             }
         }
 
-        const char *qs = issues == 0 ? "PASS" : "FAIL";
-        printf("[QA] %-18s %s  walls:%3d  mat:%d types (%.0f%%)  luma:%.0f  contrast:%.1f:1  edges:%.0f%%  hues:%d  objects:%d\n",
-               qa_scenes[qi].name, qs, g.scene.wall_count,
-               mat_types_used, mat_cov, luma, contrast_ratio, edge_density, hue_count, interact_count);
+        // ── Console output ──
+        const char *status = issues == 0 ? "PASS" : "FAIL";
+        printf("[QA] %-18s %s  walls:%3d  mat:%d (%.0f%%)  luma:%.0f  contrast:%.1f:1  edges:%.0f%%  hues:%d  obj:%d",
+               qa_scenes[qi].name, status, g.scene.wall_count,
+               mat_types_used, mat_cov, hero->luma, hero->contrast_ratio,
+               hero->edge_density, hero->hue_buckets, interact_count);
+        if (e2e_mode) printf("  angles:%d  load:%.0fms", num_angles, load_time_ms);
+        printf("\n");
         if (issues > 0) printf("%s", ibuf);
         qa_total_issues += issues;
 
-        // ── JSON entry ──
+        // ── JSON output ──
         if (jf) {
             if (qi > 0) fprintf(jf, ",\n");
             fprintf(jf, "    {\n");
             fprintf(jf, "      \"name\": \"%s\",\n", qa_scenes[qi].name);
-            fprintf(jf, "      \"status\": \"%s\",\n", qs);
+            fprintf(jf, "      \"game_state\": %d,\n", qa_scenes[qi].gs);
+            fprintf(jf, "      \"status\": \"%s\",\n", status);
+            fprintf(jf, "      \"flow_order\": %d,\n", qa_scenes[qi].flow_order);
+            fprintf(jf, "      \"flow_next\": %d,\n", qa_scenes[qi].flow_next);
+            fprintf(jf, "      \"dark_by_design\": %s,\n", dark ? "true" : "false");
+            fprintf(jf, "      \"outdoor\": %s,\n", qa_scenes[qi].outdoor ? "true" : "false");
+            fprintf(jf, "      \"load_time_ms\": %.1f,\n", load_time_ms);
             fprintf(jf, "      \"walls\": %d,\n", g.scene.wall_count);
             fprintf(jf, "      \"wall_pct\": %.1f,\n", wall_pct);
             fprintf(jf, "      \"material_types\": %d,\n", mat_types_used);
             fprintf(jf, "      \"material_coverage\": %.1f,\n", mat_cov);
+            // Full material breakdown with all 17 types
             fprintf(jf, "      \"material_breakdown\": {");
-            const char *mat_names[] = {"concrete","marble","wood","carpet","wallpaper","tile","brass","glass","leather","fabric","checkerboard","herringbone","parquet"};
+            const char *mat_names[] = {"concrete","marble","wood","carpet","wallpaper","tile","brass","glass","leather","fabric","checkerboard","herringbone","parquet","velvet","water","puddle","emissive"};
             bool first_mat = true;
-            for (int m = 0; m < 13; m++) {
+            for (int m = 0; m < 17; m++) {
                 if (mat_counts[m] > 0) {
                     fprintf(jf, "%s\"%s\": %d", first_mat ? "" : ", ", mat_names[m], mat_counts[m]);
                     first_mat = false;
                 }
             }
             fprintf(jf, "},\n");
+            // Geometry detail
+            fprintf(jf, "      \"decal_count\": %d,\n", decal_count);
+            fprintf(jf, "      \"model_count\": %d,\n", model_count);
+            fprintf(jf, "      \"pushable_count\": %d,\n", pushable_count);
+            fprintf(jf, "      \"breakable_count\": %d,\n", breakable_count);
+            fprintf(jf, "      \"hinge_count\": %d,\n", hinge_count);
+            fprintf(jf, "      \"no_collide_count\": %d,\n", no_collide_count);
+            fprintf(jf, "      \"wall_volume\": %.1f,\n", wall_volume_total);
+            // Spawn
+            fprintf(jf, "      \"spawn\": [%.1f, %.1f, %.1f],\n", g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z);
+            fprintf(jf, "      \"has_exit\": %s,\n", g.scene.has_exit ? "true" : "false");
+            if (g.scene.has_exit)
+                fprintf(jf, "      \"exit_pos\": [%.1f, %.1f, %.1f],\n", g.scene.exit_pos.x, g.scene.exit_pos.y, g.scene.exit_pos.z);
+            // Objects
             fprintf(jf, "      \"interact_count\": %d,\n", interact_count);
             fprintf(jf, "      \"obj_unreachable\": %d,\n", obj_unreachable);
             fprintf(jf, "      \"obj_max_dist\": %.1f,\n", obj_max_dist);
-            fprintf(jf, "      \"luma\": %.1f,\n", luma);
-            fprintf(jf, "      \"black_pct\": %.1f,\n", black_pct);
-            fprintf(jf, "      \"bright_pct\": %.1f,\n", bright_pct);
-            fprintf(jf, "      \"mid_tone_pct\": %.1f,\n", mid_pct);
-            fprintf(jf, "      \"color_variance\": %.1f,\n", cvar);
-            fprintf(jf, "      \"hue_buckets\": %d,\n", hue_count);
-            fprintf(jf, "      \"warmth\": %.1f,\n", warmth);
-            fprintf(jf, "      \"avg_rgb\": [%.0f, %.0f, %.0f],\n", r_avg, g_avg, b_avg);
-            fprintf(jf, "      \"contrast_ratio\": %.2f,\n", contrast_ratio);
-            fprintf(jf, "      \"edge_density\": %.1f,\n", edge_density);
-            fprintf(jf, "      \"center_luma\": %.1f,\n", center_avg);
-            fprintf(jf, "      \"edge_luma\": %.1f,\n", edge_avg);
-            fprintf(jf, "      \"lr_balance\": %.3f,\n", lr_balance);
-            fprintf(jf, "      \"tb_balance\": %.3f,\n", tb_balance);
-            fprintf(jf, "      \"quadrant_luma\": [%.1f, %.1f, %.1f, %.1f],\n", q_luma[0], q_luma[1], q_luma[2], q_luma[3]);
-            fprintf(jf, "      \"dark_by_design\": %s,\n", dark ? "true" : "false");
-            fprintf(jf, "      \"outdoor\": %s,\n", qa_scenes[qi].outdoor ? "true" : "false");
+            // Object details (E2E)
+            if (e2e_mode && g.scene.object_count > 0) {
+                fprintf(jf, "      \"objects\": [\n");
+                for (int oi = 0; oi < g.scene.object_count; oi++) {
+                    InteractObject *obj = &g.scene.objects[oi];
+                    if (!obj->active) continue;
+                    float dx = obj->pos.x - g.scene.spawn.x;
+                    float dz = obj->pos.z - g.scene.spawn.z;
+                    float dist = sqrtf(dx*dx + dz*dz);
+                    fprintf(jf, "        {\"name\": \"%s\", \"pos\": [%.1f, %.1f, %.1f], \"dist\": %.1f, \"radius\": %.1f, \"max_steps\": %d, \"done\": %s}%s\n",
+                            obj->name ? obj->name : "unnamed",
+                            obj->pos.x, obj->pos.y, obj->pos.z,
+                            dist, obj->radius, obj->max_steps,
+                            obj->done ? "true" : "false",
+                            (oi < g.scene.object_count - 1) ? "," : "");
+                }
+                fprintf(jf, "      ],\n");
+            }
+            // Collision probe (E2E)
+            if (e2e_mode) {
+                fprintf(jf, "      \"collision_grid_size\": %d,\n", collision_grid_size);
+                fprintf(jf, "      \"collision_floor_hits\": %d,\n", collision_floor_hits);
+                fprintf(jf, "      \"collision_stuck_points\": %d,\n", collision_stuck_points);
+                fprintf(jf, "      \"wall_overlaps\": %d,\n", overlap_count);
+            }
+            fprintf(jf, "      \"regression_pct\": %.1f,\n", regression_pct);
             fprintf(jf, "      \"issues\": %d,\n", issues);
-            fprintf(jf, "      \"screenshots\": {\"hero\": \"screenshots/%s_hero.png\", \"spawn\": \"screenshots/%s_spawn.png\"}\n",
-                    qa_scenes[qi].name, qa_scenes[qi].name);
+            // Per-angle data
+            fprintf(jf, "      \"angles\": [\n");
+            for (int ai = 0; ai < num_angles; ai++) {
+                fprintf(jf, "        {\n");
+                fprintf(jf, "          \"name\": \"%s\",\n", qa_scenes[qi].angle_names[ai]);
+                fprintf(jf, "          \"screenshot\": \"screenshots/%s_%s.png\",\n",
+                        qa_scenes[qi].name, qa_scenes[qi].angle_names[ai]);
+                QA_WRITE_METRICS_JSON(jf, &angle_metrics[ai], "          ");
+                fprintf(jf, "        }%s\n", (ai < num_angles - 1) ? "," : "");
+            }
+            fprintf(jf, "      ]\n");
             fprintf(jf, "    }");
         }
-
-        UnloadImageColors(pixels);
-        UnloadImage(img);
     }
-    #undef QA_RENDER_SHOT
+
+    // ── Flow transition test (E2E only) ──
+    if (e2e_mode && jf) {
+        fprintf(jf, "\n  ],\n  \"transitions\": [\n");
+        // Test loading each scene in canonical flow order
+        typedef struct { GameState from; GameState to; const char *from_name; const char *to_name; } FlowStep;
+        FlowStep flow[] = {
+            {STATE_CAR,            STATE_HOTEL_EXT,      "taxi",           "hotel_ext"},
+            {STATE_HOTEL_EXT,      STATE_LOBBY,          "hotel_ext",      "lobby"},
+            {STATE_LOBBY,          STATE_ELEVATOR,       "lobby",          "elevator"},
+            {STATE_ELEVATOR,       STATE_HYPERSPACE,     "elevator",       "hyperspace"},
+            {STATE_HYPERSPACE,     STATE_SPACE_LOBBY,    "hyperspace",     "space_lobby"},
+            {STATE_SPACE_LOBBY,    STATE_SPACE_CORRIDOR, "space_lobby",    "space_corridor"},
+            {STATE_SPACE_CORRIDOR, STATE_SPACE_SUITE,    "space_corridor", "space_suite"},
+            {STATE_SPACE_SUITE,    STATE_BALCONY,        "space_suite",    "balcony"},
+            {STATE_BALCONY,        STATE_BED,            "balcony",        "bed"},
+            {STATE_BED,            STATE_STARS,          "bed",            "stars"},
+            {STATE_STARS,          STATE_PARIS_DREAM,    "stars",          "paris_dream"},
+            {STATE_PARIS_DREAM,    STATE_RETURN_TAXI,    "paris_dream",    "return_taxi"},
+        };
+        int flow_count = (int)(sizeof(flow) / sizeof(flow[0]));
+        printf("\n[QA] ── Flow Transitions ──\n");
+        for (int fi = 0; fi < flow_count; fi++) {
+            double t0 = GetTime();
+            load_state(flow[fi].from);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            double t1 = GetTime();
+            load_state(flow[fi].to);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            double t2 = GetTime();
+            float from_ms = (float)(t1 - t0) * 1000.0f;
+            float to_ms = (float)(t2 - t1) * 1000.0f;
+            bool ok = g.scene.wall_count > 0 || flow[fi].to == STATE_HYPERSPACE || flow[fi].to == STATE_STARS;
+            printf("[QA] %s → %s  %.0fms+%.0fms  %s\n",
+                   flow[fi].from_name, flow[fi].to_name, from_ms, to_ms, ok ? "OK" : "FAIL");
+            if (fi > 0) fprintf(jf, ",\n");
+            fprintf(jf, "    {\"from\": \"%s\", \"to\": \"%s\", \"from_ms\": %.1f, \"to_ms\": %.1f, \"ok\": %s, \"walls_after\": %d}",
+                    flow[fi].from_name, flow[fi].to_name, from_ms, to_ms, ok ? "true" : "false", g.scene.wall_count);
+            if (!ok) qa_total_issues++;
+        }
+        fprintf(jf, "\n  ],\n");
+    } else if (jf) {
+        fprintf(jf, "\n  ],\n");
+    }
 
     if (jf) {
-        fprintf(jf, "\n  ],\n  \"total_issues\": %d,\n  \"scene_count\": %d\n}\n", qa_total_issues, qa_count);
+        fprintf(jf, "  \"total_issues\": %d,\n  \"scene_count\": %d\n}\n", qa_total_issues, qa_count);
         fclose(jf);
     }
 
     printf("\n[QA] === %d issue%s across %d scenes ===\n",
            qa_total_issues, qa_total_issues == 1 ? "" : "s", qa_count);
-    printf("[QA] Screenshots: qa/screenshots/ (hero + spawn per g.scene)\n");
-    printf("[QA] Report:      qa/report.json\n");
-    printf("[QA] Analysis:    ./qa/run.sh   (full pipeline with grades)\n\n");
+    printf("[QA] Screenshots: qa/screenshots/\n");
+    printf("[QA] Report:      %s\n", report_path);
+    if (e2e_mode)
+        printf("[QA] Analysis:    ./qa/run_e2e.sh  (multi-profile grades)\n\n");
+    else
+        printf("[QA] Analysis:    ./qa/run.sh      (standard grades)\n\n");
+
+    #undef QA_RENDER_SHOT_EX
+    #undef QA_ANALYZE_IMAGE
+    #undef QA_WRITE_METRICS_JSON
 
     if (g.cube_model_loaded) UnloadModel(g.cube_model);
     if (g.cyl_model_loaded) UnloadModel(g.cyl_model);
@@ -1254,6 +1666,580 @@ int main(void) {
     CloseWindow();
     return qa_total_issues > 0 ? 1 : 0;
 
+#elif defined(QA_AUDIT)
+    // ============================================================
+    // ENGINE AUDIT — Technical probing of core systems
+    // No art opinions. Just: does the engine work correctly?
+    //
+    // Tests:
+    //  1. COLLISION    — Walk player in 8 dirs, detect wall penetration
+    //  2. FLOOR        — Verify grounded state at spawn
+    //  3. Z-FIGHTING   — Render same frame twice, diff for shimmer
+    //  4. RENDER       — Pipeline health (shaders, framebuffers, not-black)
+    //  5. PERFORMANCE  — Frame time per scene under render load
+    //  6. BUDGET       — Wall/object counts vs limits
+    //  7. TRANSITIONS  — Rapid scene cycling, crash detection
+    //  8. PHYSICS      — Gravity, terminal velocity, step-up
+    //  9. MODELS       — Asset loading verification
+    // 10. AUDIO        — System initialization check
+    //
+    // Build: make qa-audit   |   Report: qa/audit_report.json
+    // ============================================================
+    // Counters at file scope for this block so return can access them
+    ;int audit_pass = 0, audit_fail = 0, audit_warn = 0;
+    {
+        printf("\n[AUDIT] ============================================================\n");
+        printf("[AUDIT]  ENDEARING VOID — ENGINE AUDIT\n");
+        printf("[AUDIT]  No art. No opinions. Does the engine work?\n");
+        printf("[AUDIT] ============================================================\n\n");
+
+        FILE *af = fopen("qa/audit_report.json", "w");
+        if (af) fprintf(af, "{\n  \"tests\": [\n");
+        int test_idx = 0;
+
+        // JSON helper
+        #define AUDIT_RESULT(category, name_str, status_str, detail_str) do { \
+            const char *_s = status_str; \
+            if (strcmp(_s, "PASS") == 0) { audit_pass++; printf("[AUDIT] PASS  %-12s %s\n", category, name_str); } \
+            else if (strcmp(_s, "WARN") == 0) { audit_warn++; printf("[AUDIT] WARN  %-12s %s — %s\n", category, name_str, detail_str); } \
+            else { audit_fail++; printf("[AUDIT] FAIL  %-12s %s — %s\n", category, name_str, detail_str); } \
+            if (af) { \
+                if (test_idx > 0) fprintf(af, ",\n"); \
+                fprintf(af, "    {\"category\": \"%s\", \"test\": \"%s\", \"status\": \"%s\", \"detail\": \"%s\"}", \
+                        category, name_str, _s, detail_str); \
+                test_idx++; \
+            } \
+        } while(0)
+
+        // ── TEST 0: Subsystem health ──
+        AUDIT_RESULT("RENDER", "lighting_shader",
+                     g.lighting.ready ? "PASS" : "FAIL",
+                     g.lighting.ready ? "" : "GLSL lighting shader failed to compile");
+        AUDIT_RESULT("RENDER", "postfx_shader",
+                     g.postfx.ready ? "PASS" : "FAIL",
+                     g.postfx.ready ? "" : "GLSL post-FX shader failed to compile");
+        AUDIT_RESULT("RENDER", "shadow_map",
+                     g.lighting.shadowReady ? "PASS" : "FAIL",
+                     g.lighting.shadowReady ? "" : "Shadow FBO creation failed");
+        AUDIT_RESULT("RENDER", "render_target",
+                     (g.render_target.id > 0) ? "PASS" : "FAIL",
+                     (g.render_target.id > 0) ? "" : "Main render target not created");
+        AUDIT_RESULT("RENDER", "postfx_target",
+                     (g.postfx_target.id > 0) ? "PASS" : "FAIL",
+                     (g.postfx_target.id > 0) ? "" : "Post-FX render target not created");
+        AUDIT_RESULT("RENDER", "cube_model",
+                     g.cube_model_loaded ? "PASS" : "FAIL",
+                     g.cube_model_loaded ? "" : "Primitive cube mesh not loaded");
+        AUDIT_RESULT("RENDER", "cyl_model",
+                     g.cyl_model_loaded ? "PASS" : "FAIL",
+                     g.cyl_model_loaded ? "" : "Primitive cylinder mesh not loaded");
+        AUDIT_RESULT("RENDER", "sphere_model",
+                     g.sphere_model_loaded ? "PASS" : "FAIL",
+                     g.sphere_model_loaded ? "" : "Primitive sphere mesh not loaded");
+        AUDIT_RESULT("AUDIO", "audio_init",
+                     g.audio.initialized ? "PASS" : "FAIL",
+                     g.audio.initialized ? "" : "Audio system failed to initialize");
+
+        // ── TEST 1: Scene load integrity — every scene loads without crash ──
+        printf("\n[AUDIT] ── Scene Loading ──\n");
+        typedef struct { GameState gs; const char *name; } AuditScene;
+        AuditScene audit_scenes[] = {
+            {STATE_TITLE, "title"},
+            {STATE_CAR, "taxi"},
+            {STATE_DRIVING, "driving"},
+            {STATE_HOTEL_EXT, "hotel_ext"},
+            {STATE_LOBBY, "lobby"},
+            {STATE_ELEVATOR, "elevator"},
+            {STATE_HALLWAY, "hallway"},
+            {STATE_ROOM, "room"},
+            {STATE_BATHROOM, "bathroom"},
+            {STATE_BALCONY, "balcony"},
+            {STATE_BED, "bed"},
+            {STATE_STARS, "stars"},
+            {STATE_HYPERSPACE, "hyperspace"},
+            {STATE_SPACE_LOBBY, "space_lobby"},
+            {STATE_SPACE_CORRIDOR, "space_corridor"},
+            {STATE_SPACE_SUITE, "space_suite"},
+            {STATE_PARIS_DREAM, "paris_dream"},
+            {STATE_CLEANED_SUITE, "cleaned_suite"},
+            {STATE_MONTAGE, "montage"},
+            {STATE_RETURN_TAXI, "return_taxi"},
+        };
+        int audit_scene_count = (int)(sizeof(audit_scenes) / sizeof(audit_scenes[0]));
+
+        for (int si = 0; si < audit_scene_count; si++) {
+            double t0 = GetTime();
+            load_state(audit_scenes[si].gs);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            double load_ms = (GetTime() - t0) * 1000.0;
+
+            char detail[256];
+            // Scene loaded if it has walls OR it's a special scene (title, driving, montage, stars)
+            bool special = (audit_scenes[si].gs == STATE_TITLE ||
+                           audit_scenes[si].gs == STATE_DRIVING ||
+                           audit_scenes[si].gs == STATE_MONTAGE ||
+                           audit_scenes[si].gs == STATE_STARS ||
+                           audit_scenes[si].gs == STATE_HYPERSPACE);
+            bool ok = g.scene.wall_count > 0 || special;
+            snprintf(detail, sizeof(detail), "walls=%d load=%.0fms", g.scene.wall_count, load_ms);
+            AUDIT_RESULT("SCENE_LOAD", audit_scenes[si].name, ok ? "PASS" : "FAIL", detail);
+        }
+
+        // ── TEST 2: Wall budget ──
+        printf("\n[AUDIT] ── Wall Budget ──\n");
+        for (int si = 0; si < audit_scene_count; si++) {
+            load_state(audit_scenes[si].gs);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            char detail[256];
+            float pct = 100.0f * g.scene.wall_count / MAX_WALLS;
+            const char *status = "PASS";
+            if (pct > 90) status = "FAIL";
+            else if (pct > 75) status = "WARN";
+            snprintf(detail, sizeof(detail), "%d/%d (%.0f%%)", g.scene.wall_count, MAX_WALLS, pct);
+            AUDIT_RESULT("BUDGET", audit_scenes[si].name, status, detail);
+        }
+
+        // ── TEST 3: Collision integrity — walk player into walls ──
+        printf("\n[AUDIT] ── Collision Integrity ──\n");
+        // For each walkable scene: place player at spawn, push in 8 directions
+        // for 60 frames. Check if player ends up inside any wall.
+        GameState walkable[] = {
+            STATE_HOTEL_EXT, STATE_LOBBY, STATE_HALLWAY, STATE_ROOM,
+            STATE_BATHROOM, STATE_ELEVATOR, STATE_SPACE_LOBBY,
+            STATE_SPACE_CORRIDOR, STATE_SPACE_SUITE, STATE_BALCONY,
+            STATE_PARIS_DREAM,
+        };
+        const char *walkable_names[] = {
+            "hotel_ext", "lobby", "hallway", "room",
+            "bathroom", "elevator", "space_lobby",
+            "space_corridor", "space_suite", "balcony",
+            "paris_dream",
+        };
+        int walkable_count = (int)(sizeof(walkable) / sizeof(walkable[0]));
+        // 8 cardinal/diagonal directions
+        float dirs[][2] = {{0,-1},{0,1},{-1,0},{1,0},{-0.707f,-0.707f},{0.707f,-0.707f},{-0.707f,0.707f},{0.707f,0.707f}};
+
+        for (int si = 0; si < walkable_count; si++) {
+            load_state(walkable[si]);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+
+            int penetrations = 0;
+            int tests_run = 0;
+
+            for (int d = 0; d < 8; d++) {
+                // Reset player to spawn
+                init_player(&g.player, g.scene.spawn);
+                g.player.gravity_mult = 1.0f;
+                g.player.control_mult = 1.0f;
+
+                // Simulate 120 frames (~2 seconds) of walking in direction d
+                for (int frame = 0; frame < 120; frame++) {
+                    float dt = 1.0f / 60.0f;
+                    // Inject velocity directly (simulating held input)
+                    g.player.vel.x = dirs[d][0] * 4.5f;  // walk speed
+                    g.player.vel.z = dirs[d][1] * 4.5f;
+                    // Run the real collision system
+                    update_player(&g.player, &g.scene, dt);
+                }
+
+                // Check: is the player inside any solid wall?
+                float px = g.player.camera.position.x;
+                float py = g.player.camera.position.y - 1.6f; // feet
+                float pz = g.player.camera.position.z;
+                float pr = 0.35f; // player radius
+
+                for (int w = 0; w < g.scene.wall_count; w++) {
+                    Wall *wl = &g.scene.walls[w];
+                    if (wl->no_collide || wl->is_decal) continue;
+                    if (wl->shape != SHAPE_CUBE) continue;
+                    if (wl->size.x < 0.2f && wl->size.y < 0.2f && wl->size.z < 0.2f) continue;
+                    // Skip floors and ceilings (thin horizontal)
+                    if (wl->size.y < 0.3f) continue;
+
+                    float hw = wl->size.x / 2, hh = wl->size.y / 2, hd = wl->size.z / 2;
+                    float wx = wl->pos.x, wy = wl->pos.y, wz = wl->pos.z;
+                    // Is player center inside this wall's AABB (with margin)?
+                    float margin = pr * 0.5f;
+                    if (px > wx - hw + margin && px < wx + hw - margin &&
+                        py > wy - hh && py < wy + hh &&
+                        pz > wz - hd + margin && pz < wz + hd - margin) {
+                        penetrations++;
+                        break; // one penetration per direction is enough
+                    }
+                }
+                tests_run++;
+            }
+
+            char detail[256];
+            const char *status;
+            if (penetrations == 0) {
+                status = "PASS";
+                snprintf(detail, sizeof(detail), "8/8 directions clean");
+            } else if (penetrations <= 2) {
+                status = "WARN";
+                snprintf(detail, sizeof(detail), "%d/8 directions clipped through walls", penetrations);
+            } else {
+                status = "FAIL";
+                snprintf(detail, sizeof(detail), "%d/8 directions clipped through walls", penetrations);
+            }
+            AUDIT_RESULT("COLLISION", walkable_names[si], status, detail);
+        }
+
+        // ── TEST 4: Floor integrity — player doesn't fall through ──
+        printf("\n[AUDIT] ── Floor Integrity ──\n");
+        for (int si = 0; si < walkable_count; si++) {
+            load_state(walkable[si]);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            init_player(&g.player, g.scene.spawn);
+            g.player.gravity_mult = 1.0f;
+
+            // Simulate 120 frames of standing still with gravity
+            for (int frame = 0; frame < 120; frame++) {
+                update_player(&g.player, &g.scene, 1.0f / 60.0f);
+            }
+
+            float final_y = g.player.camera.position.y;
+            float spawn_y = g.scene.spawn.y;
+            float drop = spawn_y - final_y;
+
+            char detail[256];
+            const char *status;
+            if (drop > 20.0f) {
+                status = "FAIL";
+                snprintf(detail, sizeof(detail), "fell %.1fm from spawn (y: %.1f -> %.1f) — no floor", drop, spawn_y, final_y);
+            } else if (drop > 5.0f) {
+                status = "WARN";
+                snprintf(detail, sizeof(detail), "dropped %.1fm (y: %.1f -> %.1f)", drop, spawn_y, final_y);
+            } else {
+                status = "PASS";
+                snprintf(detail, sizeof(detail), "grounded=%-3s y_delta=%.2f", g.player.grounded ? "yes" : "no", drop);
+            }
+            AUDIT_RESULT("FLOOR", walkable_names[si], status, detail);
+        }
+
+        // ── TEST 5: Gravity & terminal velocity ──
+        printf("\n[AUDIT] ── Physics Sanity ──\n");
+        {
+            // Drop player from height in a scene with known floor
+            load_state(STATE_LOBBY);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            init_player(&g.player, (Vector3){0, 50, 0}); // 50m up
+            g.player.gravity_mult = 1.0f;
+
+            float max_vy = 0;
+            for (int frame = 0; frame < 300; frame++) {
+                update_player(&g.player, &g.scene, 1.0f / 60.0f);
+                if (g.player.vy < max_vy) max_vy = g.player.vy;
+            }
+
+            char detail[256];
+            // Terminal velocity should cap fall speed
+            bool tv_ok = max_vy > -60.0f; // should not exceed terminal velocity significantly
+            snprintf(detail, sizeof(detail), "max_vy=%.1f (terminal should cap)", max_vy);
+            AUDIT_RESULT("PHYSICS", "terminal_velocity", tv_ok ? "PASS" : "FAIL", detail);
+        }
+        {
+            // Step-up test: walk toward a known step
+            load_state(STATE_LOBBY);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            init_player(&g.player, g.scene.spawn);
+            g.player.gravity_mult = 1.0f;
+
+            float start_y = g.player.camera.position.y;
+            // Walk forward for 3 seconds
+            for (int frame = 0; frame < 180; frame++) {
+                g.player.vel.x = 0;
+                g.player.vel.z = -4.5f; // walk forward
+                update_player(&g.player, &g.scene, 1.0f / 60.0f);
+            }
+            float end_y = g.player.camera.position.y;
+            // Player should still be roughly at eye height (not stuck, not fallen)
+            bool ok = fabsf(end_y - start_y) < 10.0f && end_y > -5.0f;
+            char detail[256];
+            snprintf(detail, sizeof(detail), "y: %.1f -> %.1f (delta=%.1f)", start_y, end_y, end_y - start_y);
+            AUDIT_RESULT("PHYSICS", "walk_forward_lobby", ok ? "PASS" : "WARN", detail);
+        }
+
+        // ── TEST 6: Z-fighting detection — render same frame twice, compare ──
+        printf("\n[AUDIT] ── Z-Fighting Detection ──\n");
+        GameState zfight_scenes[] = {STATE_LOBBY, STATE_ROOM, STATE_SPACE_LOBBY, STATE_SPACE_SUITE, STATE_SPACE_CORRIDOR};
+        const char *zfight_names[] = {"lobby", "room", "space_lobby", "space_suite", "space_corridor"};
+        int zfight_count = 5;
+
+        for (int si = 0; si < zfight_count; si++) {
+            load_state(zfight_scenes[si]);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+
+            // Render frame A
+            g.player.camera.position = g.scene.spawn;
+            g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
+            for (int f = 0; f < 4; f++) {
+                BeginTextureMode(g.render_target);
+                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
+                draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                    &g.skytower_model, g.skytower_loaded, true, 1.0f);
+                EndTextureMode();
+                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+            }
+            Image imgA = LoadImageFromTexture(g.render_target.texture);
+            ImageFlipVertical(&imgA);
+            Color *pxA = LoadImageColors(imgA);
+
+            // Render frame B — identical scene, identical camera, but next frame tick
+            // Z-fighting causes different rasterization due to floating-point path differences
+            for (int f = 0; f < 4; f++) {
+                BeginTextureMode(g.render_target);
+                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
+                draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                    &g.skytower_model, g.skytower_loaded, true, 1.017f); // slightly different time
+                EndTextureMode();
+                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+            }
+            Image imgB = LoadImageFromTexture(g.render_target.texture);
+            ImageFlipVertical(&imgB);
+            Color *pxB = LoadImageColors(imgB);
+
+            // Compare: z-fighting shows as isolated pixel differences in static geometry
+            int total_px = RENDER_W * RENDER_H;
+            int shimmer_px = 0;
+            for (int p = 0; p < total_px; p++) {
+                int dr = abs((int)pxA[p].r - (int)pxB[p].r);
+                int dg = abs((int)pxA[p].g - (int)pxB[p].g);
+                int db = abs((int)pxA[p].b - (int)pxB[p].b);
+                // Z-fighting: sudden large color jump in a pixel that should be static
+                if (dr + dg + db > 30) shimmer_px++;
+            }
+            float shimmer_pct = 100.0f * shimmer_px / total_px;
+
+            // Save shimmer map
+            char shimmer_path[256];
+            snprintf(shimmer_path, sizeof(shimmer_path), "qa/screenshots/%s_zfight.png", zfight_names[si]);
+            Image shimmer_img = GenImageColor(RENDER_W, RENDER_H, BLACK);
+            for (int p = 0; p < total_px; p++) {
+                int dr = abs((int)pxA[p].r - (int)pxB[p].r);
+                int dg = abs((int)pxA[p].g - (int)pxB[p].g);
+                int db = abs((int)pxA[p].b - (int)pxB[p].b);
+                int d = (dr + dg + db) * 4;
+                if (d > 255) d = 255;
+                ((Color *)shimmer_img.data)[p] = (Color){(unsigned char)d, 0, (unsigned char)(d > 0 ? 100 : 0), 255};
+            }
+            ExportImage(shimmer_img, shimmer_path);
+            UnloadImage(shimmer_img);
+
+            char detail[256];
+            const char *status;
+            if (shimmer_pct > 5.0f) {
+                status = "FAIL";
+                snprintf(detail, sizeof(detail), "%.1f%% shimmer pixels (%d) — visible z-fighting", shimmer_pct, shimmer_px);
+            } else if (shimmer_pct > 1.0f) {
+                status = "WARN";
+                snprintf(detail, sizeof(detail), "%.1f%% shimmer (%d px)", shimmer_pct, shimmer_px);
+            } else {
+                status = "PASS";
+                snprintf(detail, sizeof(detail), "%.2f%% shimmer (%d px)", shimmer_pct, shimmer_px);
+            }
+            AUDIT_RESULT("Z_FIGHTING", zfight_names[si], status, detail);
+
+            UnloadImageColors(pxA); UnloadImage(imgA);
+            UnloadImageColors(pxB); UnloadImage(imgB);
+        }
+
+        // ── TEST 7: Render not-black — framebuffer produces visible output ──
+        printf("\n[AUDIT] ── Render Output ──\n");
+        GameState render_scenes[] = {STATE_LOBBY, STATE_SPACE_SUITE, STATE_HOTEL_EXT};
+        const char *render_names[] = {"lobby", "space_suite", "hotel_ext"};
+        for (int si = 0; si < 3; si++) {
+            load_state(render_scenes[si]);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            g.player.camera.position = g.scene.spawn;
+            g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
+            for (int f = 0; f < 8; f++) {
+                BeginTextureMode(g.render_target);
+                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
+                draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                    &g.skytower_model, g.skytower_loaded, true, 1.0f);
+                EndTextureMode();
+                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+            }
+            Image img = LoadImageFromTexture(g.render_target.texture);
+            ImageFlipVertical(&img);
+            Color *px = LoadImageColors(img);
+            int total = RENDER_W * RENDER_H;
+            long r_sum = 0, g_s = 0, b_sum = 0;
+            int nonblack = 0;
+            for (int p = 0; p < total; p++) {
+                r_sum += px[p].r; g_s += px[p].g; b_sum += px[p].b;
+                if (px[p].r > 5 || px[p].g > 5 || px[p].b > 5) nonblack++;
+            }
+            float luma = (0.299f * r_sum + 0.587f * g_s + 0.114f * b_sum) / total;
+            float visible_pct = 100.0f * nonblack / total;
+
+            char detail[256];
+            const char *status;
+            if (visible_pct < 1.0f) {
+                status = "FAIL";
+                snprintf(detail, sizeof(detail), "%.1f%% visible (luma %.0f) — framebuffer is black", visible_pct, luma);
+            } else if (luma < 5) {
+                status = "WARN";
+                snprintf(detail, sizeof(detail), "luma %.1f — barely visible", luma);
+            } else {
+                status = "PASS";
+                snprintf(detail, sizeof(detail), "luma=%.0f visible=%.0f%%", luma, visible_pct);
+            }
+            AUDIT_RESULT("RENDER_OUT", render_names[si], status, detail);
+            UnloadImageColors(px); UnloadImage(img);
+        }
+
+        // ── TEST 8: Performance — render time per scene ──
+        printf("\n[AUDIT] ── Performance ──\n");
+        for (int si = 0; si < audit_scene_count; si++) {
+            if (audit_scenes[si].gs == STATE_TITLE || audit_scenes[si].gs == STATE_DRIVING ||
+                audit_scenes[si].gs == STATE_MONTAGE) continue;
+            load_state(audit_scenes[si].gs);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+            g.player.camera.position = g.scene.spawn;
+            g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
+
+            // Warm up
+            for (int f = 0; f < 4; f++) {
+                BeginTextureMode(g.render_target);
+                ClearBackground(BLACK);
+                draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                    &g.skytower_model, g.skytower_loaded, true, 1.0f);
+                EndTextureMode();
+                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+            }
+
+            // Measure 16 frames
+            double t0 = GetTime();
+            for (int f = 0; f < 16; f++) {
+                BeginTextureMode(g.render_target);
+                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
+                draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                    &g.skytower_model, g.skytower_loaded, true, (float)f * 0.016f);
+                EndTextureMode();
+                BeginTextureMode(g.postfx_target);
+                ClearBackground(BLACK);
+                draw_postfx(&g.postfx, g.render_target);
+                EndTextureMode();
+                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+            }
+            double elapsed = (GetTime() - t0) * 1000.0;
+            float avg_ms = (float)elapsed / 16.0f;
+            float est_fps = 1000.0f / avg_ms;
+
+            char detail[256];
+            const char *status;
+            if (avg_ms > 33.3f) { // below 30fps
+                status = "FAIL";
+                snprintf(detail, sizeof(detail), "%.1fms/frame (~%.0f fps) walls=%d", avg_ms, est_fps, g.scene.wall_count);
+            } else if (avg_ms > 16.6f) { // below 60fps
+                status = "WARN";
+                snprintf(detail, sizeof(detail), "%.1fms/frame (~%.0f fps) walls=%d", avg_ms, est_fps, g.scene.wall_count);
+            } else {
+                status = "PASS";
+                snprintf(detail, sizeof(detail), "%.1fms/frame (~%.0f fps) walls=%d", avg_ms, est_fps, g.scene.wall_count);
+            }
+            AUDIT_RESULT("PERF", audit_scenes[si].name, status, detail);
+        }
+
+        // ── TEST 9: Rapid transition stress ──
+        printf("\n[AUDIT] ── Transition Stress ──\n");
+        {
+            // Load every scene 3 times rapidly — detect crashes/state corruption
+            bool stress_ok = true;
+            for (int round = 0; round < 3; round++) {
+                for (int si = 0; si < audit_scene_count; si++) {
+                    load_state(audit_scenes[si].gs);
+                    g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+                }
+            }
+            // If we got here, no crash
+            char detail[256];
+            snprintf(detail, sizeof(detail), "%d scenes x 3 rounds = %d loads", audit_scene_count, audit_scene_count * 3);
+            AUDIT_RESULT("STRESS", "rapid_transitions", stress_ok ? "PASS" : "FAIL", detail);
+        }
+
+        // ── TEST 10: Spawn validity — spawn inside playable area ──
+        printf("\n[AUDIT] ── Spawn Validity ──\n");
+        for (int si = 0; si < walkable_count; si++) {
+            load_state(walkable[si]);
+            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+
+            // Check spawn isn't inside a wall
+            float sx = g.scene.spawn.x, sy = g.scene.spawn.y, sz = g.scene.spawn.z;
+            bool inside_wall = false;
+            for (int w = 0; w < g.scene.wall_count; w++) {
+                Wall *wl = &g.scene.walls[w];
+                if (wl->no_collide || wl->is_decal) continue;
+                if (wl->shape != SHAPE_CUBE) continue;
+                if (wl->size.y < 0.3f) continue; // skip floors
+                float hw = wl->size.x/2, hh = wl->size.y/2, hd = wl->size.z/2;
+                if (sx > wl->pos.x - hw && sx < wl->pos.x + hw &&
+                    sy > wl->pos.y - hh && sy < wl->pos.y + hh &&
+                    sz > wl->pos.z - hd && sz < wl->pos.z + hd) {
+                    inside_wall = true;
+                    break;
+                }
+            }
+            char detail[256];
+            snprintf(detail, sizeof(detail), "spawn=(%.1f,%.1f,%.1f)%s", sx, sy, sz, inside_wall ? " INSIDE WALL" : "");
+            AUDIT_RESULT("SPAWN", walkable_names[si], inside_wall ? "FAIL" : "PASS", detail);
+        }
+
+        // ── Summary ──
+        printf("\n[AUDIT] ============================================================\n");
+        printf("[AUDIT]  PASS: %d  |  WARN: %d  |  FAIL: %d\n", audit_pass, audit_warn, audit_fail);
+        printf("[AUDIT]  Total: %d tests\n", audit_pass + audit_warn + audit_fail);
+        if (audit_fail == 0 && audit_warn == 0)
+            printf("[AUDIT]  ENGINE STATUS: ALL CLEAR\n");
+        else if (audit_fail == 0)
+            printf("[AUDIT]  ENGINE STATUS: CLEAN (with warnings)\n");
+        else
+            printf("[AUDIT]  ENGINE STATUS: FAILURES DETECTED\n");
+        printf("[AUDIT] ============================================================\n");
+        printf("[AUDIT] Report: qa/audit_report.json\n");
+        printf("[AUDIT] Z-fight maps: qa/screenshots/*_zfight.png\n\n");
+
+        if (af) {
+            fprintf(af, "\n  ],\n  \"summary\": {\"pass\": %d, \"warn\": %d, \"fail\": %d, \"total\": %d}\n}\n",
+                    audit_pass, audit_warn, audit_fail, audit_pass + audit_warn + audit_fail);
+            fclose(af);
+        }
+
+        #undef AUDIT_RESULT
+    }
+    // Fall through to cleanup below
+    if (g.cube_model_loaded) UnloadModel(g.cube_model);
+    if (g.cyl_model_loaded) UnloadModel(g.cyl_model);
+    if (g.sphere_model_loaded) UnloadModel(g.sphere_model);
+    if (g.cone_model_loaded) UnloadModel(g.cone_model);
+    if (g.skytower_loaded) UnloadModel(g.skytower_model);
+    for (int mi = 0; mi < g.model_asset_count; mi++) {
+        if (g.model_assets[mi].loaded) {
+            if (g.model_assets[mi].anims) UnloadModelAnimations(g.model_assets[mi].anims, g.model_assets[mi].anim_count);
+            UnloadModel(g.model_assets[mi].model);
+        }
+    }
+    UnloadEVLighting(&g.lighting);
+    UnloadEVPostFX(&g.postfx);
+    UnloadEVSkybox(&g.skybox);
+    UnloadFileMusic(&g.audio);
+    UnloadEVAudio(&g.audio);
+    UnloadRenderTexture(g.render_target);
+    UnloadRenderTexture(g.postfx_target);
+    CloseWindow();
+    return audit_fail > 0 ? 1 : 0;
 #else  // normal game
 
 #ifdef DEV_START

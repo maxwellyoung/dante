@@ -43,7 +43,7 @@ dev-diff:
 	@./qa/run.sh --diff
 
 clean:
-	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o
+	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o src/*.e2e.o
 
 # ── QA Mode — automated screenshot + pixel analysis ───────────────
 QA_OBJ = $(SRC:.c=.qa.o)
@@ -77,6 +77,46 @@ qa-diff:
 # Show QA run history
 qa-history:
 	@./qa/run.sh --history
+
+# ── E2E QA — Full multi-angle, multi-profile pipeline ─────────────
+E2E_OBJ = $(SRC:.c=.e2e.o)
+
+qa-e2e: $(E2E_OBJ)
+	$(CC) $(E2E_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots qa/diffs
+	./$(BIN)
+	@rm -f src/*.e2e.o
+
+src/%.e2e.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_E2E -c $< -o $@
+
+# Full E2E pipeline: multi-angle + 6-profile analysis + flow testing
+qa-e2e-full:
+	@./qa/run_e2e.sh
+
+# E2E baseline
+qa-e2e-baseline:
+	@./qa/run_e2e.sh --baseline
+
+# E2E watch mode
+qa-e2e-watch:
+	@./qa/run_e2e.sh --watch
+
+# E2E grade only (re-run analyzer, no rebuild)
+qa-e2e-grade:
+	@./qa/run_e2e.sh --grade
+
+# ── Engine Audit — hardcore technical probing ──────────────────
+AUDIT_OBJ = $(SRC:.c=.audit.o)
+
+qa-audit: $(AUDIT_OBJ)
+	$(CC) $(AUDIT_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots
+	./$(BIN)
+	@rm -f src/*.audit.o
+
+src/%.audit.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_AUDIT -c $< -o $@
 
 # ── Quality & Analysis ──────────────────────────────────────────────
 
@@ -154,4 +194,4 @@ playtest: clean
 	@ls -lh playtest/endearing_void
 	@echo "=== Playtest ready: ./playtest/ ==="
 
-.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history
+.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit
