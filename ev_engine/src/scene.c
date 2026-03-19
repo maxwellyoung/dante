@@ -4803,7 +4803,14 @@ void build_space_suite(Scene *s) {
     // ============================================================
 
     // SOFA — navy, facing window
-    add_sofa(s, -3, 0, 2.0f, -90.0f, navy);
+    {
+        int sofa_mdl = find_model_asset("sofa");
+        if (sofa_mdl >= 0) {
+            add_model(s, -3, 0, 2.0f, 1,1,1, -90, sofa_mdl, MAT_LEATHER, navy);
+        } else {
+            add_sofa(s, -3, 0, 2.0f, -90.0f, navy);
+        }
+    }
 
     // Throw pillow — Godard red against navy
     add_wall(s, -3.5f, 0.52f, 1.6f, 0.35f, 0.30f, 0.30f, PAL_RED);

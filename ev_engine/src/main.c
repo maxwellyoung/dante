@@ -26,6 +26,93 @@ void hide_text(void) {
     g.text_scale_target = 0.0f;
 }
 
+// ── Dialogue system ──
+void show_dialogue(const char *speaker, const char *text) {
+    g.dlg_speaker = speaker;
+    g.dlg_text = text;
+    g.dlg_timer = 0;
+    g.dlg_hold_timer = 0;
+    g.dlg_fade = 0;
+    g.dlg_active = true;
+}
+void hide_dialogue(void) {
+    g.dlg_active = false;
+    g.dlg_text = NULL;
+    g.dlg_speaker = NULL;
+}
+static void update_dialogue(float dt) {
+    if (!g.dlg_active) {
+        g.dlg_fade += (0 - g.dlg_fade) * fminf(1.0f, 8.0f * dt);
+        return;
+    }
+    g.dlg_timer += dt;
+    // Fade in
+    g.dlg_fade += (1.0f - g.dlg_fade) * fminf(1.0f, 6.0f * dt);
+    // Check if fully revealed
+    if (g.dlg_text) {
+        int total = (int)strlen(g.dlg_text);
+        int revealed = (int)(g.dlg_timer * g.dlg_chars_per_sec);
+        if (revealed >= total) {
+            g.dlg_hold_timer += dt;
+        }
+    }
+}
+static void draw_dialogue(void) {
+    if (g.dlg_fade < 0.01f) return;
+    if (!g.dlg_text) return;
+
+    float fade = g.dlg_fade;
+    int total_chars = (int)strlen(g.dlg_text);
+    int revealed = g.dlg_active ? (int)(g.dlg_timer * g.dlg_chars_per_sec) : total_chars;
+    if (revealed > total_chars) revealed = total_chars;
+
+    // Build revealed substring
+    char buf[256];
+    int len = revealed < 255 ? revealed : 255;
+    memcpy(buf, g.dlg_text, len);
+    buf[len] = '\0';
+
+    int font_dlg = 14;
+    int font_speaker = 12;
+    int pad_x = 24;
+    int pad_y = 12;
+
+    // Box at bottom of screen
+    int box_h = font_dlg + pad_y * 2 + (g.dlg_speaker ? font_speaker + 6 : 0);
+    int box_y = RENDER_H - box_h - 16;
+    int box_x = RENDER_W / 8;
+    int box_w = RENDER_W - box_x * 2;
+
+    // Semi-transparent dark box with slight rounding feel (drawn as rect)
+    unsigned char bg_a = (unsigned char)(200 * fade);
+    DrawRectangle(box_x, box_y, box_w, box_h, (Color){12, 12, 16, bg_a});
+    // Subtle border — warm white hairline
+    unsigned char border_a = (unsigned char)(40 * fade);
+    DrawRectangleLines(box_x, box_y, box_w, box_h, (Color){180, 175, 165, border_a});
+
+    int text_x = box_x + pad_x;
+    int text_y = box_y + pad_y;
+
+    // Speaker name — small, warm gold
+    if (g.dlg_speaker) {
+        unsigned char sa = (unsigned char)(200 * fade);
+        DrawText(g.dlg_speaker, text_x, text_y, font_speaker, (Color){210, 185, 130, sa});
+        text_y += font_speaker + 6;
+    }
+
+    // Dialogue text — warm white, typewriter revealed
+    unsigned char ta = (unsigned char)(240 * fade);
+    // Shadow
+    DrawText(buf, text_x + 1, text_y + 1, font_dlg, (Color){0, 0, 0, (unsigned char)(180 * fade)});
+    DrawText(buf, text_x, text_y, font_dlg, (Color){248, 245, 238, ta});
+
+    // Blinking cursor at end of revealed text (while still typing)
+    if (revealed < total_chars && ((int)(g.dlg_timer * 3) % 2 == 0)) {
+        int cursor_x = text_x + MeasureText(buf, font_dlg) + 2;
+        DrawRectangle(cursor_x, text_y + 2, 2, font_dlg - 4, (Color){248, 245, 238, ta});
+    }
+}
+
 // ── Narrative choice system ──
 void show_choice(const char *question, const char *a, const char *b) {
     g.choice_question = question;
@@ -535,12 +622,14 @@ int main(void) {
             "assets/reception_desk.glb",  // 3 VAOs — lobby centrepiece (curved!)
             "assets/chandelier.glb",      // 3 VAOs — lobby grand light
             "assets/potted_plant.glb",    // 5 VAOs — organic lobby greenery
+            "assets/sofa.glb",            // 2 VAOs — suite living zone
+            "assets/elevator_car.glb",    // 5 VAOs — ascent cage interior
             "assets/record_player.glb",  // 3 VAOs — suite furniture
             "assets/room_service_tray.glb", // 2 VAOs — untouched service
             "assets/desk_lamp.glb",       // 3 VAOs — suite desk accent
             "assets/ice_bucket.glb",      // 4 VAOs — luxury atmosphere
             NULL
-            // VAO budget: ~57 VAOs total. May hit limit on macOS Metal.
+            // VAO budget: ~64 VAOs total. May hit limit on macOS Metal.
             // If bus error on startup, remove last entries.
         };
         for (int pi = 0; priority_models[pi] && g.model_asset_count < MAX_MODEL_ASSETS; pi++) {
@@ -1357,17 +1446,19 @@ int main(void) {
         physics_grab_input(&g.scene, &g.player, &g.grab, dt);
         physics_update(&g.scene, &g.player, &g.grab, dt);
 
-        // Gibbons dialogue → vignette text (cross-scene concern)
-        if (g.state == STATE_SPACE_LOBBY || g.state == STATE_SPACE_CORRIDOR
-            || g.state == STATE_SPACE_SUITE) {
+        // Gibbons dialogue → new dialogue system
+        if (g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
+            || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE) {
             const char *line = npc_current_dialogue(&g.gibbons);
-            if (line && g.vig_text != line) {
-                show_text(line);
-            } else if (!line && g.vig_text && !g.gibbons.line_showing
-                       && g.gibbons.current_line >= g.gibbons.line_count) {
+            if (line && g.dlg_text != line) {
+                show_dialogue("GIBBONS", line);
                 hide_text();
+            } else if (!line && g.dlg_active && !g.gibbons.line_showing
+                       && g.gibbons.current_line >= g.gibbons.line_count) {
+                hide_dialogue();
             }
         }
+        update_dialogue(dt);
 
         }  // ── end game logic gate ──
 
@@ -1496,38 +1587,12 @@ int main(void) {
                                   &g.skytower_model, g.skytower_loaded,
                                   indoor, g.state_time);
                 }
-                // Gibbons NPC — draw in space scenes
+                // Gibbons NPC — all rendering handled by draw_npc() (GLB + cube-person fallback)
                 if ((g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
                      || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE)
                     && g.gibbons.active) {
                     BeginMode3D(g.player.camera);
-                    int gibbons_mi = find_model_asset("gibbons");
-                    if (gibbons_mi >= 0 && g.model_assets[gibbons_mi].loaded) {
-                        // Use Blender GLB model
-                        ModelAsset *ma = &g.model_assets[gibbons_mi];
-                        float yaw_deg = g.gibbons.yaw * RAD2DEG;
-                        float base_y = g.gibbons.use_physics ? g.gibbons.ground_y : (g.gibbons.pos.y - 1.6f);
-                        float bob = g.gibbons.waiting ? 0 : sinf(g.gibbons.bob_timer) * 0.05f;
-                        // GLB may be Z-up from Blender — apply -90° X rotation + yaw
-                        Vector3 gpos = {g.gibbons.pos.x, base_y + bob, g.gibbons.pos.z};
-                        Vector3 gscale = {0.8f, 0.8f, 0.8f};
-                        Matrix xform = MatrixMultiply(
-                            MatrixMultiply(
-                                MatrixScale(gscale.x, gscale.y, gscale.z),
-                                MatrixRotateX(-90.0f * DEG2RAD)
-                            ),
-                            MatrixMultiply(
-                                MatrixRotateY((yaw_deg + 180.0f) * DEG2RAD),
-                                MatrixTranslate(gpos.x, gpos.y, gpos.z)
-                            )
-                        );
-                        ma->model.transform = xform;
-                        DrawModel(ma->model, (Vector3){0,0,0}, 1.0f, WHITE);
-                        ma->model.transform = MatrixIdentity();
-                    } else {
-                        // Fallback: procedural cube geometry
-                        draw_npc(&g.gibbons, &g.cube_model, &g.cyl_model, &g.lighting);
-                    }
+                    draw_npc(&g.gibbons, &g.cube_model, &g.cyl_model, &g.lighting);
                     EndMode3D();
                 }
                 // Sprint 5B: Zero-G sparkles — larger drift, occasional bright flashes
@@ -1701,8 +1766,11 @@ int main(void) {
             DrawPixel(RENDER_W/2, RENDER_H/2, (Color){220, 215, 205, 60});
         }
 
-        // Vignette text overlay
+        // Vignette text overlay (system messages)
         draw_vignette_text();
+        // Dialogue system (NPC speech with speaker name + typewriter)
+        draw_dialogue();
+        // Narrative choices
         draw_choice();
 
         // Pause menu overlay — drawn into 480x300, gets film grain treatment
