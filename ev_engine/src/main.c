@@ -532,12 +532,15 @@ int main(void) {
             "assets/wine_glass.glb",     // 2 VAOs — narrative (lipstick)
             "assets/photograph_frame.glb", // 2 VAOs — emotional prop
             "assets/standing_ashtray.glb", // 3 VAOs — atmospheric
+            "assets/reception_desk.glb",  // 3 VAOs — lobby centrepiece (curved!)
+            "assets/chandelier.glb",      // 3 VAOs — lobby grand light
+            "assets/potted_plant.glb",    // 5 VAOs — organic lobby greenery
             "assets/record_player.glb",  // 3 VAOs — suite furniture
             "assets/room_service_tray.glb", // 2 VAOs — untouched service
             "assets/desk_lamp.glb",       // 3 VAOs — suite desk accent
             "assets/ice_bucket.glb",      // 4 VAOs — luxury atmosphere
             NULL
-            // VAO budget: ~46 VAOs total. May hit limit on macOS Metal.
+            // VAO budget: ~57 VAOs total. May hit limit on macOS Metal.
             // If bus error on startup, remove last entries.
         };
         for (int pi = 0; priority_models[pi] && g.model_asset_count < MAX_MODEL_ASSETS; pi++) {

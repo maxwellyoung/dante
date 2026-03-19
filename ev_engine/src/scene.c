@@ -823,22 +823,36 @@ void build_lobby(Scene *s) {
     // ============================================================
     // CHANDELIER — hero light, center of lobby
     // ============================================================
-    add_chandelier(s, 0, H - 1.5f, 0, 8, 1.2f, gold, PAL_LIGHT_WARM);
+    {
+        int chand_mdl = find_model_asset("chandelier");
+        if (chand_mdl >= 0) {
+            add_model(s, 0, H - 1.5f, 0, 2.5f, 2.5f, 2.5f, 0, chand_mdl, MAT_BRASS, gold);
+            add_light_panel(s, 0, H - 2.0f, 0, 2.0f, 0.5f, 2.0f, PAL_LIGHT_WARM);
+        } else {
+            add_chandelier(s, 0, H - 1.5f, 0, 8, 1.2f, gold, PAL_LIGHT_WARM);
+        }
+    }
 
     // ============================================================
     // RECEPTION DESK — right side, facing entrance
     // Long polished wood counter with brass edge strip
     // ============================================================
     float desk_x = 6.0f, desk_z = -2.0f;
-    // Main counter body
-    add_wall(s, desk_x, 0.45f, desk_z, 1.2f, 0.9f, 5.0f, wood_dark);
-    set_last_material(s, MAT_WOOD);
-    // Counter top — polished
-    add_wall(s, desk_x, 0.92f, desk_z, 1.3f, 0.04f, 5.1f, wood);
-    set_last_material(s, MAT_WOOD);
-    // Brass edge strip along counter top
-    add_wall(s, desk_x - 0.6f, 0.92f, desk_z, 0.04f, 0.06f, 5.1f, gold);
-    set_last_material(s, MAT_BRASS);
+    {
+        int desk_mdl = find_model_asset("reception_desk");
+        if (desk_mdl >= 0) {
+            // Curved GLB desk — rotated to face entrance, scaled to match
+            add_model(s, desk_x, 0, desk_z, 1.4f, 1.0f, 1.4f, -90, desk_mdl, MAT_WOOD, wood_dark);
+        } else {
+            // Procedural fallback
+            add_wall(s, desk_x, 0.45f, desk_z, 1.2f, 0.9f, 5.0f, wood_dark);
+            set_last_material(s, MAT_WOOD);
+            add_wall(s, desk_x, 0.92f, desk_z, 1.3f, 0.04f, 5.1f, wood);
+            set_last_material(s, MAT_WOOD);
+            add_wall(s, desk_x - 0.6f, 0.92f, desk_z, 0.04f, 0.06f, 5.1f, gold);
+            set_last_material(s, MAT_BRASS);
+        }
+    }
 
     // ── Desk lamp (left end of counter) ──
     add_cylinder(s, desk_x - 0.2f, 0.96f, desk_z + 2.0f, 0.08f, 0.03f, gold);
@@ -1026,21 +1040,26 @@ void build_lobby(Scene *s) {
     // ============================================================
     // POTTED PLANTS — large, in brass pots
     // ============================================================
-    // Near elevator, left side
-    add_cylinder(s, -3.5f, 0.25f, -6.0f, 0.5f, 0.5f, pot_brass);
-    set_last_material(s, MAT_BRASS);
-    add_sphere(s, -3.5f, 0.9f, -6.0f, 0.7f, plant_green);
-    set_last_material(s, MAT_FABRIC);  // fabric approximates leaf texture
-    add_sphere(s, -3.5f, 1.2f, -6.0f, 0.5f, plant_green);
-    set_last_material(s, MAT_FABRIC);
-
-    // Near entrance, right side
-    add_cylinder(s, 3.5f, 0.25f, 6.0f, 0.5f, 0.5f, pot_brass);
-    set_last_material(s, MAT_BRASS);
-    add_sphere(s, 3.5f, 0.9f, 6.0f, 0.7f, plant_green);
-    set_last_material(s, MAT_FABRIC);
-    add_sphere(s, 3.5f, 1.2f, 6.0f, 0.5f, plant_green);
-    set_last_material(s, MAT_FABRIC);
+    {
+        int plant_mdl = find_model_asset("potted_plant");
+        if (plant_mdl >= 0) {
+            add_model(s, -3.5f, 0, -6.0f, 1.5f, 1.5f, 1.5f, 0, plant_mdl, MAT_BRASS, pot_brass);
+            add_model(s, 3.5f, 0, 6.0f, 1.5f, 1.5f, 1.5f, 120, plant_mdl, MAT_BRASS, pot_brass);
+        } else {
+            add_cylinder(s, -3.5f, 0.25f, -6.0f, 0.5f, 0.5f, pot_brass);
+            set_last_material(s, MAT_BRASS);
+            add_sphere(s, -3.5f, 0.9f, -6.0f, 0.7f, plant_green);
+            set_last_material(s, MAT_FABRIC);
+            add_sphere(s, -3.5f, 1.2f, -6.0f, 0.5f, plant_green);
+            set_last_material(s, MAT_FABRIC);
+            add_cylinder(s, 3.5f, 0.25f, 6.0f, 0.5f, 0.5f, pot_brass);
+            set_last_material(s, MAT_BRASS);
+            add_sphere(s, 3.5f, 0.9f, 6.0f, 0.7f, plant_green);
+            set_last_material(s, MAT_FABRIC);
+            add_sphere(s, 3.5f, 1.2f, 6.0f, 0.5f, plant_green);
+            set_last_material(s, MAT_FABRIC);
+        }
+    }
 
     // ============================================================
     // COAT RACK / UMBRELLA STAND — near entrance, right
@@ -3344,11 +3363,23 @@ void build_space_lobby(Scene *s) {
     // ================================================================
     // CHANDELIERS — three hanging from ceiling
     // ================================================================
-    // Main chandelier above lobby center
-    add_chandelier(s, 0, lh-1.5f, -4, 6, 1.2f, brass, warm_light);
-    // Flanking chandeliers
-    add_chandelier(s, -10, lh-1.0f, 2, 4, 0.8f, brass, warm_light);
-    add_chandelier(s, 10, lh-1.0f, 2, 4, 0.8f, brass, warm_light);
+    {
+        int chand_mdl = find_model_asset("chandelier");
+        if (chand_mdl >= 0) {
+            // Main chandelier above lobby center
+            add_model(s, 0, lh-1.5f, -4, 3.0f, 3.0f, 3.0f, 0, chand_mdl, MAT_BRASS, brass);
+            add_light_panel(s, 0, lh-2.0f, -4, 2.0f, 0.5f, 2.0f, warm_light);
+            // Flanking chandeliers (smaller)
+            add_model(s, -10, lh-1.0f, 2, 2.0f, 2.0f, 2.0f, 0, chand_mdl, MAT_BRASS, brass);
+            add_light_panel(s, -10, lh-1.5f, 2, 1.5f, 0.4f, 1.5f, warm_light);
+            add_model(s, 10, lh-1.0f, 2, 2.0f, 2.0f, 2.0f, 0, chand_mdl, MAT_BRASS, brass);
+            add_light_panel(s, 10, lh-1.5f, 2, 1.5f, 0.4f, 1.5f, warm_light);
+        } else {
+            add_chandelier(s, 0, lh-1.5f, -4, 6, 1.2f, brass, warm_light);
+            add_chandelier(s, -10, lh-1.0f, 2, 4, 0.8f, brass, warm_light);
+            add_chandelier(s, 10, lh-1.0f, 2, 4, 0.8f, brass, warm_light);
+        }
+    }
 
     // Dropped ceiling sections with recessed lighting
     add_dropped_ceiling(s, -10, lh, -6, 8, 6, 0.3f, hull, warm_light);
@@ -3426,36 +3457,43 @@ void build_space_lobby(Scene *s) {
     // ================================================================
     // POTTED TREES / PLANTS — organic life in a station, brass planters
     // ================================================================
-    // Large planter 1 — near elevator
-    add_cylinder(s, 4, 0.4f, 5, 0.5f, 0.8f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, 4, 0.82f, 5, 0.45f, 0.05f, 0.45f, (Color){50, 35, 20, 255}); // soil
-    add_cylinder(s, 4, 1.3f, 5, 0.06f, 0.9f, (Color){70, 55, 35, 255}); // trunk
-    // Foliage — clusters of green spheres
-    add_sphere(s, 4, 1.9f, 5, 0.5f, (Color){45, 95, 50, 220});
-    add_sphere(s, 3.8f, 2.1f, 4.8f, 0.35f, (Color){55, 110, 55, 200});
-    add_sphere(s, 4.2f, 2.0f, 5.2f, 0.4f, (Color){40, 85, 45, 210});
-
-    // Large planter 2 — other side of elevator
-    add_cylinder(s, -4, 0.4f, 5, 0.5f, 0.8f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -4, 0.82f, 5, 0.45f, 0.05f, 0.45f, (Color){50, 35, 20, 255});
-    add_cylinder(s, -4, 1.3f, 5, 0.06f, 0.9f, (Color){70, 55, 35, 255});
-    add_sphere(s, -4, 1.9f, 5, 0.5f, (Color){45, 95, 50, 220});
-    add_sphere(s, -4.2f, 2.1f, 4.8f, 0.35f, (Color){55, 110, 55, 200});
-    add_sphere(s, -3.8f, 2.0f, 5.2f, 0.4f, (Color){40, 85, 45, 210});
-
-    // Smaller planter near reception
-    add_cylinder(s, -15.5f, 0.3f, -3, 0.35f, 0.6f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_sphere(s, -15.5f, 1.0f, -3, 0.4f, (Color){50, 100, 55, 220});
-    add_sphere(s, -15.3f, 1.15f, -3.1f, 0.3f, (Color){55, 110, 55, 200});
-
-    // Planter near corridor exit
-    add_cylinder(s, 8, 0.3f, 12, 0.35f, 0.6f, brass);
-    set_last_material(s, MAT_BRASS);
-    add_sphere(s, 8, 1.0f, 12, 0.4f, (Color){50, 100, 55, 220});
-    add_sphere(s, 8.2f, 1.15f, 11.9f, 0.3f, (Color){45, 90, 50, 200});
+    {
+        int plant_mdl = find_model_asset("potted_plant");
+        if (plant_mdl >= 0) {
+            // Large planters flanking elevator
+            add_model(s, 4, 0, 5, 1.8f, 1.8f, 1.8f, 0, plant_mdl, MAT_BRASS, brass);
+            add_model(s, -4, 0, 5, 1.8f, 1.8f, 1.8f, 45, plant_mdl, MAT_BRASS, brass);
+            // Smaller planters
+            add_model(s, -15.5f, 0, -3, 1.2f, 1.2f, 1.2f, 90, plant_mdl, MAT_BRASS, brass);
+            add_model(s, 8, 0, 12, 1.2f, 1.2f, 1.2f, -30, plant_mdl, MAT_BRASS, brass);
+        } else {
+            // Procedural fallback — large planter 1
+            add_cylinder(s, 4, 0.4f, 5, 0.5f, 0.8f, brass);
+            set_last_material(s, MAT_BRASS);
+            add_wall(s, 4, 0.82f, 5, 0.45f, 0.05f, 0.45f, (Color){50, 35, 20, 255});
+            add_cylinder(s, 4, 1.3f, 5, 0.06f, 0.9f, (Color){70, 55, 35, 255});
+            add_sphere(s, 4, 1.9f, 5, 0.5f, (Color){45, 95, 50, 220});
+            add_sphere(s, 3.8f, 2.1f, 4.8f, 0.35f, (Color){55, 110, 55, 200});
+            add_sphere(s, 4.2f, 2.0f, 5.2f, 0.4f, (Color){40, 85, 45, 210});
+            // Large planter 2
+            add_cylinder(s, -4, 0.4f, 5, 0.5f, 0.8f, brass);
+            set_last_material(s, MAT_BRASS);
+            add_wall(s, -4, 0.82f, 5, 0.45f, 0.05f, 0.45f, (Color){50, 35, 20, 255});
+            add_cylinder(s, -4, 1.3f, 5, 0.06f, 0.9f, (Color){70, 55, 35, 255});
+            add_sphere(s, -4, 1.9f, 5, 0.5f, (Color){45, 95, 50, 220});
+            add_sphere(s, -4.2f, 2.1f, 4.8f, 0.35f, (Color){55, 110, 55, 200});
+            add_sphere(s, -3.8f, 2.0f, 5.2f, 0.4f, (Color){40, 85, 45, 210});
+            // Smaller planters
+            add_cylinder(s, -15.5f, 0.3f, -3, 0.35f, 0.6f, brass);
+            set_last_material(s, MAT_BRASS);
+            add_sphere(s, -15.5f, 1.0f, -3, 0.4f, (Color){50, 100, 55, 220});
+            add_sphere(s, -15.3f, 1.15f, -3.1f, 0.3f, (Color){55, 110, 55, 200});
+            add_cylinder(s, 8, 0.3f, 12, 0.35f, 0.6f, brass);
+            set_last_material(s, MAT_BRASS);
+            add_sphere(s, 8, 1.0f, 12, 0.4f, (Color){50, 100, 55, 220});
+            add_sphere(s, 8.2f, 1.15f, 11.9f, 0.3f, (Color){45, 90, 50, 200});
+        }
+    }
 
     // ================================================================
     // ART PIECE / SCULPTURE — striking, center of the space
