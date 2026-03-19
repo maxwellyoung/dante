@@ -33,7 +33,7 @@ static const char *prologue_b[] = {
 #define PROLOGUE_COUNT 3
 
 static int prologue_phase = 0;     // 0..PROLOGUE_COUNT = questions, then title
-static bool prologue_done = false;
+bool prologue_done = false;
 static float prologue_pause = 0;   // brief pause between choices
 
 void title_load(void) {

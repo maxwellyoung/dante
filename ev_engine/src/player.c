@@ -885,20 +885,22 @@ void update_player(Player *p, Scene *scene, float dt) {
         // ── Ceiling check — prevent clipping through ceilings ────
         // Find lowest ceiling above the player and clamp Y
         if (p->vy > 0) {
+            float head_clearance = 0.15f;  // gap between eye and ceiling
             for (int ci = 0; ci < scene->wall_count; ci++) {
                 Wall *cw = &scene->walls[ci];
-                if (!cw->active || cw->shape != SHAPE_CUBE) continue;
+                if (!cw->active || cw->no_collide || cw->is_decal) continue;
+                if (cw->shape != SHAPE_CUBE) continue;
                 float cwb = cw->pos.y - cw->size.y / 2;  // ceiling bottom
-                // Only check walls above current position
-                if (cwb < p->camera.position.y + 0.1f) continue;
+                // Must be above feet but reachable (ceiling, not floor we're standing on)
+                if (cwb <= p->ground_y + 0.5f) continue;
                 // Check XZ overlap (player inside wall footprint)
                 float chx = cw->size.x / 2 + phys.player_radius;
                 float chz = cw->size.z / 2 + phys.player_radius;
                 if (new_pos.x > cw->pos.x - chx && new_pos.x < cw->pos.x + chx &&
                     new_pos.z > cw->pos.z - chz && new_pos.z < cw->pos.z + chz) {
                     // Would we clip through?
-                    if (new_pos.y > cwb - 0.05f) {
-                        new_pos.y = cwb - 0.05f;
+                    if (new_pos.y > cwb - head_clearance) {
+                        new_pos.y = cwb - head_clearance;
                         p->vy = 0;  // bonk
                         p->wall_running = false;
                     }

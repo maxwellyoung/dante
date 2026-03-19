@@ -267,8 +267,8 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
               EVLighting *lighting) {
     if (!npc->active) return;
 
-    // ── GLB MODEL PATH — rigged animated Gibbons ──
-    // Animations (alphabetical load order): 0=Bow, 1=Gesture, 2=Idle, 3=Walk
+    // ── GLB MODEL PATH — rigged Gibbons (496 tris, 18 bones, 4 anims) ──
+    // Animations (alphabetical Raylib load): A_Bow=0, B_Gesture=1, C_Idle=2, D_Walk=3
     {
         extern GameCtx g;
         int gi = find_model_asset("gibbons");
@@ -276,32 +276,32 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
             ModelAsset *ma = &g.model_assets[gi];
             float base_y_m = npc->use_physics ? npc->ground_y : (npc->pos.y - 1.6f);
 
-            // Select animation based on NPC behavior
+            // Animation dispatch
             if (ma->anims && ma->anim_count > 0) {
-                int target_anim = 2;  // default: Idle
-                if (!npc->waiting) target_anim = 3;  // Walk
-                if (npc->behavior == NPC_GESTURING) target_anim = 1;  // Gesture
-                // Bow: play once when arriving at waypoint
-                if (!npc->waiting && npc->idle_timer > 0.5f && npc->idle_timer < 2.0f)
-                    target_anim = 0;  // Bow
+                int target_anim = 2;  // C_Idle (default)
+                if (!npc->waiting) target_anim = 3;  // D_Walk
+                if (npc->behavior == NPC_GESTURING) target_anim = 1;  // B_Gesture
+                // Bow on waypoint arrival
+                if (npc->waiting && npc->idle_timer > 0.5f && npc->idle_timer < 2.5f)
+                    target_anim = 0;  // A_Bow
 
-                // Switch animation — reset frame on change
                 if (ma->current_anim != target_anim) {
                     ma->current_anim = target_anim;
                     ma->current_frame = 0;
                 }
-
-                // Advance frame
                 if (target_anim < ma->anim_count) {
                     UpdateModelAnimation(ma->model, ma->anims[target_anim], ma->current_frame);
                     ma->current_frame++;
                     if (ma->current_frame >= ma->anims[target_anim].frameCount)
-                        ma->current_frame = 0;  // loop
+                        ma->current_frame = 0;
                 }
             }
 
-            // Draw the model at NPC position with NPC yaw
-            if (lighting->ready) SetMaterialId(lighting, 0);
+            // Apply per-material lighting
+            for (int mi = 0; mi < ma->model.materialCount; mi++) {
+                if (lighting->ready) SetMaterialId(lighting, 0);
+            }
+
             DrawModelEx(ma->model,
                 (Vector3){npc->pos.x, base_y_m, npc->pos.z},
                 (Vector3){0, 1, 0}, npc->yaw * RAD2DEG + 180,
