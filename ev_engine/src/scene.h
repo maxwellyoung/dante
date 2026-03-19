@@ -87,5 +87,6 @@ void build_space_corridor(Scene *s);
 void build_space_suite(Scene *s);
 void build_return_taxi(Scene *s);
 void build_space_suite_cleaned(Scene *s);
+void build_glasshouse(Scene *s);
 
 #endif

@@ -43,6 +43,8 @@ void montage_load(void);
 void montage_update(float dt);
 void return_taxi_load(void);
 void return_taxi_update(float dt);
+void glasshouse_load(void);
+void glasshouse_update(float dt);
 void shell_test_load(void);
 void shell_test_update(float dt);
 
@@ -67,6 +69,7 @@ const SceneDesc scene_descs[] = {
     [STATE_CLEANED_SUITE]  = { .load = cleaned_suite_load, .update = cleaned_suite_update, .indoor = true },
     [STATE_MONTAGE]        = { .load = montage_load,       .update = montage_update,      .indoor = true },
     [STATE_RETURN_TAXI]    = { .load = return_taxi_load,  .update = return_taxi_update, .indoor = true  },
+    [STATE_GLASSHOUSE]     = { .load = glasshouse_load,    .update = glasshouse_update,   .indoor = false },
     [STATE_SHELL_TEST]     = { .load = shell_test_load,   .update = shell_test_update,  .indoor = true  },
 };
 

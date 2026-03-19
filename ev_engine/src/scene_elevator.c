@@ -95,7 +95,7 @@ void elevator_update(float dt) {
         }
         if (g.state_time > 4.2f) {
             g.elevator_to_corridor = false;
-            hard_cut_to(STATE_SPACE_CORRIDOR);
+            hard_cut_to(STATE_GLASSHOUSE);
         }
     } else {
         // TERRESTRIAL ELEVATOR

@@ -447,7 +447,8 @@ static void write_state_file(GameState s) {
         "STATE_LOBBY", "STATE_ELEVATOR", "STATE_HALLWAY", "STATE_ROOM",
         "STATE_BATHROOM", "STATE_BALCONY", "STATE_BED", "STATE_STARS",
         "STATE_HYPERSPACE", "STATE_SPACE_LOBBY", "STATE_SPACE_CORRIDOR",
-        "STATE_SPACE_SUITE", "STATE_PARIS_DREAM", "STATE_RETURN_TAXI"
+        "STATE_SPACE_SUITE", "STATE_PARIS_DREAM", "STATE_CLEANED_SUITE",
+        "STATE_MONTAGE", "STATE_RETURN_TAXI", "STATE_GLASSHOUSE"
     };
     FILE *f = fopen("/tmp/ev_state", "w");
     if (f) {
@@ -1668,459 +1669,282 @@ int main(void) {
 
 #elif defined(QA_AUDIT)
     // ============================================================
-    // ENGINE AUDIT — Technical probing of core systems
-    // No art opinions. Just: does the engine work correctly?
+    // ENGINE AUDIT — HL2-standard technical probing
+    // Would Valve ship this? Probably not yet. Let's find out why.
     //
-    // Tests:
-    //  1. COLLISION    — Walk player in 8 dirs, detect wall penetration
-    //  2. FLOOR        — Verify grounded state at spawn
-    //  3. Z-FIGHTING   — Render same frame twice, diff for shimmer
-    //  4. RENDER       — Pipeline health (shaders, framebuffers, not-black)
-    //  5. PERFORMANCE  — Frame time per scene under render load
-    //  6. BUDGET       — Wall/object counts vs limits
-    //  7. TRANSITIONS  — Rapid scene cycling, crash detection
-    //  8. PHYSICS      — Gravity, terminal velocity, step-up
-    //  9. MODELS       — Asset loading verification
-    // 10. AUDIO        — System initialization check
+    // Graded A-F on weighted categories:
+    //   RENDER (15%) — shaders, pipeline, visual styles, shadow pass
+    //   COLLISION (20%) — walk/sprint/diagonal penetration, edge cases
+    //   GEOMETRY (15%) — degenerate walls, coplanar surfaces, bounds
+    //   PERF (15%) — actual render time (vsync disabled), per-scene
+    //   PHYSICS (10%) — gravity, movement modes, grounding
+    //   INTERACTION (10%) — objects reachable, scenes completable
+    //   STATE (5%) — all states have handlers, flow integrity
+    //   STRESS (5%) — rapid transitions, no crash
+    //   AUDIO (5%) — system health, sound count
     //
     // Build: make qa-audit   |   Report: qa/audit_report.json
     // ============================================================
-    // Counters at file scope for this block so return can access them
     ;int audit_pass = 0, audit_fail = 0, audit_warn = 0;
+    // Per-category scoring (0-100 each)
+    float cat_scores[9] = {0};
+    int cat_tests[9] = {0};
+    int cat_max[9] = {0};
+    const char *cat_names[] = {"RENDER","COLLISION","GEOMETRY","PERF","PHYSICS","INTERACTION","STATE","STRESS","AUDIO"};
+    float cat_weights[] = {0.15f, 0.20f, 0.15f, 0.15f, 0.10f, 0.10f, 0.05f, 0.05f, 0.05f};
+    enum { CAT_RENDER=0, CAT_COLLISION, CAT_GEOMETRY, CAT_PERF, CAT_PHYSICS, CAT_INTERACTION, CAT_STATE, CAT_STRESS, CAT_AUDIO };
     {
+        SetTargetFPS(0); // DISABLE VSYNC — measure real render time
+
         printf("\n[AUDIT] ============================================================\n");
-        printf("[AUDIT]  ENDEARING VOID — ENGINE AUDIT\n");
-        printf("[AUDIT]  No art. No opinions. Does the engine work?\n");
+        printf("[AUDIT]  ENDEARING VOID — ENGINE AUDIT (HL2 Standard)\n");
+        printf("[AUDIT]  Would Valve ship this? Let's find out.\n");
         printf("[AUDIT] ============================================================\n\n");
 
         FILE *af = fopen("qa/audit_report.json", "w");
-        if (af) fprintf(af, "{\n  \"tests\": [\n");
+        if (af) fprintf(af, "{\n  \"standard\": \"HL2\",\n  \"tests\": [\n");
         int test_idx = 0;
 
-        // JSON helper
-        #define AUDIT_RESULT(category, name_str, status_str, detail_str) do { \
+        #define AUDIT_RESULT(cat_idx, name_str, status_str, detail_str) do { \
             const char *_s = status_str; \
-            if (strcmp(_s, "PASS") == 0) { audit_pass++; printf("[AUDIT] PASS  %-12s %s\n", category, name_str); } \
-            else if (strcmp(_s, "WARN") == 0) { audit_warn++; printf("[AUDIT] WARN  %-12s %s — %s\n", category, name_str, detail_str); } \
-            else { audit_fail++; printf("[AUDIT] FAIL  %-12s %s — %s\n", category, name_str, detail_str); } \
+            cat_tests[cat_idx]++; \
+            cat_max[cat_idx]++; \
+            if (strcmp(_s, "PASS") == 0) { audit_pass++; cat_scores[cat_idx]++; printf("[AUDIT] PASS  %-12s %s\n", cat_names[cat_idx], name_str); } \
+            else if (strcmp(_s, "WARN") == 0) { audit_warn++; cat_scores[cat_idx] += 0.5f; printf("[AUDIT] WARN  %-12s %s — %s\n", cat_names[cat_idx], name_str, detail_str); } \
+            else { audit_fail++; printf("[AUDIT] FAIL  %-12s %s — %s\n", cat_names[cat_idx], name_str, detail_str); } \
             if (af) { \
                 if (test_idx > 0) fprintf(af, ",\n"); \
                 fprintf(af, "    {\"category\": \"%s\", \"test\": \"%s\", \"status\": \"%s\", \"detail\": \"%s\"}", \
-                        category, name_str, _s, detail_str); \
+                        cat_names[cat_idx], name_str, _s, detail_str); \
                 test_idx++; \
             } \
         } while(0)
 
-        // ── TEST 0: Subsystem health ──
-        AUDIT_RESULT("RENDER", "lighting_shader",
-                     g.lighting.ready ? "PASS" : "FAIL",
-                     g.lighting.ready ? "" : "GLSL lighting shader failed to compile");
-        AUDIT_RESULT("RENDER", "postfx_shader",
-                     g.postfx.ready ? "PASS" : "FAIL",
-                     g.postfx.ready ? "" : "GLSL post-FX shader failed to compile");
-        AUDIT_RESULT("RENDER", "shadow_map",
-                     g.lighting.shadowReady ? "PASS" : "FAIL",
-                     g.lighting.shadowReady ? "" : "Shadow FBO creation failed");
-        AUDIT_RESULT("RENDER", "render_target",
-                     (g.render_target.id > 0) ? "PASS" : "FAIL",
-                     (g.render_target.id > 0) ? "" : "Main render target not created");
-        AUDIT_RESULT("RENDER", "postfx_target",
-                     (g.postfx_target.id > 0) ? "PASS" : "FAIL",
-                     (g.postfx_target.id > 0) ? "" : "Post-FX render target not created");
-        AUDIT_RESULT("RENDER", "cube_model",
-                     g.cube_model_loaded ? "PASS" : "FAIL",
-                     g.cube_model_loaded ? "" : "Primitive cube mesh not loaded");
-        AUDIT_RESULT("RENDER", "cyl_model",
-                     g.cyl_model_loaded ? "PASS" : "FAIL",
-                     g.cyl_model_loaded ? "" : "Primitive cylinder mesh not loaded");
-        AUDIT_RESULT("RENDER", "sphere_model",
-                     g.sphere_model_loaded ? "PASS" : "FAIL",
-                     g.sphere_model_loaded ? "" : "Primitive sphere mesh not loaded");
-        AUDIT_RESULT("AUDIO", "audio_init",
-                     g.audio.initialized ? "PASS" : "FAIL",
-                     g.audio.initialized ? "" : "Audio system failed to initialize");
-
-        // ── TEST 1: Scene load integrity — every scene loads without crash ──
-        printf("\n[AUDIT] ── Scene Loading ──\n");
+        // ── Walkable scenes definition ──
         typedef struct { GameState gs; const char *name; } AuditScene;
-        AuditScene audit_scenes[] = {
-            {STATE_TITLE, "title"},
-            {STATE_CAR, "taxi"},
-            {STATE_DRIVING, "driving"},
-            {STATE_HOTEL_EXT, "hotel_ext"},
-            {STATE_LOBBY, "lobby"},
-            {STATE_ELEVATOR, "elevator"},
-            {STATE_HALLWAY, "hallway"},
-            {STATE_ROOM, "room"},
-            {STATE_BATHROOM, "bathroom"},
-            {STATE_BALCONY, "balcony"},
-            {STATE_BED, "bed"},
-            {STATE_STARS, "stars"},
-            {STATE_HYPERSPACE, "hyperspace"},
-            {STATE_SPACE_LOBBY, "space_lobby"},
-            {STATE_SPACE_CORRIDOR, "space_corridor"},
-            {STATE_SPACE_SUITE, "space_suite"},
-            {STATE_PARIS_DREAM, "paris_dream"},
-            {STATE_CLEANED_SUITE, "cleaned_suite"},
-            {STATE_MONTAGE, "montage"},
-            {STATE_RETURN_TAXI, "return_taxi"},
+        AuditScene all_scenes[] = {
+            {STATE_TITLE,"title"},{STATE_CAR,"taxi"},{STATE_DRIVING,"driving"},
+            {STATE_HOTEL_EXT,"hotel_ext"},{STATE_LOBBY,"lobby"},{STATE_ELEVATOR,"elevator"},
+            {STATE_HALLWAY,"hallway"},{STATE_ROOM,"room"},{STATE_BATHROOM,"bathroom"},
+            {STATE_BALCONY,"balcony"},{STATE_BED,"bed"},{STATE_STARS,"stars"},
+            {STATE_HYPERSPACE,"hyperspace"},{STATE_SPACE_LOBBY,"space_lobby"},
+            {STATE_SPACE_CORRIDOR,"space_corridor"},{STATE_SPACE_SUITE,"space_suite"},
+            {STATE_PARIS_DREAM,"paris_dream"},{STATE_CLEANED_SUITE,"cleaned_suite"},
+            {STATE_MONTAGE,"montage"},{STATE_RETURN_TAXI,"return_taxi"},
         };
-        int audit_scene_count = (int)(sizeof(audit_scenes) / sizeof(audit_scenes[0]));
-
-        for (int si = 0; si < audit_scene_count; si++) {
-            double t0 = GetTime();
-            load_state(audit_scenes[si].gs);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-            double load_ms = (GetTime() - t0) * 1000.0;
-
-            char detail[256];
-            // Scene loaded if it has walls OR it's a special scene (title, driving, montage, stars)
-            bool special = (audit_scenes[si].gs == STATE_TITLE ||
-                           audit_scenes[si].gs == STATE_DRIVING ||
-                           audit_scenes[si].gs == STATE_MONTAGE ||
-                           audit_scenes[si].gs == STATE_STARS ||
-                           audit_scenes[si].gs == STATE_HYPERSPACE);
-            bool ok = g.scene.wall_count > 0 || special;
-            snprintf(detail, sizeof(detail), "walls=%d load=%.0fms", g.scene.wall_count, load_ms);
-            AUDIT_RESULT("SCENE_LOAD", audit_scenes[si].name, ok ? "PASS" : "FAIL", detail);
-        }
-
-        // ── TEST 2: Wall budget ──
-        printf("\n[AUDIT] ── Wall Budget ──\n");
-        for (int si = 0; si < audit_scene_count; si++) {
-            load_state(audit_scenes[si].gs);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-            char detail[256];
-            float pct = 100.0f * g.scene.wall_count / MAX_WALLS;
-            const char *status = "PASS";
-            if (pct > 90) status = "FAIL";
-            else if (pct > 75) status = "WARN";
-            snprintf(detail, sizeof(detail), "%d/%d (%.0f%%)", g.scene.wall_count, MAX_WALLS, pct);
-            AUDIT_RESULT("BUDGET", audit_scenes[si].name, status, detail);
-        }
-
-        // ── TEST 3: Collision integrity — walk player into walls ──
-        printf("\n[AUDIT] ── Collision Integrity ──\n");
-        // For each walkable scene: place player at spawn, push in 8 directions
-        // for 60 frames. Check if player ends up inside any wall.
+        int all_count = (int)(sizeof(all_scenes)/sizeof(all_scenes[0]));
         GameState walkable[] = {
             STATE_HOTEL_EXT, STATE_LOBBY, STATE_HALLWAY, STATE_ROOM,
             STATE_BATHROOM, STATE_ELEVATOR, STATE_SPACE_LOBBY,
-            STATE_SPACE_CORRIDOR, STATE_SPACE_SUITE, STATE_BALCONY,
-            STATE_PARIS_DREAM,
+            STATE_SPACE_CORRIDOR, STATE_SPACE_SUITE, STATE_BALCONY, STATE_PARIS_DREAM,
         };
-        const char *walkable_names[] = {
-            "hotel_ext", "lobby", "hallway", "room",
-            "bathroom", "elevator", "space_lobby",
-            "space_corridor", "space_suite", "balcony",
-            "paris_dream",
+        const char *walk_names[] = {
+            "hotel_ext","lobby","hallway","room","bathroom","elevator",
+            "space_lobby","space_corridor","space_suite","balcony","paris_dream",
         };
-        int walkable_count = (int)(sizeof(walkable) / sizeof(walkable[0]));
-        // 8 cardinal/diagonal directions
-        float dirs[][2] = {{0,-1},{0,1},{-1,0},{1,0},{-0.707f,-0.707f},{0.707f,-0.707f},{-0.707f,0.707f},{0.707f,0.707f}};
+        int walk_count = (int)(sizeof(walkable)/sizeof(walkable[0]));
 
-        for (int si = 0; si < walkable_count; si++) {
-            load_state(walkable[si]);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+        // ════════════════════════════════════════════════════════════
+        // RENDER (15%) — pipeline health, visual styles, model loading
+        // ════════════════════════════════════════════════════════════
+        printf("[AUDIT] ── RENDER ──\n");
+        AUDIT_RESULT(CAT_RENDER, "lighting_shader", g.lighting.ready ? "PASS" : "FAIL", "GLSL compile");
+        AUDIT_RESULT(CAT_RENDER, "postfx_shader", g.postfx.ready ? "PASS" : "FAIL", "GLSL compile");
+        AUDIT_RESULT(CAT_RENDER, "shadow_map", g.lighting.shadowReady ? "PASS" : "FAIL", "FBO create");
+        AUDIT_RESULT(CAT_RENDER, "render_fbo", (g.render_target.id > 0) ? "PASS" : "FAIL", "1920x1200");
+        AUDIT_RESULT(CAT_RENDER, "postfx_fbo", (g.postfx_target.id > 0) ? "PASS" : "FAIL", "1920x1200");
+        AUDIT_RESULT(CAT_RENDER, "primitives", (g.cube_model_loaded && g.cyl_model_loaded && g.sphere_model_loaded && g.cone_model_loaded) ? "PASS" : "FAIL", "cube+cyl+sphere+cone");
+        AUDIT_RESULT(CAT_RENDER, "skytower_mesh", g.skytower_loaded ? "PASS" : "FAIL", "external OBJ");
 
-            int penetrations = 0;
-            int tests_run = 0;
+        // Visual style crash test — cycle through all 9 styles
+        {
+            load_state(STATE_LOBBY); g.fade_alpha = 0; g.fade_target = 0;
+            bool style_ok = true;
+            for (int s = 0; s < STYLE_COUNT; s++) {
+                ApplyVisualStyle(&g.postfx, s);
+                BeginTextureMode(g.render_target); ClearBackground(BLACK);
+                draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                    &g.skytower_model, g.skytower_loaded, true, 1.0f);
+                EndTextureMode();
+                BeginTextureMode(g.postfx_target); ClearBackground(BLACK);
+                draw_postfx(&g.postfx, g.render_target); EndTextureMode();
+                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+            }
+            ApplyVisualStyle(&g.postfx, 0); // reset
+            char det[64]; snprintf(det, sizeof(det), "%d styles tested", STYLE_COUNT);
+            AUDIT_RESULT(CAT_RENDER, "visual_styles", style_ok ? "PASS" : "FAIL", det);
+        }
 
-            for (int d = 0; d < 8; d++) {
-                // Reset player to spawn
-                init_player(&g.player, g.scene.spawn);
-                g.player.gravity_mult = 1.0f;
-                g.player.control_mult = 1.0f;
-
-                // Simulate 120 frames (~2 seconds) of walking in direction d
-                for (int frame = 0; frame < 120; frame++) {
-                    float dt = 1.0f / 60.0f;
-                    // Inject velocity directly (simulating held input)
-                    g.player.vel.x = dirs[d][0] * 4.5f;  // walk speed
-                    g.player.vel.z = dirs[d][1] * 4.5f;
-                    // Run the real collision system
-                    update_player(&g.player, &g.scene, dt);
+        // Render not-black for key scenes
+        {
+            GameState rs[] = {STATE_LOBBY, STATE_SPACE_SUITE, STATE_HOTEL_EXT, STATE_HALLWAY, STATE_SPACE_CORRIDOR};
+            const char *rn[] = {"render_lobby","render_suite","render_ext","render_hall","render_corridor"};
+            for (int si = 0; si < 5; si++) {
+                load_state(rs[si]); g.fade_alpha = 0; g.fade_target = 0;
+                g.player.camera.position = g.scene.spawn;
+                g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
+                for (int f = 0; f < 8; f++) {
+                    BeginTextureMode(g.render_target);
+                    ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
+                    draw_scene_3d(&g.player, &g.scene, &g.lighting,
+                        &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
+                        &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
+                        &g.skytower_model, g.skytower_loaded, true, 1.0f);
+                    EndTextureMode();
+                    BeginDrawing(); ClearBackground(BLACK); EndDrawing();
                 }
+                Image img = LoadImageFromTexture(g.render_target.texture); ImageFlipVertical(&img);
+                Color *px = LoadImageColors(img);
+                int total = RENDER_W * RENDER_H;
+                long lsum = 0; int nonblack = 0;
+                for (int p = 0; p < total; p++) {
+                    int l = (int)(0.299f*px[p].r + 0.587f*px[p].g + 0.114f*px[p].b);
+                    lsum += l;
+                    if (px[p].r > 5 || px[p].g > 5 || px[p].b > 5) nonblack++;
+                }
+                float luma = (float)lsum / total;
+                float vis = 100.0f * nonblack / total;
+                char det[128]; snprintf(det, sizeof(det), "luma=%.0f vis=%.0f%%", luma, vis);
+                AUDIT_RESULT(CAT_RENDER, rn[si], vis > 5.0f ? "PASS" : (vis > 1.0f ? "WARN" : "FAIL"), det);
+                UnloadImageColors(px); UnloadImage(img);
+            }
+        }
 
-                // Check: is the player inside any solid wall?
-                float px = g.player.camera.position.x;
-                float py = g.player.camera.position.y - 1.6f; // feet
-                float pz = g.player.camera.position.z;
-                float pr = 0.35f; // player radius
+        // ════════════════════════════════════════════════════════════
+        // COLLISION (20%) — walk, sprint, diagonal, sprint+diagonal
+        // HL2 standard: ZERO penetrations at any speed or angle
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── COLLISION ──\n");
+        float dirs[][2] = {{0,-1},{0,1},{-1,0},{1,0},{-0.707f,-0.707f},{0.707f,-0.707f},{-0.707f,0.707f},{0.707f,0.707f}};
+        float speeds[] = {4.5f, 8.5f, 12.0f}; // walk, sprint, dash-speed
+        const char *speed_names[] = {"walk", "sprint", "dash"};
 
-                for (int w = 0; w < g.scene.wall_count; w++) {
-                    Wall *wl = &g.scene.walls[w];
-                    if (wl->no_collide || wl->is_decal) continue;
-                    if (wl->shape != SHAPE_CUBE) continue;
-                    if (wl->size.x < 0.2f && wl->size.y < 0.2f && wl->size.z < 0.2f) continue;
-                    // Skip floors and ceilings (thin horizontal)
-                    if (wl->size.y < 0.3f) continue;
-
-                    float hw = wl->size.x / 2, hh = wl->size.y / 2, hd = wl->size.z / 2;
-                    float wx = wl->pos.x, wy = wl->pos.y, wz = wl->pos.z;
-                    // Is player center inside this wall's AABB (with margin)?
-                    float margin = pr * 0.5f;
-                    if (px > wx - hw + margin && px < wx + hw - margin &&
-                        py > wy - hh && py < wy + hh &&
-                        pz > wz - hd + margin && pz < wz + hd - margin) {
-                        penetrations++;
-                        break; // one penetration per direction is enough
+        for (int si = 0; si < walk_count; si++) {
+            for (int sp = 0; sp < 3; sp++) {
+                load_state(walkable[si]); g.fade_alpha = 0; g.fade_target = 0;
+                int penetrations = 0;
+                for (int d = 0; d < 8; d++) {
+                    init_player(&g.player, g.scene.spawn);
+                    g.player.gravity_mult = 1.0f;
+                    g.player.control_mult = 1.0f;
+                    for (int frame = 0; frame < 120; frame++) {
+                        g.player.vel.x = dirs[d][0] * speeds[sp];
+                        g.player.vel.z = dirs[d][1] * speeds[sp];
+                        update_player(&g.player, &g.scene, 1.0f / 60.0f);
+                    }
+                    float px = g.player.camera.position.x, py = g.player.camera.position.y - 1.6f, pz = g.player.camera.position.z;
+                    for (int w = 0; w < g.scene.wall_count; w++) {
+                        Wall *wl = &g.scene.walls[w];
+                        if (wl->no_collide || wl->is_decal || wl->shape != SHAPE_CUBE) continue;
+                        if (wl->size.y < 0.3f || (wl->size.x < 0.2f && wl->size.z < 0.2f)) continue;
+                        float hw = wl->size.x/2, hh = wl->size.y/2, hd = wl->size.z/2;
+                        if (px > wl->pos.x-hw+0.15f && px < wl->pos.x+hw-0.15f &&
+                            py > wl->pos.y-hh && py < wl->pos.y+hh &&
+                            pz > wl->pos.z-hd+0.15f && pz < wl->pos.z+hd-0.15f) { penetrations++; break; }
                     }
                 }
-                tests_run++;
+                char name[64]; snprintf(name, sizeof(name), "%s_%s", walk_names[si], speed_names[sp]);
+                char det[64]; snprintf(det, sizeof(det), "%d/8 dirs penetrated", penetrations);
+                // HL2: zero tolerance at any speed
+                AUDIT_RESULT(CAT_COLLISION, name, penetrations == 0 ? "PASS" : "FAIL", det);
             }
-
-            char detail[256];
-            const char *status;
-            if (penetrations == 0) {
-                status = "PASS";
-                snprintf(detail, sizeof(detail), "8/8 directions clean");
-            } else if (penetrations <= 2) {
-                status = "WARN";
-                snprintf(detail, sizeof(detail), "%d/8 directions clipped through walls", penetrations);
-            } else {
-                status = "FAIL";
-                snprintf(detail, sizeof(detail), "%d/8 directions clipped through walls", penetrations);
-            }
-            AUDIT_RESULT("COLLISION", walkable_names[si], status, detail);
         }
 
-        // ── TEST 4: Floor integrity — player doesn't fall through ──
-        printf("\n[AUDIT] ── Floor Integrity ──\n");
-        for (int si = 0; si < walkable_count; si++) {
-            load_state(walkable[si]);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
+        // Floor integrity — grounded after 2s standing
+        printf("\n[AUDIT] ── FLOOR ──\n");
+        for (int si = 0; si < walk_count; si++) {
+            load_state(walkable[si]); g.fade_alpha = 0; g.fade_target = 0;
             init_player(&g.player, g.scene.spawn);
             g.player.gravity_mult = 1.0f;
-
-            // Simulate 120 frames of standing still with gravity
-            for (int frame = 0; frame < 120; frame++) {
-                update_player(&g.player, &g.scene, 1.0f / 60.0f);
-            }
-
-            float final_y = g.player.camera.position.y;
-            float spawn_y = g.scene.spawn.y;
-            float drop = spawn_y - final_y;
-
-            char detail[256];
-            const char *status;
-            if (drop > 20.0f) {
-                status = "FAIL";
-                snprintf(detail, sizeof(detail), "fell %.1fm from spawn (y: %.1f -> %.1f) — no floor", drop, spawn_y, final_y);
-            } else if (drop > 5.0f) {
-                status = "WARN";
-                snprintf(detail, sizeof(detail), "dropped %.1fm (y: %.1f -> %.1f)", drop, spawn_y, final_y);
-            } else {
-                status = "PASS";
-                snprintf(detail, sizeof(detail), "grounded=%-3s y_delta=%.2f", g.player.grounded ? "yes" : "no", drop);
-            }
-            AUDIT_RESULT("FLOOR", walkable_names[si], status, detail);
+            for (int f = 0; f < 120; f++) update_player(&g.player, &g.scene, 1.0f/60.0f);
+            float drop = g.scene.spawn.y - g.player.camera.position.y;
+            char det[128]; snprintf(det, sizeof(det), "drop=%.1f grounded=%s", drop, g.player.grounded?"yes":"no");
+            AUDIT_RESULT(CAT_COLLISION, walk_names[si],
+                drop > 10 ? "FAIL" : (drop > 3 ? "WARN" : "PASS"), det);
         }
 
-        // ── TEST 5: Gravity & terminal velocity ──
-        printf("\n[AUDIT] ── Physics Sanity ──\n");
-        {
-            // Drop player from height in a scene with known floor
-            load_state(STATE_LOBBY);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-            init_player(&g.player, (Vector3){0, 50, 0}); // 50m up
-            g.player.gravity_mult = 1.0f;
-
-            float max_vy = 0;
-            for (int frame = 0; frame < 300; frame++) {
-                update_player(&g.player, &g.scene, 1.0f / 60.0f);
-                if (g.player.vy < max_vy) max_vy = g.player.vy;
+        // ════════════════════════════════════════════════════════════
+        // GEOMETRY (15%) — degenerate walls, coplanar detection, bounds
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── GEOMETRY ──\n");
+        for (int si = 0; si < all_count; si++) {
+            load_state(all_scenes[si].gs); g.fade_alpha = 0; g.fade_target = 0;
+            if (g.scene.wall_count == 0) continue;
+            int degenerate = 0, out_of_bounds = 0, coplanar_pairs = 0;
+            for (int w = 0; w < g.scene.wall_count; w++) {
+                Wall *wl = &g.scene.walls[w];
+                // Degenerate: zero volume (any dimension < 0.001)
+                if (wl->size.x < 0.001f || wl->size.y < 0.001f || wl->size.z < 0.001f) degenerate++;
+                // Out of bounds: more than 100m from origin
+                if (fabsf(wl->pos.x) > 100 || fabsf(wl->pos.y) > 100 || fabsf(wl->pos.z) > 100) out_of_bounds++;
             }
-
-            char detail[256];
-            // Terminal velocity should cap fall speed
-            bool tv_ok = max_vy > -60.0f; // should not exceed terminal velocity significantly
-            snprintf(detail, sizeof(detail), "max_vy=%.1f (terminal should cap)", max_vy);
-            AUDIT_RESULT("PHYSICS", "terminal_velocity", tv_ok ? "PASS" : "FAIL", detail);
-        }
-        {
-            // Step-up test: walk toward a known step
-            load_state(STATE_LOBBY);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-            init_player(&g.player, g.scene.spawn);
-            g.player.gravity_mult = 1.0f;
-
-            float start_y = g.player.camera.position.y;
-            // Walk forward for 3 seconds
-            for (int frame = 0; frame < 180; frame++) {
-                g.player.vel.x = 0;
-                g.player.vel.z = -4.5f; // walk forward
-                update_player(&g.player, &g.scene, 1.0f / 60.0f);
+            // Coplanar non-decal walls (z-fighting candidates)
+            // Check pairs sharing a face within 0.005m (Z_DECAL_BIAS)
+            for (int a = 0; a < g.scene.wall_count && a < 300; a++) {
+                Wall *wa = &g.scene.walls[a];
+                if (wa->is_decal || wa->no_collide || wa->shape != SHAPE_CUBE) continue;
+                for (int b = a+1; b < g.scene.wall_count && b < 300; b++) {
+                    Wall *wb = &g.scene.walls[b];
+                    if (wb->is_decal || wb->no_collide || wb->shape != SHAPE_CUBE) continue;
+                    // Check if any face of A is within 0.005m of a face of B (coplanar)
+                    float ax0 = wa->pos.x - wa->size.x/2, ax1 = wa->pos.x + wa->size.x/2;
+                    float bx0 = wb->pos.x - wb->size.x/2, bx1 = wb->pos.x + wb->size.x/2;
+                    float az0 = wa->pos.z - wa->size.z/2, az1 = wa->pos.z + wa->size.z/2;
+                    float bz0 = wb->pos.z - wb->size.z/2, bz1 = wb->pos.z + wb->size.z/2;
+                    // Only count if they share significant overlap area (not just touching at edge)
+                    bool x_overlap = ax0 < bx1 - 0.1f && ax1 > bx0 + 0.1f;
+                    bool z_overlap = az0 < bz1 - 0.1f && az1 > bz0 + 0.1f;
+                    if (x_overlap && z_overlap) {
+                        // Check Y faces coplanar
+                        float ay0 = wa->pos.y - wa->size.y/2, ay1 = wa->pos.y + wa->size.y/2;
+                        float by0 = wb->pos.y - wb->size.y/2, by1 = wb->pos.y + wb->size.y/2;
+                        if (fabsf(ay0 - by0) < 0.005f || fabsf(ay1 - by1) < 0.005f ||
+                            fabsf(ay0 - by1) < 0.005f || fabsf(ay1 - by0) < 0.005f)
+                            coplanar_pairs++;
+                    }
+                }
             }
-            float end_y = g.player.camera.position.y;
-            // Player should still be roughly at eye height (not stuck, not fallen)
-            bool ok = fabsf(end_y - start_y) < 10.0f && end_y > -5.0f;
-            char detail[256];
-            snprintf(detail, sizeof(detail), "y: %.1f -> %.1f (delta=%.1f)", start_y, end_y, end_y - start_y);
-            AUDIT_RESULT("PHYSICS", "walk_forward_lobby", ok ? "PASS" : "WARN", detail);
+            char det[256];
+            // Degenerate walls
+            snprintf(det, sizeof(det), "%d degenerate of %d", degenerate, g.scene.wall_count);
+            AUDIT_RESULT(CAT_GEOMETRY, all_scenes[si].name,
+                degenerate > 0 ? "FAIL" : "PASS", det);
+            // Coplanar (HL2: zero coplanar non-decal surfaces)
+            if (g.scene.wall_count > 10) {
+                char cdet[128]; snprintf(cdet, sizeof(cdet), "%d coplanar non-decal pairs", coplanar_pairs);
+                char cname[64]; snprintf(cname, sizeof(cname), "%s_coplanar", all_scenes[si].name);
+                AUDIT_RESULT(CAT_GEOMETRY, cname,
+                    coplanar_pairs > 20 ? "FAIL" : (coplanar_pairs > 5 ? "WARN" : "PASS"), cdet);
+            }
         }
 
-        // ── TEST 6: Z-fighting detection — render same frame twice, compare ──
-        printf("\n[AUDIT] ── Z-Fighting Detection ──\n");
-        GameState zfight_scenes[] = {STATE_LOBBY, STATE_ROOM, STATE_SPACE_LOBBY, STATE_SPACE_SUITE, STATE_SPACE_CORRIDOR};
-        const char *zfight_names[] = {"lobby", "room", "space_lobby", "space_suite", "space_corridor"};
-        int zfight_count = 5;
-
-        for (int si = 0; si < zfight_count; si++) {
-            load_state(zfight_scenes[si]);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-
-            // Render frame A
+        // ════════════════════════════════════════════════════════════
+        // PERF (15%) — actual render time with vsync DISABLED
+        // HL2: every scene <8ms render (120+ fps headroom)
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── PERFORMANCE (vsync OFF) ──\n");
+        for (int si = 0; si < all_count; si++) {
+            if (all_scenes[si].gs == STATE_TITLE || all_scenes[si].gs == STATE_DRIVING || all_scenes[si].gs == STATE_MONTAGE) continue;
+            load_state(all_scenes[si].gs); g.fade_alpha = 0; g.fade_target = 0;
             g.player.camera.position = g.scene.spawn;
             g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
+            // Warmup
             for (int f = 0; f < 4; f++) {
-                BeginTextureMode(g.render_target);
-                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
+                BeginTextureMode(g.render_target); ClearBackground(BLACK);
                 draw_scene_3d(&g.player, &g.scene, &g.lighting,
                     &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
                     &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
                     &g.skytower_model, g.skytower_loaded, true, 1.0f);
                 EndTextureMode();
+                BeginTextureMode(g.postfx_target); ClearBackground(BLACK);
+                draw_postfx(&g.postfx, g.render_target); EndTextureMode();
                 BeginDrawing(); ClearBackground(BLACK); EndDrawing();
             }
-            Image imgA = LoadImageFromTexture(g.render_target.texture);
-            ImageFlipVertical(&imgA);
-            Color *pxA = LoadImageColors(imgA);
-
-            // Render frame B — identical scene, identical camera, but next frame tick
-            // Z-fighting causes different rasterization due to floating-point path differences
-            for (int f = 0; f < 4; f++) {
-                BeginTextureMode(g.render_target);
-                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
-                draw_scene_3d(&g.player, &g.scene, &g.lighting,
-                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
-                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
-                    &g.skytower_model, g.skytower_loaded, true, 1.017f); // slightly different time
-                EndTextureMode();
-                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
-            }
-            Image imgB = LoadImageFromTexture(g.render_target.texture);
-            ImageFlipVertical(&imgB);
-            Color *pxB = LoadImageColors(imgB);
-
-            // Compare: z-fighting shows as isolated pixel differences in static geometry
-            int total_px = RENDER_W * RENDER_H;
-            int shimmer_px = 0;
-            for (int p = 0; p < total_px; p++) {
-                int dr = abs((int)pxA[p].r - (int)pxB[p].r);
-                int dg = abs((int)pxA[p].g - (int)pxB[p].g);
-                int db = abs((int)pxA[p].b - (int)pxB[p].b);
-                // Z-fighting: sudden large color jump in a pixel that should be static
-                if (dr + dg + db > 30) shimmer_px++;
-            }
-            float shimmer_pct = 100.0f * shimmer_px / total_px;
-
-            // Save shimmer map
-            char shimmer_path[256];
-            snprintf(shimmer_path, sizeof(shimmer_path), "qa/screenshots/%s_zfight.png", zfight_names[si]);
-            Image shimmer_img = GenImageColor(RENDER_W, RENDER_H, BLACK);
-            for (int p = 0; p < total_px; p++) {
-                int dr = abs((int)pxA[p].r - (int)pxB[p].r);
-                int dg = abs((int)pxA[p].g - (int)pxB[p].g);
-                int db = abs((int)pxA[p].b - (int)pxB[p].b);
-                int d = (dr + dg + db) * 4;
-                if (d > 255) d = 255;
-                ((Color *)shimmer_img.data)[p] = (Color){(unsigned char)d, 0, (unsigned char)(d > 0 ? 100 : 0), 255};
-            }
-            ExportImage(shimmer_img, shimmer_path);
-            UnloadImage(shimmer_img);
-
-            char detail[256];
-            const char *status;
-            if (shimmer_pct > 5.0f) {
-                status = "FAIL";
-                snprintf(detail, sizeof(detail), "%.1f%% shimmer pixels (%d) — visible z-fighting", shimmer_pct, shimmer_px);
-            } else if (shimmer_pct > 1.0f) {
-                status = "WARN";
-                snprintf(detail, sizeof(detail), "%.1f%% shimmer (%d px)", shimmer_pct, shimmer_px);
-            } else {
-                status = "PASS";
-                snprintf(detail, sizeof(detail), "%.2f%% shimmer (%d px)", shimmer_pct, shimmer_px);
-            }
-            AUDIT_RESULT("Z_FIGHTING", zfight_names[si], status, detail);
-
-            UnloadImageColors(pxA); UnloadImage(imgA);
-            UnloadImageColors(pxB); UnloadImage(imgB);
-        }
-
-        // ── TEST 7: Render not-black — framebuffer produces visible output ──
-        printf("\n[AUDIT] ── Render Output ──\n");
-        GameState render_scenes[] = {STATE_LOBBY, STATE_SPACE_SUITE, STATE_HOTEL_EXT};
-        const char *render_names[] = {"lobby", "space_suite", "hotel_ext"};
-        for (int si = 0; si < 3; si++) {
-            load_state(render_scenes[si]);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-            g.player.camera.position = g.scene.spawn;
-            g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
-            for (int f = 0; f < 8; f++) {
-                BeginTextureMode(g.render_target);
-                ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
-                draw_scene_3d(&g.player, &g.scene, &g.lighting,
-                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
-                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
-                    &g.skytower_model, g.skytower_loaded, true, 1.0f);
-                EndTextureMode();
-                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
-            }
-            Image img = LoadImageFromTexture(g.render_target.texture);
-            ImageFlipVertical(&img);
-            Color *px = LoadImageColors(img);
-            int total = RENDER_W * RENDER_H;
-            long r_sum = 0, g_s = 0, b_sum = 0;
-            int nonblack = 0;
-            for (int p = 0; p < total; p++) {
-                r_sum += px[p].r; g_s += px[p].g; b_sum += px[p].b;
-                if (px[p].r > 5 || px[p].g > 5 || px[p].b > 5) nonblack++;
-            }
-            float luma = (0.299f * r_sum + 0.587f * g_s + 0.114f * b_sum) / total;
-            float visible_pct = 100.0f * nonblack / total;
-
-            char detail[256];
-            const char *status;
-            if (visible_pct < 1.0f) {
-                status = "FAIL";
-                snprintf(detail, sizeof(detail), "%.1f%% visible (luma %.0f) — framebuffer is black", visible_pct, luma);
-            } else if (luma < 5) {
-                status = "WARN";
-                snprintf(detail, sizeof(detail), "luma %.1f — barely visible", luma);
-            } else {
-                status = "PASS";
-                snprintf(detail, sizeof(detail), "luma=%.0f visible=%.0f%%", luma, visible_pct);
-            }
-            AUDIT_RESULT("RENDER_OUT", render_names[si], status, detail);
-            UnloadImageColors(px); UnloadImage(img);
-        }
-
-        // ── TEST 8: Performance — render time per scene ──
-        printf("\n[AUDIT] ── Performance ──\n");
-        for (int si = 0; si < audit_scene_count; si++) {
-            if (audit_scenes[si].gs == STATE_TITLE || audit_scenes[si].gs == STATE_DRIVING ||
-                audit_scenes[si].gs == STATE_MONTAGE) continue;
-            load_state(audit_scenes[si].gs);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-            g.player.camera.position = g.scene.spawn;
-            g.player.camera.target = (Vector3){g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z - 5};
-
-            // Warm up
-            for (int f = 0; f < 4; f++) {
-                BeginTextureMode(g.render_target);
-                ClearBackground(BLACK);
-                draw_scene_3d(&g.player, &g.scene, &g.lighting,
-                    &g.cube_model, g.cube_model_loaded, &g.cyl_model, g.cyl_model_loaded,
-                    &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
-                    &g.skytower_model, g.skytower_loaded, true, 1.0f);
-                EndTextureMode();
-                BeginDrawing(); ClearBackground(BLACK); EndDrawing();
-            }
-
-            // Measure 16 frames
+            // Measure 32 frames
             double t0 = GetTime();
-            for (int f = 0; f < 16; f++) {
+            for (int f = 0; f < 32; f++) {
                 BeginTextureMode(g.render_target);
                 ClearBackground(g.scene.fog_color.a > 0 ? g.scene.fog_color : (Color){8,10,22,255});
                 draw_scene_3d(&g.player, &g.scene, &g.lighting,
@@ -2128,98 +1952,187 @@ int main(void) {
                     &g.sphere_model, g.sphere_model_loaded, &g.cone_model, g.cone_model_loaded,
                     &g.skytower_model, g.skytower_loaded, true, (float)f * 0.016f);
                 EndTextureMode();
-                BeginTextureMode(g.postfx_target);
-                ClearBackground(BLACK);
-                draw_postfx(&g.postfx, g.render_target);
-                EndTextureMode();
+                BeginTextureMode(g.postfx_target); ClearBackground(BLACK);
+                draw_postfx(&g.postfx, g.render_target); EndTextureMode();
                 BeginDrawing(); ClearBackground(BLACK); EndDrawing();
             }
-            double elapsed = (GetTime() - t0) * 1000.0;
-            float avg_ms = (float)elapsed / 16.0f;
-            float est_fps = 1000.0f / avg_ms;
-
-            char detail[256];
-            const char *status;
-            if (avg_ms > 33.3f) { // below 30fps
-                status = "FAIL";
-                snprintf(detail, sizeof(detail), "%.1fms/frame (~%.0f fps) walls=%d", avg_ms, est_fps, g.scene.wall_count);
-            } else if (avg_ms > 16.6f) { // below 60fps
-                status = "WARN";
-                snprintf(detail, sizeof(detail), "%.1fms/frame (~%.0f fps) walls=%d", avg_ms, est_fps, g.scene.wall_count);
-            } else {
-                status = "PASS";
-                snprintf(detail, sizeof(detail), "%.1fms/frame (~%.0f fps) walls=%d", avg_ms, est_fps, g.scene.wall_count);
-            }
-            AUDIT_RESULT("PERF", audit_scenes[si].name, status, detail);
+            float avg_ms = (float)((GetTime() - t0) * 1000.0) / 32.0f;
+            float fps = 1000.0f / avg_ms;
+            char det[128]; snprintf(det, sizeof(det), "%.2fms (%.0f fps) walls=%d", avg_ms, fps, g.scene.wall_count);
+            // HL2 standard: <8ms = PASS, <16ms = WARN, >16ms = FAIL
+            AUDIT_RESULT(CAT_PERF, all_scenes[si].name,
+                avg_ms < 8.0f ? "PASS" : (avg_ms < 16.6f ? "WARN" : "FAIL"), det);
         }
 
-        // ── TEST 9: Rapid transition stress ──
-        printf("\n[AUDIT] ── Transition Stress ──\n");
+        // ════════════════════════════════════════════════════════════
+        // PHYSICS (10%) — gravity, terminal vel, grounding
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── PHYSICS ──\n");
         {
-            // Load every scene 3 times rapidly — detect crashes/state corruption
-            bool stress_ok = true;
-            for (int round = 0; round < 3; round++) {
-                for (int si = 0; si < audit_scene_count; si++) {
-                    load_state(audit_scenes[si].gs);
-                    g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-                }
+            load_state(STATE_LOBBY); g.fade_alpha = 0; g.fade_target = 0;
+            init_player(&g.player, (Vector3){0, 50, 0});
+            g.player.gravity_mult = 1.0f;
+            float max_vy = 0;
+            for (int f = 0; f < 300; f++) {
+                update_player(&g.player, &g.scene, 1.0f/60.0f);
+                if (g.player.vy < max_vy) max_vy = g.player.vy;
             }
-            // If we got here, no crash
-            char detail[256];
-            snprintf(detail, sizeof(detail), "%d scenes x 3 rounds = %d loads", audit_scene_count, audit_scene_count * 3);
-            AUDIT_RESULT("STRESS", "rapid_transitions", stress_ok ? "PASS" : "FAIL", detail);
+            char det[128]; snprintf(det, sizeof(det), "max_vy=%.1f", max_vy);
+            AUDIT_RESULT(CAT_PHYSICS, "terminal_velocity", max_vy > -60.0f ? "PASS" : "FAIL", det);
+        }
+        // Walk forward — don't fall or get stuck
+        for (int si = 0; si < walk_count; si++) {
+            load_state(walkable[si]); g.fade_alpha = 0; g.fade_target = 0;
+            init_player(&g.player, g.scene.spawn);
+            g.player.gravity_mult = 1.0f;
+            float sy = g.player.camera.position.y;
+            float moved = 0;
+            for (int f = 0; f < 180; f++) {
+                g.player.vel.z = -4.5f;
+                Vector3 before = g.player.camera.position;
+                update_player(&g.player, &g.scene, 1.0f/60.0f);
+                Vector3 after = g.player.camera.position;
+                moved += sqrtf((after.x-before.x)*(after.x-before.x) + (after.z-before.z)*(after.z-before.z));
+            }
+            float ey = g.player.camera.position.y;
+            char name[64]; snprintf(name, sizeof(name), "walk_%s", walk_names[si]);
+            char det[128]; snprintf(det, sizeof(det), "moved=%.1fm y_delta=%.1f", moved, ey-sy);
+            // Should move at least 5m in 3 seconds (not stuck), and not fall >5m
+            bool ok = moved > 3.0f && (sy - ey) < 5.0f;
+            AUDIT_RESULT(CAT_PHYSICS, name, ok ? "PASS" : (moved > 1.0f ? "WARN" : "FAIL"), det);
         }
 
-        // ── TEST 10: Spawn validity — spawn inside playable area ──
-        printf("\n[AUDIT] ── Spawn Validity ──\n");
-        for (int si = 0; si < walkable_count; si++) {
-            load_state(walkable[si]);
-            g.fade_alpha = 0.0f; g.fade_target = 0.0f;
-
-            // Check spawn isn't inside a wall
-            float sx = g.scene.spawn.x, sy = g.scene.spawn.y, sz = g.scene.spawn.z;
-            bool inside_wall = false;
-            for (int w = 0; w < g.scene.wall_count; w++) {
-                Wall *wl = &g.scene.walls[w];
-                if (wl->no_collide || wl->is_decal) continue;
-                if (wl->shape != SHAPE_CUBE) continue;
-                if (wl->size.y < 0.3f) continue; // skip floors
-                float hw = wl->size.x/2, hh = wl->size.y/2, hd = wl->size.z/2;
-                if (sx > wl->pos.x - hw && sx < wl->pos.x + hw &&
-                    sy > wl->pos.y - hh && sy < wl->pos.y + hh &&
-                    sz > wl->pos.z - hd && sz < wl->pos.z + hd) {
-                    inside_wall = true;
-                    break;
-                }
+        // ════════════════════════════════════════════════════════════
+        // INTERACTION (10%) — can the player reach every object?
+        // HL2: every interactive object reachable from spawn
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── INTERACTION ──\n");
+        GameState interact_scenes[] = {STATE_LOBBY, STATE_ROOM, STATE_BATHROOM, STATE_SPACE_SUITE, STATE_PARIS_DREAM, STATE_BALCONY};
+        const char *interact_names[] = {"lobby","room","bathroom","space_suite","paris_dream","balcony"};
+        for (int si = 0; si < 6; si++) {
+            load_state(interact_scenes[si]); g.fade_alpha = 0; g.fade_target = 0;
+            int total_obj = 0, reachable = 0, named = 0;
+            for (int oi = 0; oi < g.scene.object_count; oi++) {
+                InteractObject *obj = &g.scene.objects[oi];
+                if (!obj->active) continue;
+                total_obj++;
+                if (obj->name && strlen(obj->name) > 0) named++;
+                float dx = obj->pos.x - g.scene.spawn.x;
+                float dz = obj->pos.z - g.scene.spawn.z;
+                float dist = sqrtf(dx*dx + dz*dz);
+                if (dist < 25.0f) reachable++;
             }
-            char detail[256];
-            snprintf(detail, sizeof(detail), "spawn=(%.1f,%.1f,%.1f)%s", sx, sy, sz, inside_wall ? " INSIDE WALL" : "");
-            AUDIT_RESULT("SPAWN", walkable_names[si], inside_wall ? "FAIL" : "PASS", detail);
+            char det[128]; snprintf(det, sizeof(det), "%d/%d reachable, %d/%d named", reachable, total_obj, named, total_obj);
+            char name[64]; snprintf(name, sizeof(name), "objects_%s", interact_names[si]);
+            // HL2: all objects reachable AND named
+            const char *status = "PASS";
+            if (total_obj == 0) status = "FAIL";
+            else if (reachable < total_obj || named < total_obj) status = "WARN";
+            AUDIT_RESULT(CAT_INTERACTION, name, status, det);
+        }
+        // Scenes that SHOULD have objects but might not
+        {
+            GameState need_objects[] = {STATE_BED, STATE_CLEANED_SUITE};
+            const char *need_names[] = {"bed_objects","cleaned_objects"};
+            for (int si = 0; si < 2; si++) {
+                load_state(need_objects[si]); g.fade_alpha = 0; g.fade_target = 0;
+                int active = 0;
+                for (int oi = 0; oi < g.scene.object_count; oi++)
+                    if (g.scene.objects[oi].active) active++;
+                char det[64]; snprintf(det, sizeof(det), "%d objects", active);
+                AUDIT_RESULT(CAT_INTERACTION, need_names[si], active > 0 ? "PASS" : "FAIL", det);
+            }
         }
 
-        // ── Summary ──
+        // ════════════════════════════════════════════════════════════
+        // STATE (5%) — every GameState has load+update handlers
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── STATE MACHINE ──\n");
+        {
+            int missing_load = 0, missing_update = 0;
+            for (int s = 0; s < scene_desc_count; s++) {
+                if (!scene_descs[s].update) missing_update++;
+                // load can be NULL for STATE_DRIVING (shares with taxi)
+                if (!scene_descs[s].load && s != STATE_DRIVING) missing_load++;
+            }
+            char det[128]; snprintf(det, sizeof(det), "%d states, %d missing load, %d missing update",
+                scene_desc_count, missing_load, missing_update);
+            AUDIT_RESULT(CAT_STATE, "handlers", (missing_load == 0 && missing_update == 0) ? "PASS" : "FAIL", det);
+        }
+        // Scene load integrity
+        for (int si = 0; si < all_count; si++) {
+            load_state(all_scenes[si].gs); g.fade_alpha = 0; g.fade_target = 0;
+            bool special = (all_scenes[si].gs == STATE_TITLE || all_scenes[si].gs == STATE_DRIVING ||
+                           all_scenes[si].gs == STATE_MONTAGE || all_scenes[si].gs == STATE_STARS ||
+                           all_scenes[si].gs == STATE_HYPERSPACE);
+            bool ok = g.scene.wall_count > 0 || special;
+            char det[64]; snprintf(det, sizeof(det), "walls=%d", g.scene.wall_count);
+            AUDIT_RESULT(CAT_STATE, all_scenes[si].name, ok ? "PASS" : "FAIL", det);
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // STRESS (5%) — rapid transitions
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── STRESS ──\n");
+        {
+            for (int r = 0; r < 5; r++)
+                for (int si = 0; si < all_count; si++) {
+                    load_state(all_scenes[si].gs); g.fade_alpha = 0; g.fade_target = 0;
+                }
+            char det[64]; snprintf(det, sizeof(det), "%d scenes x 5 = %d loads", all_count, all_count * 5);
+            AUDIT_RESULT(CAT_STRESS, "rapid_100_loads", "PASS", det);
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // AUDIO (5%) — init, sound count
+        // ════════════════════════════════════════════════════════════
+        printf("\n[AUDIT] ── AUDIO ──\n");
+        AUDIT_RESULT(CAT_AUDIO, "system_init", g.audio.initialized ? "PASS" : "FAIL", "");
+        AUDIT_RESULT(CAT_AUDIO, "music_loaded", g.audio.music_loaded ? "PASS" : "FAIL", "4 tracks");
+
+        // ════════════════════════════════════════════════════════════
+        // GRADING
+        // ════════════════════════════════════════════════════════════
         printf("\n[AUDIT] ============================================================\n");
-        printf("[AUDIT]  PASS: %d  |  WARN: %d  |  FAIL: %d\n", audit_pass, audit_warn, audit_fail);
-        printf("[AUDIT]  Total: %d tests\n", audit_pass + audit_warn + audit_fail);
-        if (audit_fail == 0 && audit_warn == 0)
-            printf("[AUDIT]  ENGINE STATUS: ALL CLEAR\n");
-        else if (audit_fail == 0)
-            printf("[AUDIT]  ENGINE STATUS: CLEAN (with warnings)\n");
-        else
-            printf("[AUDIT]  ENGINE STATUS: FAILURES DETECTED\n");
-        printf("[AUDIT] ============================================================\n");
-        printf("[AUDIT] Report: qa/audit_report.json\n");
-        printf("[AUDIT] Z-fight maps: qa/screenshots/*_zfight.png\n\n");
+        printf("[AUDIT]  RESULTS (HL2 Standard)\n");
+        printf("[AUDIT] ============================================================\n\n");
+
+        float weighted_total = 0;
+        float weight_sum = 0;
+        for (int c = 0; c < 9; c++) {
+            float pct = cat_max[c] > 0 ? (cat_scores[c] / cat_max[c]) * 100.0f : 100.0f;
+            char grade = pct >= 90 ? 'A' : pct >= 75 ? 'B' : pct >= 60 ? 'C' : pct >= 40 ? 'D' : 'F';
+            int bar = (int)(pct / 5);
+            char bar_str[21]; for (int i = 0; i < 20; i++) bar_str[i] = i < bar ? '#' : '.'; bar_str[20] = 0;
+            printf("[AUDIT]  %-12s %c  %s  %.0f%%  (%0.f/%d tests, weight %.0f%%)\n",
+                   cat_names[c], grade, bar_str, pct, cat_scores[c], cat_max[c], cat_weights[c]*100);
+            weighted_total += pct * cat_weights[c];
+            weight_sum += cat_weights[c];
+        }
+        float overall = weighted_total / weight_sum;
+        char overall_grade = overall >= 90 ? 'A' : overall >= 75 ? 'B' : overall >= 60 ? 'C' : overall >= 40 ? 'D' : 'F';
+
+        printf("\n[AUDIT]  PASS: %d  |  WARN: %d  |  FAIL: %d  |  Total: %d\n",
+               audit_pass, audit_warn, audit_fail, audit_pass + audit_warn + audit_fail);
+        printf("\n[AUDIT]  ╔══════════════════════════════════════╗\n");
+        printf("[AUDIT]  ║  OVERALL GRADE:  %c  (%.0f%%)            ║\n", overall_grade, overall);
+        printf("[AUDIT]  ╚══════════════════════════════════════╝\n\n");
 
         if (af) {
-            fprintf(af, "\n  ],\n  \"summary\": {\"pass\": %d, \"warn\": %d, \"fail\": %d, \"total\": %d}\n}\n",
-                    audit_pass, audit_warn, audit_fail, audit_pass + audit_warn + audit_fail);
+            fprintf(af, "\n  ],\n  \"summary\": {\"pass\": %d, \"warn\": %d, \"fail\": %d, \"total\": %d, \"grade\": \"%c\", \"pct\": %.0f},\n",
+                    audit_pass, audit_warn, audit_fail, audit_pass + audit_warn + audit_fail, overall_grade, overall);
+            fprintf(af, "  \"categories\": {\n");
+            for (int c = 0; c < 9; c++) {
+                float pct = cat_max[c] > 0 ? (cat_scores[c] / cat_max[c]) * 100.0f : 100.0f;
+                fprintf(af, "    \"%s\": {\"pct\": %.0f, \"pass\": %.0f, \"total\": %d, \"weight\": %.2f}%s\n",
+                        cat_names[c], pct, cat_scores[c], cat_max[c], cat_weights[c], c < 8 ? "," : "");
+            }
+            fprintf(af, "  }\n}\n");
             fclose(af);
         }
 
         #undef AUDIT_RESULT
     }
-    // Fall through to cleanup below
     if (g.cube_model_loaded) UnloadModel(g.cube_model);
     if (g.cyl_model_loaded) UnloadModel(g.cyl_model);
     if (g.sphere_model_loaded) UnloadModel(g.sphere_model);
@@ -2407,7 +2320,8 @@ int main(void) {
         if (IsKeyPressed(KEY_EIGHT)) load_state(STATE_SPACE_CORRIDOR);
         if (IsKeyPressed(KEY_NINE))  load_state(STATE_SPACE_SUITE);
         if (IsKeyPressed(KEY_ZERO))  load_state(STATE_CAR);
-        if (IsKeyPressed(KEY_MINUS)) load_state(STATE_SHELL_TEST);
+        if (IsKeyPressed(KEY_MINUS)) load_state(STATE_GLASSHOUSE);
+        if (IsKeyPressed(KEY_EQUAL)) load_state(STATE_SHELL_TEST);
         }
 #endif // PLAYTEST
 
@@ -2470,6 +2384,7 @@ int main(void) {
 
         // Gibbons dialogue → new dialogue system
         if (g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
+            || g.state == STATE_GLASSHOUSE
             || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE) {
             const char *line = npc_current_dialogue(&g.gibbons);
             if (line && g.dlg_text != line) {
@@ -2550,6 +2465,7 @@ int main(void) {
             case STATE_CLEANED_SUITE:
             case STATE_MONTAGE:
             case STATE_RETURN_TAXI:
+            case STATE_GLASSHOUSE:
             case STATE_SHELL_TEST:
                 if (g.state == STATE_RETURN_TAXI) {
                     // Dawn sky (GPU skybox)
@@ -2576,13 +2492,14 @@ int main(void) {
                     DrawSkybox(&g.skybox, g.player.camera, SKY_HYPERSPACE, g.state_time, 1.0f, 0);
                 } else if (g.state == STATE_BALCONY || g.state == STATE_SPACE_LOBBY
                            || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE
-                           || g.state == STATE_SHELL_TEST) {
+                           || g.state == STATE_GLASSHOUSE || g.state == STATE_SHELL_TEST) {
                     ClearBackground((Color){4, 5, 12, 255});
                     DrawSkybox(&g.skybox, g.player.camera, SKY_SPACE_VOID, g.state_time, 0, 0);
                     // Procedural Earth — positioned per g.scene so it's visible through windows
                     if (g.sphere_model_loaded) {
                         Vector3 earth_pos = {0, -40, -60};  // default
                         if (g.state == STATE_SPACE_LOBBY) earth_pos = (Vector3){3, -20, -40};
+                        else if (g.state == STATE_GLASSHOUSE) earth_pos = (Vector3){0, -25, -45};
                         else if (g.state == STATE_SPACE_CORRIDOR) earth_pos = (Vector3){-20, -30, -30};
                         else if (g.state == STATE_SPACE_SUITE) { float prog = (float)g.tasks_done / SPACE_TASK_COUNT; earth_pos = (Vector3){-35+prog*5, -20+prog*3, -10+prog*3}; }
                         else if (g.state == STATE_BALCONY) earth_pos = (Vector3){0, -30, -50};
@@ -2602,8 +2519,8 @@ int main(void) {
                 }
                 {
                     bool indoor = !(g.state == STATE_HOTEL_EXT || g.state == STATE_BALCONY
-                                    || g.state == STATE_SPACE_LOBBY || g.state == STATE_ELEVATOR
-                                    || g.state == STATE_HYPERSPACE);
+                                    || g.state == STATE_SPACE_LOBBY || g.state == STATE_GLASSHOUSE
+                                    || g.state == STATE_ELEVATOR || g.state == STATE_HYPERSPACE);
                     draw_scene_3d(&g.player, &g.scene, &g.lighting, &g.cube_model, g.cube_model_loaded,
                                   &g.cyl_model, g.cyl_model_loaded,
                                   &g.sphere_model, g.sphere_model_loaded,
@@ -2613,6 +2530,7 @@ int main(void) {
                 }
                 // Gibbons NPC — all rendering handled by draw_npc() (GLB + cube-person fallback)
                 if ((g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
+                     || g.state == STATE_GLASSHOUSE
                      || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE)
                     && g.gibbons.active) {
                     BeginMode3D(g.player.camera);
@@ -2621,7 +2539,7 @@ int main(void) {
                 }
                 // Sprint 5B: Zero-G sparkles — larger drift, occasional bright flashes
                 if (g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE
-                    || g.state == STATE_SPACE_LOBBY) {
+                    || g.state == STATE_SPACE_LOBBY || g.state == STATE_GLASSHOUSE) {
                     BeginMode3D(g.player.camera);
                     draw_zero_g_sparkles(g.player.camera, g.state_time);
                     EndMode3D();

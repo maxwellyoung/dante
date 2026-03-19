@@ -5803,3 +5803,248 @@ void add_sofa(Scene *s, float x, float y, float z, float angle, Color fabric) {
              S_SOFA_ARM_W, S_SOFA_ARM_H, S_SOFA_D + S_SOFA_BACK_T, dark);
     set_last_material(s, MAT_FABRIC); set_last_rotation(s, angle);
 }
+
+// ============================================================
+// GLASSHOUSE — The observation lounge. First big space.
+// The Bioshock Infinite arrival. The WALL-E scale.
+// Evidence of other couples. You walk through their intimacy.
+// Contraction: 20m wide → corridor 4.5m → suite one room.
+// ============================================================
+void build_glasshouse(Scene *s) {
+    memset(s, 0, sizeof(Scene));
+    s->surface = SURFACE_MARBLE;
+
+    Color hull = PAL_HULL;
+    Color hull_lt = PAL_HULL_LIGHT;
+    Color brass = PAL_BRASS;
+    Color cream = PAL_CREAM;
+    Color glass_c = {140, 180, 220, 25};
+    Color warm_light = PAL_GLOW_AMBER;
+
+    s->fog_color = (Color){4, 5, 12, 255};
+    s->fog_density = 0.0004f;  // minimal — vacuum clarity, vast space
+
+    float W = 20, D = 16, H = 8;
+
+    // ── FLOOR — dark hull grating with brass inlays ──
+    add_wall(s, 0, -0.1f, -D/2, W, 0.2f, D, hull);
+    set_last_material(s, MAT_TILE);
+    // Brass drainage strips
+    for (int i = 0; i < 8; i++) {
+        float dz = -D + 1.0f + i * (D / 8.0f);
+        add_wall(s, 0, 0.01f, dz, W - 1.0f, 0.02f, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+        set_last_decal(s);
+    }
+    // Earth-glow on floor — blue wash from below
+    add_wall(s, 0, 0.02f, -D/2, W * 0.6f, 0.01f, D * 0.4f, (Color){50, 100, 180, 40});
+    set_last_decal(s);
+
+    // ── CEILING — hull panels with structural ribs ──
+    add_wall(s, 0, H, -D/2, W, 0.2f, D, hull);
+    set_last_material(s, MAT_CONCRETE);
+    // Longitudinal ribs
+    for (int i = 0; i < 5; i++) {
+        float rx = -W/2 + 2 + i * (W / 5.0f);
+        add_wall(s, rx, H - 0.05f, -D/2, 0.08f, 0.1f, D, brass);
+        set_last_material(s, MAT_BRASS);
+    }
+
+    // ── BACK WALL — the hull, entry from elevator ──
+    add_wall(s, 0, H/2, 0, W, H, 0.3f, hull);
+    set_last_material(s, MAT_CONCRETE);
+    // Entry opening (player spawns through this)
+    // Cream paneling on back wall
+    add_wall(s, -W/4, H * 0.4f, -0.12f, W/3, H * 0.8f, 0.04f, cream);
+    set_last_material(s, MAT_WALLPAPER);
+    add_wall(s, W/4, H * 0.4f, -0.12f, W/3, H * 0.8f, 0.04f, cream);
+    set_last_material(s, MAT_WALLPAPER);
+
+    // ── GLASS WALLS — three sides ──
+    // LEFT WALL — floor-to-ceiling glass panels with steel mullions
+    for (int i = 0; i < 4; i++) {
+        float pz = -D + 2 + i * (D / 4.0f);
+        // Glass panel
+        add_wall(s, -W/2, H/2, pz, 0.04f, H - 1, D/4.0f - 0.3f, glass_c);
+        set_last_material(s, MAT_GLASS);
+        // Steel mullion between panels
+        add_wall(s, -W/2, H/2, pz + D/8.0f, 0.08f, H, 0.1f, hull_lt);
+        set_last_material(s, MAT_CONCRETE);
+    }
+    // RIGHT WALL — same
+    for (int i = 0; i < 4; i++) {
+        float pz = -D + 2 + i * (D / 4.0f);
+        add_wall(s, W/2, H/2, pz, 0.04f, H - 1, D/4.0f - 0.3f, glass_c);
+        set_last_material(s, MAT_GLASS);
+        add_wall(s, W/2, H/2, pz + D/8.0f, 0.08f, H, 0.1f, hull_lt);
+        set_last_material(s, MAT_CONCRETE);
+    }
+    // FRONT WALL — the big window. Earth below.
+    add_wall(s, 0, H/2, -D, 0.04f, H - 1, W, glass_c);
+    // Wait — front wall should be at z=-D, spanning X. Let me use the correct orientation.
+    // Actually: front is at z = -D, facing toward -z
+    add_wall(s, 0, H/2, -D, W, H - 1, 0.04f, glass_c);
+    set_last_material(s, MAT_GLASS);
+    // Steel cross-bracing on front window
+    add_wall(s, 0, H/2, -D + 0.02f, 0.06f, H, 0.06f, hull_lt);
+    add_wall(s, -W/4, H/2, -D + 0.02f, 0.06f, H, 0.06f, hull_lt);
+    add_wall(s, W/4, H/2, -D + 0.02f, 0.06f, H, 0.06f, hull_lt);
+    add_wall(s, 0, H * 0.6f, -D + 0.02f, W, 0.06f, 0.06f, hull_lt);
+
+    // ── EVIDENCE OF COUPLES — the "twos" at scale ──
+    // Seating cluster 1 — two chairs angled toward each other, Earth window
+    {
+        float cx = -4, cz = -D + 3;
+        // Chair 1
+        add_wall(s, cx - 0.8f, 0.42f, cz, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        add_wall(s, cx - 0.8f, 0.72f, cz + 0.23f, 0.5f, 0.55f, 0.06f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        // Chair 2
+        add_wall(s, cx + 0.8f, 0.42f, cz, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        add_wall(s, cx + 0.8f, 0.72f, cz + 0.23f, 0.5f, 0.55f, 0.06f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        // Table between
+        add_wall(s, cx, 0.45f, cz, 0.4f, 0.03f, 0.4f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, cx, 0.22f, cz, 0.04f, 0.45f, brass);
+        // Two coffee cups — one half-drunk, one untouched
+        add_cylinder(s, cx - 0.1f, 0.48f, cz - 0.05f, 0.04f, 0.06f, cream);
+        add_wall_decal(s, cx - 0.1f, 0.515f, cz - 0.05f, 0.03f, 0.002f, 0.03f,
+            (Color){120, 80, 40, 180});  // coffee surface — half drunk
+        add_cylinder(s, cx + 0.1f, 0.48f, cz + 0.05f, 0.04f, 0.06f, cream);
+        add_wall_decal(s, cx + 0.1f, 0.515f, cz + 0.05f, 0.03f, 0.002f, 0.03f,
+            (Color){100, 65, 30, 200});  // full — untouched
+    }
+
+    // Seating cluster 2 — someone left a coat
+    {
+        float cx = 5, cz = -D + 5;
+        add_wall(s, cx - 0.7f, 0.42f, cz, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        add_wall(s, cx - 0.7f, 0.72f, cz + 0.23f, 0.5f, 0.55f, 0.06f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        add_wall(s, cx + 0.7f, 0.42f, cz, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        add_wall(s, cx + 0.7f, 0.72f, cz + 0.23f, 0.5f, 0.55f, 0.06f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        // Table
+        add_wall(s, cx, 0.45f, cz, 0.4f, 0.03f, 0.4f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, cx, 0.22f, cz, 0.04f, 0.45f, brass);
+        // A coat draped on the chair back — someone was just here
+        add_wall(s, cx + 0.7f, 0.75f, cz + 0.26f, 0.45f, 0.35f, 0.08f, (Color){80, 65, 50, 220});
+        set_last_material(s, MAT_FABRIC);
+        // A book open face-down on the table — she was reading
+        add_wall(s, cx + 0.05f, 0.48f, cz - 0.05f, 0.18f, 0.03f, 0.12f, PAL_RED);
+        set_last_material(s, MAT_LEATHER);
+    }
+
+    // Seating cluster 3 — wine glasses, one with lipstick
+    {
+        float cx = -2, cz = -D/2;
+        add_wall(s, cx - 0.6f, 0.42f, cz, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        add_wall(s, cx + 0.6f, 0.42f, cz, 0.5f, 0.06f, 0.5f, PAL_WOOD);
+        set_last_material(s, MAT_LEATHER);
+        // Table
+        add_wall(s, cx, 0.45f, cz, 0.35f, 0.03f, 0.35f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, cx, 0.22f, cz, 0.04f, 0.45f, brass);
+        // Two wine glasses
+        add_cone(s, cx - 0.08f, 0.48f, cz, 0.04f, 0.06f, (Color){210,210,215,180});
+        add_cylinder(s, cx - 0.08f, 0.52f, cz, 0.015f, 0.06f, (Color){210,210,215,180});
+        add_cone(s, cx + 0.08f, 0.48f, cz + 0.05f, 0.04f, 0.06f, (Color){210,210,215,180});
+        add_cylinder(s, cx + 0.08f, 0.52f, cz + 0.05f, 0.015f, 0.06f, (Color){210,210,215,180});
+        // Lipstick mark — a tiny red crescent on one glass
+        add_wall_decal(s, cx - 0.065f, 0.555f, cz + 0.02f, 0.015f, 0.003f, 0.01f, PAL_RED);
+        // A scarf left behind
+        add_wall(s, cx + 0.6f, 0.5f, cz + 0.2f, 0.3f, 0.02f, 0.1f, (Color){180, 55, 45, 200});
+        set_last_material(s, MAT_FABRIC);
+    }
+
+    // ── TELESCOPE — communal, pointing at Earth ──
+    {
+        float tx = 0, tz = -D + 2;
+        int scope_mdl = find_model_asset("telescope");
+        if (scope_mdl >= 0) {
+            add_model(s, tx, 0, tz, 1,1,1, 0, scope_mdl, MAT_BRASS, (Color){255,255,255,255});
+        } else {
+            add_cylinder(s, tx, 0.9f, tz, 0.06f, 0.6f, brass);
+            set_last_material(s, MAT_BRASS);
+            add_cylinder(s, tx - 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
+            add_cylinder(s, tx + 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
+            add_cylinder(s, tx, 0.45f, tz - 0.2f, 0.015f, 0.9f, brass);
+        }
+    }
+
+    // ── BAR/SERVICE COUNTER — along back wall ──
+    {
+        float bx = -W/4, bz = -0.6f;
+        add_wall(s, bx, 0.55f, bz, 4.0f, 0.06f, 0.8f, (Color){40, 35, 28, 255});
+        set_last_material(s, MAT_WOOD);
+        add_wall(s, bx, 0.27f, bz + 0.35f, 4.0f, 0.54f, 0.06f, hull);
+        set_last_material(s, MAT_CONCRETE);
+        // Brass rail
+        add_wall(s, bx, 0.57f, bz - 0.42f, 4.0f, 0.04f, 0.04f, brass);
+        set_last_material(s, MAT_BRASS);
+        // Glasses on counter — more "twos"
+        for (int i = 0; i < 3; i++) {
+            float gx = bx - 1.5f + i * 1.5f;
+            add_cone(s, gx, 0.58f, bz - 0.1f, 0.04f, 0.06f, (Color){210,210,215,160});
+            add_cone(s, gx + 0.15f, 0.58f, bz + 0.1f, 0.04f, 0.06f, (Color){210,210,215,160});
+        }
+    }
+
+    // ── EARTH LAYERS — Rothko fields visible through glass ──
+    // Atmosphere band
+    add_wall(s, 0, -1.0f, -D - 10, 60, 0.8f, 0.1f, (Color){100, 170, 230, 200});
+    add_wall(s, 0, -0.6f, -D - 9, 70, 0.4f, 0.1f, (Color){140, 195, 240, 160});
+    add_wall(s, 0, -0.3f, -D - 8, 80, 0.2f, 0.1f, (Color){200, 225, 248, 120});
+    // Planet surface
+    add_wall(s, 0, -3, -D - 5, 50, 0.1f, 10, (Color){10, 18, 38, 255});
+    add_wall(s, 0, -4, -D - 12, 60, 0.1f, 12, (Color){12, 22, 45, 255});
+    // City lights
+    add_wall(s, -8, -2.5f, -D - 6, 3.0f, 0.1f, 2.0f, (Color){240, 200, 110, 100});
+    add_wall(s, 5, -2.8f, -D - 8, 2.5f, 0.1f, 1.5f, (Color){240, 200, 110, 80});
+    add_wall(s, -15, -3.0f, -D - 10, 2.0f, 0.1f, 1.0f, (Color){255, 210, 120, 90});
+    // Auckland cluster
+    add_wall(s, -6, -2.3f, -D - 5, 2.0f, 0.1f, 1.5f, (Color){255, 230, 140, 160});
+
+    // ── STARS — above and around ──
+    for (int i = 0; i < 30; i++) {
+        float sx = -40.0f + (float)((i*41)%80);
+        float sy = 2.0f + (float)((i*17)%15);
+        float sz = -D - 5.0f - (float)((i*13)%30);
+        float size = 0.15f + (float)((i*7)%3) * 0.08f;
+        add_wall(s, sx, sy, sz, size, size, size,
+                 (Color){220,218,210,(unsigned char)(80+(i*19)%60)});
+    }
+
+    // ── DISTANT STATION MODULES ──
+    add_wall(s, -25, 6, -D - 30, 1.5f, 0.8f, 0.3f, (Color){140,150,165,60});
+    add_wall(s, -25, 6.2f, -D - 30, 0.6f, 0.3f, 0.1f, warm_light);
+    add_wall(s, 20, 9, -D - 40, 1.2f, 0.6f, 0.3f, (Color){130,140,155,50});
+
+    // ── AMBIENT LIGHT POOLS ──
+    // Warm pools from ceiling fixtures
+    for (int i = 0; i < 3; i++) {
+        float lx = -6 + i * 6;
+        add_light_panel(s, lx, H - 0.1f, -D/2, 1.0f, 0.06f, 1.0f, warm_light);
+    }
+    // Earth-glow point light from below
+    // (handled by main.c earth sphere rendering)
+
+    // Navigation lights on hull edges
+    add_sphere(s, -W/2 - 0.1f, H - 0.5f, -D, 0.1f, (Color){255, 40, 40, 200});  // port red
+    add_sphere(s, W/2 + 0.1f, H - 0.5f, -D, 0.1f, (Color){40, 255, 40, 200});    // starboard green
+
+    tag_materials_by_color(s);
+
+    // Spawn: just inside from the back wall (elevator side)
+    s->spawn = (Vector3){0, 1.6f, -1.5f};
+    // Exit: far end, toward corridor
+    s->exit_pos = (Vector3){0, 1.6f, -D + 1.0f};
+    s->has_exit = true;
+}
