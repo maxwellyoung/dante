@@ -165,21 +165,40 @@ static void update_choice_input(void) {
 static void draw_choice(void) {
     if (!g.choice_active) return;
 
-    int q_size = 16;
-    int o_size = 14;
-    int pad = 12 * UI_SCALE;
-    int bar_h = o_size * UI_SCALE + pad * 2;
+    // ── Lower-third style matching Gibbons dialogue ──
+    int font_q = 18;
+    int font_o = 16;
+    int margin_left = 60;
+    int margin_bottom = 40;
+    int line_gap = 6;
 
-    // Question — centered vertically
-    int qy = RENDER_H / 2 - 50;
-    draw_text_box(g.choice_question, qy, q_size, (Color){248, 245, 238, 240});
+    // Layout from bottom up
+    int ob_y = RENDER_H - margin_bottom;
+    int oa_y = ob_y - font_o * UI_SCALE - line_gap;
+    int q_y  = oa_y - font_q * UI_SCALE - line_gap - 4;
 
-    // Options — spaced so dark bars don't overlap (account for UI_SCALE in draw_text_box)
-    int oy = qy + q_size * UI_SCALE + pad * 2 + 8;
-    unsigned char a_alpha = (g.choice_cursor == 0) ? 255 : 140;
-    unsigned char b_alpha = (g.choice_cursor == 1) ? 255 : 140;
-    Color ca = {248, 245, 238, a_alpha};
-    Color cb = {248, 245, 238, b_alpha};
+    // Gradient scrim — same as dialogue system
+    int scrim_top = q_y - 40;
+    int scrim_h = RENDER_H - scrim_top;
+    for (int sy = scrim_top; sy < RENDER_H; sy++) {
+        float t = (float)(sy - scrim_top) / (float)scrim_h;
+        unsigned char sa = (unsigned char)(160 * t * t);
+        DrawRectangle(0, sy, RENDER_W, 1, (Color){5, 5, 8, sa});
+    }
+
+    int x = margin_left;
+    int fs_q = font_q * UI_SCALE;
+    int fs_o = font_o * UI_SCALE;
+
+    // Question — warm white, same as dialogue text
+    if (g.choice_question && g.choice_question[0]) {
+        DrawText(g.choice_question, x + 1, q_y + 1, fs_q, (Color){0, 0, 0, 160});
+        DrawText(g.choice_question, x, q_y, fs_q, (Color){245, 242, 235, 230});
+    }
+
+    // Options — dimmed when not selected, bright when selected
+    unsigned char a_alpha = (g.choice_cursor == 0) ? 240 : 100;
+    unsigned char b_alpha = (g.choice_cursor == 1) ? 240 : 100;
 
     const char *prefix_a = (g.choice_cursor == 0) ? "> " : "  ";
     const char *prefix_b = (g.choice_cursor == 1) ? "> " : "  ";
@@ -188,8 +207,11 @@ static void draw_choice(void) {
     snprintf(buf_a, sizeof(buf_a), "%s%s", prefix_a, g.choice_a);
     snprintf(buf_b, sizeof(buf_b), "%s%s", prefix_b, g.choice_b);
 
-    draw_text_box(buf_a, oy, o_size, ca);
-    draw_text_box(buf_b, oy + bar_h + 4, o_size, cb);
+    DrawText(buf_a, x + 1, oa_y + 1, fs_o, (Color){0, 0, 0, 140});
+    DrawText(buf_a, x, oa_y, fs_o, (Color){245, 242, 235, a_alpha});
+
+    DrawText(buf_b, x + 1, ob_y + 1, fs_o, (Color){0, 0, 0, 140});
+    DrawText(buf_b, x, ob_y, fs_o, (Color){245, 242, 235, b_alpha});
 }
 
 InteractSoundType get_interact_sound_ext(const char *name) {

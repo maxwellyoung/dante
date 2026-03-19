@@ -21,9 +21,9 @@ import mathutils
 # RENDER SETTINGS — 480x300, lo-fi, consistent with ev_engine
 # ─────────────────────────────────────────────────────────────────────────────
 
-RENDER_W = 480
-RENDER_H = 300
-RENDER_SCALE = 2.0          # render at 2x (960x600) then downscale — cleaner lo-fi
+RENDER_W = 1920
+RENDER_H = 1200
+RENDER_SCALE = 1.0          # native resolution — no scaling needed at 1920x1200
 RENDER_SAMPLES = 128        # fast but not noisy for stills; 64 for animation previews
 RENDER_ENGINE = 'CYCLES'    # Cycles for material consistency; Eevee for quick previews
 

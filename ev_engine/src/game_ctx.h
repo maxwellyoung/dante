@@ -206,6 +206,7 @@ typedef struct {
     int backstory[6];             // results of up to 6 choices (-1 = unanswered)
     int backstory_count;          // how many choices completed
     int backstory_phase;          // which choice we're on (pre-title or taxi)
+    float beat_timer;             // time within current dialogue beat
 
     // ── Pause menu ──
     MenuMode menu_mode;

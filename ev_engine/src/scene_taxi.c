@@ -118,54 +118,75 @@ void taxi_update(float dt) {
         bool replay = g.backstory_count > 3;
 
         if (!replay) {
-            // ── FIRST PLAY: driver talks, you answer inside your head ──
-            // Beat 1: Location
-            if (t > 1.5f && t < 2.0f) show_text("Auckland. 2:47 AM.");
-            if (t > 4.0f && t < 4.5f) hide_text();
+            // ── FIRST PLAY: phase-driven dialogue ──
+            // Each beat: show driver line → pause → choice → next beat
+            // Phase timer tracks time within each beat (reset on phase change)
+
+            // Beat 1: Location stamp
+            if (g.backstory_phase == 0 && t > 1.5f) {
+                show_text("Auckland. 2:47 AM.");
+                g.backstory_phase = 1;
+                g.beat_timer = 0;
+            }
+            if (g.backstory_phase == 1) {
+                g.beat_timer += dt;
+                if (g.beat_timer > 2.5f) {
+                    hide_text();
+                    g.backstory_phase = 2;
+                    g.beat_timer = 0;
+                }
+            }
 
             // Beat 2: "The tower, yeah?"
-            if (t > 5.0f && t < 5.5f && g.backstory_phase == 0) {
-                show_text("The tower, yeah?");
+            if (g.backstory_phase == 2) {
+                g.beat_timer += dt;
+                if (g.beat_timer > 1.0f && g.beat_timer < 1.1f) {
+                    show_text("The tower, yeah?");
+                }
+                if (g.beat_timer > 3.0f) {
+                    hide_text();
+                    show_choice("The tower, yeah?", "She wanted to see it.", "I have a reservation.");
+                    g.backstory_phase = 3;
+                }
             }
-            if (t > 7.0f && g.backstory_phase == 0) {
-                hide_text();
-                show_choice("", "She wanted to see it.", "I have a reservation.");
-                g.backstory_phase = 1;
-            }
-            if (g.backstory_phase == 1 && poll_choice() >= 0) {
-                g.backstory_phase = 2;
-                hide_text();
-            }
-
-            // Beat 3: "They put a hotel up there. Three hours, in and out."
-            if (g.backstory_phase == 2 && t > 9.0f && g.backstory_phase < 3) {
-                show_text("They put a hotel up there. Three hours, in and out.");
-                g.backstory_phase = 3;
-            }
-            if (g.backstory_phase == 3 && t > 11.0f) {
-                hide_text();
-                show_choice("", "We booked it months ago.", "So I hear.");
+            if (g.backstory_phase == 3 && poll_choice() >= 0) {
                 g.backstory_phase = 4;
-            }
-            if (g.backstory_phase == 4 && poll_choice() >= 0) {
-                g.backstory_phase = 5;
-                hide_text();
+                g.beat_timer = 0;
             }
 
-            // Beat 4: "At this hour, you've got the whole city to yourself."
-            if (g.backstory_phase >= 5 && t > 13.0f && g.backstory_phase < 6) {
-                show_text("At this hour, you've got the whole city to yourself.");
+            // Beat 3: "Three hours, in and out."
+            if (g.backstory_phase == 4) {
+                g.beat_timer += dt;
+                if (g.beat_timer > 1.0f && g.beat_timer < 1.1f) {
+                    show_text("They put a hotel up there. Three hours, in and out.");
+                }
+                if (g.beat_timer > 3.0f) {
+                    hide_text();
+                    show_choice("Three hours, in and out.", "We booked it months ago.", "So I hear.");
+                    g.backstory_phase = 5;
+                }
+            }
+            if (g.backstory_phase == 5 && poll_choice() >= 0) {
                 g.backstory_phase = 6;
+                g.beat_timer = 0;
             }
 
-            // Hard cut to hyperspace
-            if (g.backstory_phase >= 5 && t > 15.0f) {
-                hide_text();
-                g.player.camera.fovy = 70.0f;
-                SetPostFXCA(&g.postfx, 2.5f);
-                hard_cut_to(STATE_HYPERSPACE);
+            // Beat 4: "At this hour..."
+            if (g.backstory_phase == 6) {
+                g.beat_timer += dt;
+                if (g.beat_timer > 1.0f && g.beat_timer < 1.1f) {
+                    show_text("At this hour, you've got the whole city to yourself.");
+                }
+                if (g.beat_timer > 3.5f) {
+                    hide_text();
+                    g.player.camera.fovy = 70.0f;
+                    SetPostFXCA(&g.postfx, 2.5f);
+                    hard_cut_to(STATE_HYPERSPACE);
+                }
             }
-            if (IsKeyPressed(KEY_ENTER) && !g.choice_active && g.backstory_phase >= 2 && t > 5) {
+
+            // Skip (Enter) — after first choice is done
+            if (IsKeyPressed(KEY_ENTER) && !g.choice_active && g.backstory_phase >= 4) {
                 hide_text();
                 g.player.camera.fovy = 70.0f;
                 SetPostFXCA(&g.postfx, 2.5f);
@@ -288,7 +309,7 @@ void return_taxi_update(float dt) {
         // Gibbons is asking. Wait for his line to finish, then offer response.
     }
     if (!g.gibbons.line_showing && g.gibbons.current_line >= 1 && g.backstory_phase < 10) {
-        show_choice("", "Yeah.", "...");
+        show_choice("Good hotel?", "Yeah.", "...");
         g.backstory_phase = 10;
     }
     if (g.backstory_phase == 10 && poll_choice() >= 0) {
