@@ -43,6 +43,7 @@ void init_player(Player *p, Vector3 pos) {
     p->ground_normal_y = 1.0f;
     p->coyote_timer = 0;
     p->jump_buffer = 0;
+    p->crouching = false;
     p->sliding = false;
     p->slide_speed = 0;
     p->slide_dir = (Vector3){0, 0, 0};
@@ -510,14 +511,15 @@ void update_player(Player *p, Scene *scene, float dt) {
         }
     }
 
-    // ── Slide ───────────────────────────────────────────────────────
-    bool want_slide = IsKeyDown(KEY_LEFT_CONTROL) && !p->noclip && !p->dashing;
+    // ── Crouch / Slide ─────────────────────────────────────────────
+    bool want_crouch = IsKeyDown(KEY_LEFT_CONTROL) && !p->noclip && !p->dashing;
     float cur_hspeed = hspeed(p);
 
-    if (want_slide && p->moving && p->grounded && !p->sliding) {
-        // Require minimum speed to initiate slide (no standing slides)
+    // Slide: Ctrl + moving fast enough
+    if (want_crouch && p->moving && p->grounded && !p->sliding && !p->crouching) {
         if (cur_hspeed > phys.walk_speed * 0.6f) {
             p->sliding = true;
+            p->crouching = false;
             p->slide_speed = cur_hspeed;
             if (cur_hspeed > 0.5f) {
                 p->slide_dir = (Vector3){p->vel.x / cur_hspeed, 0, p->vel.z / cur_hspeed};
@@ -526,16 +528,29 @@ void update_player(Player *p, Scene *scene, float dt) {
             }
         }
     }
-    // End slide
-    if (p->sliding && (!want_slide || !p->grounded || cur_hspeed < 0.5f)) {
+    // End slide (decayed to crouch if still holding Ctrl)
+    if (p->sliding && (!want_crouch || !p->grounded || cur_hspeed < 0.5f)) {
         p->sliding = false;
         p->slide_speed = 0;
+        if (want_crouch && p->grounded) p->crouching = true;
+    }
+
+    // Standing crouch: Ctrl while still/slow (not sliding)
+    if (want_crouch && p->grounded && !p->sliding && !p->crouching) {
+        if (cur_hspeed <= phys.walk_speed * 0.6f) {
+            p->crouching = true;
+        }
+    }
+    // End crouch
+    if (p->crouching && !want_crouch) {
+        p->crouching = false;
     }
 
     // Landing slide: hold Ctrl when landing at speed
-    if (want_slide && p->grounded && !p->sliding && p->land_timer > 0 &&
+    if (want_crouch && p->grounded && !p->sliding && p->land_timer > 0 &&
         cur_hspeed > phys.walk_speed) {
         p->sliding = true;
+        p->crouching = false;
         p->slide_speed = cur_hspeed;
         if (cur_hspeed > 0.5f) {
             p->slide_dir = (Vector3){p->vel.x / cur_hspeed, 0, p->vel.z / cur_hspeed};
@@ -546,6 +561,7 @@ void update_player(Player *p, Scene *scene, float dt) {
     // ── Target speed ────────────────────────────────────────────────
     float wish_speed = p->sprinting ? phys.sprint_speed : phys.walk_speed;
     if (p->sliding) wish_speed *= phys.slide_speed_mult;
+    if (p->crouching) wish_speed *= 0.45f;  // slow crouch walk
     wish_speed *= p->control_mult;  // agency dial
 
     // ── Movement physics ────────────────────────────────────────────
@@ -623,6 +639,8 @@ void update_player(Player *p, Scene *scene, float dt) {
         target_fov = phys.fov_slide + 5.0f;  // dash punches FOV wider than slide
     } else if (p->sliding) {
         target_fov = phys.fov_slide;
+    } else if (p->crouching) {
+        target_fov = phys.fov_walk - 5.0f;  // crouch narrows — feeling small
     } else if (p->sprinting && p->moving) {
         target_fov = phys.fov_sprint;
     } else {
@@ -698,7 +716,8 @@ void update_player(Player *p, Scene *scene, float dt) {
 
         // ── Ground detection ────────────────────────────────────────
         float ground_y = 0.0f;
-        float eye_height = p->sliding ? phys.slide_eye_height : phys.eye_height;
+        float eye_height = p->sliding ? phys.slide_eye_height :
+                          p->crouching ? phys.crouch_eye_height : phys.eye_height;
         for (int i = 0; i < scene->wall_count; i++) {
             Wall *w = &scene->walls[i];
             if (!w->active || w->no_collide || w->is_decal) continue;
@@ -916,7 +935,7 @@ void update_player(Player *p, Scene *scene, float dt) {
             if (was_airborne && p->vy < -1.0f) {
                 p->land_timer = fminf(1.0f, -p->vy / phys.land_dip_max_vy);
                 // Auto-slide on landing if holding Ctrl at speed
-                if (want_slide && p->speed_current > phys.walk_speed) {
+                if (want_crouch && p->speed_current > phys.walk_speed) {
                     p->sliding = true;
                     float hs2 = hspeed(p);
                     p->slide_speed = hs2;

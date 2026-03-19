@@ -1805,12 +1805,14 @@ int main(void) {
                                 g.player.wall_running ? "WALLRUN" :
                                 g.player.mantling ? "MANTLE" :
                                 g.player.sliding ? "SLIDE" :
+                                g.player.crouching ? "CROUCH" :
                                 !g.player.grounded ? "AIR" :
                                 g.player.sprinting ? "SPRINT" :
                                 g.player.moving ? "WALK" : "IDLE";
             Color mc = g.player.dashing ? (Color){255,100,255,255} :
                       g.player.wall_running ? (Color){100,200,255,255} :
                       g.player.sliding ? (Color){255,200,60,255} :
+                      g.player.crouching ? (Color){200,180,100,255} :
                       !g.player.grounded ? (Color){200,200,255,255} : GREEN;
             DrawText(mstate, dm, fy, dfs, mc);
 

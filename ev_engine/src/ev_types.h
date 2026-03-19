@@ -46,6 +46,7 @@ typedef struct {
     // Camera
     float eye_height;           // normal standing eye height
     float slide_eye_height;     // eye height while sliding
+    float crouch_eye_height;    // eye height while crouching (standing still)
     float fov_walk;
     float fov_sprint;
     float fov_slide;
@@ -140,6 +141,7 @@ static inline PhysicsConfig physics_default(void) {
 
         .eye_height         = 1.6f,
         .slide_eye_height   = 1.2f,
+        .crouch_eye_height  = 1.0f,
         .fov_walk           = 70.0f,
         .fov_sprint         = 82.0f,
         .fov_slide          = 88.0f,
@@ -335,7 +337,8 @@ typedef struct {
     float ground_normal_y;  // slope: Y component of surface normal (1.0 = flat)
     float coyote_timer;     // time since last grounded (for coyote jump)
     float jump_buffer;      // time since last jump press (for buffered jump)
-    // Slide
+    // Crouch / Slide
+    bool crouching;         // standing crouch (Ctrl while still/slow)
     bool sliding;
     float slide_speed;
     Vector3 slide_dir;      // direction when slide started (momentum)
