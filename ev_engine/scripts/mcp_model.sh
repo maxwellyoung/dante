@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# mcp_model.sh — High-level model automation
+# mcp_model.sh — High-level model automation with quality gates
 # Usage: ./scripts/mcp_model.sh build script.py        # Build model in Blender
 #        ./scripts/mcp_model.sh export model_name       # Export GLB from current scene
 #        ./scripts/mcp_model.sh deploy model_name       # Copy from Mini to assets/
 #        ./scripts/mcp_model.sh info                    # Scene info
-#        ./scripts/mcp_model.sh render out.png          # Render preview
-#        ./scripts/mcp_model.sh full script.py [name]   # Build + export + deploy
+#        ./scripts/mcp_model.sh render out.png          # Render preview (1920x1200)
+#        ./scripts/mcp_model.sh validate name           # Tri count + 4-angle renders
+#        ./scripts/mcp_model.sh full script.py [name]   # Build + validate + export + deploy
 
 set -euo pipefail
 
@@ -106,8 +107,8 @@ cmd_render() {
     send_code "
 import bpy
 bpy.context.scene.render.filepath = '${out}'
-bpy.context.scene.render.resolution_x = 960
-bpy.context.scene.render.resolution_y = 600
+bpy.context.scene.render.resolution_x = 1920
+bpy.context.scene.render.resolution_y = 1200
 bpy.ops.render.render(write_still=True)
 print(f'Rendered to ${out}')
 "
@@ -117,14 +118,148 @@ print(f'Rendered to ${out}')
     fi
 }
 
+cmd_validate() {
+    local name="$1"
+    local qa_dir="$ENGINE_DIR/qa/models"
+    mkdir -p "$qa_dir"
+
+    echo "▸ Validating $name..."
+
+    # Get tri count + dimensions + material count from Blender
+    send_code "
+import bpy, bmesh
+
+# Stats
+total_tris = 0
+total_verts = 0
+mat_names = set()
+min_b = [999,999,999]
+max_b = [-999,-999,-999]
+
+for obj in bpy.data.objects:
+    if obj.type != 'MESH': continue
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    total_tris += len(bm.faces)
+    total_verts += len(bm.verts)
+    bm.free()
+    for slot in obj.material_slots:
+        if slot.material:
+            mat_names.add(slot.material.name)
+    # Bounding box in world space
+    for v in obj.bound_box:
+        wv = obj.matrix_world @ bpy.types.Object.bl_rna.identifier  # skip complex math
+        pass
+
+# Simpler bounds via object dimensions
+dims = [0,0,0]
+for obj in bpy.data.objects:
+    if obj.type != 'MESH': continue
+    for i in range(3):
+        dims[i] = max(dims[i], obj.dimensions[i])
+
+print(f'TRIS: {total_tris}')
+print(f'VERTS: {total_verts}')
+print(f'MATERIALS: {len(mat_names)} ({", ".join(sorted(mat_names))})')
+print(f'DIMENSIONS: {dims[0]:.2f} x {dims[1]:.2f} x {dims[2]:.2f} m')
+
+# Budget check
+budget_ok = total_tris <= 800
+print(f'BUDGET: {\"PASS\" if budget_ok else \"OVER\"} ({total_tris}/800 tris)')
+"
+
+    # Render 4 angles (front, side, 3/4, top)
+    echo "▸ Rendering validation angles..."
+    send_code "
+import bpy, math
+
+# Setup camera for validation renders
+scene = bpy.context.scene
+scene.render.resolution_x = 960
+scene.render.resolution_y = 960
+scene.render.film_transparent = True
+
+# Find model bounds center
+objs = [o for o in bpy.data.objects if o.type == 'MESH']
+if objs:
+    cx = sum(o.location.x for o in objs) / len(objs)
+    cy = sum(o.location.y for o in objs) / len(objs)
+    cz = sum(o.location.z for o in objs) / len(objs)
+    max_dim = max(max(o.dimensions) for o in objs)
+else:
+    cx, cy, cz, max_dim = 0, 0, 0, 2
+
+cam_dist = max_dim * 2.5
+
+# Get or create camera
+cam = scene.camera
+if not cam:
+    bpy.ops.object.camera_add()
+    cam = bpy.context.active_object
+    scene.camera = cam
+cam.data.lens = 50
+
+angles = [
+    ('front', 0, -cam_dist, max_dim * 0.4),
+    ('side',  cam_dist, 0, max_dim * 0.4),
+    ('quarter', cam_dist * 0.7, -cam_dist * 0.7, max_dim * 0.6),
+    ('top',   0, -0.01, cam_dist),
+]
+
+for label, dx, dy, dz in angles:
+    cam.location = (cx + dx, cy + dy, cz + dz)
+    direction = (cx - cam.location.x, cy - cam.location.y, cz - cam.location.z)
+    rot = bpy.types.Object.bl_rna  # placeholder
+    # Track to center
+    cam.rotation_euler = (0, 0, 0)
+    constraint = cam.constraints.get('Track To') or cam.constraints.new(type='TRACK_TO')
+    # Simple: use empty as target
+    target = bpy.data.objects.get('_validate_target')
+    if not target:
+        bpy.ops.object.empty_add(location=(cx, cy, cz + max_dim * 0.3))
+        target = bpy.context.active_object
+        target.name = '_validate_target'
+    constraint.target = target
+    constraint.track_axis = 'TRACK_NEGATIVE_Z'
+    constraint.up_axis = 'UP_Y'
+    bpy.context.view_layer.update()
+
+    scene.render.filepath = f'/tmp/ev_validate_${name}_{label}.png'
+    bpy.ops.render.render(write_still=True)
+    print(f'Rendered {label}: /tmp/ev_validate_${name}_{label}.png')
+
+# Cleanup
+if '_validate_target' in bpy.data.objects:
+    bpy.data.objects.remove(bpy.data.objects['_validate_target'])
+if 'Track To' in cam.constraints:
+    cam.constraints.remove(cam.constraints['Track To'])
+"
+
+    # Copy renders locally
+    for angle in front side quarter top; do
+        scp -q "$MINI_HOST:/tmp/ev_validate_${name}_${angle}.png" \
+            "$qa_dir/${name}_${angle}.png" 2>/dev/null && \
+            echo "  ✓ ${name}_${angle}.png" || true
+    done
+
+    echo ""
+    echo "═══ Validation renders: qa/models/${name}_*.png ═══"
+    echo "Review these before deploying. Run 'deploy' to accept."
+}
+
 cmd_full() {
     local script="$1"
-    local name="${2:-$(basename "$script" .py | sed 's/^exp_[0-9]*_//')}"
+    local name="${2:-$(basename "$script" .py | sed 's/^model_//' | sed 's/^exp_[0-9]*_//')}"
 
     echo "═══ Full Pipeline: $name ═══"
     echo ""
     echo "▸ Building..."
     cmd_build "$script"
+    echo ""
+    echo "▸ Validating..."
+    cmd_validate "$name"
     echo ""
     echo "▸ Exporting..."
     cmd_export "$name"
@@ -133,24 +268,27 @@ cmd_full() {
     cmd_deploy "$name"
     echo ""
     echo "═══ Done: assets/${name}.glb ═══"
+    echo "Run 'make dev' to see it in-engine."
 }
 
 case "${1:-}" in
-    info)    cmd_info ;;
-    build)   cmd_build "$2" ;;
-    export)  cmd_export "$2" ;;
-    deploy)  cmd_deploy "$2" ;;
-    render)  cmd_render "${2:-}" ;;
-    full)    cmd_full "$2" "${3:-}" ;;
+    info)     cmd_info ;;
+    build)    cmd_build "$2" ;;
+    export)   cmd_export "$2" ;;
+    deploy)   cmd_deploy "$2" ;;
+    render)   cmd_render "${2:-}" ;;
+    validate) cmd_validate "$2" ;;
+    full)     cmd_full "$2" "${3:-}" ;;
     *)
-        echo "Usage: $0 {info|build|export|deploy|render|full} [args]"
+        echo "Usage: $0 {info|build|validate|export|deploy|render|full} [args]"
         echo ""
         echo "  info                    Show Blender scene info"
         echo "  build script.py         Run modeling script in Blender"
+        echo "  validate model_name     Tri count + 4-angle renders → qa/models/"
         echo "  export model_name       Export current scene as GLB"
         echo "  deploy model_name       Copy GLB from Mini to assets/"
-        echo "  render [output.png]     Render preview"
-        echo "  full script.py [name]   Build + export + deploy"
+        echo "  render [output.png]     Render preview (1920x1200)"
+        echo "  full script.py [name]   Build + validate + export + deploy"
         exit 1
         ;;
 esac

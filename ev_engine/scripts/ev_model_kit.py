@@ -24,8 +24,8 @@ Usage:
 
 THE 12 RULES OF FORM (Endearing Void)
 ======================================
- 1. SILHOUETTE FIRST — If the outline reads at 960x600, the model works.
- 2. 3-PIXEL RULE — Nothing smaller than 3px at render resolution. Scale up or delete.
+ 1. SILHOUETTE FIRST — If the outline reads at 1920x1200, the model works.
+ 2. 3-PIXEL RULE — Nothing smaller than 3px at render resolution (1920x1200). Scale up or delete.
  3. SUBDIVISION = EMOTION — Only soften surfaces the player stares at or touches.
     Structural elements (legs, frames, rails) stay sharp.
  4. MATERIAL HONESTY — Wood is wood, brass is brass. Never fake a material
