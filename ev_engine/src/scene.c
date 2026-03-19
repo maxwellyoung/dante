@@ -4583,10 +4583,26 @@ void build_space_suite(Scene *s) {
     add_wall(s, -rw/2+0.17f, rh*0.4f, rd/2-1.5f, 0.04f, rh*0.8f, 2.5f, cream);
     set_last_material(s, MAT_WALLPAPER);
 
-    // RIGHT WALL (X+) — service wall (trimmed to prevent corner overlap)
-    add_wall(s, rw/2, rh/2, 0, 0.3f, rh, rd - 0.3f, hull);
+    // RIGHT WALL (X+) — service wall, split at adjoining door (z=-3.5, gap=1.3m)
+    // Door gap: z=-4.15 to z=-2.85. Wall above door fills the gap.
+    float door_z = -3.5f, door_half = 0.65f;
+    float wall_front_z = (rd/2 + (door_z + door_half)) / 2;      // center of front segment
+    float wall_front_d = rd/2 - (door_z + door_half);              // depth of front segment
+    float wall_back_z  = (-rd/2 + (door_z - door_half)) / 2;      // center of back segment
+    float wall_back_d  = (door_z - door_half) - (-rd/2);           // depth of back segment
+    // Front segment (z+ side of door)
+    add_wall(s, rw/2, rh/2, wall_front_z, 0.3f, rh, wall_front_d, hull);
     set_last_material(s, MAT_CONCRETE);
-    add_wall(s, rw/2-0.17f, rh*0.4f, 0, 0.04f, rh*0.8f, rd-1, cream);
+    // Back segment (z- side of door)
+    add_wall(s, rw/2, rh/2, wall_back_z, 0.3f, rh, wall_back_d, hull);
+    set_last_material(s, MAT_CONCRETE);
+    // Wall ABOVE door — fills the gap above the doorframe
+    add_wall(s, rw/2, rh - 0.5f, door_z, 0.3f, rh - 2.7f, door_half * 2, hull);
+    set_last_material(s, MAT_CONCRETE);
+    // Wallpaper — split at door gap (visual only, thin)
+    add_wall(s, rw/2-0.17f, rh*0.4f, wall_front_z, 0.04f, rh*0.8f, wall_front_d - 0.5f, cream);
+    set_last_material(s, MAT_WALLPAPER);
+    add_wall(s, rw/2-0.17f, rh*0.4f, wall_back_z, 0.04f, rh*0.8f, wall_back_d - 0.5f, cream);
     set_last_material(s, MAT_WALLPAPER);
     // Wainscoting on right wall
     add_wainscoting(s, rw/2-0.2f, 0, 0, rd-1.5f, 1.2f, true, cream, brass);

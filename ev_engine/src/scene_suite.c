@@ -477,22 +477,34 @@ void suite_update(float dt) {
                         break;
                     }
                     // Adjoining door — opens to reveal empty room
+                    // The hotel doesn't know the trip changed. This room was booked too.
                     if (strcmp(obj->name, "adjoining_door") == 0 && obj->step == 1) {
-                        // Deactivate the door panel — reveal void behind
+                        // Swing the door open — deactivate door panel
                         for (int wi = 0; wi < g.scene.wall_count; wi++) {
                             Wall *w = &g.scene.walls[wi];
                             if (w->material == MAT_WOOD &&
-                                fabsf(w->pos.x - 6.86f) < 0.2f &&
-                                fabsf(w->pos.z - 3.5f) < 0.3f &&
+                                fabsf(w->pos.x - 6.82f) < 0.3f &&
+                                fabsf(w->pos.z + 3.5f) < 1.5f &&
                                 w->size.y > 2.0f) {
-                                w->active = false; // door slides open
+                                w->active = false; // door disappears
                             }
                         }
-                        // Dark rectangle behind — the empty room
-                        add_wall(&g.scene, 7.5f, 2.0f, 3.5f, 2.0f, 4.0f, 3.0f, (Color){8,8,12,255});
-                        // One pillow visible through doorway
-                        add_wall(&g.scene, 8.0f, 0.68f, 3.0f, 0.5f, 0.15f, 0.3f, (Color){240,238,232,255});
-                        set_last_material(&g.scene, MAT_FABRIC);
+                        // Remove the wall section behind the door frame so player can walk through
+                        for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                            Wall *w = &g.scene.walls[wi];
+                            // Right wall segment near the door
+                            if (fabsf(w->pos.x - 7.0f) < 0.2f &&
+                                fabsf(w->pos.z + 3.5f) < 1.5f &&
+                                w->size.y > 2.5f && w->size.z > 1.5f &&
+                                w->size.z < 4.0f) {
+                                w->active = false; // wall opens
+                            }
+                        }
+                        // The room beyond is already built in build_space_suite —
+                        // bed, one pillow, dark walls, light seam.
+                        // No text. You walk in. You see one pillow. That's enough.
+                        PlayInteract(&g.audio, INTERACT_CLICK);
+                        PlayDoorThud(&g.audio);
                         obj->done = true;
                         break;
                     }
