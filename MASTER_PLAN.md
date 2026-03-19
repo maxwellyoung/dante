@@ -4,13 +4,13 @@
 
 This document is the long-term development plan for Endearing Void. Every design decision should answer to this plan. When in doubt, return here.
 
-Last major revision: 2026-03-18
+Last major revision: 2026-03-19
 
 ---
 
 ## I. What Endearing Void Is
 
-A first-person narrative game about three hours to kill in an impossible hotel. 15-30 minutes long. Built in C99 with Raylib. 480x300 lo-fi. No hand-holding, no fail states, no dialogue trees. Architecture is the story. The void is the point.
+A first-person narrative game about three hours to kill in an impossible hotel. 15-30 minutes long. Built in C99 with Raylib. 1920x1200 native resolution, procedural everything. No hand-holding, no fail states, no dialogue trees. Architecture is the story. The void is the point.
 
 **The emotional core:** You came here with someone. They're not here. The suite was booked for two. Everything in the room — the bed, the champagne, the bathrobe on the door — remembers them. You're doing the trip alone. The hotel is the last place the relationship existed. Three hours to kill before the life after starts.
 
@@ -21,15 +21,18 @@ A first-person narrative game about three hours to kill in an impossible hotel. 
 **What the author knows (the player doesn't):** She left three weeks ago. Not dramatically — she just stopped being there. The trip was her idea. The booking is in her name. You came because cancelling felt like admitting it was over. The photograph face-down on the nightstand is the two of you at a café in Paris. That trip — the last good one — is the Paris dream. Gibbons has seen this before. He was expecting two. He says nothing.
 
 **The spiritual lineage:**
-- **Hotel Chevalier** — Two people in a hotel room with unresolved history. The room IS the relationship. The yellow bathrobe. The bruises. Where they stand tells you everything.
-- **Firewatch** — Henry is running from his wife's illness into a beautiful place. The tower is the hotel — a gorgeous space to avoid your life. The conspiracy is irrelevant; the real story is whether he goes home.
-- **Gravity Bone / Thirty Flights of Loving** — Architecture IS narrative. Cut everything non-essential. Rapid-cut endings where passing characters suddenly have context.
-- **The Beginner's Guide** — Agency is a dial. Unfinished spaces are intentional. Silence after sound is devastating.
-- **Godard (Contempt)** — A marriage disintegrating in a beautiful house. Every color choice serves an actual emotional state between two people. Withhold the explanation, give the feeling.
-- **Barton Fink** — The hotel as psychological space. Character under pressure from something we don't fully understand. The world slightly wrong in ways that accumulate.
+- **Hotel Chevalier** (Anderson) — Two people in a hotel room with unresolved history. The room IS the relationship. The yellow bathrobe. The bruises. Where they stand tells you everything.
+- **Firewatch** (Campo Santo) — Henry is running from his wife's illness into a beautiful place. The tower is the hotel — a gorgeous space to avoid your life. The conspiracy is irrelevant; the real story is whether he goes home.
+- **Gravity Bone / Thirty Flights of Loving** (Chung) — Architecture IS narrative. Cut everything non-essential. Rapid-cut endings where passing characters suddenly have context.
+- **The Beginner's Guide** (Wreden) — Agency is a dial. Unfinished spaces are intentional. Silence after sound is devastating. The lamppost principle: a motif that accumulates meaning through repetition.
+- **Godard (Contempt)** — A marriage disintegrating in a beautiful house. Every color choice serves an actual emotional state between two people. Withhold the explanation, give the feeling. The reds.
+- **Barton Fink** (Coens) — The hotel as psychological space. Character under pressure from something we don't fully understand. The world slightly wrong in ways that accumulate.
 - **Bolaño (2666)** — Amalfitano hangs a geometry textbook on the washing line and leaves it there. It gets rained on. Nobody comments. A person doing something slightly unhinged because they're falling apart in a way they can't articulate. Dignity-in-transit. Characters too aware, too polite, slightly broken.
-- **Kaufman** — Unreliable interiority. The character's experience may not be what's happening. Memory and present tense bleed.
+- **Kaufman** (Anomalisa, Synecdoche) — Unreliable interiority. The character's experience may not be what's happening. Memory and present tense bleed.
 - **Bioshock Infinite** — Arriving into something impossible. The scale does the work.
+- **WALL-E** (Stanton) — A small person alone in a vast space, surrounded by objects left behind by people who are gone. The loneliness isn't tragic — it's tender. WALL-E collects things he doesn't fully understand (a Rubik's cube, a lighter, a spork) because they're evidence that someone was here. That's what the player does in the suite — turning over the photograph, picking up her book, looking at the sock under the bed. Objects as stand-ins for connection. The first 40 minutes of WALL-E are almost wordless — architecture and objects and one small figure moving through them. The observation deck has WALL-E's scale: a tiny person in an impossible machine, looking at Earth, holding something that belonged to someone else.
+- **Mirror's Edge** — Movement that feels good changes everything. Even in exploration, physicality matters.
+- **Easy Delivery Co.** — Ambient gradients, no guidance UI, through-wall audio, implied world.
 
 ---
 
@@ -75,32 +78,34 @@ Bold color, not desaturation. Warmth, not cold. Open sky, not closed ceiling. Th
 Each space surprises. Gravity Bone energy — the sequence of spaces pulling you forward. But underneath the wonder, the absence. Everything is scaled for two.
 
 ```
-TITLE
-  ↓ (Enter)
-TAXI — Auckland, dawn. Inside the car. City scrolls past.
-       Sky Tower grows in the windshield. ~15 seconds.
+TAXI — Auckland. 2:47 AM. Inside the car. City scrolls past.
+       Sky Tower grows through the windshield. The driver talks.
+       The player's responses are internal — silent choices
+       that reveal backstory without breaking the drive.
 
-       THE DETAIL: A second ticket on the seat beside you.
-       Or a booking confirmation visible — "2 guests."
-       The player's first interaction: picking it up,
-       putting it in their pocket. Pocketing evidence.
+       THE DETAIL: The second ticket. The booking confirmation.
+       "2 guests." The player's first interaction is context.
 
        Emotional register: anticipation, motion, urban rhythm,
        the particular loneliness of going somewhere familiar
        without the person who made it familiar.
        Audio: city ambient, engine hum, tires on wet road.
+       The driver's voice — casual, oblivious, kind.
        The last grounded moment.
 
-  ↓ (auto-transition)
+  ↓ (auto-transition at ~15s)
 HYPERSPACE — The tower becomes a tunnel. Reality breaks.
              Disorienting roll, extreme chromatic aberration.
-             Hard cut to silence.
+             Hard cut to silence. Title card burns in:
+
+             E N D E A R I N G   V O I D
+
              The threshold isn't just spatial — you're leaving
              the world where the thing happened.
              Emotional register: vertigo, threshold crossing, relief.
 
-  ↓ (hard cut)
-SPACE_LOBBY — You're in orbit. Earth through the observation window.
+  ↓ (hard cut to silence)
+SPACE_LOBBY — You're in orbit. Small arrivals hall.
               Gibbons appears. He was expecting you.
 
               THE DETAIL: He glances behind you. Just once.
@@ -113,7 +118,11 @@ SPACE_LOBBY — You're in orbit. Earth through the observation window.
               the slight embarrassment of being seen alone.
               Audio: hull resonance, air circulation, insulated quiet.
 
-  ↓ (Gibbons leads you)
+              This is NOT the big space. This is an arrivals lobby —
+              functional, warm, a desk and a chandelier. The scale
+              comes next.
+
+  ↓ (Gibbons leads you to the elevator)
 ELEVATOR — Warm amber, wood wainscoting, leather handrail.
            Hotel Chevalier energy — two people in a small space
            with unspoken knowledge. Except one of them is staff
@@ -122,25 +131,73 @@ ELEVATOR — Warm amber, wood wainscoting, leather handrail.
            He adjusts his tie. The player has nothing to adjust.
            Emotional register: compression, intimacy, anticipation.
 
+           The doors close. The smallest space in the game.
+           Then they open.
+
   ↓ (doors open)
-HOTEL — The Gehry moment. Massive open-plan glass environment.
-        Bioshock Infinite energy — you arrive into something
-        impossible and the scale does the work. Curved glass walls.
-        Earth visible below. You're tiny in a vast beautiful room.
-        The void outside is vaster still.
+THE GLASSHOUSE — The Bioshock Infinite moment. The doors part
+                 and you're standing in a glass envelope.
 
-        THE DETAIL: You pass a pair of chairs angled toward
-        each other in front of the Earth window. Designed for
-        two people to sit and watch the planet together.
-        Other corridors, other wings — ambient sounds of
-        couples, laughter muffled through walls. You're alone
-        in the most beautiful room you've ever seen.
+                 THE FIRST BIG SPACE. The hotel's observation
+                 lounge — a communal area where guests come to
+                 watch Earth. Massive curved glass walls. Steel
+                 ribs. The void in every direction. Earth fills
+                 the lower hemisphere. Stars above.
 
-        NOT claustrophobic — agoraphobic. The scale of
-        the space matches the scale of what you're feeling.
-        Emotional register: awe, vertigo, beauty, loneliness.
+                 And it's populated. Not with people — with
+                 EVIDENCE of people. Coats on chairs. Half-finished
+                 drinks. A book open face-down. Two coffee cups,
+                 one still steaming. Someone's scarf. The room
+                 is warm with the residue of other couples who
+                 stepped away. You've arrived into their absence.
 
-  ↓ (Gibbons leads you through to your suite)
+                 TWO CHAIRS angled toward each other in front of
+                 the Earth window. Designed for two people to sit
+                 and watch the planet together. Tables set for two.
+                 Everywhere: pairs. The hotel is designed for couples.
+                 You're alone in the most beautiful room you've
+                 ever seen.
+
+                 NOT claustrophobic — agoraphobic. The scale of
+                 the space matches the scale of what you're feeling.
+                 Emotional register: awe, vertigo, beauty, loneliness.
+
+                 Audio: hull resonance, the creak of glass under
+                 pressure, distant sounds of other guests (laughter,
+                 conversation muffled through structure), wind-like
+                 air circulation. The acoustic signature of VAST.
+
+                 Gibbons doesn't stop. This isn't your destination.
+                 He leads you through. You SEE it — the scale hits —
+                 and then the world begins to contract.
+
+  ↓ (Gibbons leads you through to the corridor)
+SPACE_CORRIDOR — Kubrick corridor. Narrower now. The contraction
+                 has begun. Gibbons leads. Doors to other lives.
+
+                 Muffled piano from Room Four. TV murmur from Room Six.
+                 The gentleman in Six orders room service for two.
+                 Every night. Sends half back.
+                 Parallel footsteps behind the wall.
+
+                 Each door is a relationship you can hear but not reach.
+                 The player passes through other people's intimacy.
+
+                 THE IMPOSSIBLE DOOR: One door is ajar. Beyond it,
+                 raw hull. Not a room. The hotel isn't finished.
+                 Or was never meant to go that far.
+
+                 Emotional register: anticipation, intimacy, other lives.
+                 Audio: footsteps (yours, Gibbons', the ghost's),
+                 through-wall sounds, the approach to your door.
+
+                 THE CONTRACTION:
+                 Glasshouse (20m wide) → Corridor (4.5m wide)
+                 → Suite (one room). The architecture compresses
+                 until it's just you and the bed and the empty glass.
+                 This is the emotional arc made spatial.
+
+  ↓ (Gibbons opens your door)
 ```
 
 ### Act 2: Intimacy (The Suite)
@@ -164,99 +221,118 @@ SPACE_SUITE — Your room. The Barton Fink room. The Hotel Chevalier room.
               when you planned this together. The hotel prepared
               everything you asked for. Both of you asked for.
 
+              THE INTERACTION MODEL:
+              Two systems run in parallel:
+
+              1. PRESENCE ZONES — dwell timers trigger interactions
+                 by being near objects. The room responds to WHERE
+                 YOU STAND and HOW LONG YOU STAY. The bed zone (8s),
+                 the champagne zone (3s), the window zone (15s),
+                 the desk zone (5s). Movement IS the game verb.
+
+              2. E-PRESS — fallback for players who want buttons.
+                 Both systems coexist. The room doesn't care how.
+
               THE RITUALS:
 
-              BATH — Run the water. Steam on the glass.
-              Earth rotating through the fog. The bath is
-              big enough for two. You sit on the edge.
-              Maybe you get in. The Chevalier moment:
-              doing an intimate thing in a space designed
-              for intimacy, alone. The warmth of the water
-              is the warmth of the relationship — present,
-              surrounding, slowly cooling.
+              CHAMPAGNE — Walk near the tray. The cork pops
+              automatically. The room was expecting you. One glass
+              fills. The second stays empty. THIS IS THE
+              WASHING-LINE MOMENT. The empty glass just sits there
+              for the rest of the game. Nobody comments. It's the
+              most violent image in the game and it's completely still.
 
-              CHAMPAGNE — Pop the cork (procedural sound).
-              Two glasses on the tray. You pour one.
-              The second glass stays empty.
-              THIS IS THE WASHING-LINE MOMENT.
-              The empty glass just sits there for the rest
-              of the game. Nobody comments. It's the most
-              violent image in the game and it's completely still.
+              BATH — Enter the bathroom. Water starts running.
+              Steam on the glass. Earth rotating through the fog.
+              The bath is big enough for two. You sit on the edge.
+              The warmth of the water is the warmth of the
+              relationship — present, surrounding, slowly cooling.
 
-              BALCONY — Step outside. The void. Earth below.
-              The Chevalier balcony — Portman in the yellow robe
-              looking at Paris, except here it's the whole planet
-              and you're looking at the place where your life is.
-              Down there, somewhere, is the apartment with her
-              things still in it, or not. The rail. The cigarette
-              if you want it. The scale of what you're seeing
-              matched by the scale of what you're feeling.
+              DESK — Crouch near it. The lamp turns on. Her margin
+              notes become visible in the light. You're reading
+              by lamplight. The interaction is slowing down enough
+              to see detail.
 
-              BED — Pull back the covers. Lie down. The ceiling.
-              The game takes control — agency surrendered.
-              The player can't get up for a few seconds.
-              The room goes quiet. The indent on the other
-              pillow — did housekeeping not smooth it, or
-              is that your memory? The composed music triggers
-              here. One piece. Once. Never repeats.
+              BED — Stay near the bed. Movement slows. The covers
+              pull back. The camera begins to lower. The player is
+              choosing to lie down by being still. The bed ritual
+              triggers not from pressing E but from STAYING.
+              Surrender through inaction.
+
+              The ceiling. The game takes control — agency surrendered.
+              The indent on the other pillow. The composed music
+              triggers. One piece. Once. Never repeats.
               This is the emotional center of the game.
-              You're lying in a bed booked for two and the music
-              plays and the Earth rotates and the game holds you.
 
-              ACCUMULATION — THE SUITE REVEALS ITSELF:
-              Not that the hotel is sinister. The room keeps
-              reminding you. The wrongness isn't the hotel.
-              It's your situation.
-              - The photograph: the two of you, a Paris café.
-                Face down when you arrived. You can turn it over.
-                Or not.
-              - The adjoining door: leads to a second room.
-                Also booked. Also empty. Also prepared for arrival.
-                Her room? A room you'd share? The hotel doesn't
-                know the trip changed.
-              - The book: her book. You can pick it up. The bookmark
-                is a boarding pass. Her name on it.
-              - The thermostat: set to 22°. A compromise temperature.
-                Slightly too warm for you, slightly too cool for her.
-                You can change it. The room adjusts. Nothing stops you.
-              - Shoes by the door: arranged for two. Yours and a pair
-                of hotel slippers, still wrapped. Nobody coming to
-                unwrap them.
+              THE SUITE REVEALS ITSELF:
+              After each interaction, something shifts.
+              1 task: Photograph moves 3cm
+              2 tasks: Bathroom door cracks, amber light spills
+              3 tasks: Earth glow shifts, champagne glass drifts
+              4 tasks: Second pillow gains indent — depression + shadow
 
-              These are not puzzles. They are facts about a room.
-              The player decides how much to look at.
+              The wrongness isn't the hotel. It's your situation.
 
-              BOLAÑO DETAILS (the abstract, the unhinged-mundane):
-              - A geometry textbook open on the desk, spine cracked,
-                as if someone was studying orbital mechanics for
-                a conversation they never had. (Direct 2666 reference.)
-              - The room service menu has handwritten notes in the
-                margin — two people comparing what they'd order.
-                Some items circled twice. A small disagreement
-                about the cheese plate, resolved with an arrow.
-              - A postcard, half-written, addressed to no one.
-                The handwriting changes mood halfway through —
-                starts formal, ends in a scrawl that might be
-                a single word repeated. Unreadable at 480x300.
-                That's the point.
-              - A sock. One sock. Under the bed. Not yours.
-                The most mundane object in the game.
-                The most real.
+              SILENT OBJECTS (no text, visual consequence only):
+              - Wardrobe → opens, two robes visible
+              - Wine glass → lipstick mark visible
+              - Book → drops boarding pass as geometry
+              - Sock → under the bed, just there
+              - Phone → screen lights up, playlist visible
+              - Suitcase → tags still on
+              - Bath → water runs, steam appears
 
-              FIREWATCH PARALLEL: Henry goes to the tower to avoid
-              his wife's illness. The player goes to the hotel to —
-              what? Say goodbye to the version of life where this
-              trip was happening as planned? Prove they can still
-              do it alone? Punish themselves with beauty? The game
-              doesn't decide. The architecture communicates all
-              of these simultaneously.
+              DIEGETIC TEXT (kept — you're READING something):
+              - Ticket: "2 guests."
+              - Photograph: "Paris. Before all this."
+              - Room service card: two handwritings, cheese plate argument
+              - Postcard: half-written, addressed to no one
+              - Guest book: two names, one crossed out
+              - Newspaper: "ORBITAL SUITE OPENS — THREE HOURS TO KILL"
 
-              Mirror's Edge physicality still present — sprint,
-              FOV zoom, momentum. Even in slow exploration,
-              movement that feels good changes everything.
+              BOLAÑO DETAILS:
+              The real Bolaño move isn't citation — it's the
+              mundane object that resists interpretation.
+              - One sock under the bed. Not yours. There it is.
+                The most mundane object in the game. The most real.
+                This is the geometry textbook on the washing line.
+                Not a reference TO Bolaño. The thing itself.
+              - Room service menu with margin notes — two people
+                comparing orders, a tiny disagreement resolved
+                with an arrow
+              - Half-written postcard, handwriting changes mood
+```
 
-              One composed music piece plays here. Once. Never repeats.
-              This is the emotional center of the game.
+### The Balcony (From the Suite)
+```
+BALCONY — Step outside. A small private balcony off the suite.
+
+          NOT the glasshouse — you've already seen that.
+          This is intimate. Personal. The Chevalier balcony.
+
+          A narrow platform. Brass railing. Glass infill panels.
+          Two chairs side by side. A small table. Ashtray.
+          Telescope pointing at Earth. The cigarette.
+
+          The difference: the glasshouse was public, populated
+          with evidence of other people. This is YOURS.
+          Your chairs. Your view. Your cigarette.
+          The two chairs here are the two chairs from the
+          glasshouse — same design, private edition.
+          Designed for you and her.
+
+          Low gravity — 0.3x. The player can jump and land
+          on the railing. No prompt. No text.
+
+          Portman in the yellow robe looking at Paris,
+          except here it's the whole planet and you're looking
+          at the place where your life is. Down there, somewhere,
+          is the apartment.
+
+          Agency drains over 14 seconds. The player loses control
+          slowly. The game is taking you to the Paris dream.
+
+  ↓ (hard cut at 14s)
 ```
 
 ### The Paris Dream (Hard Cut, Mid-Suite)
@@ -324,14 +400,13 @@ Thirty Flights of Loving. Heightened. Dramatic. Now the cuts have content.
 The ending is NOT a slow fade.
 The ending is a MONTAGE.
 
-Triggered after the bed ritual, or after the player has
-inhabited the suite long enough. The game decides.
+Triggered after the bed ritual. The game decides.
 
 Rapid cuts — jump cuts between spaces. Each 2-5 seconds.
 Some cuts are single frames. Time collapses.
 The "passing characters now have context" feeling.
 
-THE MONTAGE (draft sequence):
+THE MONTAGE (sequence):
 
 1. The taxi — the second ticket on the seat. Hold. Cut.
 2. The lobby — Gibbons glancing behind you. Cut.
@@ -357,8 +432,42 @@ THE MONTAGE (draft sequence):
 The music from the suite — the one piece that played
 once — returns as a fragment. Three notes. Then silence.
 
+ENDEARING VOID
+A game by Maxwell Young
+
 Credits.
 The game is over. The feeling is not.
+```
+
+### The Return (Second Playthrough)
+```
+RETURN_TAXI — Auckland. 5:52 AM. Dawn light.
+             Same car. Driver doesn't talk.
+             Gibbons is in the back seat. Going home.
+             "Good hotel?" — Yeah. / ...
+             The game loops to TITLE.
+
+Second play: everything changes.
+
+SUITE STARTS CLEANED: One pillow. One robe. One glass.
+Photograph already face-up. You arrive into the aftermath.
+The hotel remembered. Housekeeping erased her.
+
+CORRIDOR IS SHORTER: All Z-positions scaled to 65%.
+32m → ~21m. "Same corridor. Shorter this time."
+Piano silent (Four stopped playing).
+Room service tray gone (Six checked out).
+No parallel footsteps. The corridor is emptier.
+
+TAXI IS SILENT: No driver dialogue. No choices.
+"Same city. Same hour." → "You know the way."
+
+GIBBONS HAS DIFFERENT LINES: Every scene.
+He knows you came back.
+
+First play: you discover twos, then watch them become ones.
+Second play: you arrive into ones, and REMEMBER the twos.
+The emotional direction reverses. Loss → Grief.
 ```
 
 ---
@@ -366,87 +475,313 @@ The game is over. The feeling is not.
 ## IV. Characters
 
 ### Gibbons (The Bellhop)
-Cube-person. Formal, geometric, not-quite-human. Bolaño character — too aware, too polite, slightly broken. Has been waiting in hotel lobbies so long he's become furniture. Adjusts his tie. Carries a briefcase he never opens.
+Cube-person. Geometric, segmented limbs, red bellhop cap. Formal, not-quite-human. A Bolaño character — too aware, too polite, slightly broken. Has been waiting in hotel lobbies so long he's become furniture. Adjusts his tie. Carries a briefcase he never opens.
 
 **What Gibbons knows:** The suite was booked for two. He's seen this before — solo arrivals on double bookings. People who came anyway. He doesn't judge. He's kind about it because kindness is the only dignified response. He was a version of this person once, maybe. Or he just understands service as a form of care.
 
 **Arc:** Gibbons was expecting two. He sees one. He glances behind you, once, then never again. He carries your one bag with the same ceremony he'd carry two. He leads you to the suite. He bows. He leaves. In the ending montage he reappears — in the taxi, going home. He's already leaving too. Brief eye contact. He knew the whole time. Not what happened to her. Just that you came alone and the room was ready for two and that was enough to know.
 
-**Design:** Waypoint pathing. Walk cycle with character — purposeful, slightly formal. Pauses at thresholds. Gestures you through. His presence is warm. His absence is felt.
+**Design:** Waypoint-based navigation. Walk cycle with character — purposeful, slightly formal. Pauses at thresholds. Gestures you through. Per-waypoint dialogue. Physics modes: ghost (walks through geometry) vs grounded. Drawing uses macros for local-space positioning relative to NPC yaw.
+
+**Technical:** `npc.c` — segmented cube-person with per-limb positioning. GLB model with animations loaded at startup. Fallback to procedural cube-person if GLB missing. Waypoint system with dwell times and dialogue triggers.
+
+**Key Lines (First Play):**
+- Lobby: "Ah. We have your reservation."
+- Corridor: "Someone in Four plays that same nocturne every evening."
+- Corridor: "The gentleman in Six orders for two. Every night. Sends half back."
+- Corridor: "Yours is at the end. I left the curtains open."
+
+**Key Lines (Return):**
+- Lobby: "Welcome back."
+- Corridor: "Four stopped playing last week. Nobody noticed."
+- Corridor: "Six checked out. The trays stopped coming."
+- Corridor: "Yours is as you left it."
 
 ### The Player Character
-No name. No dialogue. Came here with someone who isn't here. The trip was planned together — the booking, the room service card, the champagne. You came anyway. Why? The game never says. The player decides: grief, stubbornness, a need to prove something, an inability to cancel. Maybe all of them. The hotel is the pause between the relationship and whatever comes after. Kaufman interiority — we see through their eyes but can't trust what we're seeing. The Paris dream might be memory or invention or wish. By the end the player knows without being told.
+No name. No dialogue. No visible body. Came here with someone who isn't here. The trip was planned together — the booking, the room service card, the champagne. You came anyway. Why? The game never says. The player decides: grief, stubbornness, a need to prove something, an inability to cancel. Maybe all of them. The hotel is the pause between the relationship and whatever comes after. Kaufman interiority — we see through their eyes but can't trust what we're seeing. The Paris dream might be memory or invention or wish. By the end the player knows without being told.
 
 ### Her (The Absent)
 Never seen. Never named. Never described physically. Present only through objects: her book, her robe, her toothbrush, her coat, her handwriting on the room service card, the indent on the pillow, the photograph where she's laughing. The player assembles her from traces. Every player assembles a different person. She exists in the negative space. The game's most important character is the one who isn't there.
 
 ---
 
-## V. Key Scenes — Design Notes
+## V. Key Scenes — Architecture & Design
 
-### The Taxi
+### The Taxi (STATE_CAR → STATE_DRIVING)
 The grounded scene. Auckland at dawn. Wet streets. The Sky Tower in the distance growing larger.
 
-- **Purpose:** Establish the real world before breaking it. Plant the first "two" — the second ticket.
-- **Player action:** Pick up the booking confirmation / second ticket. Pocket it. First interaction is hiding evidence.
-- **Audio:** City ambient, engine hum, tires on wet road. A song on the radio — something warm, something you'd listen to together. It cuts off when hyperspace begins.
-- **Light:** Dawn. Golden hour through wet glass. The last warm light that comes from the sun.
+**Purpose:** Establish the real world before breaking it. Plant the first "two" — the second ticket.
 
-### The Hotel (Gehry Space)
-The arrival moment. The most architecturally ambitious space.
+**Architecture:** Interior of a car. Dashboard, windshield, side windows. City scrolling past as parallax layers. The Sky Tower growing in the windshield — the first architecture the player sees. Simple, intimate, constrained.
 
-- **Scale:** Massive. Open plan. Curved glass walls. The opposite of claustrophobia.
-- **Reference:** Gehry interiors — organic curves, unexpected materials. Bilbao atrium energy.
-- **Light:** Earth-glow through glass. Warm interior pools. Godard red accents at scale.
-- **The relationship layer:** Pairs everywhere. Two chairs. Tables set for two. Corridor sounds of other guests — couples, laughter, muffled conversation. You pass through other people's intimacy on the way to your empty suite.
-- **Purpose:** Sells the premise AND the loneliness. You arrive into something impossible and beautiful and shared by everyone except you.
-- **Transition:** Gibbons leads you through. You see the hotel is full of people living the trip you were supposed to have.
+**Light:** Dawn. Golden hour through wet glass. The last warm light that comes from the sun.
 
-### The Space Suite (The Room for Two)
+**Audio:** City ambient, engine hum, tires on wet road. Phase-driven driver dialogue — each beat waits for the previous to complete. Choices are internal monologue.
+
+**Movement:** None. The player is a passenger. Camera bobs gently with the car. The first and last time they have no agency.
+
+**Interaction:** The prologue choices from the title screen color the driver's lines. The player listens, responds in their head. The driver doesn't know. He's just making conversation at 2:47 AM.
+
+**The "twos":** Second ticket on the seat. Booking confirmation: "2 guests."
+
+### The Space Lobby (STATE_SPACE_LOBBY)
+The arrival. Earth through glass. Gibbons appears.
+
+**Architecture:** The lobby of a luxury space hotel. High ceiling, observation windows, reception desk, chandelier, columns. Architectural reference: a grand hotel lobby transplanted into orbit. The Overlook's ambition with Kubrick's precision. Not organic — geometric, intentional, warm.
+
+**Light:** Earth-glow through observation windows — blue-white wash across the floor. Warm amber interior pools from chandeliers and wall sconces. The contrast between cold space-light and warm hotel-light is the scene's visual thesis.
+
+**Audio:** Hull resonance. Air circulation. Insulated quiet. The first space sound — the absence of weather, traffic, the world. Footsteps echo differently here. Marble surface.
+
+**Movement:** Full movement restored after the taxi's stillness. The scale invites sprinting. The lobby rewards exploration with spatial reveals — Earth visible from different angles, the depth of the station visible through structural gaps.
+
+**Gibbons:** Appears at the far end. Walks to the player. "Ah. We have your reservation." Picks up the one bag. Leads to the corridor.
+
+**The "twos":** Two chairs in the lobby, angled toward each other. Tables set for two. Couple sounds through walls.
+
+### The Space Corridor (STATE_SPACE_CORRIDOR)
+Kubrick hallway. Gibbons leads. Other lives behind doors.
+
+**Architecture:** 4.5m wide, 32m long curved arc. 8 segments with a gentle radius-40m bend. Porthole windows on alternating sides. Three doors — Room Four (piano), Room Six (TV, orders for two), Room at the end (yours). Carpet runner, brass trim, ceiling conduits. Kubrick's Overlook corridor meets 2001's Discovery.
+
+**Architectural references:**
+- **2001: A Space Odyssey** — the centrifuge corridor, curved floor, institutional precision
+- **The Shining** — the Overlook's corridors, carpet patterns, symmetry that unsettles
+- **Ocean liners** — portholes, brass fittings, the romance of transit
+
+**Light:** Dark by design. Warm amber ceiling strips every other segment. Door-light spill: amber from Four (reading lamp), blue from Six (TV flicker), darkness from yours. The light under each door tells a story about the person inside.
+
+**Audio:** Through-wall sounds are the scene's primary narrative tool.
+- Room Four: muffled nocturne (first play). Silent (return).
+- Room Six: TV murmur + running water. TV goes silent if you stand near the door for 6 seconds — they heard you. Or turned it off to sleep.
+- Room service tray outside Six: two plates, one untouched (first play only).
+- Parallel footsteps: someone behind the wall. Matches your pace. 0.4s delay. Stop when you stop. Start when you start. Panned to opposite wall. First play only.
+
+**Movement:** Full physics. Gibbons walks at 3.5. Player walks at 4.5. If you bunny-hop ahead, Gibbons slows. Waits. Says nothing. Infinite patience. The movement system creates a character moment.
+
+**Spatial mechanics:**
+- Speed slows near windows (px > 1.5f → 35% velocity reduction)
+- Spatial compression: player velocity subtly increases if moving toward exit
+- Silence zones near doors (master volume fades)
+- Dark door proximity increases grain and drops exposure
+
+**The "twos":** Room service tray with two plates. The piano played for someone. The TV watched by someone. You and Gibbons — two people, one leading, one following. Then one.
+
+**Technical:** 500+ walls. Curved geometry via 8-segment arc. Point lights on doors. Dynamic spatial audio. Gibbons waypoint system. Second playthrough: all Z-positions scaled to 65%.
+
+### The Space Suite (STATE_SPACE_SUITE)
 60% of playtime. Where the game lives or dies.
 
-- **Not small.** Generous, glass-fronted, warm. But one room. The compression after the Gehry expanse.
-- **Designed for two.** King bed, two pillows, two robes, two glasses, her book, the photograph. The room is a portrait of the relationship. Architecture as memory.
-- **Rituals over objectives.** Bath, champagne, balcony, bed. Each is an act of inhabiting a space designed for intimacy, alone. Multi-step with visible consequence.
-- **The Bolaño objects.** The geometry textbook. The room service card with two handwritings. The half-written postcard. The sock under the bed. Details so specific and mundane they resist interpretation. They're just there. Like things people leave behind.
-- **Speed curve.** Movement slows near the window. Softens near the bed. The room teaches you to be still.
-- **Audio.** Intimate, warm, slightly muffled. Clock tick as heartbeat. The hotel hum that you don't notice until it's gone. Through the wall: muffled music, someone else's TV, a phone ringing unanswered. Other lives.
-- **The adjoining door.** Leads to a second room, also booked, also empty. The hotel doesn't know the trip changed. Walking into it is optional. It's worse if you do.
+**Architecture:** Generous, glass-fronted, warm. One room with bathroom and balcony access. King-size bed centered, two nightstands. Desk with lamp. Champagne tray. Wardrobe. Bathroom door. Balcony door. The room is a portrait of the relationship — designed for two, occupied by one.
 
-### The Paris Dream
+**Architectural references:**
+- **Hotel Chevalier** — the room where everything is communicated through where people stand and what they touch
+- **Barton Fink** — the hotel room as psychological space, wallpaper peeling, the world accumulating wrongness
+- **Firewatch** — a beautiful space you went to instead of dealing with your life
+
+**Light:** Warm. SetPostFXWarmth ranges 0→1 as the player completes tasks. The room literally warms. Clock tick decelerates. The room is holding you.
+
+**Audio:** Intimate, warm, slightly muffled. Clock tick as heartbeat (decelerates with task completion). Hotel hum. Through the wall: muffled sounds from the corridor. The composed music triggers during the bed ritual — one piece, once, never repeats.
+
+**Movement:** Presence zones with dwell timers:
+- Bed zone: 8s → covers pull back, camera lowers
+- Champagne zone: 3s → cork pops, one glass fills
+- Window zone: 15s → Earth rotates to show NZ, grain clears
+- Desk zone: 5s → lamp turns on, margin notes visible
+- E-press works as fallback for all zones
+
+**The "twos":** Everything. Two pillows, two robes, two glasses, two nightstands, shoes for two, thermostat at compromise temperature (22°), her book, her bookmark, two handwritings on the room service card. The room IS the motif.
+
+**Wrongness progression:**
+| Tasks Done | What Shifts |
+|---|---|
+| 1 | Photograph moves 3cm |
+| 2 | Bathroom door cracks, amber light spills |
+| 3 | Earth glow shifts, champagne glass drifts, her book shifts position |
+| 4 (all) | Second pillow gains indent — depression + shadow. The most subtle. |
+
+### The Paris Dream (STATE_PARIS_DREAM)
 A memory. The last good trip. Hard cut mid-suite. B&W Godard grain.
 
-- **Duration:** 60-90 seconds. No longer. A short film within the film.
-- **Tone:** Not nightmarish — wistful. Kaufman interiority. You're walking through a memory looking for someone who was there but isn't in the memory either. She just left the room. Steam in the bathroom. Her coat on the chair. Coffee still warm.
-- **Design:** Rebuild HALLWAY/ROOM/BATHROOM in B&W. Compress geometry. Dream logic — doors lead where they shouldn't. Proportions slightly off. The hallway is longer than it should be.
-- **The red object:** One color survives the B&W — a scarf, a book cover, a flower. Godard red. Memory preserves color selectively.
-- **The toothbrush:** In the bathroom glass. The most mundane detail. The most devastating on replay.
-- **The window:** Shows the Eiffel Tower, then the Sky Tower, then neither. Memory edits itself.
-- **The book:** Same novel as the suite nightstand, but open to a different page. Further along. She was reading it here. The timeline is real even if the geometry isn't.
-- **Rule:** Never explained. Never acknowledged. Hard cut back to the suite. Same spot. Same empty glass. The game continues.
+**Architecture:** Rebuild of HALLWAY/ROOM/BATHROOM in B&W. Compressed geometry. Dream logic — doors lead where they shouldn't. Proportions slightly off. The hallway is longer than it should be. A real Parisian hotel — small, warm, ground floor. Rain on the window. Traffic outside.
 
-### The Ending Sequence
-Rapid-cut montage. The game's most emotionally demanding sequence.
+**Architectural references:**
+- **Contempt** — the apartment in Capri where the marriage ends
+- **Breathless** — the Paris apartment, long takes, Jean Seberg's Herald Tribune
+- **Hotel Chevalier** — the specific Parisian hotel room
 
-- **Structure:** Jump cuts between locations recontextualized by what the player now understands. Every "two" the player noticed becomes a "one."
-- **Pacing:** Thirty Flights timing — each cut 2-5 seconds. Some cuts are single frames.
-- **The cleaned room:** The suite appears in the montage, but reset. One pillow. One robe. One glass. The hotel has moved on. Housekeeping has erased her. The most violent cut in the sequence.
-- **Gibbons:** In the taxi. Going home. Already leaving. Brief eye contact. He adjusts his tie.
-- **The photograph:** Face up. The two of you. She's laughing. The game's only clear image of happiness. Hold.
-- **Final shot:** The void. The empty glass. Silence. The music returns — three notes of the suite piece, then nothing. Credits.
+**Light:** High contrast B&W. One color survives — Godard red. A scarf, a book cover, a flower in a glass. Memory preserves color selectively.
+
+**Audio:** Compressed, muffled. Rain on glass. Distant traffic. The acoustic signature of a real city after the silence of space. The contrast is devastating.
+
+**Her presence (the difference):**
+- Her coat on the chair
+- Coffee for two on the table — one cup half-drunk
+- The indent on the other pillow, fresh
+- The bathroom door is ajar. Steam. She just showered.
+- Her toothbrush in the bathroom glass
+
+**Duration:** 60-90 seconds. No longer. Hard cut back to the suite.
 
 ---
 
-## VI. The Object Inventory
+## VI. The Glasshouse — Full Design
 
-Every object in the game exists because it tells the story. Nothing decorative. This is the complete list of narrative objects and what they communicate.
+The hotel's observation lounge. The first big space the player experiences. The Bioshock Infinite arrival moment. A new scene state: STATE_GLASSHOUSE (or repurpose STATE_SPACE_LOBBY).
+
+### The Vision
+The elevator doors open. The player steps into a glass envelope suspended in space. Earth fills the lower hemisphere. Stars above. The void in every direction. This is the hotel's communal observation lounge — where guests come to sit and watch the planet.
+
+**The emotional function:** This is NOT intimacy — this is AWE. The WALL-E moment: a tiny person in a vast machine, looking at Earth. The space is populated with evidence of other couples — coats on chairs, half-finished drinks, two coffee cups. The player walks through other people's intimacy on the way to their own empty suite. The contraction begins here: Glasshouse (20m) → Corridor (4.5m) → Suite (one room) → Bed (one pillow). The architecture compresses until it's just you.
+
+**The structural role:** The glasshouse solves the claustrophobia problem. The player's first impression of the hotel is enormous, beautiful, breathtaking. By the time they reach the suite, the smaller space feels intimate rather than trapped. The contraction IS the emotional arc made spatial.
+
+### Architectural Design
+
+**Form:** A Gehry-esque glass shell — not a box, not a dome, but an asymmetric glass envelope with structural steel ribs. Think Fondation Louis Vuitton's glass sails or the DZ Bank atrium. The glass panels are not flat planes — they curve, overlap, breathe. Some panels are frosted. Some are perfectly clear. The steel structure is visible — honestly expressed, not hidden.
+
+**Scale:** Larger than the current 8m x 6m balcony. 20m x 14m interior volume. The glass extends upward 8-10m. You're inside a jewel box floating in space.
+
+**Materials:**
+- Glass panels: MAT_GLASS — transparent, slight blue tint, reflections of interior light
+- Steel ribs: MAT_BRASS — warm metallic, structural, honest
+- Floor: MAT_TILE — dark hull grating with brass drainage strips
+- Back wall: MAT_CONCRETE — the hull of the station, the one solid wall
+
+**Key architectural elements:**
+- **Glass envelope** — the Blender shell. Organic curves impossible in code geometry. The visual spectacle.
+- **Steel ribs** — visible structure. X-bracing, curved mullions, tension cables. The glass sits in a frame, not hanging free.
+- **Floor plane** — solid. Dark. The only thing between you and the void.
+- **Back wall** — the suite exterior. Door back inside. The warm light spilling through = the only warm light source.
+- **Railing** — brass, waist-height, at the forward edge. Glass infill panels. Posts at 1m intervals. The player can stand ON the railing in 0.3x gravity.
+
+**The furniture (code geometry inside the shell):**
+The glasshouse is a communal lounge. It's populated with evidence of OTHER people's relationships — couples who were just here, stepped away, will return. You pass through their intimacy.
+
+- Multiple seating clusters: pairs of chairs angled toward each other, small tables between them
+- Evidence of presence: a coat draped on a chair, a half-finished drink, a book open face-down, two coffee cups (one still steaming), someone's scarf
+- A telescope on a tripod. Pointing at Earth. Brass. Communal — not yours.
+- A bar or service counter along the back wall — glasses, bottles, the infrastructure of hospitality
+- The "twos" planted at scale: every table is set for two. Every cluster is a pair. The room is designed for couples. You're walking through it alone.
+
+**NOT interactable.** The player passes through. They see. They don't touch. This is Gibbons' pace, not theirs. The interactions come later, in the suite. Here the game is purely visual — scale, beauty, loneliness.
+
+### The View
+
+**Earth as Rothko field:** Not a ball — a HORIZON. Five layers of overlapping color fields meeting at edges. The planet is a vast, slowly-rotating presence filling the lower view.
+- Layer 1: Glass boundary — barely visible. The membrane between life and death.
+- Layer 2: Atmosphere — bright blue-white band at the horizon. The hero visual.
+- Layer 3: Planet surface — dark ocean, land masses, slightly green-shifted patches.
+- Layer 3b: City lights — BIG clusters. Auckland identifiable. Sky Tower beacon.
+- Layer 4: Stars — dense field above the atmosphere line.
+
+**Solar system context:** Distant station modules visible as lit rectangles. Connecting trusses. The hotel is part of a larger structure. The player is in a machine.
+
+### Technical Approach: The Gehry Shell System
+
+**Why the shell system:** The glass envelope's curves can't be done with `add_wall()` boxes. The Gehry shell system (`ev_shell_workbench.py`) was designed for exactly this.
+
+**The split:**
+- **Visual**: Blender-modeled glass shell → GLB → `add_shell()` — renders with MAT_GLASS, no collision
+- **Collision**: Invisible AABB boxes — floor, back wall, side boundaries. Simple rectangular physics.
+- **Furniture**: Code geometry — `add_wall()`, `add_cylinder()`, `add_sphere()` for chairs, table, telescope.
+- **Earth layers**: Code geometry — overlapping wall planes at varying depths.
+
+**Blender workflow:**
+```python
+exec(open('scripts/ev_shell_workbench.py').read())
+shell_setup("observation_deck", width=20, depth=14, height=10)
+# Model glass panels — curved surfaces, steel ribs, asymmetric envelope
+# The shell is the WOW — spend time here
+collision_floor(y=0)
+collision_wall("back_wall", pos=(0, 5, 7), size=(20, 10, 0.3))
+collision_wall("left_bound", pos=(-10, 5, 0), size=(0.3, 10, 14))
+collision_wall("right_bound", pos=(10, 5, 0), size=(0.3, 10, 14))
+shell_preview()
+shell_export()
+```
+
+**Performance:** The glass shell is the largest visual element. Budget: 3000-5000 tris. The glass material is cheap (no diffuse texture, just fresnel + transparency). Stars and Earth are flat planes. Point lights minimal — the scene is lit by Earth-glow and suite-spill.
+
+### Spatial Mechanics
+
+**Low gravity (0.3x):** The player floats. Jumps are higher. Landing is slower. The physics communicate "you're in space" without text.
+
+**Railing discovery:** Jump → land on railing → no prompt, no text. The physics just allow it. Standing on a brass rail at the edge of a space station looking down at Earth. FOV opens to 90°. Grain drops. Clarity at the edge. The wind (audio) picks up. CA increases. The game rewards the player who experiments.
+
+**Agency drain:** Over 14 seconds, `control_mult` fades from 0.3 to 0. The player loses the ability to move. The game is taking them to the Paris dream. Not sudden — gradual. The last thing the player controls is where they look.
+
+**Post-cigarette:** After the cigarette interaction, warmth drops (1.0 → 0.6), grain increases (0.5 → 0.65). The moment passed. The room gets colder. The architecture speaks.
+
+### The Scene Across the Game
+
+**First visit (Act 1 — arrival):** Wonder. The elevator doors open. The scale hits. Earth below. Evidence of other couples everywhere. Gibbons leads you through. You don't stop. The game's biggest, most beautiful space — and you're passing through it on the way to your room.
+
+**Montage shot #9:** 2-5 second cut. The two chairs by the Earth window. Empty now. The coats are gone, the drinks cleared. The same space, depopulated. The hotel is closing down. Hold. Cut.
+
+**Return playthrough:** The lounge is emptier. Fewer coats. Fewer drinks. The hotel is emptying. "Six checked out." The world is contracting even before you reach the corridor.
+
+---
+
+## VII. Characters — Deep Design
+
+### Gibbons — Full Behavioral Spec
+
+**Visual design:** Geometric cube-person. Segmented limbs. Red bellhop cap. Dark suit. Brass buttons. Briefcase (never opened). No face — a flat plane with minimal suggestion. Not humanoid enough to be uncanny. Abstract enough that the player projects warmth onto him.
+
+**Movement vocabulary:**
+- Walk: purposeful, slightly stiff, 3.5 units/sec
+- Pause at thresholds: 0.8s dwell before entering new spaces
+- Tie adjust: periodic idle animation. Nervous habit masked as professional composure.
+- Bow: at suite door. Formal. Brief. Then exit.
+- Glance: once, at lobby entrance. Looks behind the player. A head rotation. Then never again.
+
+**Dialogue design (lower-third, House of Cards style):**
+- Speaker name: small caps, warm gold, letter-spaced
+- Text: warm white, typewriter reveal
+- Gradient scrim at bottom — cinematic, not UI
+- Left-aligned at margin 60px. Never centered. Never in a box.
+
+**Per-scene behavior:**
+| Scene | Waypoints | Behavior | Key Line |
+|-------|-----------|----------|----------|
+| Space Lobby | 3 (entrance → desk → exit) | Waiting, then leading | "Ah. We have your reservation." |
+| Corridor | 3 (entrance → mid → suite door) | Walking ahead, pausing at doors | "Yours is at the end." |
+| Suite | 1 (door → bow → exit) | Opens door, presents room, leaves | No words. A bow. |
+| Return Taxi | 1 (back seat) | Sitting, looking forward | "Good hotel?" |
+
+### Her — Object Manifest
+
+She is never seen. She is everywhere. Her presence is the negative space the game is built around.
+
+**Objects that prove she existed:**
+| Object | Location | What it communicates |
+|--------|----------|---------------------|
+| Second ticket | Taxi seat | Two were coming |
+| Her book | Suite nightstand | She was reading. She stopped. |
+| Boarding pass bookmark | Inside the book | Her name. A real person. A real flight. |
+| Photograph face-down | Suite nightstand | A memory hidden. Turnable. |
+| Two robes (different sizes) | Suite wardrobe | She was expected. Specifically. |
+| Two champagne glasses | Suite tray | A ritual. Shared. |
+| Room service card | Suite desk | Two handwritings. A disagreement about cheese. |
+| Thermostat at 22° | Suite wall | A negotiated temperature. Compromise. |
+| Her coat | Paris dream chair | She was just here. Just missed. |
+| Her toothbrush | Paris dream bathroom | The most mundane. The most real. |
+| Pillow indent | Suite bed / Paris bed | Memory or reality. The game doesn't say. |
+| One sock | Under suite bed | Not yours. There it is. |
+
+---
+
+## VIII. The Object Inventory — Complete
+
+Every object in the game exists because it tells the story. Nothing decorative.
 
 ### Objects That Prove "Two"
 | Object | Scene | What It Says |
 |--------|-------|-------------|
 | Second ticket / booking confirmation ("2 guests") | Taxi | The trip was planned for two |
 | One bag (conspicuously light) | Lobby | She didn't come |
-| Two chairs angled together | Hotel | The hotel is designed for couples |
+| Two chairs angled together | Observation Deck / Hotel | The hotel is designed for couples |
 | Two pillows | Suite | The bed was made for two |
 | Two robes (different sizes) | Suite | She was expected |
 | Two champagne glasses | Suite | The ritual was shared |
@@ -468,9 +803,8 @@ These resist interpretation. They're the geometry textbook on the washing line. 
 
 | Object | Scene | Character |
 |--------|-------|-----------|
-| Geometry textbook open on desk | Suite | Someone studying orbital mechanics for a conversation that never happened |
-| Half-written postcard to no one | Suite | Handwriting changes mood midway. Unreadable at 480x300. That's the point. |
-| One sock under the bed | Suite | The most mundane object in the game. The most real. |
+| One sock under the bed | Suite | Not yours. There it is. The most mundane. The most real. The actual Bolaño object. |
+| Half-written postcard to no one | Suite | Handwriting changes mood midway. Unreadable at 1920x1200. That's the point. |
 | Cheese plate disagreement (margin notes) | Suite | A tiny, lived argument. Resolved with an arrow. |
 | Red object in B&W space | Paris dream | Memory preserves color selectively |
 | Window showing wrong city | Paris dream | Memory edits itself |
@@ -486,103 +820,445 @@ These resist interpretation. They're the geometry textbook on the washing line. 
 
 ---
 
-## VII. Development Phases
+## IX. Movement & Physics — The Body as Instrument
 
-### Phase 1: The Suite (Depth)
-**Goal:** Make the Space Suite the best room in any walking simulator. The room for two with one person in it.
+### The Movement System
 
-- [ ] Room-for-two layout — king bed, two pillows, two robes, two glasses, her book, photograph
-- [ ] Interaction depth — each ritual (bath, champagne, balcony, bed) with multi-step progression
+Quake-style air strafing, bunny hopping (50ms friction grace), wall running, ledge mantling, momentum slides, dashing. All tuning lives in `PhysicsConfig` (59 parameters) with defaults in `physics_default()`.
+
+This is a world-class movement system sitting inside a narrative game. That's not a contradiction — it's the point. Movement IS interaction. Where you stand, how fast you move, how long you stay — this is the input.
+
+### The Movement Vocabulary
+
+| Action | Input | Emotional Register |
+|--------|-------|-------------------|
+| Walk slowly | WASD | Default exploration. The room at human pace. |
+| Sprint | Shift | Nervous energy. Lobbies and corridors reward this — spaces open at speed. |
+| Slide | Ctrl + Sprint | The corridor has a long straight. Sliding = arriving with momentum. |
+| Crouch | Ctrl (still) | Smallness. At the window = looking up at Earth like a child. At the bed = eye level with the pillow indent. |
+| Jump | Space | Low gravity makes this meaningful. The balcony jump = standing on the railing. |
+| Bunny hop | Sprint + jump rhythm | Nervous fidgeting. Gibbons waits patiently. Character through physics. |
+| Stand still | Nothing | The hardest action. The bed zone. The window zone. The game rewards stillness with revelation. |
+| Look up | Mouse | The Sky Tower from below. The suite ceiling. The stars from the balcony. Awe is vertical. |
+| Look down | Mouse | The pillow indent. The sock under the bed. The second ticket. Intimacy is downward. |
+
+### Per-Scene Physics
+
+| Scene | Gravity | Speed Mult | FOV | Character |
+|-------|---------|-----------|-----|-----------|
+| Taxi | N/A | 0 | 70 | Stillness. Passenger. |
+| Lobby | 1.0x | 1.0 | 70 | Full agency. Scale invites speed. |
+| Corridor | 1.0x | 1.0 (0.65 near windows) | 70 | Modulated. Windows slow you. |
+| Suite | 1.0x | 0.8-1.0 (zone-dependent) | 70 | Intimate. Softens near bed. |
+| Observation Deck | 0.3x | 0.3 | 70-90 | Float. Railing discovery. Agency drains. |
+| Paris Dream | 1.0x | 0.7 | 65 | Compressed. Dream-slow. Claustrophobic FOV. |
+| Montage | N/A | 0 | Variable | No control. Camera only. |
+
+### Discovery Through Movement
+
+The player who experiments with the movement system is rewarded:
+
+- **Railing stand (Observation Deck):** Jump in 0.3x gravity → land on brass railing → FOV opens, grain drops, CA increases. No prompt. The physics just allow it.
+- **Crouch at observation glass (Lobby):** FOV widens, camera lowers. You're small, looking up at Earth like a child. Changed emotional register.
+- **Bunny hop ahead of Gibbons (Corridor):** He stops. Waits. Says nothing. Resumes when you're near. The movement system creates a character moment.
+- **Sprint through corridor:** Spatial compression accelerates — you arrive at the suite faster. The architecture rewards decisiveness.
+- **Stand still at window (Suite, 15s):** Earth rotates enough to see New Zealand. The game rewards looking by showing you home.
+
+---
+
+## X. Audio Architecture — The Invisible Building
+
+### Principles
+
+100% procedural. Every sound synthesized from sine waves, noise, and envelopes at 44100Hz. No audio files (except the composed music piece). Drones are 20-32 second loops with reverb tails.
+
+**The rule:** Sound tells the stories geometry can't. Through-wall sounds create the presence of inaccessible lives. The hotel hums with other people's relationships.
+
+### Per-Scene Acoustic Signatures
+
+| Scene | Character | Key Sounds |
+|-------|-----------|-----------|
+| Taxi | Urban, enclosed, warm | Engine hum, tires on wet road, city ambient, driver voice |
+| Hyperspace | Disorienting, overwhelming | Extreme frequency sweep, distortion, then sudden silence |
+| Space Lobby | Vast, reverberant, wonder | Hull resonance, air circulation, marble footsteps |
+| Corridor | Intimate, populated, alive | Through-wall piano, TV murmur, running water, parallel footsteps, your footsteps, Gibbons' footsteps |
+| Suite | Intimate, warm, heartbeat | Clock tick (decelerating), hotel hum, through-wall sounds, champagne cork, water running |
+| Observation Deck | Wind, void, exposure | Wind ambient, gusts, hull creaking, the silence between gusts |
+| Paris Dream | Compressed, real, grounded | Rain on glass, traffic, compressed reverb, the sounds of a real city |
+| Montage | Fragments, silence between | Three notes from the suite piece. Silence. Silence. Silence. |
+
+### The Composed Music Piece
+
+One piece. Once. During the bed ritual. The emotional center of the game.
+
+**Direction:** NOT ambient. NOT sad. A Maxwell Young original — ambient on a drone foundation with a three-note melodic figure buried at ~60% emergence. The melody is always there. Lying in bed is the moment the player gets still enough to hear it.
+
+**The three notes:** Write them first. A simple, unresolved figure — not a hook, not a resolution. Something that ends on a breath rather than a landing. Build the full piece around them. When the three notes return in the montage as a fragment, the player's body recognizes them before their brain does.
+
+**The constraint:** Was already playing when you arrived. You just noticed. The drone foundation was always under the clock tick, under the hotel hum. The bed ritual is the moment you're still enough to hear it.
+
+**Technical:** Non-looping. File-based (swap lighthouse.wav for the final track). 35% volume under clock tick + hotel hum. Three-note callback in montage.
+
+### Through-Wall Audio (Commandment 6)
+
+The hotel's invisible population. Lives you hear but never reach.
+
+| Sound | Source | Scene | Meaning |
+|-------|--------|-------|---------|
+| Muffled nocturne | Room Four | Corridor | Someone plays every evening. First play only. |
+| TV murmur | Room Six | Corridor | Goes silent if you stand near for 6 seconds. They heard you. |
+| Running water | Room Six | Corridor | Bathroom sounds. Another life in parallel. |
+| Footsteps above | Corridor ceiling | Corridor | Match your pace. 0.4s delay. First play only. |
+| Phone ringing | Suite wall | Suite | Rings at 30s. Fades as you approach. Stops at 0.8m. |
+| Distant voices | Corridor walls | Corridor | Ambient murmur. Other couples. Other lives. |
+| Room service tray | Outside Room Six | Corridor | Two plates. One untouched. First play only. |
+
+---
+
+## XI. Visual Language — Materials, Light, Color
+
+### Rendering Pipeline
+
+```
+1920×1200 RenderTexture (render_target)
+  ├─ Shadow pass: depth-only FBO (512×512) from key light perspective
+  ├─ Earth pass: procedural sphere behind scene geometry (space scenes)
+  ├─ Scene pass: GLSL lighting shader
+  │   ├─ Key light + fill light (directional)
+  │   ├─ 4 point lights (per-scene positioned)
+  │   ├─ PCF 3×3 shadow mapping
+  │   └─ 13 procedural materials
+  ├─ Dust motes / zero-g sparkles
+  └─ HUD (spring-scaled crosshair + pixel icons)
+        ↓
+1920×1200 RenderTexture (postfx_target)
+  └─ Post-FX shader:
+     chromatic aberration, film grain, bloom, SSAO,
+     dither, scanlines, vignette, warmth, saturation,
+     contrast, exposure
+        ↓
+Window (nearest-neighbor upscale, aspect-ratio letterboxed)
+```
+
+### The 13 Procedural Materials
+
+All computed from world-space UV + noise functions in GLSL. No texture files.
+
+| ID | Material | Where It Lives | Character |
+|----|----------|---------------|-----------|
+| 0 | Concrete | Hull, ceilings, structure | Cold, industrial, honest |
+| 1 | Marble | Lobby floor, bathroom | Luxurious, reflective, cold-warm |
+| 2 | Wood | Furniture, paneling | Warm, domestic, alive |
+| 3 | Carpet | Corridor, suite floor | Soft, sound-absorbing, hotel |
+| 4 | Wallpaper | Corridor panels, suite walls | Domestic, pattern, enclosure |
+| 5 | Tile | Bathroom, observation deck floor | Grid, precision, wet |
+| 6 | Brass | Trim, fixtures, Gibbons' buttons | Warm metallic, status, time |
+| 7 | Glass | Windows, observation deck shell | Transparent, boundary, fragile |
+| 8 | Leather | Chairs, elevator handrail | Intimate, body, luxury |
+| 9 | Fabric | Bed, robes, curtains | Soft, domestic, her |
+| 10 | Checkerboard | Paris dream floor | Memory, pattern, Godard |
+| 11 | Herringbone | Lobby accent | Pattern, status, craftsmanship |
+| 12 | Parquet | Suite floor accent | Warm, domestic, real |
+
+### Color Palette
+
+Defined in `palette.h` as `PAL_*` constants.
+
+**Foundation:** Neutral warm whites. Not yellow. Not grey. The warmth comes from specific accents, not a tint on everything.
+
+**Accent colors:**
+- **PAL_RED** — Godard red. Doors, the Paris dream's surviving color. Passion, memory.
+- **PAL_BLUE** — French blue. Contrast to red. TV light under doors. Melancholy.
+- **PAL_BRASS** — Warm gold. Trim, fixtures, Gibbons' uniform. Hotel luxury.
+- **PAL_NAVY** — Deep blue-black. The void. Space. Absence.
+- **PAL_CREAM** — Warm white. Wallpaper, linen, the hotel's surface warmth.
+
+**Anti-pattern:** NEVER yellow-tint everything. NEVER grey-on-grey in space. NEVER desaturate for sadness. The palette is warm and bold. The void is beautiful.
+
+### Visual Styles (Shift+1-9)
+
+| Key | Style | Character |
+|-----|-------|-----------|
+| Shift+1 | 16mm Film | Default. Warm neutral, slight bloom, architectural. The game's voice. |
+| Shift+2 | PS1 | Ordered dithering, color quantization, 2x pixels. Nostalgia. |
+| Shift+3 | Noir | Near-mono, crushed blacks, heavy vignette, sharp. Anxiety. |
+| Shift+4 | CRT | Scanlines, bloom, phosphor glow. Hotel TV energy. |
+| Shift+5 | Godard | Saturated, contrasty, red push. The Paris dream's natural style. |
+| Shift+6 | VHS | Heavy grain+CA, warm mud, scanlines. Memory deteriorating. |
+| Shift+7 | Neon | Oversaturated, bloom heavy, teal-orange tint. The hotel at night. |
+| Shift+8 | Woodcut | Extreme dither, near-mono, posterized. Abstraction. |
+| Shift+9 | Raw | No post-FX. Naked geometry and lighting. Truth. |
+
+### Lighting Presets
+
+Each scene has a `LightingPreset_*()` function returning a `SceneLighting` struct. Key light direction + color, fill light direction + color, ambient level, 4 positioned point lights.
+
+**Key emotional lighting:**
+- **Lobby:** Earth-glow (blue-white) through glass + warm amber interior = wonder
+- **Corridor:** Near-dark. Door spill only. Each door = a warm pool in darkness = other lives
+- **Suite:** Warm, getting warmer. Warmth increases with tasks. The room holds you.
+- **Observation Deck:** Cold space-light from above + warm suite-spill from behind = isolation + home
+- **Paris Dream:** High contrast B&W. Window light. Film noir energy.
+
+---
+
+## XII. Technical Architecture
+
+### Engine Overview
+
+20,000+ lines of C99. Raylib for windowing, input, rendering primitives. Everything else custom: scene system, physics, audio synthesis, NPC, UI, lighting shader, post-FX shader.
+
+### File Map
+
+```
+game_ctx.h          — GameCtx struct (ALL mutable state), SceneDesc typedef
+ev_types.h          — Enums, structs (Wall, Scene, Player, PhysicsConfig, etc.)
+config.h            — Constants (PI, SAMPLE_RATE, MAX_WALLS, task counts)
+palette.h           — PAL_* color constants
+scale.h             — 1920×1200 visibility dimensions
+
+scene_registry.c    — const SceneDesc scene_descs[] (function pointers per state)
+main.c              — Game loop, render pipeline, menu, transitions, debug
+scene.c             — Geometry builders (build_lobby, build_space_suite, etc.)
+render.c            — Rendering + post-FX shaders + draw helpers
+lighting.c          — GLSL shader (embedded C strings), per-scene presets
+audio.c             — 100% procedural audio synthesis
+player.c            — Quake-style movement/physics
+npc.c               — Gibbons NPC (waypoints, dialogue, drawing)
+ui.c / ui.h         — Spring physics, icons, UI components
+skybox.c            — GPU procedural skyboxes (5 types)
+
+scene_splash.c      — STATE_TITLE + prologue
+scene_taxi.c        — STATE_CAR, STATE_DRIVING, STATE_RETURN_TAXI
+scene_exterior.c    — STATE_HOTEL_EXT
+scene_lobby.c       — STATE_LOBBY
+scene_elevator.c    — STATE_ELEVATOR
+scene_hotel.c       — STATE_HALLWAY, STATE_ROOM, STATE_BATHROOM
+scene_space_lobby.c — STATE_SPACE_LOBBY
+scene_corridor.c    — STATE_SPACE_CORRIDOR
+scene_suite.c       — STATE_SPACE_SUITE
+scene_balcony.c     — STATE_BALCONY (→ observation deck)
+scene_endings.c     — STATE_BED, STATE_STARS, STATE_HYPERSPACE, STATE_PARIS_DREAM
+scene_montage.c     — STATE_MONTAGE (rapid-cut ending)
+```
+
+### Adding a New Scene
+
+1. Add `STATE_NEW_SCENE` to the `GameState` enum in `ev_types.h`
+2. Create `src/scene_newscene.c` with `newscene_load()` and `newscene_update(float dt)`
+3. Add entry to `scene_descs[]` in `scene_registry.c`
+4. Add geometry builder to `scene.c` / `scene.h` if needed
+5. `make` — the Makefile wildcards pick up new .c files automatically
+
+### State Machine
+
+`load_state()` in main.c handles common reset (stop audio, clear state), then dispatches to the scene's `load()` function via the registry. Transitions use `transition_to()` (fade-to-black) or `hard_cut_to()` (Blendo-style instant cut with warm white flash).
+
+```
+TAXI → HYPERSPACE (+ title card) → SPACE_LOBBY (meet Gibbons)
+→ ELEVATOR → GLASSHOUSE (the big reveal) → SPACE_CORRIDOR
+→ SPACE_SUITE → BALCONY → PARIS_DREAM → CLEANED_SUITE → BED
+→ MONTAGE → STARS → RETURN_TAXI → TITLE (loop)
+
+The contraction: 20m wide → 4.5m wide → one room → one bed → one pillow
+```
+
+### The 3D Model Asset System
+
+**Auto-loading**: Any `.glb` or `.obj` in `assets/` is auto-loaded at startup into `g.model_assets[]` (max 16). Lighting shader applied to all material slots. GLB animations loaded and ticked each frame.
+
+**Models completed (12):** Gibbons, Sky Tower, bathtub, sofa, elevator car, piano, champagne glasses, bed, armchair, reception desk, chandelier, potted plant.
+
+**Formats:**
+- Static props (.obj): 50-200 tris, no textures, no animation
+- Animated models (.glb): 200-800 tris (up to 5000 at 1920x1200), simple rigs
+- No UV textures — GLSL materialId system handles surfaces procedurally
+- Scale: 1 unit = 1 meter. GLB exports Y-up.
+
+### The Gehry Shell System
+
+For organic/deconstructivist architecture where code-placed boxes won't cut it.
+
+**Architecture — visual/collision split:**
+- **Visual**: GLB mesh from Blender → `add_shell()` — renders with material, no collision
+- **Collision**: Invisible AABB boxes → `add_collision_wall()` — physics only, not rendered
+- **Furniture**: Code geometry inside the shell — `add_wall()`, `add_cylinder()`, etc.
+
+**Engine functions:**
+```c
+add_shell(s, "name", x,y,z, sx,sy,sz, rot, mat, color);   // visual only
+add_collision_wall(s, x,y,z, w,h,d);                        // physics only
+add_collision_floor(s, x,y,z, w,d);                          // floor shorthand
+add_collision_ceiling(s, x,y,z, w,d);                        // ceiling shorthand
+```
+
+**Blender workbench:** `scripts/ev_shell_workbench.py` on Mac Mini (ssh mini-ts, port 9877).
+
+**Pattern:** Gehry buildings have crazy shells but regular interiors. The titanium swoops are the architecture; inside, you still place furniture with code. Shell = visual envelope. Code = everything inside.
+
+### Build System
+
+```bash
+make              # Incremental build
+make run          # Build and run
+make clean        # Remove object files + binaries
+make dev SCENE=STATE_SPACE_SUITE   # Skip title, boot into a scene
+make qa           # QA mode: automated screenshots + pixel analysis
+make check        # Static analysis
+make test         # Headless unit tests
+make count        # Line counts per file
+make release      # Stripped -O3 binary
+make fmt          # clang-format all source
+make dev-watch    # Auto-rebuild + restart on source changes
+```
+
+---
+
+## XIII. The Blender Pipeline
+
+### Philosophy
+
+Model only when silhouette or narrative weight demands it. If a box says it better, keep the box. No UV textures — materialId system handles surfaces.
+
+### Infrastructure
+
+- **Blender** runs on Mac Mini (ssh mini-ts, Tailscale: 100.124.74.30)
+- **BlenderMCP** on port 9877 (raw TCP socket)
+- **Style bible:** `assets/blender/ev_style.py` — locked materials, lighting, camera. Run FIRST every session.
+- **Model toolkit:** `scripts/ev_model_kit.py` — shared form primitives, validation gates, auto-export.
+- **QA pipeline:** `glb_qa.sh` → Three.js viewer → automated 6-criteria scoring → screenshot overlay.
+
+### Model Pipeline
+
+1. **Reference first.** Find a real-world photo. Study proportions.
+2. **Self-contained script.** Each model has its own .py build script.
+3. **Style bible first.** `exec(open('ev_style.py').read())` before anything.
+4. **Build → Score → Iterate.** QA screenshots at 4 angles. Score threshold ratchets per version.
+5. **Export GLB.** Y-up. 1 unit = 1 meter.
+6. **SCP to engine.** `scp mini-ts:~/model.glb assets/`
+7. **Auto-loaded.** `make run` picks it up.
+
+### Model Budget (1920×1200)
+
+| Category | Tri Budget | Examples |
+|----------|-----------|---------|
+| Props | 500-1500 | Champagne glasses (780), piano (620) |
+| Furniture | 1000-3000 | Bed (2840), armchair (912), sofa (1628) |
+| Architectural | 500-2000 | Chandelier (1032), elevator car (468) |
+| Characters | 1000-3000 | Gibbons (animated GLB) |
+| Shells | 3000-5000 | Observation deck (planned) |
+
+### Remaining Models
+
+**Priority (narrative objects):**
+- [ ] Wine glass with lipstick mark
+- [ ] Telephone
+- [ ] Photograph frame (turnable)
+- [ ] Her book (with boarding pass)
+
+**Priority (observation deck shell):**
+- [ ] Glass envelope — Gehry curves, steel ribs
+- [ ] First real shell system validation
+
+**Future:**
+- [ ] Additional chairs/furniture
+- [ ] Floor lamp
+- [ ] Steering wheel (taxi)
+
+---
+
+## XIV. Development Phases — Revised
+
+### Phase 1: The Suite (Depth) — IN PROGRESS
+**Goal:** Make the Space Suite the best room in any walking simulator.
+
+- [x] Room-for-two layout — bed, two pillows, two robes, two glasses, her book, photograph
+- [x] Presence zone system — dwell timers + E-press fallback
+- [x] Wrongness progression — 4-stage shifts per task
+- [x] Silent objects — wardrobe, wine glass, book, sock, phone, suitcase, bath
+- [x] Diegetic text — ticket, photograph, room service card, postcard, guest book, newspaper
+- [x] Per-position speed curves — slow near window, soft near bed
 - [ ] Cork pop sound (procedural)
-- [ ] The empty glass — champagne poured into one, second stays empty, persists all game
-- [ ] Object storytelling — photograph (turnable), book (with bookmark), room service card, postcard
-- [ ] The adjoining door — second room, booked, empty, optional to enter
-- [ ] Bolaño objects — geometry textbook, sock, postcard, margin notes
-- [ ] Room acoustic refinement — intimate signature distinct from all other scenes
-- [ ] Per-position speed curves — slow near window, soft near bed
-- [ ] Bed ritual — lie down, agency surrender, composed music trigger, hold
+- [ ] The empty glass persistence — champagne poured into one, second stays empty forever
+- [ ] The adjoining door — second room, booked, empty, optional
+- [ ] Bed ritual — full agency surrender, composed music trigger, hold
+- [ ] Cleaned suite variant — `build_space_suite_cleaned()` — one of everything
 
-### Phase 2: The Hotel (The Gehry Space)
-**Goal:** Build the arrival reveal. Beautiful AND lonely.
+### Phase 2: The Glasshouse (The Arrival Reveal) — NEXT
+**Goal:** Build the first big space. The Bioshock Infinite moment. The WALL-E scale.
+**Gate:** Phase 1 must be playable end-to-end before this begins. The suite is the game. The glasshouse is the spectacle. Don't let spectacle block substance. The shell system hasn't been validated e2e yet — the first task here is a test shell, not the final design.
 
-- [ ] Design the Gehry space — curved glass walls, massive open plan, Earth visible below
-- [ ] Pairs everywhere — two chairs, tables for two, couple-scale architecture
-- [ ] Lighting — Earth-glow through glass, warm interior pools, Godard red accents at scale
-- [ ] Gibbons pathfinding through the hotel space to the suite
-- [ ] Implied hotel life — other corridors, muffled laughter, couples' ambient sounds
-- [ ] The agoraphobia moment — vast and beautiful and you're alone in it
+- [ ] Shell system e2e validation — test shell in Blender → GLB → engine → collision → playable
+- [ ] Blender shell model — glass envelope, steel ribs, asymmetric Gehry curves
+- [ ] Collision volumes — floor, back wall, side boundaries
+- [ ] Earth view — Rothko layers visible through glass, city lights, atmosphere
+- [ ] Furniture in code — seating clusters for couples, evidence of presence (coats, drinks, books)
+- [ ] Gibbons pathfinding through the space — he leads, doesn't stop
+- [ ] No player interaction — this is a pass-through, not a habitable space (yet)
+- [ ] "Twos" planted at scale — every table for two, every cluster a pair
+- [ ] Audio: vast reverb, hull resonance, distant guest sounds, air circulation
+- [ ] Montage shot — the same space, emptied, two chairs alone
+- [ ] Return playthrough variant — fewer coats, fewer drinks, hotel emptying
 
 ### Phase 3: The Corridor + Elevator (Pacing)
-**Goal:** The journey from lobby to suite should feel like a narrative. Gibbons and the player, alone together.
+**Goal:** The journey to the suite should feel like a narrative.
 
-- [ ] Elevator scene — warm amber, Chevalier energy, Gibbons's professional silence
-- [ ] Gibbons glance — looks behind you once in the lobby, then never again
-- [ ] Inaccessible rooms — doors with light underneath, muffled music, other lives (other couples)
-- [ ] Gibbons character polish — walk cycle, formal gestures, the bow, carrying one bag
-- [ ] Porthole moments — Earth rotating, time passing
+- [x] Corridor geometry — 8-segment curved arc, 3 doors, portholes
+- [x] Through-wall audio — piano, TV, running water, parallel footsteps
+- [x] Gibbons pathfinding and dialogue
+- [x] Door-listening mechanic — TV goes silent after 6s proximity
+- [x] Spatial compression — velocity increase toward exit
+- [x] Second playthrough: shorter corridor, missing sounds
+- [ ] Elevator scene — warm amber, Chevalier energy, Gibbons
+- [ ] Gibbons glance — looks behind you once in the lobby
 
 ### Phase 4: The Paris Dream (The Memory)
-**Goal:** Build the mid-suite hard cut. 60-90 seconds of wistful memory.
+**Goal:** Build the mid-suite hard cut. 60-90 seconds.
 
-- [ ] Rebuild Paris scenes in B&W — HALLWAY, ROOM, BATHROOM
+- [ ] Rebuild Paris scenes in B&W — compressed geometry, dream logic
 - [ ] Her presence — coat, coffee, pillow indent, steam, toothbrush
-- [ ] The book — same novel, different page, further along
-- [ ] Dream logic geometry — doors lead wrong, proportions off, hallway too long
+- [ ] The book — same novel, different page
 - [ ] Godard red — one color object survives the B&W
 - [ ] Memory window — Eiffel Tower / Sky Tower / neither
-- [ ] Hard cut in — no transition, no fade, instant
-- [ ] Hard cut back — same suite position, same empty glass, no acknowledgment
+- [ ] Hard cut in — no transition, instant
+- [ ] Hard cut back — same suite position, same empty glass
 
 ### Phase 5: The Ending (Rapid Cuts)
-**Goal:** Build the Thirty Flights montage. Every "two" becomes "one."
+**Goal:** Build the Thirty Flights montage.
 
-- [ ] Jump cut system — instant scene transitions with 2-5 second holds
-- [ ] The cleaned room — suite reset: one pillow, one robe, one glass. The hotel moved on.
-- [ ] Montage sequence — taxi ticket, Gibbons glance, robes, Paris coat, balcony, elevator down
-- [ ] Gibbons in the taxi — going home, eye contact, already leaving
-- [ ] The photograph face up — she's laughing, hold
+- [x] Montage system — fixed camera positions per scene, timed cuts
+- [x] Jump cut system — instant scene transitions
+- [ ] The cleaned room — suite reset shot
+- [ ] Full montage sequence (13 shots)
 - [ ] Single-frame cuts for peak intensity
-- [ ] Final void — empty glass, silence, three music notes, credits
-- [ ] The pillow indent — last image before void
+- [ ] Gibbons in the taxi — going home, eye contact
+- [ ] The photograph face up — she's laughing, hold
+- [ ] Final void — empty glass, silence, three notes, credits
 
-### Phase 6: Sound Design (The Invisible Architecture)
-**Goal:** Sound tells the stories geometry can't. The hotel hums with other people's lives.
+### Phase 6: The Composed Music
+**Goal:** Write the three notes. Build the piece. Ship the heart.
 
-- [ ] Per-scene acoustic signatures — lobby (expansive), elevator (compressed), suite (intimate), hotel (vast), dream (muffled/compressed)
-- [ ] Composed music — one piece, triggered once in the bed ritual, the emotional center
-- [ ] Three-note callback — the piece returns as a fragment in the ending montage
-- [ ] Inaccessible room sounds — music through walls, muffled laughter, a phone ringing, running water
-- [ ] The removal — the hotel hum disappears in the ending. Silence after constant.
-- [ ] Dream audio — compressed, B&W sonic palette, rain on glass, distant traffic
-- [ ] Taxi radio — a song. Something warm. Cuts off at hyperspace.
-- [ ] Suite sounds — clock tick, champagne pour into one glass, the cork
+- [ ] Write the three-note figure — unresolved, ends on a breath
+- [ ] Build the drone foundation — was always playing, you just noticed
+- [ ] Record the full piece — Maxwell Young original
+- [ ] Integrate at 35% volume under clock tick + hotel hum
+- [ ] Three-note callback in montage
+- [ ] Test: drop the track at 35% with clock tick. The room will tell you.
 
-### Phase 7: The Recurring Motif (Twos)
-**Goal:** Plant pairs in every scene. The game is full of twos and the player is one.
-
-- [ ] Taxi: second ticket
-- [ ] Lobby: Gibbons's glance behind you
-- [ ] Elevator: two people (you and Gibbons), then one (just you)
-- [ ] Hotel: chairs for two, tables for two, couple sounds
-- [ ] Suite: everything — glasses, robes, pillows, shoes, the book
-- [ ] Paris: coffee for two, coat + your coat, two-person bed
-- [ ] Montage: every two becomes one. The cleaned room. The reset.
-
-### Phase 8: Polish & Release
+### Phase 7: Polish & Release
 **Goal:** Ship. Short and dense, not long and sprawling.
 
 - [ ] Playtesting — 5-10 people, watch silently, note pauses/rushes/confusion
 - [ ] Does the player understand by the end? Without being told?
-- [ ] Performance — locked 60fps, lo-fi demands smoothness
-- [ ] The Gehry space performance — largest scene, needs careful optimization
+- [ ] Performance — locked 60fps, 1920×1200
+- [ ] The observation deck performance — largest scene, needs optimization
 - [ ] Platform targets — macOS first, then Windows/Linux via Raylib
 - [ ] Runtime target — 15-30 minutes first playthrough. If longer, cut.
-- [ ] Price — free or $3-5. The game earns respect through craft, not length.
-- [ ] Store page — "Three hours to kill." One screenshot. One sentence. Trust the work.
+- [ ] Store page — "Three hours to kill." One screenshot. One sentence.
 
 ---
 
-## VIII. What Not to Do
+## XV. What Not to Do
 
 These are temptations. Resist them.
 
@@ -590,21 +1266,26 @@ These are temptations. Resist them.
 - **Don't add a map or minimap.** Architecture guides the player. If they get lost, the architecture is wrong.
 - **Don't add collectibles.** Objects exist to tell stories, not to be collected.
 - **Don't add dialogue.** If the game ever uses voice, it should be located (phone, radio, PA system), unreliable, and contradicted by the space. Never omniscient narration. Never "she" or "we" spoken aloud.
-- **Don't explain what happened.** The player doesn't need to know if it was a breakup, a death, a dissolution. The room tells them someone was supposed to be here. That's enough.
-- **Don't show her.** She exists through objects. The moment you render her — even as a silhouette, even in a dream — you collapse the player's version of her into yours. She stays in the negative space.
-- **Don't make it melodramatic.** No tears. No dramatic music swells. No rain-on-window-while-sad. The champagne glass is empty. That's the drama. Restraint is what makes it hit.
+- **Don't explain what happened.** The player doesn't need to know. The room tells them someone was supposed to be here. That's enough.
+- **Don't show her.** She exists through objects. The moment you render her you collapse the player's version into yours.
+- **Don't make it melodramatic.** No tears. No dramatic music swells. No rain-on-window-while-sad. The champagne glass is empty. That's the drama. Restraint.
 - **Don't add more scenes to increase runtime.** Add depth to existing scenes instead.
-- **Don't chase realism.** 480x300 with procedural textures IS the aesthetic.
+- **Don't chase realism.** 1920×1200 with procedural textures IS the aesthetic.
 - **Don't explain the hotel.** Why is there a hotel in orbit? The mystery is the point.
 - **Don't explain the Paris dream.** It's a memory. Memories don't announce themselves.
-- **Don't make the hotel small.** The Gehry space is enormous. The suite is generous. Agoraphobia, not claustrophobia.
-- **Don't make Gibbons creepy.** He's warm, formal, dignified. He's kind about it because kindness is the only dignified response.
-- **Don't make the absence horror.** She's not dead (probably). She's not a ghost. It's not a twist. It's a breakup. It's the most common tragedy in the world and that's why it works.
+- **Don't make the hotel small.** The observation deck is enormous. The suite is generous. Agoraphobia, not claustrophobia.
+- **Don't make Gibbons creepy.** He's warm, formal, dignified. Kindness is the only dignified response.
+- **Don't make the absence horror.** It's a breakup. The most common tragedy. That's why it works.
 - **Don't over-read your own influences.** Reference Blendo and Godard without pretending to channel them. Maybe you just like making hotels.
+- **Don't use creepy ambient drones.** If it sounds scary, it IS scary. Wonder, not dread.
+- **Don't make tiny detail objects.** If it's not 3+ pixels at 1920×1200, scale it up or remove it.
+- **Don't reuse Paris audio for space.** Space needs its own acoustic character.
+- **Don't confirm emotions with text.** "She would have loved this" — NEVER. The two chairs say it. Don't say it for them.
+- **Don't run parallel agents on the same files.** Sequential only. Learned the hard way.
 
 ---
 
-## IX. The North Star
+## XVI. The North Star
 
 When everything else is noise, return to this:
 
