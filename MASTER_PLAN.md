@@ -30,6 +30,7 @@ A first-person narrative game about three hours to kill in an impossible hotel. 
 - **Bolaño (2666)** — Amalfitano hangs a geometry textbook on the washing line and leaves it there. It gets rained on. Nobody comments. A person doing something slightly unhinged because they're falling apart in a way they can't articulate. Dignity-in-transit. Characters too aware, too polite, slightly broken.
 - **Kaufman** (Anomalisa, Synecdoche) — Unreliable interiority. The character's experience may not be what's happening. Memory and present tense bleed.
 - **Bioshock Infinite** — Arriving into something impossible. The scale does the work.
+- **The Witches** (Dahl/Roeg) — A girl trapped in a painting in a hotel. She ages inside it over the years, shifting position, and nobody comments. The photograph in the suite does this — the café empties, the light fades from afternoon to night, her red dress loses color. A whole relationship ending inside a single image while the world refuses to acknowledge it's changing.
 - **WALL-E** (Stanton) — A small person alone in a vast space, surrounded by objects left behind by people who are gone. The loneliness isn't tragic — it's tender. WALL-E collects things he doesn't fully understand (a Rubik's cube, a lighter, a spork) because they're evidence that someone was here. That's what the player does in the suite — turning over the photograph, picking up her book, looking at the sock under the bed. Objects as stand-ins for connection. The first 40 minutes of WALL-E are almost wordless — architecture and objects and one small figure moving through them. The observation deck has WALL-E's scale: a tiny person in an impossible machine, looking at Earth, holding something that belonged to someone else.
 - **Mirror's Edge** — Movement that feels good changes everything. Even in exploration, physicality matters.
 - **Easy Delivery Co.** — Ambient gradients, no guidance UI, through-wall audio, implied world.
@@ -592,13 +593,23 @@ Kubrick hallway. Gibbons leads. Other lives behind doors.
 
 **The "twos":** Everything. Two pillows, two robes, two glasses, two nightstands, shoes for two, thermostat at compromise temperature (22°), her book, her bookmark, two handwritings on the room service card. The room IS the motif.
 
-**Wrongness progression:**
-| Tasks Done | What Shifts |
-|---|---|
-| 1 | Photograph moves 3cm |
-| 2 | Bathroom door cracks, amber light spills |
-| 3 | Earth glow shifts, champagne glass drifts, her book shifts position |
-| 4 (all) | Second pillow gains indent — depression + shadow. The most subtle. |
+**Wrongness progression (The Witches):**
+The photograph changes like the girl in the painting in The Witches.
+Nobody comments. The player isn't sure it changed. On second
+playthrough they go straight to it and WATCH.
+
+| Tasks Done | Room Shifts | Photograph (if flipped) |
+|---|---|---|
+| 1 | Photograph moves 3cm | Afternoon → dusk. Shadow appears on one side. The light changed. |
+| 2 | Bathroom door cracks, amber light spills | (no change — the room takes focus) |
+| 3 | Earth glow shifts, champagne glass drifts, book shifts | Dusk → evening. Her red dress fades. Empty chair shadow appears. The café is emptying. |
+| 4 (all) | Second pillow gains indent | Evening → night. The café is closed. She's still there but barely visible. The red is almost gone — a memory of color. |
+
+The photograph does the "twos becoming ones" in miniature.
+A whole relationship ending inside a single image while the
+player is busy with the room. If they never flip it, they
+never see it change. If they do — the image degrades across
+the game like a memory losing resolution.
 
 ### The Paris Dream (STATE_PARIS_DREAM)
 A memory. The last good trip. Hard cut mid-suite. B&W Godard grain.

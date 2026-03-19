@@ -612,19 +612,37 @@ void suite_update(float dt) {
 
                         if (g.tasks_done == 2) PlaySuiteMusic(&g.audio);
 
-                        // ── WRONGNESS — Barton Fink layer ──
+                        // ── WRONGNESS — The Witches layer ──
                         // After each task, the room shifts. Not horror. Just... wrong.
                         // The wrongness IS the character's psychological state.
+                        // The photograph changes like the girl in the painting.
+                        // The background empties. The light shifts. Nobody comments.
                         if (g.tasks_done == 1) {
-                            // Photograph shifts slightly — did it move?
+                            // Photograph: the café background gets darker.
+                            // The afternoon light is fading. Was it always evening?
+                            if (g.photograph_flipped) {
+                                // Darken the photo base — afternoon → dusk
+                                for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                    Wall *w = &g.scene.walls[wi];
+                                    if (fabsf(w->pos.y - 0.64f) < 0.05f &&
+                                        w->size.y < 0.02f && w->size.x < 0.25f &&
+                                        w->color.r > 200 && w->color.r < 220) {
+                                        w->color = (Color){185,170,145,255}; // dusk sepia
+                                        break;
+                                    }
+                                }
+                                // A shadow appears on one side — the light changed
+                                add_wall_decal(&g.scene, -2.42f, 0.645f, -4.55f,
+                                    0.06f, 0.002f, 0.12f, (Color){140,125,105,200});
+                            }
+                            // Photograph also shifts position — did it move?
                             for (int wi = 0; wi < g.scene.wall_count; wi++) {
                                 if (fabsf(g.scene.walls[wi].pos.y - 0.64f) < 0.05f &&
                                     g.scene.walls[wi].size.y < 0.02f &&
                                     g.scene.walls[wi].size.x < 0.25f &&
-                                    g.scene.walls[wi].color.r > 230) {
+                                    g.scene.walls[wi].color.r > 130) {
                                     g.scene.walls[wi].pos.x += 0.03f;
                                     g.scene.walls[wi].pos.z += 0.02f;
-                                    break;
                                 }
                             }
                         } else if (g.tasks_done == 2) {
@@ -653,30 +671,79 @@ void suite_update(float dt) {
                                 }
                             }
                             // The second champagne glass drifts — 3 inches to the left
-                            // Did it always? You're not sure.
                             for (int wi = 0; wi < g.scene.wall_count; wi++) {
                                 Wall *w = &g.scene.walls[wi];
                                 if (w->pos.x > -2.7f && w->pos.x < -2.5f &&
                                     w->pos.y > 0.4f && w->pos.y < 0.5f &&
                                     w->pos.z > 3.2f && w->pos.z < 3.5f &&
                                     (w->shape == SHAPE_CYLINDER || w->shape == SHAPE_CONE)) {
-                                    w->pos.x -= 0.08f;  // subtle drift
+                                    w->pos.x -= 0.08f;
                                 }
                             }
-                            // Her book opens to a different page — spine rotates slightly
+                            // Her book shifts position
                             for (int wi = 0; wi < g.scene.wall_count; wi++) {
                                 Wall *w = &g.scene.walls[wi];
                                 if (w->pos.x < -2.4f && w->pos.x > -2.8f &&
                                     w->pos.y > 0.6f && w->pos.y < 0.7f &&
                                     w->pos.z < -4.7f && w->color.b > 150) {
-                                    w->pos.z += 0.04f;  // book shifted
+                                    w->pos.z += 0.04f;
                                     break;
                                 }
                             }
+                            // ── THE WITCHES — photograph task 3 ──
+                            // The red dot (her dress) fades. She's turning away.
+                            // The café chair beside her is empty now.
+                            if (g.photograph_flipped) {
+                                // Darken further — dusk → near-night
+                                for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                    Wall *w = &g.scene.walls[wi];
+                                    if (fabsf(w->pos.y - 0.64f) < 0.05f &&
+                                        w->size.y < 0.02f && w->size.x < 0.25f &&
+                                        w->color.r > 170 && w->color.r < 200) {
+                                        w->color = (Color){155,140,120,255}; // evening
+                                        break;
+                                    }
+                                }
+                                // Her dress fades — the red loses saturation
+                                for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                    Wall *w = &g.scene.walls[wi];
+                                    if (w->color.r > 180 && w->color.g < 60 && w->color.b < 60 &&
+                                        fabsf(w->pos.y - 0.645f) < 0.01f) {
+                                        w->color = (Color){140,90,75,150}; // faded red
+                                        break;
+                                    }
+                                }
+                                // Empty chair appears — a shadow where someone sat
+                                add_wall_decal(&g.scene, -2.55f, 0.645f, -4.42f,
+                                    0.025f, 0.002f, 0.025f, (Color){120,110,95,180});
+                            }
                         }
-                        // After ALL tasks: the second pillow gains an indent
-                        // The most subtle wrongness. On replay, devastating.
+                        // After ALL tasks: the photograph reaches final state
+                        // and the second pillow gains an indent.
+                        // The Witches: the girl has aged. The café is closed.
                         if (g.tasks_done == SPACE_TASK_COUNT) {
+                            if (g.photograph_flipped) {
+                                // Final state — near-black. Night. The café is closed.
+                                // She's still there but you can barely see her.
+                                for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                    Wall *w = &g.scene.walls[wi];
+                                    if (fabsf(w->pos.y - 0.64f) < 0.05f &&
+                                        w->size.y < 0.02f && w->size.x < 0.25f &&
+                                        w->color.r > 100 && w->color.r < 170) {
+                                        w->color = (Color){85,75,60,255}; // night
+                                        break;
+                                    }
+                                }
+                                // The red is almost gone — a memory of color
+                                for (int wi = 0; wi < g.scene.wall_count; wi++) {
+                                    Wall *w = &g.scene.walls[wi];
+                                    if (w->color.r > 120 && w->color.g < 100 && w->color.b < 90 &&
+                                        fabsf(w->pos.y - 0.645f) < 0.01f) {
+                                        w->color = (Color){90,70,60,80}; // nearly invisible
+                                        break;
+                                    }
+                                }
+                            }
                             // Find second pillow and add a slight depression
                             for (int wi = 0; wi < g.scene.wall_count; wi++) {
                                 Wall *w = &g.scene.walls[wi];
