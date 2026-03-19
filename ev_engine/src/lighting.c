@@ -430,21 +430,22 @@ static const char *fs_source =
     "            float atten = 1.0 / (1.0 + pDist * pDist / (pointRadius[i] * pointRadius[i] * 0.25));\n"
     "            atten *= smoothstep(pointRadius[i], pointRadius[i] * 0.5, pDist);\n"
     "            pointLit += pointColor[i] * NdotP * atten;\n"
-    "            // Light pool on floors\n"
+    "            // Light pool on floors — warm circles of life\n"
     "            if (norm.y > 0.9) {\n"
     "                float floorDist = length(fragPosition.xz - pointPos[i].xz);\n"
-    "                float poolR = pointRadius[i] * 0.25;\n"
-    "                float pool = smoothstep(poolR, poolR * 0.2, floorDist);\n"
-    "                pointLit += pointColor[i] * pool * 0.4 * atten;\n"
+    "                float poolR = pointRadius[i] * 0.35;\n"
+    "                float pool = smoothstep(poolR, poolR * 0.15, floorDist);\n"
+    "                pointLit += pointColor[i] * pool * 0.55 * atten;\n"
     "            }\n"
     "        }\n"
     "    }\n"
     "\n"
     "    // ── Rim light — edge catch, architectural silhouette ──\n"
-    "    // Broader + stronger than before. Makes geometry pop from background.\n"
+    "    // Uses mix of key + fill for per-scene color variation.\n"
     "    float rim = 1.0 - viewDot;\n"
-    "    rim = pow(rim, 2.5) * 0.30;\n"
-    "    vec3 rimColor = lightColor * rim;\n"
+    "    rim = pow(rim, 2.0) * 0.35;\n"
+    "    vec3 rimTint = mix(lightColor, fillColor, 0.4);\n"
+    "    vec3 rimColor = rimTint * rim;\n"
     "\n"
     "    // ── Specular — per-material power + intensity ──\n"
     "    // Variable hardness: rough materials = broad soft highlight,\n"
@@ -471,15 +472,15 @@ static const char *fs_source =
     "    float aoHeight = smoothstep(-0.5, 4.0, fragPosition.y);\n"
     "    // 3) Crease detection — where surfaces meet at angles\n"
     "    //    View-space normal curvature approximation\n"
-    "    float aoCrease = smoothstep(0.0, 0.3, viewDot);\n"
-    "    float ao = mix(0.45, 1.0, aoUp * mix(0.7, 1.0, aoHeight) * mix(0.6, 1.0, aoCrease));\n"
+    "    float aoCrease = smoothstep(0.0, 0.25, viewDot);\n"
+    "    float ao = mix(0.30, 1.0, aoUp * mix(0.6, 1.0, aoHeight) * mix(0.5, 1.0, aoCrease));\n"
     "\n"
     "    // Self-lit — only very bright surfaces glow (light fixtures, not walls)\n"
     "    float brightness = dot(baseColor, vec3(0.299, 0.587, 0.114));\n"
     "    float selfLit = smoothstep(0.85, 0.95, brightness) * 0.2;\n"
     "\n"
     "    // ── Fresnel — edges catch more light (architectural depth cue) ──\n"
-    "    float fresnel = pow(1.0 - viewDot, 3.0) * 0.12;\n"
+    "    float fresnel = pow(1.0 - viewDot, 2.5) * 0.18;\n"
     "\n"
     "    vec3 lit = baseColor * (ambient * ao * (1.0 - selfLit) + keyDiffuse + fillDiffuse + pointLit + selfLit)"
     "              + rimColor + specColor + vec3(fresnel);\n"
@@ -773,6 +774,9 @@ SceneLighting LightingPreset_Lobby(void) {
         .pointPos = {{-2.0f, 6.4f, -2.0f}, {-4, 6.4f, 0}, {4, 6.4f, -3}, {0, 3.5f, -5}},
         .pointColor = {{1.4f, 1.0f, 0.55f}, {0.15f, 0.12f, 0.06f}, {0.15f, 0.12f, 0.06f}, {0.30f, 0.22f, 0.12f}},
         .pointRadius = {7.0f, 5.0f, 5.0f, 4.0f},
+        .pointFlicker = {0.08f, 0.03f, 0.03f, 0.05f},
+        .pointPulse = {0.05f, 0, 0, 0.03f},
+        .pointPhase = {0.7f, 2.1f, 3.5f, 1.2f},
     };
 }
 
@@ -835,6 +839,9 @@ SceneLighting LightingPreset_Room(void) {
         .pointPos = {{0, 3.68f, 0}, {-2.5f, 0.85f, -3.8f}, {2.5f, 0.85f, -3.8f}},
         .pointColor = {{1.0f, 0.72f, 0.40f}, {0.65f, 0.48f, 0.26f}, {0.65f, 0.48f, 0.26f}},
         .pointRadius = {7.0f, 3.5f, 3.5f},
+        .pointFlicker = {0.04f, 0.12f, 0.12f},
+        .pointPulse = {0.06f, 0.03f, 0.03f},
+        .pointPhase = {0.5f, 1.8f, 3.1f},
     };
 }
 
@@ -883,6 +890,9 @@ SceneLighting LightingPreset_SpaceLobby(void) {
         .pointPos = {{0, 6.4f, -3.0f}, {-8, 3, 0}, {8, 3, 0}, {0, 0.5f, -6.0f}},
         .pointColor = {{0.9f, 0.65f, 0.35f}, {0.25f, 0.35f, 0.50f}, {0.25f, 0.35f, 0.50f}, {0.20f, 0.35f, 0.55f}},
         .pointRadius = {16.0f, 12.0f, 12.0f, 10.0f},
+        .pointFlicker = {0.06f, 0.02f, 0.02f, 0},
+        .pointPulse = {0.04f, 0.08f, 0.08f, 0.10f},
+        .pointPhase = {0.8f, 2.5f, 3.8f, 0.5f},
     };
 }
 
@@ -900,33 +910,52 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
         .pointPos = {{0, 2.0f, 0}, {0, 2.0f, 6}, {0, 2.0f, 12}, {-2, 1.5f, 12}},
         .pointColor = {{1.0f, 0.8f, 0.45f}, {0.9f, 0.7f, 0.40f}, {0.8f, 0.65f, 0.38f}, {0.25f, 0.38f, 0.70f}},
         .pointRadius = {18.0f, 18.0f, 18.0f, 12.0f},
+        .pointFlicker = {0.05f, 0.05f, 0.05f, 0},
+        .pointPulse = {0.03f, 0.03f, 0.03f, 0.06f},
+        .pointPhase = {0.3f, 1.7f, 3.3f, 0.9f},
     };
 }
 
 SceneLighting LightingPreset_SpaceSuite(void) {
-    // Space suite — warm amber interior vs cold Earth blue from window
-    // Hotel Chevalier in orbit: golden lamplight, blue void outside
-    // Half-Lambert note: Earth blue wraps beautifully now, pull intensities back
+    // Hotel Chevalier in orbit.
+    // The emotional equation: warm amber pools (intimacy) vs cold Earth blue (void).
+    // Dark corners are FEATURES — they make the lit zones precious.
+    // When you turn the lamp on, the room transforms. That's the arc.
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){-0.5f, -0.5f, -0.2f}),  // diagonal from window — shadows!
-        .keyColor = {0.35f, 0.45f, 0.60f},        // Earth blue key — pulled back, wrap does the work
-        .fillDir = Vector3Normalize((Vector3){0.3f, 0.4f, 0.2f}),
-        .fillColor = {0.20f, 0.16f, 0.10f},       // warmer floor bounce — amber undertone, raised for visibility
-        .ambient = {0.08f, 0.07f, 0.06f},          // raised — still moody but navigable
-        // 0: Ceiling above bed  1: Left bedside  2: Right bedside  3: Earth glow
-        // 4: Floor lamp (off)  5: Desk lamp (off)  6: Pendant  7: reserved
+        // Key: Earth blue from window — the dominant mood, diagonal for long shadows
+        .keyDir = Vector3Normalize((Vector3){-0.6f, -0.4f, -0.2f}),
+        .keyColor = {0.25f, 0.38f, 0.55f},
+        // Fill: warm amber bounce from floor/wood — the Hotel Chevalier glow
+        .fillDir = Vector3Normalize((Vector3){0.2f, 0.6f, 0.1f}),
+        .fillColor = {0.14f, 0.10f, 0.06f},
+        // Ambient: very low but warm-tinted — corners visible but moody
+        .ambient = {0.06f, 0.05f, 0.04f},
+        // 0: Ceiling wash above bed — wide, warm, the safe zone
+        // 1-2: Bedside lamps — warm intimate pools (the "twos")
+        // 3: Earth glow — strong cool blue from window, the emotional anchor
+        // 4: Floor lamp (off — interaction activates)
+        // 5: Desk lamp (off — interaction activates)
+        // 6: Pendant over coffee table — warm, creates living zone
+        // 7: Entry sconce — dim warm, breadcrumb to orient
         .pointPos = {
-            {0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6, 2, 0},
-            {-5.5f, 1.4f, -1.0f}, {6.0f, 0.6f, -1.5f}, {-3, 4.0f, 3.5f}, {0, 0, 0},
+            {0, 4.8f, -4.0f}, {-2.5f, 0.85f, -4.8f}, {2.5f, 0.85f, -4.8f}, {-6.5f, 2.5f, -0.5f},
+            {-5.5f, 1.4f, -1.0f}, {6.0f, 0.6f, -1.5f}, {-3, 4.0f, 3.5f}, {3, 2.2f, 5.5f},
         },
         .pointColor = {
-            {0.8f, 0.60f, 0.35f}, {0.7f, 0.52f, 0.30f}, {0.7f, 0.52f, 0.30f}, {0.15f, 0.30f, 0.55f},
-            {0, 0, 0}, {0, 0, 0}, {0.4f, 0.30f, 0.15f}, {0, 0, 0},
+            {0.70f, 0.50f, 0.28f},   // ceiling: warm amber
+            {0.55f, 0.40f, 0.22f},   // left bedside: intimate warm
+            {0.55f, 0.40f, 0.22f},   // right bedside: matching
+            {0.20f, 0.40f, 0.70f},   // Earth glow: STRONG cool blue — the anchor
+            {0, 0, 0},               // floor lamp: off
+            {0, 0, 0},               // desk lamp: off
+            {0.35f, 0.25f, 0.12f},   // pendant: warm dim
+            {0.20f, 0.15f, 0.08f},   // entry sconce: breadcrumb
         },
-        .pointRadius = {10.0f, 6.0f, 6.0f, 8.0f, 0, 0, 5.0f, 0},
-        .pointFlicker = {0, 0.03f, 0.03f, 0, 0, 0, 0, 0},
-        .pointPulse = {0.05f, 0, 0, 0.08f, 0, 0, 0.04f, 0},
-        .pointPhase = {1.0f, 2.3f, 3.7f, 0.3f, 0, 0, 1.8f, 0},
+        .pointRadius = {12.0f, 5.0f, 5.0f, 14.0f, 0, 0, 6.0f, 4.0f},
+        // Breathing — the room is alive. Lights flicker like real practicals.
+        .pointFlicker = {0.04f, 0.15f, 0.15f, 0, 0, 0, 0.08f, 0.06f},
+        .pointPulse = {0.08f, 0.04f, 0.04f, 0.12f, 0, 0, 0.06f, 0.03f},
+        .pointPhase = {1.0f, 2.3f, 3.7f, 0.3f, 0, 0, 1.8f, 4.2f},
     };
 }
 

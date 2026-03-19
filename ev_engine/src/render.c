@@ -161,19 +161,19 @@ static const char *postfx_fs =
     "        vec3 bloomCol = vec3(0.0);\n"
     "        float totalW = 0.0;\n"
     "        // Sample in a cross pattern at increasing distances (fake separable blur)\n"
-    "        for (int i = -6; i <= 6; i++) {\n"
-    "            float w = exp(-float(i*i) / 8.0);\n"  // Gaussian weight, sigma≈2
-    "            vec3 sH = texture(texture0, uv + vec2(float(i), 0) * px * 2.5).rgb;\n"
-    "            vec3 sV = texture(texture0, uv + vec2(0, float(i)) * px * 2.5).rgb;\n"
+    "        for (int i = -8; i <= 8; i++) {\n"
+    "            float w = exp(-float(i*i) / 12.0);\n"  // Gaussian weight, sigma≈3.5 (wider glow)
+    "            vec3 sH = texture(texture0, uv + vec2(float(i), 0) * px * 3.0).rgb;\n"
+    "            vec3 sV = texture(texture0, uv + vec2(0, float(i)) * px * 3.0).rgb;\n"
     "            // Threshold — only bloom bright pixels (light sources, specular)\n"
     "            float lH = dot(sH, vec3(0.299, 0.587, 0.114));\n"
     "            float lV = dot(sV, vec3(0.299, 0.587, 0.114));\n"
-    "            bloomCol += sH * max(lH - 0.5, 0.0) * w;\n"
-    "            bloomCol += sV * max(lV - 0.5, 0.0) * w;\n"
+    "            bloomCol += sH * max(lH - 0.35, 0.0) * w;\n"
+    "            bloomCol += sV * max(lV - 0.35, 0.0) * w;\n"
     "            totalW += w * 2.0;\n"
     "        }\n"
     "        bloomCol /= totalW;\n"
-    "        col += bloomCol * bloomAmt * 3.0;\n"
+    "        col += bloomCol * bloomAmt * 4.5;\n"
     "    }\n"
     "\n"
     "    // --- SSAO — subtle edge darkening (light touch at 960x600) ---\n"
@@ -185,8 +185,8 @@ static const char *postfx_fs =
     "        float neighbor_luma = dot(texture(texture0, uv + offset).rgb, vec3(0.299, 0.587, 0.114));\n"
     "        ao_accum += max(0.0, center_luma - neighbor_luma);\n"
     "    }\n"
-    "    float ssao = 1.0 - ao_accum * 0.2;\n"
-    "    col *= max(ssao, 0.7);\n"
+    "    float ssao = 1.0 - ao_accum * 0.45;\n"
+    "    col *= max(ssao, 0.55);\n"
     "\n"
     "    // --- Exposure ---\n"
     "    col *= exp2(exposure);\n"
@@ -433,7 +433,7 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed) {
 const VisualStyle visual_styles[STYLE_COUNT] = {
     // 1: Default — clean architectural photograph. Let the geometry speak.
     //    Minimal processing. Colors stay true. Grain is texture, not noise.
-    {"16mm Film",     1.0f,  0.8f, 0.9f, 0.7f, 0.3f,  0.08f, {1.01f,1.0f,0.99f},    0.0f,0.0f,0.15f, 0,  1,  0.3f},
+    {"16mm Film",     1.0f,  0.9f, 1.0f, 0.75f, 0.32f,  0.10f, {1.02f,1.0f,0.98f},    0.0f,0.0f,0.30f, 0,  1,  0.35f},
 
     // 2: PS1 — ordered dithering, color quantization, chunky pixels
     {"PS1",           0.85f, 0.5f, 0.8f, 0.4f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},
