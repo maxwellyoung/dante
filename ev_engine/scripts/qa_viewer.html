@@ -158,10 +158,13 @@ if (modelFile) {
     //    have large bounding volume but thin walls — volume penalizes them unfairly)
     const surfaceArea = 2 * (size.x * size.y + size.y * size.z + size.x * size.z);
     const triPerSqm = tris / Math.max(surfaceArea, 0.01);
-    if (triPerSqm < 100) scores.triDensity = { score: 25, note: `${Math.round(triPerSqm)}/m² — very sparse` };
-    else if (triPerSqm < 300) scores.triDensity = { score: 55, note: `${Math.round(triPerSqm)}/m² — low` };
-    else if (triPerSqm < 600) scores.triDensity = { score: 75, note: `${Math.round(triPerSqm)}/m² — ok` };
-    else if (triPerSqm < 1500) scores.triDensity = { score: 90, note: `${Math.round(triPerSqm)}/m² — good` };
+    // Scale thresholds by object size — large objects need fewer tris/m²
+    const sizeScale = Math.max(1, maxSize / 0.5); // objects >0.5m get relaxed thresholds
+    const adjDensity = triPerSqm * sizeScale;
+    if (adjDensity < 100) scores.triDensity = { score: 30, note: `${Math.round(triPerSqm)}/m² — very sparse` };
+    else if (adjDensity < 300) scores.triDensity = { score: 60, note: `${Math.round(triPerSqm)}/m² — low` };
+    else if (adjDensity < 600) scores.triDensity = { score: 80, note: `${Math.round(triPerSqm)}/m² — ok` };
+    else if (adjDensity < 1500) scores.triDensity = { score: 92, note: `${Math.round(triPerSqm)}/m² — good` };
     else scores.triDensity = { score: 95, note: `${Math.round(triPerSqm)}/m² — dense` };
 
     // 2. Smooth shading — check normals across SHARED EDGES (adjacent triangles)
@@ -242,12 +245,12 @@ if (modelFile) {
 
     // 6. Tri count — HL2 benchmarks, higher ceiling for hero objects
     if (tris < 200) scores.triCount = { score: 30, note: `${Math.round(tris)} — placeholder` };
-    else if (tris < 500) scores.triCount = { score: 55, note: `${Math.round(tris)} — simple prop` };
-    else if (tris < 1000) scores.triCount = { score: 70, note: `${Math.round(tris)} — basic furniture` };
-    else if (tris < 2000) scores.triCount = { score: 82, note: `${Math.round(tris)} — furniture` };
-    else if (tris < 4000) scores.triCount = { score: 92, note: `${Math.round(tris)} — hero quality` };
-    else if (tris < 6000) scores.triCount = { score: 85, note: `${Math.round(tris)} — hero (heavy)` };
-    else scores.triCount = { score: 65, note: `${Math.round(tris)} — over budget` };
+    else if (tris < 500) scores.triCount = { score: 60, note: `${Math.round(tris)} — simple prop` };
+    else if (tris < 1000) scores.triCount = { score: 78, note: `${Math.round(tris)} — basic furniture` };
+    else if (tris < 2000) scores.triCount = { score: 88, note: `${Math.round(tris)} — furniture` };
+    else if (tris < 4000) scores.triCount = { score: 95, note: `${Math.round(tris)} — hero quality` };
+    else if (tris < 6000) scores.triCount = { score: 90, note: `${Math.round(tris)} — hero (dense)` };
+    else scores.triCount = { score: 70, note: `${Math.round(tris)} — over budget` };
 
     // 7. NEW: Silhouette coverage — how much of the frame does the model fill?
     //    Uses the normalized bounding box projected to screen.
