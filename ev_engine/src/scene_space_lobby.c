@@ -47,8 +47,8 @@ void space_lobby_load(void) {
         init_npc(&g.gibbons, (Vector3){2, 1.6f, 4}, lobby_wps, 4, 2.5f, 3.5f);
         static const char *lobby_lines_first[] = {
             "The room's been ready for some time.",
-            "The window. Most people need a moment.",
-            "The corridor's longer than it looks.",
+            "Take your time.",
+            "This way.",
             "I'll be nearby.",
         };
         static const char *lobby_lines_return[] = {
@@ -107,15 +107,20 @@ void space_lobby_update(float dt) {
                 gibbons_looked = true;
             }
         }
-        // Earth text — once, when you reach the glass
+        // Earth needs no words. The speed change, the FOV, the glow — that's enough.
+        // Crouch at the glass: FOV widens, camera drops. A child looking up.
         {
-            static bool earth_text_shown = false;
-            if (pz < -5.0f && !earth_text_shown) {
-                earth_text_shown = true;
-                show_text("Oh.");
+            static bool crouch_reward = false;
+            if (pz < -5.0f && g.player.crouching && !crouch_reward) {
+                crouch_reward = true;
+                // Wider FOV — the planet fills your vision
+                g.player.fov_current = 85.0f;
+                set_exposure(0.15f);
+                SetPostFXGrain(&g.postfx, 0.15f);  // clarity — this is real
             }
-            if (pz > -4.0f && earth_text_shown && g.vig_text != NULL) {
-                // Walking away clears it
+            if (!g.player.crouching && crouch_reward) {
+                // Stand up — return to normal
+                crouch_reward = false;
             }
         }
     }

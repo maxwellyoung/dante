@@ -9,6 +9,17 @@ void transition_to(GameState s);
 
 void corridor_load(void) {
     build_space_corridor(&g.scene);
+    // Second playthrough: the corridor is shorter. Literally.
+    // "Same corridor. Shorter this time." — Gibbons was right.
+    if (g.backstory_count > 3) {
+        float shrink = 0.65f;
+        for (int i = 0; i < g.scene.wall_count; i++) {
+            g.scene.walls[i].pos.z *= shrink;
+            g.scene.walls[i].size.z *= shrink;
+        }
+        g.scene.spawn.z *= shrink;
+        if (g.scene.has_exit) g.scene.exit_pos.z *= shrink;
+    }
     init_player(&g.player, g.scene.spawn);
     StopAmbient(&g.audio);
     StopEarthPresence(&g.audio);
@@ -21,39 +32,44 @@ void corridor_load(void) {
     StartAmbient(&g.audio, DRONE_SPACE_CORRIDOR);
     PlayCorridorMusic(&g.audio);
     PlayDistantVoices(&g.audio);
-    PlayMuffledPiano(&g.audio);
-    PlaySound(g.audio.snd_running_water);
+    // Second playthrough: Four stopped playing. Six checked out.
+    // The corridor is quieter. The player notices what's missing.
+    if (g.backstory_count <= 3) {
+        PlayMuffledPiano(&g.audio);
+        PlaySound(g.audio.snd_running_water);
+    }
     PlaySound(g.audio.snd_tv_murmur);
-    g.door_positions[0] = (Vector3){-3.5f, 1.6f, 4.0f};
-    g.door_positions[1] = (Vector3){3.5f, 1.6f, 8.0f};
-    g.door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f};
+    {
+        float zs = g.backstory_count > 3 ? 0.65f : 1.0f;
+        g.door_positions[0] = (Vector3){-3.5f, 1.6f, 4.0f * zs};
+        g.door_positions[1] = (Vector3){3.5f, 1.6f, 8.0f * zs};
+        g.door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f * zs};
+    }
     SetSceneLighting(&g.lighting, LightingPreset_SpaceCorridor());
     set_exposure(0.08f);
     SetPostFXGrain(&g.postfx, 0.35f);
     // Room service tray outside Door 2 (Room Six) — two plates, one untouched
-    // "The gentleman in Six orders for two. Every night. Sends half back."
-    {
-        float tx = 3.5f, tz = 7.2f;  // just outside door 2
-        // Silver tray
+    // Second playthrough: "Six checked out. The trays stopped coming."
+    if (g.backstory_count <= 3) {
+        float tx = 3.5f, tz = 7.2f;
         add_wall(&g.scene, tx - 1.0f, 0.02f, tz, 0.5f, 0.02f, 0.3f, (Color){190, 185, 180, 220});
         set_last_material(&g.scene, MAT_BRASS);
         set_last_decal(&g.scene);
-        // Left plate — eaten, slightly tilted
         add_cylinder(&g.scene, tx - 1.15f, 0.05f, tz - 0.05f, 0.1f, 0.015f, (Color){240, 238, 232, 230});
-        // Right plate — untouched, silver dome still on
         add_cylinder(&g.scene, tx - 0.85f, 0.05f, tz + 0.05f, 0.1f, 0.015f, (Color){240, 238, 232, 230});
         add_sphere(&g.scene, tx - 0.85f, 0.12f, tz + 0.05f, 0.1f, (Color){190, 185, 180, 200});
         set_last_material(&g.scene, MAT_BRASS);
     }
-    // Do Not Disturb sign on Door 3 (the dark door)
+    // Do Not Disturb sign on Door 3
     add_wall(&g.scene, -3.5f + 0.03f, 1.3f, 11.6f, 0.15f, 0.08f, 0.005f, (Color){240, 238, 232, 200});
     set_last_decal(&g.scene);
     // Gibbons
     {
+        float zs = g.backstory_count > 3 ? 0.65f : 1.0f;
         Vector3 corr_wps[] = {
-            {0, 1.6f, 2},
-            {0, 1.6f, 8},
-            {0, 1.6f, 14},
+            {0, 1.6f, 2 * zs},
+            {0, 1.6f, 8 * zs},
+            {0, 1.6f, 14 * zs},
         };
         init_npc(&g.gibbons, g.scene.spawn, corr_wps, 3, 3.5f, 4.0f);
         static const char *corr_lines_first[] = {
@@ -86,6 +102,46 @@ void corridor_update(float dt) {
             g.gibbons.behavior = NPC_GESTURING;
         }
     }
+    // If the player bunny-hops far ahead, Gibbons stops and waits.
+    // He doesn't hurry. He doesn't comment. Infinite patience.
+    if (!g.gibbons.waiting && g.gibbons.active) {
+        float ahead = g.player.camera.position.z - g.gibbons.pos.z;
+        if (ahead > 6.0f) {
+            // Player is way ahead — Gibbons slows to a stop
+            g.gibbons.speed = 0.5f;
+        } else if (ahead > 3.0f) {
+            // Slightly ahead — Gibbons slows
+            g.gibbons.speed = 2.0f;
+        } else {
+            // Normal — Gibbons walks his pace
+            g.gibbons.speed = 3.5f;
+        }
+    }
+    // ── PARALLEL FOOTSTEPS — someone behind the wall ──
+    // Matches your pace. Stops when you stop. Starts a beat after you start.
+    // First playthrough only — on replay, the corridor is emptier.
+    if (g.backstory_count <= 3) {
+        static float ghost_delay = 0;
+        static bool ghost_was_moving = false;
+        bool player_moving = g.player.moving;
+        if (player_moving && !ghost_was_moving) {
+            ghost_delay = 0.4f;  // beat of silence before they start
+        }
+        if (ghost_delay > 0) ghost_delay -= dt;
+        bool ghost_moving = player_moving && ghost_delay <= 0;
+
+        // Footstep volume — muffled through wall, positional
+        float ghost_vol = ghost_moving ? 0.012f : 0;
+        // Pan to the opposite wall from the player
+        float ghost_pan = g.player.camera.position.x > 0 ? 0.2f : 0.8f;
+        SetSoundVolume(g.audio.snd_footsteps_above, ghost_vol);
+        SetSoundPan(g.audio.snd_footsteps_above, ghost_pan);
+        if (ghost_moving && !IsSoundPlaying(g.audio.snd_footsteps_above)) {
+            PlaySound(g.audio.snd_footsteps_above);
+        }
+        ghost_was_moving = player_moving;
+    }
+
     // Speed modulation near windows
     {
         float px = fabsf(g.player.camera.position.x);

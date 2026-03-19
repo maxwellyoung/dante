@@ -167,15 +167,15 @@ static void draw_choice(void) {
 
     int q_size = 16;
     int o_size = 14;
-    int pad = 12;
-    int bar_h = o_size + pad * 2;
+    int pad = 12 * UI_SCALE;
+    int bar_h = o_size * UI_SCALE + pad * 2;
 
     // Question — centered vertically
     int qy = RENDER_H / 2 - 50;
     draw_text_box(g.choice_question, qy, q_size, (Color){248, 245, 238, 240});
 
-    // Options — spaced so dark bars don't overlap
-    int oy = qy + q_size + pad * 2 + 8;
+    // Options — spaced so dark bars don't overlap (account for UI_SCALE in draw_text_box)
+    int oy = qy + q_size * UI_SCALE + pad * 2 + 8;
     unsigned char a_alpha = (g.choice_cursor == 0) ? 255 : 140;
     unsigned char b_alpha = (g.choice_cursor == 1) ? 255 : 140;
     Color ca = {248, 245, 238, a_alpha};

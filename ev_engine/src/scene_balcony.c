@@ -40,7 +40,7 @@ void balcony_update(float dt) {
         g.player.control_mult = balc_ctrl;
     }
     if (!g.cigarette_anim) update_player(&g.player, &g.scene, dt);
-    // Railing approach
+    // Railing approach + standing on the railing
     {
         float railing_z = -1.5f;
         float dist_to_rail = g.player.camera.position.z - railing_z;
@@ -48,6 +48,20 @@ void balcony_update(float dt) {
             float t = 1.0f - (dist_to_rail / 1.5f);
             g.player.fov_current += (80.0f - g.player.fov_current) * t * 0.06f;
             set_exposure(0.05f + t * 0.08f);
+        }
+        // Standing ON the railing — player jumped up in low-g (0.3x).
+        // No prompt. The physics just allow it. You're standing on a brass
+        // rail at the edge of a space station looking down at Earth.
+        // Reward: FOV opens wide, grain drops, the world clarifies.
+        float py = g.player.camera.position.y;
+        if (py > 2.2f && g.player.camera.position.z < -0.5f) {
+            // You're above the railing. You found a moment.
+            float above = fminf(1.0f, (py - 2.2f) / 1.0f);
+            g.player.fov_current += (90.0f - g.player.fov_current) * above * 0.08f;
+            set_exposure(0.12f + above * 0.1f);
+            SetPostFXGrain(&g.postfx, 0.5f - above * 0.35f);  // clarity at the edge
+            // The wind picks up
+            SetPostFXCA(&g.postfx, 2.5f + above * 3.0f);
         }
     }
     UpdateEVAudio(&g.audio, g.player.moving && !g.cigarette_anim, g.player.sprinting, g.scene.surface, dt);
@@ -99,22 +113,16 @@ void balcony_update(float dt) {
         PlaySparkleSound(&g.audio);
     }
     if (g.eiffel_sparkle) g.sparkle_timer += dt;
-    // Two chairs — the text appears when you're near the railing, looking out
-    {
-        static bool chairs_text_shown = false;
-        float pz = g.player.camera.position.z;
-        if (pz < -1.0f && !chairs_text_shown) {
-            chairs_text_shown = true;
-            show_text("Two chairs.");
-        }
-        // After cigarette animation — a beat of silence, then the thought
-        if (g.cigarette_anim == false && g.cigarette_anim_timer > 2.0f) {
-            static bool post_cig = false;
-            if (!post_cig) {
-                post_cig = true;
-                hide_text();
-                show_text("She would have loved this.");
-            }
+    // Two chairs face the void. Say nothing. The player sees them.
+    // After cigarette: the gust picks up. The room gets colder.
+    // The architecture speaks. Not the text.
+    if (!g.cigarette_anim && g.cigarette_anim_timer > 2.0f) {
+        static bool post_cig_chill = false;
+        if (!post_cig_chill) {
+            post_cig_chill = true;
+            // Post-cigarette: warmth drops, grain increases. The moment passed.
+            SetPostFXWarmth(&g.postfx, 0.6f);
+            SetPostFXGrain(&g.postfx, 0.65f);
         }
     }
     // Rug pull flash

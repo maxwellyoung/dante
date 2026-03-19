@@ -42,20 +42,8 @@ void exterior_update(float dt) {
             (g.player.camera.target.y - g.player.camera.position.y - 0.3f) / 0.5f);
         g.player.fov_current += (78.0f - g.player.fov_current) * look_up * 0.05f;
     }
-    // Auckland at 2 AM — timed text beats
-    {
-        static bool ext_text_1 = false;
-        static bool ext_text_2 = false;
-        // First beat — after the player has a second to look around
-        if (g.state_time > 2.0f && !ext_text_1) {
-            ext_text_1 = true;
-            show_text("The rain doesn't know it's 2 AM.");
-        }
-        if (g.state_time > 5.5f && ext_text_1 && !ext_text_2) {
-            hide_text();
-            ext_text_2 = true;
-        }
-    }
+    // Auckland at 2 AM. The rain. The tower. Say nothing.
+    // The player's first moment of free movement. Let them look.
     if (g.scene.has_exit) {
         float dist = Vector3Distance(g.player.camera.position, g.scene.exit_pos);
         if (dist < 3.0f) {

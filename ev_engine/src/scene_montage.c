@@ -487,9 +487,8 @@ void montage_update(float dt) {
         // Shot 6: Cleaned suite — every two becomes one
         if (shot == 6 && st > 1.5f && st < 2.0f)
             show_text("One.");
-        // Shot 10: Photograph — she's laughing
-        if (shot == 10 && st > 1.5f && st < 2.0f)
-            show_text("She's laughing.");
+        // Shot 10: Photograph — she's laughing. Say nothing.
+        // The player sees a warm photograph. They fill in the rest.
         // Shot 12: The void glass — the last image
         if (shot == 12 && st > 2.5f && st < 3.0f)
             show_text("Three hours.");
