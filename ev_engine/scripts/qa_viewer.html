@@ -151,74 +151,115 @@ if (modelFile) {
     const centerY = (scaledBox.max.y - scaledBox.min.y) * 0.5;
     setCameraAngle(angle, 1.0, centerY);
 
-    // ── AUTOMATED SCORING ──
+    // ── AUTOMATED SCORING v2 ──
     const scores = {};
-    const volume = size.x * size.y * size.z;
 
-    // 1. Tri density — tris per cubic meter (target: 2000-8000)
-    const triDensity = tris / Math.max(volume, 0.001);
-    if (triDensity < 500) scores.triDensity = { score: 20, note: `${Math.round(triDensity)}/m³ — way too low` };
-    else if (triDensity < 1500) scores.triDensity = { score: 50, note: `${Math.round(triDensity)}/m³ — low` };
-    else if (triDensity < 3000) scores.triDensity = { score: 75, note: `${Math.round(triDensity)}/m³ — ok` };
-    else if (triDensity < 8000) scores.triDensity = { score: 95, note: `${Math.round(triDensity)}/m³ — good` };
-    else scores.triDensity = { score: 80, note: `${Math.round(triDensity)}/m³ — high (wasteful?)` };
+    // 1. Tri density — use SURFACE AREA not volume (shell objects like pianos/bathtubs
+    //    have large bounding volume but thin walls — volume penalizes them unfairly)
+    const surfaceArea = 2 * (size.x * size.y + size.y * size.z + size.x * size.z);
+    const triPerSqm = tris / Math.max(surfaceArea, 0.01);
+    if (triPerSqm < 100) scores.triDensity = { score: 25, note: `${Math.round(triPerSqm)}/m² — very sparse` };
+    else if (triPerSqm < 300) scores.triDensity = { score: 55, note: `${Math.round(triPerSqm)}/m² — low` };
+    else if (triPerSqm < 600) scores.triDensity = { score: 75, note: `${Math.round(triPerSqm)}/m² — ok` };
+    else if (triPerSqm < 1500) scores.triDensity = { score: 90, note: `${Math.round(triPerSqm)}/m² — good` };
+    else scores.triDensity = { score: 95, note: `${Math.round(triPerSqm)}/m² — dense` };
 
-    // 2. Smooth shading ratio — % of faces with smooth normals
-    let smoothFaces = 0, totalFaces = 0;
+    // 2. Smooth shading — check normals across SHARED EDGES (adjacent triangles)
+    //    Build edge adjacency map: for each edge (pair of vertex indices), collect face normals.
+    //    If adjacent faces have similar normals → smooth. Different → hard edge.
+    let smoothEdges = 0, totalEdges = 0;
     model.traverse(c => {
       if (c.isMesh && c.geometry) {
+        const pos = c.geometry.attributes.position;
         const norm = c.geometry.attributes.normal;
         const idx = c.geometry.index;
-        if (norm && idx) {
-          for (let i = 0; i < idx.count; i += 3) {
-            totalFaces++;
-            const i0 = idx.getX(i), i1 = idx.getX(i+1), i2 = idx.getX(i+2);
-            // Check if normals are shared (smooth) vs face-aligned (flat)
-            const n0x = norm.getX(i0), n0y = norm.getY(i0), n0z = norm.getZ(i0);
-            const n1x = norm.getX(i1), n1y = norm.getY(i1), n1z = norm.getZ(i1);
-            const dot = n0x*n1x + n0y*n1y + n0z*n1z;
-            if (dot > 0.95) smoothFaces++;
+        if (!norm || !idx) return;
+
+        // Build face normals + edge map
+        const edgeMap = new Map();
+        const faceCount = idx.count / 3;
+        for (let f = 0; f < faceCount; f++) {
+          const i0 = idx.getX(f*3), i1 = idx.getX(f*3+1), i2 = idx.getX(f*3+2);
+          // Face normal from vertex normals (average)
+          const fn = {
+            x: (norm.getX(i0) + norm.getX(i1) + norm.getX(i2)) / 3,
+            y: (norm.getY(i0) + norm.getY(i1) + norm.getY(i2)) / 3,
+            z: (norm.getZ(i0) + norm.getZ(i1) + norm.getZ(i2)) / 3,
+          };
+          // Normalize
+          const len = Math.sqrt(fn.x*fn.x + fn.y*fn.y + fn.z*fn.z) || 1;
+          fn.x /= len; fn.y /= len; fn.z /= len;
+
+          const edges = [[i0,i1],[i1,i2],[i2,i0]];
+          for (const [a,b] of edges) {
+            const key = Math.min(a,b) + ',' + Math.max(a,b);
+            if (!edgeMap.has(key)) edgeMap.set(key, []);
+            edgeMap.get(key).push(fn);
           }
+        }
+
+        // Check each shared edge
+        for (const [, faces] of edgeMap) {
+          if (faces.length !== 2) continue; // boundary or non-manifold
+          totalEdges++;
+          const dot = faces[0].x*faces[1].x + faces[0].y*faces[1].y + faces[0].z*faces[1].z;
+          if (dot > 0.85) smoothEdges++; // faces agree within ~30°
         }
       }
     });
-    const smoothRatio = totalFaces > 0 ? smoothFaces / totalFaces : 0;
-    if (smoothRatio > 0.7) scores.smoothing = { score: 90, note: `${(smoothRatio*100).toFixed(0)}% smooth` };
-    else if (smoothRatio > 0.4) scores.smoothing = { score: 65, note: `${(smoothRatio*100).toFixed(0)}% smooth — some faceting` };
-    else scores.smoothing = { score: 30, note: `${(smoothRatio*100).toFixed(0)}% smooth — very faceted` };
+    const smoothRatio = totalEdges > 0 ? smoothEdges / totalEdges : 0;
+    if (smoothRatio > 0.85) scores.smoothing = { score: 95, note: `${(smoothRatio*100).toFixed(0)}% smooth edges` };
+    else if (smoothRatio > 0.7) scores.smoothing = { score: 80, note: `${(smoothRatio*100).toFixed(0)}% smooth` };
+    else if (smoothRatio > 0.5) scores.smoothing = { score: 60, note: `${(smoothRatio*100).toFixed(0)}% smooth — noticeable faceting` };
+    else scores.smoothing = { score: 35, note: `${(smoothRatio*100).toFixed(0)}% smooth — very faceted` };
 
-    // 3. Proportions — flag extreme aspect ratios
+    // 3. Proportions
     const aspectXZ = Math.max(size.x, size.z) / Math.max(Math.min(size.x, size.z), 0.01);
     const aspectY = size.y / Math.max(Math.max(size.x, size.z), 0.01);
-    let propScore = 90;
-    let propNote = 'balanced';
-    if (aspectXZ > 5 || aspectY > 5) { propScore = 40; propNote = `extreme ratio ${aspectXZ.toFixed(1)}:1 / ${aspectY.toFixed(1)}:1`; }
+    let propScore = 90, propNote = 'balanced';
+    if (aspectXZ > 5 || aspectY > 5) { propScore = 40; propNote = `extreme ${aspectXZ.toFixed(1)}:1`; }
     else if (aspectXZ > 3 || aspectY > 3) { propScore = 65; propNote = `stretched ${aspectXZ.toFixed(1)}:1`; }
     scores.proportions = { score: propScore, note: propNote };
 
-    // 4. Material variety — at least 2 materials for furniture
-    if (meshCount >= 2) scores.materials = { score: 90, note: `${meshCount} meshes — good separation` };
-    else if (meshCount === 1) scores.materials = { score: 50, note: '1 mesh — no material variety' };
-    else scores.materials = { score: 30, note: 'no meshes?' };
+    // 4. Materials
+    const uniqueMats = new Set();
+    model.traverse(c => { if (c.isMesh && c.material) {
+      const mats = Array.isArray(c.material) ? c.material : [c.material];
+      mats.forEach(m => uniqueMats.add(m.name || m.uuid));
+    }});
+    const matCount = uniqueMats.size;
+    if (matCount >= 3) scores.materials = { score: 95, note: `${matCount} materials — rich` };
+    else if (matCount >= 2) scores.materials = { score: 80, note: `${matCount} materials — ok` };
+    else scores.materials = { score: 45, note: `${matCount} material — monotone` };
 
-    // 5. Scale sanity — real-world dimensions check
+    // 5. Scale
     const maxSize = Math.max(size.x, size.y, size.z);
     const minSize = Math.min(size.x, size.y, size.z);
     if (maxSize > 10) scores.scale = { score: 30, note: `${maxSize.toFixed(1)}m — too large` };
     else if (maxSize < 0.05) scores.scale = { score: 30, note: `${maxSize.toFixed(3)}m — too small` };
-    else if (minSize < 0.01) scores.scale = { score: 50, note: `thin dimension: ${minSize.toFixed(3)}m` };
-    else scores.scale = { score: 90, note: `${maxSize.toFixed(2)}m max — realistic` };
+    else if (minSize < 0.01) scores.scale = { score: 50, note: `thin: ${minSize.toFixed(3)}m` };
+    else scores.scale = { score: 90, note: `${maxSize.toFixed(2)}m — realistic` };
 
-    // 6. Absolute tri count — HL2 benchmarks
-    if (tris < 200) scores.triCount = { score: 30, note: `${Math.round(tris)} — placeholder quality` };
+    // 6. Tri count — HL2 benchmarks, higher ceiling for hero objects
+    if (tris < 200) scores.triCount = { score: 30, note: `${Math.round(tris)} — placeholder` };
     else if (tris < 500) scores.triCount = { score: 55, note: `${Math.round(tris)} — simple prop` };
     else if (tris < 1000) scores.triCount = { score: 70, note: `${Math.round(tris)} — basic furniture` };
-    else if (tris < 2000) scores.triCount = { score: 85, note: `${Math.round(tris)} — good furniture` };
-    else if (tris < 4000) scores.triCount = { score: 95, note: `${Math.round(tris)} — hero quality` };
-    else scores.triCount = { score: 75, note: `${Math.round(tris)} — possibly over-budget` };
+    else if (tris < 2000) scores.triCount = { score: 82, note: `${Math.round(tris)} — furniture` };
+    else if (tris < 4000) scores.triCount = { score: 92, note: `${Math.round(tris)} — hero quality` };
+    else if (tris < 6000) scores.triCount = { score: 85, note: `${Math.round(tris)} — hero (heavy)` };
+    else scores.triCount = { score: 65, note: `${Math.round(tris)} — over budget` };
+
+    // 7. NEW: Silhouette coverage — how much of the frame does the model fill?
+    //    Uses the normalized bounding box projected to screen.
+    const projBox = new THREE.Box3().setFromObject(model);
+    const projSize = projBox.getSize(new THREE.Vector3());
+    const frameFill = Math.max(projSize.x, projSize.y) / 1.2; // ~0-1 range
+    if (frameFill > 0.3) scores.coverage = { score: 90, note: `${(frameFill*100).toFixed(0)}% frame fill` };
+    else if (frameFill > 0.15) scores.coverage = { score: 70, note: `${(frameFill*100).toFixed(0)}% — small in frame` };
+    else scores.coverage = { score: 40, note: `${(frameFill*100).toFixed(0)}% — tiny, lost detail` };
 
     // Weighted total
-    const weights = { triDensity: 20, smoothing: 25, proportions: 15, materials: 10, scale: 10, triCount: 20 };
+    const weights = { triDensity: 15, smoothing: 25, proportions: 10, materials: 10, scale: 10, triCount: 20, coverage: 10 };
     let totalScore = 0, totalWeight = 0;
     for (const [k, w] of Object.entries(weights)) {
       if (scores[k]) { totalScore += scores[k].score * w; totalWeight += w; }
