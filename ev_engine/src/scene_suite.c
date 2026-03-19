@@ -333,38 +333,61 @@ void suite_update(float dt) {
         }
     }
     // Bed ritual — the emotional center of the game
-    // Phase 1: lying down (camera descends, looks at ceiling)
+    // Phase 1: lying down (camera descends, drifts to bed center, looks at ceiling)
     if (g.interaction_phases[3] == 1) {
         g.interaction_timers[3] -= dt;
         float bt = fminf(1.0f, 1.0f - g.interaction_timers[3] / 3.0f);
+        // Smoothstep for natural easing
+        float s = bt * bt * (3.0f - 2.0f * bt);
         // Camera sinks to pillow height
-        float target_y = 1.6f - bt * 0.9f; // 1.6 → 0.7
+        float target_y = 1.6f - s * 0.9f; // 1.6 → 0.7
         g.player.camera.position.y += (target_y - g.player.camera.position.y) * dt * 2.0f;
-        // Look up at ceiling
+        // Drift toward right pillow position (your side of the bed)
+        g.player.camera.position.x += (0.5f - g.player.camera.position.x) * dt * 1.2f * s;
+        g.player.camera.position.z += (-4.8f - g.player.camera.position.z) * dt * 1.2f * s;
+        // Look up at ceiling — the last thing you see
         g.player.camera.target.y += (3.5f - g.player.camera.target.y) * dt * 1.5f;
-        // Agency drains
+        g.player.camera.target.x += (0.5f - g.player.camera.target.x) * dt * 1.0f * s;
+        g.player.camera.target.z += (-4.8f - g.player.camera.target.z) * dt * 1.0f * s;
+        // Agency drains — you chose this by being still
         g.player.control_mult = fmaxf(0.0f, 0.3f - bt * 0.3f);
+        // FOV narrows — the world contracts to this bed
+        g.player.fov_current += (55.0f - g.player.fov_current) * dt * 0.8f * s;
         if (g.interaction_timers[3] <= 0) {
             g.interaction_phases[3] = 2;
             g.player.control_mult = 0.0f; // fully surrendered
         }
     }
     // Phase 2: holding — the game holds you. Earth rotates. Music plays.
+    // You're lying in a bed booked for two and the music plays
+    // and the Earth rotates and the game holds you.
     if (g.interaction_phases[3] == 2) {
-        // Gentle breathing camera
+        // Gentle breathing camera — the body at rest
         float breath = sinf(g.state_time * 0.4f) * 0.003f;
+        g.player.camera.position.x = 0.5f;
         g.player.camera.position.y = 0.72f + breath;
-        g.player.camera.target.y = 3.5f + breath * 2.0f;
+        g.player.camera.position.z = -4.8f;
+        // Look at ceiling — but slowly drift toward the other pillow
+        // The indent is to your left. You don't choose to look. You drift.
+        if (g.agency_removal_timer < 0.01f) g.agency_removal_timer = g.state_time;
+        float hold_time = g.state_time - g.agency_removal_timer;
+        float drift = fminf(1.0f, hold_time / 12.0f);
+        float drift_s = drift * drift * (3.0f - 2.0f * drift); // smoothstep
+        // Target drifts from ceiling to the other pillow
+        g.player.camera.target.x = 0.5f - drift_s * 1.0f; // toward her pillow
+        g.player.camera.target.y = 3.5f - drift_s * 2.8f + breath * 2.0f; // ceiling → pillow level
+        g.player.camera.target.z = -4.8f - drift_s * 0.3f;
+        g.player.fov_current += (50.0f - g.player.fov_current) * dt * 0.5f;
         g.player.control_mult = 0.0f;
         // Progressive warmth — the room accepts you
-        float hold_time = g.state_time - g.agency_removal_timer;
-        if (g.agency_removal_timer < 0.01f) g.agency_removal_timer = g.state_time;
-        hold_time = g.state_time - g.agency_removal_timer;
         float warm = fminf(1.0f, hold_time / 15.0f);
         SetPostFXWarmth(&g.postfx, warm);
+        // Grain drops — clarity in stillness
+        SetPostFXGrain(&g.postfx, 0.35f - warm * 0.25f);
         // After 20 seconds: hard cut to Paris dream
         if (hold_time > 20.0f) {
             g.player.control_mult = 1.0f;
+            g.player.fov_current = 70.0f;
             hard_cut_to(STATE_PARIS_DREAM);
         }
     }
@@ -589,8 +612,16 @@ void suite_update(float dt) {
                         g.player.control_mult = 0.3f;
                         // Bed auto-completes via interaction_phases[3]==2 (already wired)
                     } else if (strcmp(obj->name, "champagne") == 0 && obj->step == 1) {
+                        // ── CORK POP — the room was expecting you ──
+                        PlayInteract(&g.audio, INTERACT_CORK_POP);
+                        particle_burst(&g.particles, (Vector3){-3.1f, 0.6f, 3.5f}, EMIT_SPARKS, 15, 0.4f);
+                        // ONE glass fills — gold liquid appears inside the left glass
+                        // The glass itself (cone+cylinder = stem+bowl)
                         add_cone(&g.scene, -3.1f, 0.39f, 3.5f, 0.06f, 0.08f, (Color){210,210,215,200});
                         add_cylinder(&g.scene, -3.1f, 0.44f, 3.5f, 0.02f, 0.08f, (Color){210,210,215,200});
+                        // Gold liquid surface inside the glass
+                        add_wall_decal(&g.scene, -3.1f, 0.46f, 3.5f, 0.045f, 0.003f, 0.045f,
+                            (Color){240,210,100,200});
                         if (zone_auto) zone_auto_champ = true;
                     }
 
@@ -598,8 +629,13 @@ void suite_update(float dt) {
                         PlayInteract(&g.audio, INTERACT_GLASS_CLINK);
                         g.interaction_phases[1] = 1;
                         g.interaction_timers[1] = 2.0f;
-                        // Champagne pop — burst of gold sparks
-                        particle_burst(&g.particles, (Vector3){-3.1f, 0.5f, 3.5f}, EMIT_SPARKS, 20, 0.3f);
+                        // ── THE EMPTY GLASS — the washing-line moment ──
+                        // The second glass. Identical. Empty.
+                        // It stays here for the rest of the game.
+                        // Nobody comments. The most violent image. Completely still.
+                        add_cone(&g.scene, -2.8f, 0.39f, 3.3f, 0.06f, 0.08f, (Color){210,210,215,200});
+                        add_cylinder(&g.scene, -2.8f, 0.44f, 3.3f, 0.02f, 0.08f, (Color){210,210,215,200});
+                        // No liquid. Empty. That's the point.
                     }
 
                     if (obj->step >= obj->max_steps) {
