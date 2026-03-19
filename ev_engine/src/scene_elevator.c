@@ -29,14 +29,18 @@ void elevator_load(void) {
         Vector3 elev_wps[] = { {0, 1.6f, -0.5f} };
         init_npc(&g.gibbons, (Vector3){0.5f, 1.6f, -0.5f}, elev_wps, 1, 0.5f, 2.0f);
         g.gibbons.behavior = NPC_WAITING;
-        static const char *elev_lines[] = { "Almost there." };
-        npc_set_dialogue(&g.gibbons, elev_lines, 1, 3.0f);
+        static const char *elev_first[] = { "The view from this floor. You'll see." };
+        static const char *elev_return[] = { "Same floor. Same view." };
+        npc_set_dialogue(&g.gibbons,
+            g.backstory_count > 3 ? elev_return : elev_first, 1, 3.5f);
     } else {
         Vector3 elev_wps[] = { {0.5f, 1.6f, 0} };
         init_npc(&g.gibbons, (Vector3){0.5f, 1.6f, 0}, elev_wps, 1, 0.5f, 2.0f);
         g.gibbons.behavior = NPC_WAITING;
-        static const char *elev_lines[] = { "Going up." };
-        npc_set_dialogue(&g.gibbons, elev_lines, 1, 2.5f);
+        static const char *elev_first[] = { "The building knows where you're going." };
+        static const char *elev_return[] = { "It remembers you." };
+        npc_set_dialogue(&g.gibbons,
+            g.backstory_count > 3 ? elev_return : elev_first, 1, 3.0f);
     }
 
     if (g.elevator_to_corridor) {

@@ -45,13 +45,22 @@ void space_lobby_load(void) {
             {0, 1.6f, 0},
         };
         init_npc(&g.gibbons, (Vector3){2, 1.6f, 4}, lobby_wps, 4, 2.5f, 3.5f);
-        static const char *lobby_lines[] = {
+        static const char *lobby_lines_first[] = {
             "The room's been ready for some time.",
             "The window. Most people need a moment.",
             "The corridor's longer than it looks.",
             "I'll be nearby.",
         };
-        npc_set_dialogue(&g.gibbons, lobby_lines, 4, 3.5f);
+        static const char *lobby_lines_return[] = {
+            "I thought you might come back.",
+            "The window hasn't moved.",
+            "Same corridor. Shorter this time.",
+            "You know where to find me.",
+        };
+        if (g.backstory_count > 3)
+            npc_set_dialogue(&g.gibbons, lobby_lines_return, 4, 3.5f);
+        else
+            npc_set_dialogue(&g.gibbons, lobby_lines_first, 4, 3.5f);
     }
 }
 
@@ -89,13 +98,24 @@ void space_lobby_update(float dt) {
                 ? 0.08f * (1.0f - window_dist / 5.0f) : 0.0f;
             SetEarthPresenceVolume(&g.audio, sub_vol * pulse);
         }
-        // Gibbons head turn
+        // Gibbons head turn — he watches you see it
         {
             static bool gibbons_looked = false;
             if (pz < -3.0f && !gibbons_looked && g.gibbons.active) {
                 g.gibbons.yaw = atan2f(-8.0f - g.gibbons.pos.z,
                                        0.0f - g.gibbons.pos.x);
                 gibbons_looked = true;
+            }
+        }
+        // Earth text — once, when you reach the glass
+        {
+            static bool earth_text_shown = false;
+            if (pz < -5.0f && !earth_text_shown) {
+                earth_text_shown = true;
+                show_text("Oh.");
+            }
+            if (pz > -4.0f && earth_text_shown && g.vig_text != NULL) {
+                // Walking away clears it
             }
         }
     }

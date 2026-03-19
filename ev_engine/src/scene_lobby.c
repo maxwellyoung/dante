@@ -24,6 +24,10 @@ void lobby_load(void) {
     SetSceneLighting(&g.lighting, LightingPreset_Lobby());
     set_exposure(0.0f);
     SetPostFXGrain(&g.postfx, 0.4f);
+    // Guest book on reception desk — found text
+    add_object(&g.scene, 3.5f, 1.05f, -2.0f, "guestbook", (Color){85,65,40,255}, 1);
+    // Coffee cups on the table for two — one drunk, one untouched
+    add_object(&g.scene, -4.5f, 0.72f, 2.0f, "coffeetable", (Color){220,215,205,230}, 1);
     // Gibbons
     {
         Vector3 lobby_wps[] = {
@@ -32,12 +36,23 @@ void lobby_load(void) {
             {0, 1.6f, 2},
         };
         init_npc(&g.gibbons, (Vector3){-3, 1.6f, -7}, lobby_wps, 3, 2.0f, 4.0f);
-        static const char *lobby_lines[] = {
+        // Second playthrough: Gibbons has seen you before. He knows.
+        static const char *lobby_lines_first[] = {
             "Ah. We have your reservation.",
             "The building makes sounds at night. They're structural.",
             "The elevator knows the way.",
         };
-        npc_set_dialogue(&g.gibbons, lobby_lines, 3, 3.5f);
+        static const char *lobby_lines_return[] = {
+            "Back again.",
+            "Same room. I kept it.",
+            "You know the way.",
+        };
+        if (g.backstory_count > 3) {
+            // Second playthrough — prologue + taxi choices already made
+            npc_set_dialogue(&g.gibbons, lobby_lines_return, 3, 3.5f);
+        } else {
+            npc_set_dialogue(&g.gibbons, lobby_lines_first, 3, 3.5f);
+        }
     }
 }
 
@@ -102,6 +117,22 @@ void lobby_update(float dt) {
                         obj->step++; obj->done = true;
                         PlayElevatorDing(&g.audio);
                         kick_camera(&g.player, -0.01f, 0.005f);
+                        break;
+                    }
+                    if (strcmp(obj->name, "guestbook") == 0) {
+                        obj->step++; obj->done = true;
+                        PlayInteract(&g.audio, INTERACT_FABRIC);
+                        // The last entry. Two names crossed out, one written back.
+                        if (g.backstory_count > 3)
+                            show_text("Your name. Again.");
+                        else
+                            show_text("Two names on the booking. One crossed out.");
+                        break;
+                    }
+                    if (strcmp(obj->name, "coffeetable") == 0) {
+                        obj->step++; obj->done = true;
+                        PlayInteract(&g.audio, INTERACT_CLICK);
+                        show_text("Two cups. One cold.");
                         break;
                     }
                 }

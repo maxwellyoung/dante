@@ -476,6 +476,27 @@ void montage_update(float dt) {
         g.player.camera.target.y += sinf(g.montage_shot_time * 0.6f) * 0.001f;
     }
 
+    // ── Per-shot text — not all. Restraint. ──
+    // Only the shots that need a word. The rest speak for themselves.
+    {
+        float st = g.montage_shot_time;
+        int shot = g.montage_shot;
+        // Shot 0: Taxi ticket — the first "two"
+        if (shot == 0 && st > 1.0f && st < 1.5f)
+            show_text("2 guests.");
+        // Shot 6: Cleaned suite — every two becomes one
+        if (shot == 6 && st > 1.5f && st < 2.0f)
+            show_text("One.");
+        // Shot 10: Photograph — she's laughing
+        if (shot == 10 && st > 1.5f && st < 2.0f)
+            show_text("She's laughing.");
+        // Shot 12: The void glass — the last image
+        if (shot == 12 && st > 2.5f && st < 3.0f)
+            show_text("Three hours.");
+        // Clear text between shots
+        if (st < 0.1f) hide_text();
+    }
+
     // Three-note callback — plays during shot 10 (photograph)
     if (g.montage_shot == 10 && !g.three_note_played && g.montage_shot_time > 0.5f) {
         PlayThreeNote(&g.audio);

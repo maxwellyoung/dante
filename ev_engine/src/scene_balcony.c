@@ -7,6 +7,8 @@ extern GameCtx g;
 
 void set_exposure(float exp);
 void hard_cut_to(GameState s);
+void show_text(const char *text);
+void hide_text(void);
 
 void balcony_load(void) {
     build_balcony(&g.scene);
@@ -97,6 +99,24 @@ void balcony_update(float dt) {
         PlaySparkleSound(&g.audio);
     }
     if (g.eiffel_sparkle) g.sparkle_timer += dt;
+    // Two chairs — the text appears when you're near the railing, looking out
+    {
+        static bool chairs_text_shown = false;
+        float pz = g.player.camera.position.z;
+        if (pz < -1.0f && !chairs_text_shown) {
+            chairs_text_shown = true;
+            show_text("Two chairs.");
+        }
+        // After cigarette animation — a beat of silence, then the thought
+        if (g.cigarette_anim == false && g.cigarette_anim_timer > 2.0f) {
+            static bool post_cig = false;
+            if (!post_cig) {
+                post_cig = true;
+                hide_text();
+                show_text("She would have loved this.");
+            }
+        }
+    }
     // Rug pull flash
     if (g.state_time > 8.0f && !g.balcony_flash_triggered) {
         g.balcony_flash_triggered = true;

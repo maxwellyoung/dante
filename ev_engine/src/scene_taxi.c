@@ -112,64 +112,86 @@ void taxi_update(float dt) {
         g.player.camera.fovy = 70.0f + ramp * 20.0f;
     }
 
-    // ── Option B: taxi choices — internal, diegetic ──
-    // The driver talks. You answer inside your head.
-    // The choices don't change the game. They change the player.
+    // ── Taxi dialogue — first play has choices, replay is silent ──
     {
         float t = g.state_time;
+        bool replay = g.backstory_count > 3;
 
-        // Beat 1: Location
-        if (t > 1.5f && t < 2.0f) show_text("Auckland. 2:47 AM.");
-        if (t > 4.0f && t < 4.5f) hide_text();
+        if (!replay) {
+            // ── FIRST PLAY: driver talks, you answer inside your head ──
+            // Beat 1: Location
+            if (t > 1.5f && t < 2.0f) show_text("Auckland. 2:47 AM.");
+            if (t > 4.0f && t < 4.5f) hide_text();
 
-        // Beat 2: "The tower, yeah?"
-        if (t > 5.0f && t < 5.5f && g.backstory_phase == 0) {
-            show_text("The tower, yeah?");
-        }
-        if (t > 7.0f && g.backstory_phase == 0) {
-            hide_text();
-            show_choice("", "She wanted to see it.", "I have a reservation.");
-            g.backstory_phase = 1;
-        }
-        if (g.backstory_phase == 1 && poll_choice() >= 0) {
-            g.backstory_phase = 2;
-            hide_text();
-        }
+            // Beat 2: "The tower, yeah?"
+            if (t > 5.0f && t < 5.5f && g.backstory_phase == 0) {
+                show_text("The tower, yeah?");
+            }
+            if (t > 7.0f && g.backstory_phase == 0) {
+                hide_text();
+                show_choice("", "She wanted to see it.", "I have a reservation.");
+                g.backstory_phase = 1;
+            }
+            if (g.backstory_phase == 1 && poll_choice() >= 0) {
+                g.backstory_phase = 2;
+                hide_text();
+            }
 
-        // Beat 3: "They put a hotel up there. Three hours, in and out."
-        if (g.backstory_phase == 2 && t > 9.0f && g.backstory_phase < 3) {
-            show_text("They put a hotel up there. Three hours, in and out.");
-            g.backstory_phase = 3;
-        }
-        if (g.backstory_phase == 3 && t > 11.0f) {
-            hide_text();
-            show_choice("", "We booked it months ago.", "So I hear.");
-            g.backstory_phase = 4;
-        }
-        if (g.backstory_phase == 4 && poll_choice() >= 0) {
-            g.backstory_phase = 5;
-            hide_text();
-        }
+            // Beat 3: "They put a hotel up there. Three hours, in and out."
+            if (g.backstory_phase == 2 && t > 9.0f && g.backstory_phase < 3) {
+                show_text("They put a hotel up there. Three hours, in and out.");
+                g.backstory_phase = 3;
+            }
+            if (g.backstory_phase == 3 && t > 11.0f) {
+                hide_text();
+                show_choice("", "We booked it months ago.", "So I hear.");
+                g.backstory_phase = 4;
+            }
+            if (g.backstory_phase == 4 && poll_choice() >= 0) {
+                g.backstory_phase = 5;
+                hide_text();
+            }
 
-        // Beat 4: "At this hour, you've got the whole city to yourself."
-        if (g.backstory_phase >= 5 && t > 13.0f && g.backstory_phase < 6) {
-            show_text("At this hour, you've got the whole city to yourself.");
-            g.backstory_phase = 6;
-        }
+            // Beat 4: "At this hour, you've got the whole city to yourself."
+            if (g.backstory_phase >= 5 && t > 13.0f && g.backstory_phase < 6) {
+                show_text("At this hour, you've got the whole city to yourself.");
+                g.backstory_phase = 6;
+            }
 
-        // Hard cut to hyperspace — slightly later to accommodate choices
-        if (g.backstory_phase >= 5 && t > 15.0f) {
-            hide_text();
-            g.player.camera.fovy = 70.0f;
-            SetPostFXCA(&g.postfx, 2.5f);
-            hard_cut_to(STATE_HYPERSPACE);
-        }
-        // Skip (Enter) — only after first choice answered
-        if (IsKeyPressed(KEY_ENTER) && !g.choice_active && g.backstory_phase >= 2 && t > 5) {
-            hide_text();
-            g.player.camera.fovy = 70.0f;
-            SetPostFXCA(&g.postfx, 2.5f);
-            hard_cut_to(STATE_HYPERSPACE);
+            // Hard cut to hyperspace
+            if (g.backstory_phase >= 5 && t > 15.0f) {
+                hide_text();
+                g.player.camera.fovy = 70.0f;
+                SetPostFXCA(&g.postfx, 2.5f);
+                hard_cut_to(STATE_HYPERSPACE);
+            }
+            if (IsKeyPressed(KEY_ENTER) && !g.choice_active && g.backstory_phase >= 2 && t > 5) {
+                hide_text();
+                g.player.camera.fovy = 70.0f;
+                SetPostFXCA(&g.postfx, 2.5f);
+                hard_cut_to(STATE_HYPERSPACE);
+            }
+        } else {
+            // ── SECOND PLAY: no choices, just the ride. You know where you're going. ──
+            if (t > 1.5f && t < 2.0f) show_text("Auckland. 2:47 AM.");
+            if (t > 4.0f && t < 4.5f) hide_text();
+
+            // The driver says nothing. The radio plays. You watch the city.
+            if (t > 7.0f && t < 7.5f) show_text("Same city. Same hour.");
+            if (t > 10.0f && t < 10.5f) hide_text();
+            if (t > 11.0f && t < 11.5f) show_text("You know the way.");
+            if (t > 13.5f) {
+                hide_text();
+                g.player.camera.fovy = 70.0f;
+                SetPostFXCA(&g.postfx, 2.5f);
+                hard_cut_to(STATE_HYPERSPACE);
+            }
+            if (IsKeyPressed(KEY_ENTER) && t > 5) {
+                hide_text();
+                g.player.camera.fovy = 70.0f;
+                SetPostFXCA(&g.postfx, 2.5f);
+                hard_cut_to(STATE_HYPERSPACE);
+            }
         }
     }
 }

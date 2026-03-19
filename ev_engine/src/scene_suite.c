@@ -55,12 +55,20 @@ void suite_load(void) {
         };
         init_npc(&g.gibbons, (Vector3){0, 1.6f, 5.5f}, suite_wps, 3, 2.0f, 3.0f);
         g.gibbons.behavior = NPC_GESTURING;  // starts gesturing at door
-        static const char *suite_lines[] = {
+        static const char *suite_lines_first[] = {
             "Everything as specified.",
             "The champagne was in the booking.",
             "Three hours passes differently up here.",
         };
-        npc_set_dialogue(&g.gibbons, suite_lines, 3, 4.0f);
+        static const char *suite_lines_return[] = {
+            "As you left it.",
+            "I didn't touch the glass.",
+            "Same three hours. Take your time.",
+        };
+        if (g.backstory_count > 3)
+            npc_set_dialogue(&g.gibbons, suite_lines_return, 3, 4.0f);
+        else
+            npc_set_dialogue(&g.gibbons, suite_lines_first, 3, 4.0f);
     }
     // Thermostat — interactable (changes room warmth)
     add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 3);
