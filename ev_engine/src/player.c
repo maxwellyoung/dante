@@ -2,6 +2,7 @@
 // Quake air strafing, bunny hopping, wall running, ledge mantling,
 // crouch jumping, dash, coyote time, jump buffering, momentum slides
 #include "player.h"
+#include "config.h"
 #include "raymath.h"
 #include <math.h>
 #include <stddef.h>
@@ -209,7 +210,7 @@ static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
 
                 if (w->rotation_y != 0.0f) {
                     // Rotated: transform to local space, solve, transform back
-                    float angle = -w->rotation_y * (3.14159265f / 180.0f);
+                    float angle = -w->rotation_y * (PI / 180.0f);
                     float lx = new_pos->x - w->pos.x;
                     float lz = new_pos->z - w->pos.z;
                     rotate_xz(&lx, &lz, angle);
@@ -395,7 +396,7 @@ static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
 
 void update_player(Player *p, Scene *scene, float dt) {
     // ── Clamp dt to prevent tunneling on frame spikes ────────────
-    if (dt > 0.05f) dt = 0.05f;
+    if (dt > PHYS_MAX_DT) dt = PHYS_MAX_DT;
 
     // ── Mantle in progress ──────────────────────────────────────────
     if (p->mantling) {
@@ -676,7 +677,7 @@ void update_player(Player *p, Scene *scene, float dt) {
         // smaller steps so we can't skip through thin walls at speed
         float disp = sqrtf(p->vel.x * p->vel.x + p->vel.z * p->vel.z) * dt;
         int substeps = (int)(disp / (phys.player_radius * 0.8f)) + 1;
-        if (substeps > 4) substeps = 4;
+        if (substeps > PHYS_MAX_SUBSTEPS) substeps = PHYS_MAX_SUBSTEPS;
         float sub_dt = dt / (float)substeps;
         CollisionInfo col = {false, {0,0,0}, NULL, 0, 0};
         for (int si = 0; si < substeps; si++) {
@@ -733,7 +734,7 @@ void update_player(Player *p, Scene *scene, float dt) {
                     hz = w->size.z / 2 + 0.3f;
                     if (w->rotation_y != 0.0f) {
                         // Rotated ground: test in local space
-                        float angle = -w->rotation_y * (3.14159265f / 180.0f);
+                        float angle = -w->rotation_y * (PI / 180.0f);
                         float lx = new_pos.x - w->pos.x;
                         float lz = new_pos.z - w->pos.z;
                         rotate_xz(&lx, &lz, angle);
@@ -821,6 +822,9 @@ void update_player(Player *p, Scene *scene, float dt) {
                 p->vy = 0;
                 p->jump_buffer = 0;
                 p->wall_running = false;
+                // Commit collision-resolved position before early return
+                p->camera.position = new_pos;
+                p->camera.target = Vector3Add(new_pos, forward);
                 return;
             }
         } else if (can_jump && wants_jump) {
@@ -847,6 +851,9 @@ void update_player(Player *p, Scene *scene, float dt) {
                 p->mantle_target_y = ledge_y;
                 p->mantle_timer = 0;
                 p->vy = 0;
+                // Commit collision-resolved position before early return
+                p->camera.position = new_pos;
+                p->camera.target = Vector3Add(new_pos, forward);
                 return;
             }
         }
@@ -973,6 +980,9 @@ void update_player(Player *p, Scene *scene, float dt) {
     // When nearly still and grounded: subtle sine camera sway
     if (p->speed_current < 0.3f && p->grounded) {
         p->idle_time += dt;
+        // Wrap to prevent float precision loss after hours of idling
+        // LCM of 1/0.7 and 1/0.5 sine periods ≈ 20s — wrapping at 1000s is safe
+        if (p->idle_time > 1000.0f) p->idle_time -= 1000.0f;
         // Scale inversely with speed — zero when moving
         float idle_scale = 1.0f - (p->speed_current / 0.3f);
         float breath_pitch = sinf(p->idle_time * 0.7f) * 0.001f * idle_scale;
@@ -986,7 +996,7 @@ void update_player(Player *p, Scene *scene, float dt) {
         p->idle_time = 0;
     }
 
-    float tilt_rad = p->tilt_current * (3.14159f / 180.0f);
+    float tilt_rad = p->tilt_current * (PI / 180.0f);
     p->camera.up = (Vector3){sinf(tilt_rad), cosf(tilt_rad), 0};
 }
 

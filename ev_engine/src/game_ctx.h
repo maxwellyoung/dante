@@ -5,6 +5,7 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "ev_types.h"
+#include "config.h"
 #include "lighting.h"
 #include "render.h"
 #include "audio.h"
@@ -18,13 +19,9 @@
 
 // Rain drops for taxi scene
 typedef struct { float x, y, speed, len; } Raindrop;
-#define MAX_RAIN 60
 
 // Pause menu
 typedef enum { MENU_NONE, MENU_PAUSE, MENU_SETTINGS } MenuMode;
-#define MENU_MAX_ITEMS 5
-#define PAUSE_ITEM_COUNT 3
-#define SETTINGS_ITEM_COUNT 5
 
 #define PARIS_TASK_COUNT 5
 #define SPACE_TASK_COUNT 4
@@ -243,5 +240,9 @@ static inline void game_ctx_init(GameCtx *g) {
 // Scene registry — extern, defined in scene_registry.c
 extern const SceneDesc scene_descs[];
 extern const int scene_desc_count;
+
+// Global game context — defined in main.c, declared here once
+// so per-scene .c files don't each need their own extern.
+extern GameCtx g;
 
 #endif

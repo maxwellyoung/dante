@@ -1,8 +1,6 @@
 // scene_registry.c — Function pointer table indexed by GameState
 #include "game_ctx.h"
 
-extern GameCtx g;
-
 // Forward declarations — implemented in scene_*.c files (or main.c during migration)
 void title_load(void);
 void title_update(float dt);

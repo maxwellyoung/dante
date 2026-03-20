@@ -3,8 +3,6 @@
 #include <math.h>
 #include <string.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void show_text(const char *text);
 void hide_text(void);

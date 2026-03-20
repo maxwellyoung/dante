@@ -517,7 +517,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
     float cam_x = player->camera.position.x;
     float cam_y = player->camera.position.y;
     float cam_z = player->camera.position.z;
-    float cull_dist_sq = 80.0f * 80.0f;
+    float cull_dist_sq = RENDER_CULL_DIST * RENDER_CULL_DIST;
 
     bool has_decals = false;
     for (int pass = 0; pass < 2; pass++) {
@@ -534,10 +534,25 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
             if (pass == 0 && w->is_decal) { has_decals = true; continue; }
             if (pass == 1 && !w->is_decal) continue;
 
+            // Zero-G drift — visual only, never mutates w->pos
+            // Small floating objects in non-indoor scenes oscillate gently
+            Vector3 draw_pos = w->pos;
+            if (!indoor) {
+                bool is_small = w->size.x < 0.8f && w->size.y < 0.8f && w->size.z < 0.8f;
+                bool is_floating = w->pos.y > 1.0f && w->pos.y < 6.0f;
+                bool is_structure = w->size.x > 3.0f || w->size.y > 3.0f || w->size.z > 3.0f;
+                if (is_small && is_floating && !is_structure) {
+                    float phase = (float)i * 2.3f;
+                    draw_pos.y += sinf(time * 0.4f + phase) * 0.003f;
+                    draw_pos.x += sinf(time * 0.25f + phase * 1.3f) * 0.002f;
+                    draw_pos.z += cosf(time * 0.3f + phase * 0.7f) * 0.002f;
+                }
+            }
+
             // Distance culling — skip walls far from camera
-            float dx = w->pos.x - cam_x;
-            float dy = w->pos.y - cam_y;
-            float dz = w->pos.z - cam_z;
+            float dx = draw_pos.x - cam_x;
+            float dy = draw_pos.y - cam_y;
+            float dz = draw_pos.z - cam_z;
             float dist_sq = dx*dx + dy*dy + dz*dz;
             // Don't cull very large walls (size > 10m — floors, ceilings, skyboxes)
             float max_dim = w->size.x > w->size.y ? (w->size.x > w->size.z ? w->size.x : w->size.z) : (w->size.y > w->size.z ? w->size.y : w->size.z);
@@ -549,21 +564,21 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                     case SHAPE_CYLINDER:
                         if (cyl_model_loaded) {
                             cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*cyl_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                            DrawModelEx(*cyl_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
                                        (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
                         }
                         break;
                     case SHAPE_SPHERE:
                         if (sphere_model_loaded) {
                             sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, 0,
+                            DrawModelEx(*sphere_model, draw_pos, (Vector3){0,1,0}, 0,
                                        (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
                         }
                         break;
                     case SHAPE_CONE:
                         if (cone_model_loaded) {
                             cone_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*cone_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                            DrawModelEx(*cone_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
                                        (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
                         }
                         break;
@@ -571,7 +586,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                         if (skytower_model_loaded) {
                             skytower_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
                             // Model is Z-up from Blender — rotate -90° on X to stand upright
-                            DrawModelEx(*skytower_model, w->pos, (Vector3){1,0,0}, -90,
+                            DrawModelEx(*skytower_model, draw_pos, (Vector3){1,0,0}, -90,
                                        (Vector3){w->size.x, w->size.x, w->size.x}, WHITE);
                         }
                         break;
@@ -579,12 +594,11 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                         // Uses sphere model as placeholder — torus needs GenMeshTorus in main.c
                         if (sphere_model_loaded) {
                             sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*sphere_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                            DrawModelEx(*sphere_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
                                        (Vector3){w->size.x, w->size.y * 0.3f, w->size.z}, WHITE);
                         }
                         break;
                     case SHAPE_MODEL: {
-                        extern GameCtx g;
                         int mi = w->model_index;
                         if (mi >= 0 && mi < g.model_asset_count && g.model_assets[mi].loaded) {
                             ModelAsset *ma = &g.model_assets[mi];
@@ -596,24 +610,36 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                                 for (int mj = 0; mj < ma->model.materialCount; mj++)
                                     ma->model.materials[mj].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
                             }
-                            DrawModelEx(ma->model, w->pos, (Vector3){0,1,0}, w->rotation_y,
-                                       w->size, WHITE);
+                            if (w->rotation_x != 0.0f) {
+                                // Compound rotation: X pre-rotation then Y
+                                Matrix rx = MatrixRotateX(w->rotation_x * DEG2RAD);
+                                Matrix ry = MatrixRotateY(w->rotation_y * DEG2RAD);
+                                Matrix rot = MatrixMultiply(rx, ry);
+                                Matrix scl = MatrixScale(w->size.x, w->size.y, w->size.z);
+                                Matrix tr = MatrixTranslate(draw_pos.x, draw_pos.y, draw_pos.z);
+                                ma->model.transform = MatrixMultiply(MatrixMultiply(scl, rot), tr);
+                                DrawModel(ma->model, (Vector3){0,0,0}, 1.0f, WHITE);
+                                ma->model.transform = MatrixIdentity();
+                            } else {
+                                DrawModelEx(ma->model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
+                                           w->size, WHITE);
+                            }
                         }
                         break;
                     }
                     default: // SHAPE_CUBE
                         if (cube_model_loaded) {
                             cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*cube_model, w->pos, (Vector3){0,1,0}, w->rotation_y,
+                            DrawModelEx(*cube_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
                                        w->size, WHITE);
                         }
                         break;
                 }
             } else {
                 Vector3 cam = player->camera.position;
-                float dx = w->pos.x - cam.x;
-                float dz = w->pos.z - cam.z;
-                float dist = sqrtf(dx*dx + dz*dz);
+                float ddx = draw_pos.x - cam.x;
+                float ddz = draw_pos.z - cam.z;
+                float dist = sqrtf(ddx*ddx + ddz*ddz);
                 float fog = fminf(1.0f, dist * scene->fog_density);
                 Color c = w->color;
                 c.r = (unsigned char)(c.r * (1 - fog) + scene->fog_color.r * fog);
@@ -621,16 +647,16 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                 c.b = (unsigned char)(c.b * (1 - fog) + scene->fog_color.b * fog);
                 switch (w->shape) {
                     case SHAPE_CYLINDER:
-                        DrawCylinder(w->pos, w->size.x/2, w->size.x/2, w->size.y, 16, c);
+                        DrawCylinder(draw_pos, w->size.x/2, w->size.x/2, w->size.y, 16, c);
                         break;
                     case SHAPE_SPHERE:
-                        DrawSphere(w->pos, w->size.x/2, c);
+                        DrawSphere(draw_pos, w->size.x/2, c);
                         break;
                     case SHAPE_CONE:
-                        DrawCylinder(w->pos, 0, w->size.x/2, w->size.y, 12, c);
+                        DrawCylinder(draw_pos, 0, w->size.x/2, w->size.y, 12, c);
                         break;
                     default:
-                        DrawCube(w->pos, w->size.x, w->size.y, w->size.z, c);
+                        DrawCube(draw_pos, w->size.x, w->size.y, w->size.z, c);
                         break;
                 }
             }
@@ -649,7 +675,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         glPolygonOffset(-2.0f, -2.0f);  // stronger bias than decals — shadows always on top
         if (lighting->ready) SetMaterialId(lighting, 0);
         int shadow_count = 0;
-        for (int i = 0; i < scene->wall_count && shadow_count < 40; i++) {
+        for (int i = 0; i < scene->wall_count && shadow_count < RENDER_MAX_BLOB_SHADOWS; i++) {
             Wall *w = &scene->walls[i];
             if (!w->active || w->shape != SHAPE_CUBE || w->color.a == 0) continue;
             float bot = w->pos.y - w->size.y / 2;
@@ -676,25 +702,8 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
     // ── Ambient micro-animations — the world breathes ──
     // Objects that are small + above floor + not floor/ceiling/wall
     // get subtle sine-driven movement. The space is alive.
-    if (!indoor) {
-        // Zero-G drift — floating objects oscillate slowly
-        // Modifies wall positions each frame (reverts next frame since scene rebuilds)
-        for (int i = 0; i < scene->wall_count; i++) {
-            Wall *w = &scene->walls[i];
-            if (!w->active) continue;
-            // Floating objects: small, above 1m, not a structural wall
-            bool is_small = w->size.x < 0.8f && w->size.y < 0.8f && w->size.z < 0.8f;
-            bool is_floating = w->pos.y > 1.0f && w->pos.y < 6.0f;
-            bool is_structure = w->size.x > 3.0f || w->size.y > 3.0f || w->size.z > 3.0f;
-            if (is_small && is_floating && !is_structure) {
-                // Each object drifts on its own phase (seeded by index)
-                float phase = (float)i * 2.3f;
-                w->pos.y += sinf(time * 0.4f + phase) * 0.003f;
-                w->pos.x += sinf(time * 0.25f + phase * 1.3f) * 0.002f;
-                w->pos.z += cosf(time * 0.3f + phase * 0.7f) * 0.002f;
-            }
-        }
-    }
+    // Zero-G drift is now visual-only — computed as draw_pos offset in the
+    // wall rendering loop above. w->pos stays authoritative for physics.
 
     // Dust motes in indoor scenes
     if (indoor) {
@@ -746,151 +755,9 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
     EndMode3D();
 }
 
-// Susan Kare pixel icons — 5x5 or 7x7 symbols for each object type
-static void draw_pixel_icon(int cx, int cy, const char *name, unsigned char a) {
-    Color c = {248, 245, 238, a};
-    // At higher res, each "pixel" becomes a UI_SCALE×UI_SCALE block
-    #define DP(px, py) DrawRectangle((px), (py), UI_SCALE, UI_SCALE, c)
-    #undef DrawPixel
-    #define DrawPixel(px, py, col) DP(px, py)
-
-    if (strcmp(name, "lamp") == 0) {
-        // Lightbulb: 3px top, 1px stem, 2px base
-        DrawPixel(cx-1, cy-2, c); DrawPixel(cx, cy-2, c); DrawPixel(cx+1, cy-2, c);
-        DrawPixel(cx-1, cy-1, c); DrawPixel(cx+1, cy-1, c);
-        DrawPixel(cx, cy, c);
-        DrawPixel(cx-1, cy+1, c); DrawPixel(cx+1, cy+1, c);
-    } else if (strcmp(name, "candles") == 0) {
-        // Flame: pointed top, wide middle, narrow base
-        DrawPixel(cx, cy-2, c);
-        DrawPixel(cx-1, cy-1, c); DrawPixel(cx, cy-1, c); DrawPixel(cx+1, cy-1, c);
-        DrawPixel(cx, cy, c);
-        DrawPixel(cx, cy+1, c);
-    } else if (strcmp(name, "bed") == 0) {
-        // Bed: horizontal with pillow bump
-        DrawPixel(cx-2, cy-1, c); DrawPixel(cx-1, cy-1, c);
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy, c);
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy+1, c);
-    } else if (strcmp(name, "drawers") == 0) {
-        // 3 stacked horizontal lines
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy-2, c);
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy, c);
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy+2, c);
-    } else if (strcmp(name, "ashtray") == 0) {
-        // Small circle ring
-        DrawPixel(cx-1, cy-1, c); DrawPixel(cx, cy-1, c); DrawPixel(cx+1, cy-1, c);
-        DrawPixel(cx-1, cy, c); DrawPixel(cx+1, cy, c);
-        DrawPixel(cx-1, cy+1, c); DrawPixel(cx, cy+1, c); DrawPixel(cx+1, cy+1, c);
-    } else if (strcmp(name, "door") == 0 || strcmp(name, "bathroom") == 0) {
-        // Rectangle with dot handle
-        for (int y = -2; y <= 2; y++) { DrawPixel(cx-1, cy+y, c); DrawPixel(cx+1, cy+y, c); }
-        DrawPixel(cx, cy-2, c); DrawPixel(cx, cy+2, c);
-        DrawPixel(cx+1, cy, c);  // handle dot
-    } else if (strcmp(name, "tap") == 0) {
-        // Droplet
-        DrawPixel(cx, cy-2, c);
-        DrawPixel(cx-1, cy-1, c); DrawPixel(cx, cy-1, c); DrawPixel(cx+1, cy-1, c);
-        DrawPixel(cx-1, cy, c); DrawPixel(cx+1, cy, c);
-        DrawPixel(cx, cy+1, c);
-    } else if (strcmp(name, "mirror") == 0) {
-        // Vertical rectangle
-        for (int y = -2; y <= 2; y++) { DrawPixel(cx-1, cy+y, c); DrawPixel(cx+1, cy+y, c); }
-        DrawPixel(cx, cy-2, c); DrawPixel(cx, cy+2, c);
-    } else if (strcmp(name, "wardrobe") == 0) {
-        // Tall rectangle with vertical split
-        for (int y = -3; y <= 2; y++) { DrawPixel(cx-2, cy+y, c); DrawPixel(cx+2, cy+y, c); }
-        DrawPixel(cx-1, cy-3, c); DrawPixel(cx, cy-3, c); DrawPixel(cx+1, cy-3, c);
-        DrawPixel(cx-1, cy+2, c); DrawPixel(cx, cy+2, c); DrawPixel(cx+1, cy+2, c);
-        for (int y = -2; y <= 1; y++) DrawPixel(cx, cy+y, c);  // center split
-    } else if (strcmp(name, "newspaper") == 0) {
-        // Text lines
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy-1, c);
-        for (int x = -2; x <= 1; x++) DrawPixel(cx+x, cy, c);
-        for (int x = -2; x <= 2; x++) DrawPixel(cx+x, cy+1, c);
-    } else if (strcmp(name, "elevator") == 0) {
-        // Up/down arrows
-        DrawPixel(cx, cy-2, c);
-        DrawPixel(cx-1, cy-1, c); DrawPixel(cx+1, cy-1, c);
-        DrawPixel(cx-1, cy+1, c); DrawPixel(cx+1, cy+1, c);
-        DrawPixel(cx, cy+2, c);
-    } else if (strcmp(name, "cigarette") == 0) {
-        // Diagonal line with smoke dot
-        DrawPixel(cx-2, cy+1, c); DrawPixel(cx-1, cy, c);
-        DrawPixel(cx, cy, c); DrawPixel(cx+1, cy-1, c);
-        DrawPixel(cx+2, cy-2, c);  // smoke
-    } else {
-        // Default: simple dot
-        DrawPixel(cx, cy, c);
-        DrawPixel(cx-1, cy, c); DrawPixel(cx+1, cy, c);
-        DrawPixel(cx, cy-1, c); DrawPixel(cx, cy+1, c);
-    }
-    #undef DrawPixel
-    #undef DP
-}
-
-// Crosshair spring state (scales up when targeting interactable)
-static float crosshair_scale = 1.0f;
-static float crosshair_scale_vel = 0.0f;
-
+// draw_hud — legacy, now handled by ui.c (ui_draw_hud)
 void draw_hud(Player *player, Scene *scene) {
-    float dt = GetFrameTime();
-    float target_scale = 1.0f;
-
-    // Check if any object is targeted
-    for (int i = 0; i < scene->object_count; i++) {
-        InteractObject *obj = &scene->objects[i];
-        if (!obj->active || obj->done) continue;
-        float dist = Vector3Distance(player->camera.position, obj->pos);
-        if (dist < obj->radius) {
-            Vector3 to_obj = Vector3Normalize(Vector3Subtract(obj->pos, player->camera.position));
-            Vector3 look = Vector3Normalize(Vector3Subtract(player->camera.target, player->camera.position));
-            float dot = Vector3DotProduct(to_obj, look);
-            if (dot > 0.75f) {
-                float alpha = (dot - 0.75f) / 0.25f;
-                unsigned char icon_a = (unsigned char)(220 * alpha);
-                target_scale = 3.0f;
-
-                // Pixel icon below crosshair — replaces text label
-                draw_pixel_icon(RENDER_W/2, RENDER_H/2 + 10 * UI_SCALE, obj->name, icon_a);
-
-                // "E" prompt — small, below icon
-                const char *prompt = "E";
-                int pw = MeasureText(prompt, 10 * UI_SCALE);
-                DrawText(prompt, RENDER_W/2 - pw/2, RENDER_H/2 + 22 * UI_SCALE, 10 * UI_SCALE,
-                         (Color){220, 215, 205, icon_a});
-            }
-        }
-    }
-
-    // Check if aiming at a grabbable (pushable) wall
-    if (target_scale < 1.5f) {
-        Vector3 origin = player->camera.position;
-        Vector3 dir = Vector3Normalize(Vector3Subtract(player->camera.target, player->camera.position));
-        for (int i = 0; i < scene->wall_count; i++) {
-            Wall *w = &scene->walls[i];
-            if (!w->pushable || !w->active) continue;
-            Vector3 to_w = Vector3Subtract(w->pos, origin);
-            float along = Vector3DotProduct(to_w, dir);
-            if (along < 0 || along > 2.5f) continue;
-            Vector3 closest = Vector3Add(origin, Vector3Scale(dir, along));
-            float perp = Vector3Distance(closest, w->pos);
-            float radius = fmaxf(w->size.x, fmaxf(w->size.y, w->size.z)) * 0.6f;
-            if (perp < radius) { target_scale = 2.0f; break; }
-        }
-    }
-
-    // Spring the crosshair scale
-    float ck = 280.0f, cd = 26.0f, cm = 0.9f;
-    float cf = -ck * (crosshair_scale - target_scale) - cd * crosshair_scale_vel;
-    crosshair_scale_vel += (cf / cm) * dt;
-    crosshair_scale += crosshair_scale_vel * dt;
-    if (crosshair_scale < 0.5f) crosshair_scale = 0.5f;
-
-    // Draw spring-scaled crosshair dot
-    int cs = (int)(crosshair_scale * UI_SCALE + 0.5f);
-    if (cs < UI_SCALE) cs = UI_SCALE;
-    unsigned char ca = (cs > UI_SCALE) ? 120 : 60;
-    DrawCircle(RENDER_W/2, RENDER_H/2, cs, (Color){220, 215, 205, ca});
+    (void)player; (void)scene;
 }
 
 // Title screen spring state — "PRESS ENTER" slides up from below
@@ -906,9 +773,6 @@ void reset_title_state(void) {
     title_enter_scale = 0.0f;
     title_enter_scale_vel = 0.0f;
     title_enter_triggered = false;
-    // Also reset crosshair spring
-    crosshair_scale = 1.0f;
-    crosshair_scale_vel = 0.0f;
 }
 
 void draw_title(void) {
@@ -993,15 +857,21 @@ void draw_title(void) {
         // Moon disc — slightly blue-white (moonlight)
         DrawCircle(moon_x, moon_y, moon_r, (Color){220, 225, 235, ma});
 
-        // Moon surface — subtle crater shadows (seeded)
-        SetRandomSeed(42);
-        for (int i = 0; i < 8; i++) {
-            int dx = GetRandomValue(-moon_r + 15, moon_r - 15);
-            int dy = GetRandomValue(-moon_r + 15, moon_r - 15);
-            if (dx * dx + dy * dy < (moon_r - 12) * (moon_r - 12)) {
-                int cr = GetRandomValue(4, 12);
-                DrawCircle(moon_x + dx, moon_y + dy, cr,
-                           (Color){195, 200, 210, (unsigned char)(40 * moon_a)});
+        // Moon surface — subtle crater shadows (deterministic, no global RNG)
+        {
+            unsigned int crater_seed = 42;
+            for (int i = 0; i < 8; i++) {
+                // Simple LCG — avoids polluting Raylib's global SetRandomSeed
+                crater_seed = crater_seed * 1103515245 + 12345;
+                int cdx = (int)(crater_seed >> 16 & 0x7fff) % (2 * (moon_r - 15) + 1) - (moon_r - 15);
+                crater_seed = crater_seed * 1103515245 + 12345;
+                int cdy = (int)(crater_seed >> 16 & 0x7fff) % (2 * (moon_r - 15) + 1) - (moon_r - 15);
+                if (cdx * cdx + cdy * cdy < (moon_r - 12) * (moon_r - 12)) {
+                    crater_seed = crater_seed * 1103515245 + 12345;
+                    int cr = 4 + (int)(crater_seed >> 16 & 0x7fff) % 9;
+                    DrawCircle(moon_x + cdx, moon_y + cdy, cr,
+                               (Color){195, 200, 210, (unsigned char)(40 * moon_a)});
+                }
             }
         }
 
@@ -1381,6 +1251,7 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
 void draw_earth(Camera3D camera, float time,
                 Model *sphere_model, EVLighting *lighting,
                 Vector3 earth_center) {
+    (void)camera;  // earthshine 2D wash now handled by draw_earthshine_2d()
     if (!sphere_model) return;
 
     Vector3 earth_pos = earth_center;
@@ -1411,17 +1282,8 @@ void draw_earth(Camera3D camera, float time,
     DrawModelEx(*sphere_model, earth_pos, axis, 0,
                 (Vector3){glow_scale, glow_scale, glow_scale}, WHITE);
 
-    // Earthshine — 2D blue wash on lower screen
-    {
-        float glow_y = (float)RENDER_H * 0.7f;
-        float glow_h = (float)RENDER_H * 0.3f;
-        float pulse = 0.7f + 0.3f * sinf(time * 0.6f);
-        unsigned char ga = (unsigned char)(20.0f * pulse);
-        EndMode3D();
-        DrawRectangle(0, (int)glow_y, RENDER_W, (int)glow_h,
-                      (Color){50, 110, 220, ga});
-        BeginMode3D(camera);
-    }
+    // Earthshine 2D wash moved to draw_earthshine_2d() — called after EndMode3D()
+    // to avoid interrupting the 3D render pass mid-draw.
 
     sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_color;
 }
@@ -1436,4 +1298,14 @@ void draw_postfx(EVPostFX *pfx, RenderTexture2D render_target) {
         (Rectangle){0, 0, RENDER_W, RENDER_H},
         (Vector2){0, 0}, 0, WHITE);
     EndShaderMode();
+}
+
+// Earthshine 2D wash — call AFTER EndMode3D(), not inside 3D pass
+void draw_earthshine_2d(float time) {
+    float glow_y = (float)RENDER_H * 0.7f;
+    float glow_h = (float)RENDER_H * 0.3f;
+    float pulse = 0.7f + 0.3f * sinf(time * 0.6f);
+    unsigned char ga = (unsigned char)(20.0f * pulse);
+    DrawRectangle(0, (int)glow_y, RENDER_W, (int)glow_h,
+                  (Color){50, 110, 220, ga});
 }

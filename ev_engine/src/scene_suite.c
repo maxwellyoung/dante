@@ -4,8 +4,6 @@
 #include <string.h>
 #include <stdio.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void hard_cut_to(GameState s);
 void show_text(const char *text);

@@ -106,7 +106,7 @@ static const char *fs_source =
     "    if (proj.z > 1.0) return 0.0;\n"
     "    float bias = 0.002;\n"
     "    float shadow = 0.0;\n"
-    "    vec2 texelSize = 1.0 / vec2(2048.0) * 1.3;\n"
+    "    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0)) * 1.3;\n"
     "    for (int x = -1; x <= 1; x++) {\n"
     "        for (int y = -1; y <= 1; y++) {\n"
     "            float d = texture(shadowMap, proj.xy + vec2(x,y)*texelSize).r;\n"

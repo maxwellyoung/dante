@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void show_text(const char *text);
 void hide_text(void);
@@ -120,7 +118,7 @@ void bed_update(float dt) {
     {
         float breath_rate = 0.4f;
         float breath_amp = 0.015f;
-        float breath = sinf(g.state_time * breath_rate * 2 * 3.14159f) * breath_amp;
+        float breath = sinf(g.state_time * breath_rate * 2 * PI) * breath_amp;
         g.player.camera.position.y += breath * GetFrameTime() * 2.0f;
     }
 }

@@ -77,9 +77,12 @@ const char *npc_current_dialogue(NPC *npc) {
 
 // ── Physics ─────────────────────────────────────────────────────────
 
+// Shared with player physics — avoids magic number duplication
+#define NPC_GRAVITY 18.0f
+
 static void npc_apply_gravity(NPC *npc, float dt) {
     if (!npc->use_physics) return;
-    float gravity = 18.0f;
+    float gravity = NPC_GRAVITY;
     npc->vy -= gravity * dt;
     npc->pos.y += npc->vy * dt;
 
@@ -213,8 +216,8 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
             npc->yaw_target = atan2f(-to_player.x, -to_player.z);
         }
         float yaw_diff = npc->yaw_target - npc->yaw;
-        while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
-        while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
+        while (yaw_diff > PI) yaw_diff -= 2*PI;
+        while (yaw_diff < -PI) yaw_diff += 2*PI;
         npc->yaw += yaw_diff * fminf(1.0f, 5.0f * dt);
 
         // Player proximity → advance (after this waypoint's line is delivered)
@@ -243,8 +246,8 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
         // Face movement direction — smooth
         npc->yaw_target = atan2f(-dir_x, -dir_z);
         float yaw_diff = npc->yaw_target - npc->yaw;
-        while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
-        while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
+        while (yaw_diff > PI) yaw_diff -= 2*PI;
+        while (yaw_diff < -PI) yaw_diff += 2*PI;
         npc->yaw += yaw_diff * fminf(1.0f, 8.0f * dt);
 
         // Walk cycle
@@ -270,7 +273,6 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     // ── GLB MODEL PATH — rigged Gibbons (496 tris, 18 bones, 4 anims) ──
     // Animations (alphabetical Raylib load): A_Bow=0, B_Gesture=1, C_Idle=2, D_Walk=3
     {
-        extern GameCtx g;
         int gi = find_model_asset("gibbons");
         if (gi >= 0 && g.model_assets[gi].loaded) {
             ModelAsset *ma = &g.model_assets[gi];
@@ -409,15 +411,15 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float weight_shift = 0;
     if (!walking && idle > 3.0f) {
         float ws_cycle = fmodf(idle - 3.0f, 6.0f);
-        if (ws_cycle < 1.5f) weight_shift = sinf(ws_cycle / 1.5f * 3.14159f) * 0.04f;
+        if (ws_cycle < 1.5f) weight_shift = sinf(ws_cycle / 1.5f * PI) * 0.04f;
         else if (ws_cycle > 3.0f && ws_cycle < 4.5f)
-            weight_shift = -sinf((ws_cycle - 3.0f) / 1.5f * 3.14159f) * 0.04f;
+            weight_shift = -sinf((ws_cycle - 3.0f) / 1.5f * PI) * 0.04f;
     }
     // Watch glance: right arm lifts briefly to check watch
     float watch_glance = 0;
     if (!walking && idle > 5.0f) {
         float wg = fmodf(idle - 5.0f, 10.0f);
-        if (wg < 0.6f) watch_glance = sinf(wg / 0.6f * 3.14159f) * 0.2f;
+        if (wg < 0.6f) watch_glance = sinf(wg / 0.6f * PI) * 0.2f;
     }
     // Subtle head look-around when idle for a while
     float head_wander = 0;
@@ -463,7 +465,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float tie_adjust = 0;
     if (!walking && idle > 2.0f) {
         float cycle = fmodf(idle - 2.0f, 4.0f);
-        if (cycle < 0.8f) tie_adjust = sinf(cycle / 0.8f * 3.14159f) * 0.14f;
+        if (cycle < 0.8f) tie_adjust = sinf(cycle / 0.8f * PI) * 0.14f;
     }
 
     #define P(lx, ly, lz) (Vector3){ \

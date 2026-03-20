@@ -4,8 +4,6 @@
 #include "game_ctx.h"
 #include <stdio.h>
 
-extern GameCtx g;
-
 // Forward declarations from main.c (until fully extracted)
 void set_exposure(float exp);
 void show_text(const char *text);

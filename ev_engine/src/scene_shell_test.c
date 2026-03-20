@@ -12,8 +12,6 @@
 #include <math.h>
 #include <stdio.h>
 
-extern GameCtx g;
-
 // ── Build the test environment ──
 static void build_shell_test(Scene *s) {
     // ── 1. The shell: bathtub as a stand-in for a room mesh ──

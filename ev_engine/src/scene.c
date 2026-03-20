@@ -12,9 +12,7 @@
 #ifndef DEG2RAD
 #define DEG2RAD 0.017453293f
 #endif
-#ifndef PI
-#define PI 3.14159265358979f
-#endif
+// PI provided by config.h via game_ctx.h
 
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
     if (s->wall_count >= MAX_WALLS) {
@@ -106,8 +104,6 @@ void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz
 
 // Find a loaded model asset by name — returns index or -1
 int find_model_asset(const char *name) {
-    // Access global game context
-    extern GameCtx g;
     for (int i = 0; i < g.model_asset_count; i++) {
         if (strcmp(g.model_assets[i].name, name) == 0 && g.model_assets[i].loaded)
             return i;
@@ -206,17 +202,21 @@ void add_shell(Scene *s, const char *model_name, float x, float y, float z,
 // Arched doorframe — rectangular frame + semicircle of boxes at top
 void add_arch_doorframe(Scene *s, float x, float y, float z, float w, float h,
                         float depth, Color frame_color) {
-    // Side posts
+    // Side posts — decorative trim, no collision (parent wall handles it)
     add_wall(s, x - w/2, y + h/2, z, 0.08f, h, depth, frame_color);
+    s->walls[s->wall_count - 1].no_collide = true;
     add_wall(s, x + w/2, y + h/2, z, 0.08f, h, depth, frame_color);
+    s->walls[s->wall_count - 1].no_collide = true;
     // Top lintel
     add_wall(s, x, y + h, z, w + 0.16f, 0.08f, depth, frame_color);
+    s->walls[s->wall_count - 1].no_collide = true;
     // Arch segments — 8 small boxes arranged in a semicircle above the lintel
     for (int i = 0; i < 8; i++) {
         float angle = PI * (float)i / 7.0f;
         float ax = x + cosf(angle) * w * 0.5f;
         float ay = y + h + sinf(angle) * w * 0.25f;
         add_wall(s, ax, ay, z, 0.1f, 0.06f, depth * 0.8f, frame_color);
+        s->walls[s->wall_count - 1].no_collide = true;
     }
 }
 
@@ -225,31 +225,82 @@ void add_crown_molding_detailed(Scene *s, float x, float y, float z,
                                 float length, bool along_z, Color color) {
     float lx = along_z ? 0.04f : length;
     float lz = along_z ? length : 0.04f;
-    // Base strip
+    // Base strip — decorative, no collision
     add_wall(s, x, y, z, lx, 0.06f, lz, color);
+    s->walls[s->wall_count - 1].no_collide = true;
     // Angled strip (slight offset down and out)
     float ox = along_z ? 0.03f : 0;
     float oz = along_z ? 0 : 0.03f;
     add_wall(s, x + ox, y - 0.04f, z + oz, lx * 0.9f, 0.04f, lz * 0.9f, color);
+    s->walls[s->wall_count - 1].no_collide = true;
     // Top lip
     add_wall(s, x - ox * 0.5f, y + 0.04f, z - oz * 0.5f,
              lx * 0.8f, 0.025f, lz * 0.8f, color);
+    s->walls[s->wall_count - 1].no_collide = true;
 }
 
 // Corridor door — recessed frame, door panel, handle
 void add_corridor_door(Scene *s, float x, float y, float z,
                        float side, Color door_color, Color frame_color) {
     float dx = side > 0 ? 0.12f : -0.12f;
-    // Recessed frame (3 boxes)
-    add_wall(s, x + dx, y + 1.3f, z, 0.12f, 2.6f, 0.05f, frame_color);  // top
+    // Recessed frame (3 boxes) — decorative trim, no collision
+    add_wall(s, x + dx, y + 1.3f, z, 0.12f, 2.6f, 0.05f, frame_color);
+    s->walls[s->wall_count - 1].no_collide = true;
     add_wall(s, x + dx, y + 1.3f, z - 0.55f, 0.12f, 2.6f, 0.05f, frame_color);
+    s->walls[s->wall_count - 1].no_collide = true;
     add_wall(s, x + dx, y + 1.3f, z + 0.55f, 0.12f, 2.6f, 0.05f, frame_color);
-    // Door panel
+    s->walls[s->wall_count - 1].no_collide = true;
+    // Door panel — keep collision (blocks doorway)
     add_wall(s, x + dx * 0.8f, y + 1.3f, z, 0.1f, 2.5f, 0.95f, door_color);
-    // Handle — small sphere
+    // Handle — small sphere, decorative
     add_sphere(s, x + dx * 0.6f, y + 1.1f, z + 0.35f * (side > 0 ? -1 : 1),
                0.06f, frame_color);
     set_last_material(s, MAT_BRASS);
+    s->walls[s->wall_count - 1].no_collide = true;
+}
+
+// Auto-mark tiny decorative geometry as no_collide.
+// Any cube wall with volume < threshold that isn't already flagged and isn't
+// a floor/ceiling (height < 0.1) is decorative detail — handles, trim, screws,
+// driver body parts, picture rails, etc. These don't need collision.
+static void mark_decorative_no_collide(Scene *s) {
+    int marked = 0;
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *w = &s->walls[i];
+        if (w->no_collide || w->is_decal) continue;
+        if (w->shape != SHAPE_CUBE) continue;
+        if (w->pushable || w->breakable || w->hinge) continue;  // interactive physics
+
+        float vol = w->size.x * w->size.y * w->size.z;
+
+        // Pass 1: Tiny decorative detail (<0.02 m³) that isn't a floor/ceiling
+        bool is_floor_ceiling = (w->size.y < 0.15f && (w->size.x > 0.5f || w->size.z > 0.5f));
+        if (vol < 0.02f && !is_floor_ceiling) {
+            w->no_collide = true;
+            marked++;
+            continue;
+        }
+
+        // Pass 2: Thin wall-flush panels (depth < 0.06m, height > 0.3m).
+        // These are wallpaper panels, wainscoting, inner panel detail sitting
+        // flush against structural walls. They cause coplanar pairs but never
+        // provide meaningful collision (the structural wall behind them does).
+        float min_dim = w->size.x < w->size.z ? w->size.x : w->size.z;
+        if (min_dim < 0.06f && w->size.y > 0.3f) {
+            w->no_collide = true;
+            marked++;
+            continue;
+        }
+
+        // Pass 3: Thin horizontal strips (brass trim, baseboards) — height < 0.15m
+        // and narrow in one horizontal axis. Decorative trim.
+        if (w->size.y < 0.15f && (w->size.x < 0.06f || w->size.z < 0.06f)) {
+            w->no_collide = true;
+            marked++;
+            continue;
+        }
+    }
+    (void)marked;
 }
 
 // Auto-assign materials by color matching after scene is built
@@ -274,6 +325,8 @@ static void tag_materials_by_color(Scene *s) {
         else if (r > 220 && g > 220 && b > 210)
             w->material = MAT_WALLPAPER;
     }
+    // Also mark tiny decorative geometry as no_collide
+    mark_decorative_no_collide(s);
 }
 
 // === Architectural detail helpers ===
@@ -281,36 +334,40 @@ static void tag_materials_by_color(Scene *s) {
 
 void add_door_frame(Scene *s, float x, float y, float z,
                     float w, float h, float depth, Color frame_color) {
-    float t = 0.08f;  // frame thickness
+    float t = 0.08f;  // frame thickness — decorative, no collision
     // Top
     add_wall(s, x, y + h/2 - t/2, z, w + t*2, t, depth, frame_color);
     set_last_material(s, MAT_WOOD);
+    s->walls[s->wall_count - 1].no_collide = true;
     // Left
     add_wall(s, x - w/2 - t/2, y, z, t, h, depth, frame_color);
     set_last_material(s, MAT_WOOD);
+    s->walls[s->wall_count - 1].no_collide = true;
     // Right
     add_wall(s, x + w/2 + t/2, y, z, t, h, depth, frame_color);
     set_last_material(s, MAT_WOOD);
+    s->walls[s->wall_count - 1].no_collide = true;
 }
 
 void add_window(Scene *s, float x, float y, float z,
                 float w, float h, Color frame_color, Color glass_color) {
     float t = 0.06f;
-    // Glass pane
+    // Glass pane — decorative, no collision (player shouldn't bump glass)
     add_wall(s, x, y, z, w, h, 0.02f, glass_color);
     set_last_material(s, MAT_GLASS);
-    // Frame — top, bottom, left, right
+    s->walls[s->wall_count - 1].no_collide = true;
+    // Frame — decorative trim, no collision
     add_wall(s, x, y + h/2 + t/2, z, w + t*2, t, 0.04f, frame_color);
-    set_last_material(s, MAT_WOOD);
+    set_last_material(s, MAT_WOOD); s->walls[s->wall_count - 1].no_collide = true;
     add_wall(s, x, y - h/2 - t/2, z, w + t*2, t, 0.04f, frame_color);
-    set_last_material(s, MAT_WOOD);
+    set_last_material(s, MAT_WOOD); s->walls[s->wall_count - 1].no_collide = true;
     add_wall(s, x - w/2 - t/2, y, z, t, h, 0.04f, frame_color);
-    set_last_material(s, MAT_WOOD);
+    set_last_material(s, MAT_WOOD); s->walls[s->wall_count - 1].no_collide = true;
     add_wall(s, x + w/2 + t/2, y, z, t, h, 0.04f, frame_color);
-    set_last_material(s, MAT_WOOD);
+    set_last_material(s, MAT_WOOD); s->walls[s->wall_count - 1].no_collide = true;
     // Sill — thin shelf below
     add_wall(s, x, y - h/2 - t, z + 0.04f, w + t*4, 0.03f, 0.08f, frame_color);
-    set_last_material(s, MAT_WOOD);
+    set_last_material(s, MAT_WOOD); s->walls[s->wall_count - 1].no_collide = true;
 }
 
 void add_baseboard(Scene *s, float x, float y, float z,
@@ -2767,12 +2824,11 @@ void build_taxi_ride(Scene *s) {
     {
         int driver_mdl = find_model_asset("taxi_driver");
         if (driver_mdl >= 0) {
-            // GLB model — smooth, subdivided, proper silhouette
-            // Position at origin (model already has driver at correct position)
-            // Model axes: Blender Z-up → Raylib Y-up via export_yup.
-            // But model was built with Y as height (wrong for Blender).
-            // Rotate 90° on X to fix, and position at driver seat.
+            // GLB axis fix: Blender script used Y-up, export_yup swapped Y↔Z.
+            // rotation_x=-90 corrects the orientation back to intended pose.
             add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_FABRIC, (Color){200,180,140,255});
+            s->walls[s->wall_count - 1].rotation_x = -90.0f;
+            s->walls[s->wall_count - 1].no_collide = true;
         } else {
             // Fallback: procedural cube-person
             Color driver_collar = {225, 220, 210, 255};
@@ -3358,7 +3414,7 @@ void build_space_lobby(Scene *s) {
     }
     // 8 vertical brass posts — octagonal frame
     for (int i = 0; i < 8; i++) {
-        float angle = i * (3.14159f * 2.0f / 8.0f);
+        float angle = i * (PI * 2.0f / 8.0f);
         float px = ex + cosf(angle) * shaft_r;
         float pz = ez + sinf(angle) * shaft_r;
         add_wall(s, px, lh/2, pz, 0.1f, lh, 0.1f, brass);
@@ -3366,8 +3422,8 @@ void build_space_lobby(Scene *s) {
     }
     // Glass panels between posts — 8 transparent panels
     for (int i = 0; i < 8; i++) {
-        float a0 = i * (3.14159f * 2.0f / 8.0f);
-        float a1 = (i+1) * (3.14159f * 2.0f / 8.0f);
+        float a0 = i * (PI * 2.0f / 8.0f);
+        float a1 = (i+1) * (PI * 2.0f / 8.0f);
         float mx = ex + cosf((a0+a1)/2) * (shaft_r - 0.02f);
         float mz = ez + sinf((a0+a1)/2) * (shaft_r - 0.02f);
         add_wall(s, mx, lh/2, mz, 0.9f, lh-1, 0.04f, (Color){180, 210, 230, 40});
@@ -4019,11 +4075,11 @@ void build_space_corridor(Scene *s) {
         // ── CEILING ──
         add_wall(s, cx, H, cz, W, 0.15f, seg_len, hull);
         set_last_material(s, MAT_CONCRETE);
-        // Structural trim — brass line at each segment join
+        // Structural trim — brass line at each segment join (decorative)
         add_wall(s, cx, H - 0.05f, cz - seg_len/2 + 0.03f, W + 0.1f, 0.08f, 0.06f, brass);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
         add_wall(s, cx, H - 0.05f, cz + seg_len/2 - 0.03f, W + 0.1f, 0.08f, 0.06f, brass);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
 
         // Ceiling light strip — amber pool at each segment (rhythmic)
         if (i % 2 == 0) {
@@ -4051,32 +4107,31 @@ void build_space_corridor(Scene *s) {
             if (i % 4 == 0) left_panel = false;
             else right_panel = false;
         }
+        // Wall panels, trim, baseboards — decorative overlays on hull, no collision
         if (left_panel) {
             add_wall(s, cx - W/2 + 0.14f, H * 0.375f, cz, 0.04f, H * 0.75f, seg_len - 0.2f, cream);
-            set_last_material(s, MAT_WALLPAPER);
-            // Recessed wall panel — darker inset for depth
+            set_last_material(s, MAT_WALLPAPER); s->walls[s->wall_count-1].no_collide = true;
             add_wall(s, cx - W/2 + 0.15f, H * 0.35f, cz, 0.02f, H * 0.45f, seg_len * 0.6f,
                      (Color){215, 210, 200, 255});
-            set_last_material(s, MAT_WALLPAPER);
+            set_last_material(s, MAT_WALLPAPER); s->walls[s->wall_count-1].no_collide = true;
         }
         if (right_panel) {
             add_wall(s, cx + W/2 - 0.14f, H * 0.375f, cz, 0.04f, H * 0.75f, seg_len - 0.2f, cream);
-            set_last_material(s, MAT_WALLPAPER);
+            set_last_material(s, MAT_WALLPAPER); s->walls[s->wall_count-1].no_collide = true;
             add_wall(s, cx + W/2 - 0.15f, H * 0.35f, cz, 0.02f, H * 0.45f, seg_len * 0.6f,
                      (Color){215, 210, 200, 255});
-            set_last_material(s, MAT_WALLPAPER);
+            set_last_material(s, MAT_WALLPAPER); s->walls[s->wall_count-1].no_collide = true;
         }
-
-        // Brass trim at wainscot height — both walls
+        // Brass trim at wainscot height
         add_wall(s, cx - W/2 + 0.15f, H * 0.5f, cz, 0.02f, 0.04f, seg_len - 0.2f, brass);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
         add_wall(s, cx + W/2 - 0.15f, H * 0.5f, cz, 0.02f, 0.04f, seg_len - 0.2f, brass);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
         // Baseboard — brass strip at floor
         add_wall(s, cx - W/2 + 0.12f, 0.06f, cz, 0.03f, 0.12f, seg_len - 0.2f, brass_dark);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
         add_wall(s, cx + W/2 - 0.12f, 0.06f, cz, 0.03f, 0.12f, seg_len - 0.2f, brass_dark);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
 
         // Side cove lighting — warm amber wash
         if (i % 2 == 0) {
@@ -4084,12 +4139,11 @@ void build_space_corridor(Scene *s) {
             add_light_panel(s, cx + W/2 - 0.2f, H - 0.15f, cz, 0.15f, 0.08f, seg_len * 0.8f, warm_amber);
         }
 
-        // ── PIPE CONDUITS along ceiling ──
-        // Thin conduit pipes running along the ceiling edge
+        // ── PIPE CONDUITS along ceiling ── (decorative)
         add_wall(s, cx - W/2 + 0.25f, H - 0.12f, cz, 0.06f, 0.06f, seg_len, pipe_metal);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
         add_wall(s, cx + W/2 - 0.25f, H - 0.12f, cz, 0.06f, 0.06f, seg_len, pipe_metal);
-        set_last_material(s, MAT_BRASS);
+        set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
 
         // ── PORTHOLE WINDOWS — one side shows void/stars ──
         if (i % 2 == 1) {
@@ -4140,19 +4194,20 @@ void build_space_corridor(Scene *s) {
             // Door panel
             add_wall(s, cx + side, 1.3f, cz, 0.12f, 2.6f, 1.0f, door_c);
             set_last_hinge(s, 0.0f, 90.0f);
-            // Door frame — brass
+            // Door frame — brass (decorative, door panel handles collision)
             add_wall(s, cx + side, 2.75f, cz, 0.12f, 0.12f, 1.15f, brass);
-            set_last_material(s, MAT_BRASS);
+            set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
             add_wall(s, cx + side, 1.3f, cz - 0.57f, 0.12f, 2.6f, 0.06f, brass);
-            set_last_material(s, MAT_BRASS);
+            set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
             add_wall(s, cx + side, 1.3f, cz + 0.57f, 0.12f, 2.6f, 0.06f, brass);
-            set_last_material(s, MAT_BRASS);
+            set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
             // Room number plate — brass
             add_wall(s, cx + side * 0.95f, 2.0f, cz - 0.7f, 0.06f, 0.2f, 0.15f, brass);
-            set_last_material(s, MAT_BRASS);
+            set_last_material(s, MAT_BRASS); s->walls[s->wall_count-1].no_collide = true;
             // Number text (dark rectangle on plate)
             add_wall(s, cx + side * 0.94f, 2.0f, cz - 0.7f, 0.04f, 0.12f, 0.08f,
                      (Color){40, 35, 28, 255});
+            s->walls[s->wall_count-1].no_collide = true;
             // Door handle — brass sphere
             float handle_z = (side > 0) ? cz - 0.35f : cz + 0.35f;
             add_sphere(s, cx + side * 0.9f, 1.1f, handle_z, 0.06f, brass);

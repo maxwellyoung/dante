@@ -6,8 +6,6 @@
 #include <math.h>
 #include <stdio.h>
 
-extern GameCtx g;
-
 void physics_init(GrabSystem *grab) {
     grab->state = GRAB_NONE;
     grab->wall_index = -1;
@@ -46,7 +44,7 @@ void physics_update(Scene *scene, Player *player, GrabSystem *grab, float dt) {
             // === FREED OBJECT PHYSICS ===
             // Gravity (reduced/zero in space)
             if (grav_mult > 0.1f) {
-                w->push_vy -= 18.0f * grav_mult * dt;
+                w->push_vy -= PHYS_GRAVITY * grav_mult * dt;
                 // Terminal velocity
                 if (w->push_vy < -20.0f) w->push_vy = -20.0f;
             } else {

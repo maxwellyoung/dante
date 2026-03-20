@@ -1,14 +1,13 @@
 // audio.c — Procedural audio engine
 // NO CREEPY DRONES. Pleasant or silent. Bioshock vibes.
 #include "audio.h"
+#include "config.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define SAMPLE_RATE 44100
-#ifndef PI
-#define PI 3.14159265358979f
-#endif
 
 static Wave gen_wave(int samples) {
     Wave w = {0};
@@ -17,6 +16,10 @@ static Wave gen_wave(int samples) {
     w.sampleSize = 16;
     w.channels = 1;
     w.data = calloc(samples, sizeof(short));
+    if (!w.data) {
+        fprintf(stderr, "[EV] FATAL: audio calloc failed (%d samples)\n", samples);
+        w.frameCount = 0;
+    }
     return w;
 }
 
