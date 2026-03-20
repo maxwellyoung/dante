@@ -18,7 +18,9 @@ static Wave gen_wave(int samples) {
     w.data = calloc(samples, sizeof(short));
     if (!w.data) {
         fprintf(stderr, "[EV] FATAL: audio calloc failed (%d samples)\n", samples);
-        w.frameCount = 0;
+        // Fallback: 1-sample silent buffer to prevent null deref in callers
+        w.data = calloc(1, sizeof(short));
+        w.frameCount = w.data ? 1 : 0;
     }
     return w;
 }

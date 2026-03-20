@@ -102,7 +102,7 @@ static void draw_dialogue(void) {
         // Draw with letter spacing by iterating chars
         char spaced[128];
         int si = 0;
-        for (int i = 0; g.dlg_speaker[i] && si < 126; i++) {
+        for (int i = 0; g.dlg_speaker[i] && si < 125; i++) {
             spaced[si++] = g.dlg_speaker[i];
             if (g.dlg_speaker[i+1]) spaced[si++] = ' ';  // space between each char
         }
@@ -451,12 +451,13 @@ static void write_state_file(GameState s) {
         "STATE_BATHROOM", "STATE_BALCONY", "STATE_BED", "STATE_STARS",
         "STATE_HYPERSPACE", "STATE_SPACE_LOBBY", "STATE_SPACE_CORRIDOR",
         "STATE_SPACE_SUITE", "STATE_PARIS_DREAM", "STATE_CLEANED_SUITE",
-        "STATE_MONTAGE", "STATE_RETURN_TAXI", "STATE_GLASSHOUSE"
+        "STATE_MONTAGE", "STATE_RETURN_TAXI", "STATE_GLASSHOUSE",
+        "STATE_SHELL_TEST"
     };
     FILE *f = fopen("/tmp/ev_state", "w");
     if (f) {
         int idx = (int)s;
-        if (idx >= 0 && idx < 18) fprintf(f, "%s\n", names[idx]);
+        if (idx >= 0 && idx < (int)(sizeof(names)/sizeof(names[0]))) fprintf(f, "%s\n", names[idx]);
         else fprintf(f, "STATE_TITLE\n");
         fprintf(f, "%.2f %.2f %.2f\n",
                 g.player.camera.position.x, g.player.camera.position.y,

@@ -99,6 +99,7 @@ void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz
         .active = true, .shape = SHAPE_MODEL,
         .material = mat, .rotation_y = rotation_deg,
         .model_index = model_index,
+        .no_collide = true,  // SHAPE_MODEL has no collision geometry — use add_collision_wall()
     };
 }
 
@@ -166,7 +167,11 @@ void set_last_hinge(Scene *s, float closed_angle, float open_angle) {
 // ── Shell system — Gehry-esque environments ──
 // Invisible collision-only wall (no render, just physics)
 void add_collision_wall(Scene *s, float x, float y, float z, float w, float h, float d) {
-    if (s->wall_count >= MAX_WALLS) return;
+    if (s->wall_count >= MAX_WALLS) {
+        fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — collision wall at (%.1f,%.1f,%.1f) dropped\n",
+                s->wall_count, MAX_WALLS, x, y, z);
+        return;
+    }
     s->walls[s->wall_count++] = (Wall){
         .pos = {x, y, z}, .size = {w, h, d},
         .color = (Color){0, 0, 0, 0},  // invisible

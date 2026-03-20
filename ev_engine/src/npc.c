@@ -347,6 +347,10 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     }
 
     // ── CUBE-PERSON FALLBACK ──
+    // Save shared model material colors — restored at end of draw
+    Color saved_cube_color = cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
+    Color saved_cyl_color = cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
+
     float t = npc->bob_timer;
     float idle = npc->idle_timer;
     bool walking = !npc->waiting;
@@ -639,9 +643,26 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
         }
     }
 
+    // Restore shared model material colors
+    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_cube_color;
+    cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_cyl_color;
+
     #undef P
     #undef D
     #undef DRAW
     #undef DRAW_TILT
     #undef DRAWCYL
+}
+
+// ── Interest points ──────────────────────────────────────────────────
+// A brief yaw adjustment. Professional awareness. Not investigation.
+void npc_post_interest(NPC *npc, Vector3 pos, float lifetime) {
+    if (!npc->active || npc->waiting) return;
+    (void)lifetime;  // reserved for future timed glance duration
+    // Momentary yaw adjustment toward the sound source
+    float dx = pos.x - npc->pos.x;
+    float dz = pos.z - npc->pos.z;
+    if (dx * dx + dz * dz > 0.01f) {
+        npc->yaw_target = atan2f(-dx, -dz);
+    }
 }
