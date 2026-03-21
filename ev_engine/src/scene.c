@@ -1788,16 +1788,18 @@ void build_hotel_room(Scene *s) {
     // Recessed panel — wall opposite balcony, above desk
     add_recessed_panel(s, 5.0f, 2.2f, rd/2-0.16f, 3.0f, 1.8f, 0.1f, wall_gold);
 
-    // LIGHT SHAFT — cool moonlight through balcony door onto floor
-    // Godard contrast: cold blue shaft cutting through warm golden room
-    add_wall(s, -4.5f, 0.02f, -1.0f, 2.0f, 0.02f, 1.5f, (Color){120,150,220,100});
-    // Night sky visible through balcony glass — deep cold blue
-    add_wall(s, -5.95f, 1.5f, -1, 0.02f, 2.8f, 1.7f, (Color){15,25,60,255});
+    // LIGHT SHAFT — colder, longer moonlight through the balcony door.
+    // It breaks the amber wash and quietly pulls the eye toward the real exit side.
+    add_wall(s, -4.7f, 0.02f, -1.0f, 2.2f, 0.02f, 1.8f, (Color){130, 165, 235, 120});
+    add_wall(s, -3.9f, 0.02f, -0.2f, 2.8f, 0.02f, 2.2f, (Color){95, 135, 215, 70});
+    add_wall(s, -3.1f, 0.02f, 0.9f, 3.4f, 0.02f, 2.4f, (Color){70, 115, 205, 40});
+    // Night sky visible through balcony glass — brighter deep blue so the cool source actually reads
+    add_wall(s, -5.95f, 1.5f, -1, 0.02f, 2.8f, 1.7f, (Color){25, 42, 92, 255});
 
-    // Multi-step interactions: lamp=2, drawers=3, candles=3, ashtray=1, bed=2
-    add_object(s, -2.5f, 1.2f, -3.8f, "lamp", (Color){240,210,120,255}, 2);
-    add_object(s, 5.0f, 1.0f, 0, "drawers", (Color){200,155,90,255}, 3);
-    add_object(s, -4.2f, 0.6f, 3.0f, "candles", (Color){240,220,160,255}, 3);
+    // Multi-step interactions: lamp=1, drawers=2, candles=1, ashtray=1, bed=2
+    add_object(s, -2.5f, 1.2f, -3.8f, "lamp", (Color){240,210,120,255}, 1);
+    add_object(s, 5.0f, 1.0f, 0, "drawers", (Color){200,155,90,255}, 2);
+    add_object(s, -4.2f, 0.6f, 3.0f, "candles", (Color){240,220,160,255}, 1);
     add_object(s, 5.5f, 0.6f, -2, "ashtray", (Color){180,170,155,255}, 1);
     add_object(s, 0, 0.8f, -3.5f, "bed", white, 2);
 
@@ -1841,6 +1843,8 @@ void build_hotel_room(Scene *s) {
     set_last_material(s, MAT_BRASS);
     add_wall(s, -5.5f, 1.6f, 3.18f, 0.04f, 0.08f, 0.04f, gold);       // handle right
     set_last_material(s, MAT_BRASS);
+    // Secret seam — a cool draft of light so the "exit" reads without UI hand-holding.
+    add_light_panel(s, -5.18f, 1.2f, 3.18f, 0.04f, 1.8f, 0.22f, (Color){110, 155, 235, 120});
     add_object(s, -5.5f, 1.2f, 3.2f, "wardrobe", (Color){140,120,80,255}, 1);
 
     // ============================================================
@@ -1956,7 +1960,8 @@ void build_hotel_room(Scene *s) {
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 4};
-    s->has_exit = false;
+    s->exit_pos = (Vector3){-5.5f, 1.2f, 3.2f};
+    s->has_exit = true;
 }
 
 void build_balcony(Scene *s) {
