@@ -29,7 +29,13 @@ cp "$QA_VIEWER" "$SERVE_DIR/index.html"
 # Start local server
 python3 -m http.server "$PORT" -d "$SERVE_DIR" &>/dev/null &
 SERVER_PID=$!
-trap "kill $SERVER_PID 2>/dev/null; rm -rf $SERVE_DIR" EXIT
+cleanup() {
+    if kill "$SERVER_PID" 2>/dev/null; then
+        wait "$SERVER_PID" 2>/dev/null || true
+    fi
+    rm -rf "$SERVE_DIR"
+}
+trap cleanup EXIT
 sleep 0.5
 
 ANGLES="front side quarter top"
