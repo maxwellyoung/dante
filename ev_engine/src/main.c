@@ -655,7 +655,11 @@ int main(void) {
 
     // Sky Tower — Auckland landmark, the recurring silhouette
     if (FileExists("assets/skytower.obj")) {
+        // Raylib's OBJ loader spuriously logs a duplicate mesh upload warning here
+        // on macOS/Metal even though the resulting model is valid.
+        SetTraceLogLevel(LOG_ERROR);
         g.skytower_model = LoadModel("assets/skytower.obj");
+        SetTraceLogLevel(LOG_INFO);
         if (g.skytower_model.meshCount > 0 && g.skytower_model.meshes[0].vertexCount > 0) {
             if (g.lighting.ready) g.skytower_model.materials[0].shader = g.lighting.shader;
             g.skytower_loaded = true;
