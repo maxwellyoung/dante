@@ -17,6 +17,27 @@ float ev_mouse_sens = MOUSE_SENS_DEFAULT;
 // ── Global game context — replaces ~80 file-scope statics ──
 GameCtx g;
 
+static Model make_generated_model(Mesh mesh) {
+    Model model = {0};
+    model.transform = MatrixIdentity();
+    model.meshCount = 1;
+    model.materialCount = 1;
+    model.meshes = calloc(1, sizeof(Mesh));
+    model.materials = calloc(1, sizeof(Material));
+    model.meshMaterial = calloc(1, sizeof(int));
+    if (!model.meshes || !model.materials || !model.meshMaterial) {
+        free(model.meshes);
+        free(model.materials);
+        free(model.meshMaterial);
+        UnloadMesh(mesh);
+        return (Model){0};
+    }
+    model.meshes[0] = mesh;
+    model.materials[0] = LoadMaterialDefault();
+    model.meshMaterial[0] = 0;
+    return model;
+}
+
 void show_text(const char *text) {
     g.vig_text = text;
     g.text_scale_target = 1.0f;
@@ -603,26 +624,34 @@ int main(void) {
     ui_init();
 
     Mesh cube_mesh = GenMeshCube(1.0f, 1.0f, 1.0f);
-    g.cube_model = LoadModelFromMesh(cube_mesh);
-    if (g.lighting.ready) g.cube_model.materials[0].shader = g.lighting.shader;
-    g.cube_model_loaded = true;
+    g.cube_model = make_generated_model(cube_mesh);
+    if (g.cube_model.meshCount > 0) {
+        if (g.lighting.ready) g.cube_model.materials[0].shader = g.lighting.shader;
+        g.cube_model_loaded = true;
+    }
 
     Mesh cyl_mesh = GenMeshCylinder(0.5f, 1.0f, 16);
-    g.cyl_model = LoadModelFromMesh(cyl_mesh);
-    if (g.lighting.ready) g.cyl_model.materials[0].shader = g.lighting.shader;
-    g.cyl_model_loaded = true;
+    g.cyl_model = make_generated_model(cyl_mesh);
+    if (g.cyl_model.meshCount > 0) {
+        if (g.lighting.ready) g.cyl_model.materials[0].shader = g.lighting.shader;
+        g.cyl_model_loaded = true;
+    }
 
     // Sphere model — for light fixtures, decorative elements
     Mesh sphere_mesh = GenMeshSphere(0.5f, 8, 8);
-    g.sphere_model = LoadModelFromMesh(sphere_mesh);
-    if (g.lighting.ready) g.sphere_model.materials[0].shader = g.lighting.shader;
-    g.sphere_model_loaded = true;
+    g.sphere_model = make_generated_model(sphere_mesh);
+    if (g.sphere_model.meshCount > 0) {
+        if (g.lighting.ready) g.sphere_model.materials[0].shader = g.lighting.shader;
+        g.sphere_model_loaded = true;
+    }
 
     // Cone model — for lamp shades, decorative elements
     Mesh cone_mesh = GenMeshCone(0.5f, 1.0f, 12);
-    g.cone_model = LoadModelFromMesh(cone_mesh);
-    if (g.lighting.ready) g.cone_model.materials[0].shader = g.lighting.shader;
-    g.cone_model_loaded = true;
+    g.cone_model = make_generated_model(cone_mesh);
+    if (g.cone_model.meshCount > 0) {
+        if (g.lighting.ready) g.cone_model.materials[0].shader = g.lighting.shader;
+        g.cone_model_loaded = true;
+    }
 
     // Sky Tower — Auckland landmark, the recurring silhouette
     if (FileExists("assets/skytower.obj")) {
