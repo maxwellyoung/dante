@@ -1097,6 +1097,22 @@ void build_lobby(Scene *s) {
     // Floor indicator above elevator — small lit panel
     add_wall(s, elev_x, 3.3f, elev_z + 0.02f, 0.6f, 0.25f, 0.04f, PAL_BLACK);
     add_wall(s, elev_x, 3.3f, elev_z + 0.04f, 0.5f, 0.18f, 0.02f, (Color){200, 160, 80, 140});
+    // Flanking sconces — the back wall was too dead in the QA hero frame.
+    for (int side = -1; side <= 1; side += 2) {
+        float sx = elev_x + side * 3.0f;
+        add_wall(s, sx, 2.15f, elev_z + 0.03f, 0.18f, 0.9f, 0.04f, gold);
+        set_last_material(s, MAT_BRASS);
+        add_light_panel(s, sx, 2.15f, elev_z + 0.08f, 0.12f, 0.55f, 0.08f, (Color){240, 220, 165, 135});
+    }
+    // Quiet planters near the elevator give the back wall some layered silhouette.
+    for (int side = -1; side <= 1; side += 2) {
+        float px = elev_x + side * 4.0f;
+        float pz = elev_z + 0.45f;
+        add_cylinder(s, px, 0.32f, pz, 0.22f, 0.64f, pot_brass);
+        set_last_material(s, MAT_BRASS);
+        add_sphere(s, px, 1.05f, pz, 0.42f, plant_green);
+        add_sphere(s, px + side * 0.12f, 1.38f, pz + 0.04f, 0.24f, plant_green);
+    }
     // Interactive trigger
     add_object(s, elev_x, 1.5f, elev_z + 0.4f, "elevator", gold, 1);
 
@@ -2974,10 +2990,10 @@ void build_taxi_ride(Scene *s) {
     // Dashboard top surface
     add_wall(s, 0, 0.64f, -1.2f, 1.6f, 0.03f, 0.6f, (Color){30, 27, 22, 255});
 
-    // Steering wheel — front-left, small cylinder
-    add_cylinder(s, -0.35f, 0.75f, -1.3f, 0.25f, 0.03f, (Color){35, 32, 28, 255});
+    // Steering wheel — right-hand drive. Auckland is not a left-hand-drive set.
+    add_cylinder(s, 0.35f, 0.75f, -1.3f, 0.25f, 0.03f, (Color){35, 32, 28, 255});
     // Steering column
-    add_cylinder(s, -0.35f, 0.65f, -1.35f, 0.04f, 0.2f, (Color){40, 38, 35, 255});
+    add_cylinder(s, 0.35f, 0.65f, -1.35f, 0.04f, 0.2f, (Color){40, 38, 35, 255});
 
     // ============================================================
     // DRIVER — viewed from backseat
@@ -3086,6 +3102,7 @@ void build_taxi_ride(Scene *s) {
     // Taxi meter — on dashboard, right side
     add_wall(s, 0.45f, 0.72f, -1.1f, 0.18f, 0.1f, 0.08f, meter_bg);
     add_wall(s, 0.45f, 0.72f, -1.06f, 0.15f, 0.07f, 0.02f, meter_glow);
+    set_last_decal(s);
 
     // Door panels — inner surfaces
     add_wall(s, -0.82f, 0.5f, -0.1f, 0.04f, 0.5f, 0.8f, (Color){30, 27, 22, 255});
@@ -3102,8 +3119,11 @@ void build_taxi_ride(Scene *s) {
         add_wall(s, 0, -0.3f, z, 10.0f, 0.05f, 20.0f, road);
         // Road markings — center dashes
         add_wall(s, 0, -0.27f, z - 3.0f, 0.12f, 0.02f, 2.0f, road_marking);
+        set_last_decal(s);
         add_wall(s, 0, -0.27f, z - 9.0f, 0.12f, 0.02f, 2.0f, road_marking);
+        set_last_decal(s);
         add_wall(s, 0, -0.27f, z - 15.0f, 0.12f, 0.02f, 2.0f, road_marking);
+        set_last_decal(s);
     }
 
     // Sidewalks
@@ -3130,6 +3150,7 @@ void build_taxi_ride(Scene *s) {
                 float wy = 1.5f + floor * 2.5f;
                 if (wy > h - 1.0f) continue;
                 add_wall(s, wx, wy, z + 1.55f, 0.6f, 0.9f, 0.04f, window_amber);
+                set_last_decal(s);
             }
         }
     }
@@ -3151,6 +3172,7 @@ void build_taxi_ride(Scene *s) {
                 float wy = 1.5f + floor * 2.5f;
                 if (wy > h - 1.0f) continue;
                 add_wall(s, wx, wy, z - 1.55f, 0.6f, 0.9f, 0.04f, window_amber);
+                set_last_decal(s);
             }
         }
     }
@@ -3164,6 +3186,7 @@ void build_taxi_ride(Scene *s) {
         add_wall(s, -4.8f, 4.2f, z, 0.4f, 0.15f, 0.2f, streetlight_glow);
         // Wet road reflection below
         add_wall(s, -3.0f, -0.26f, z, 1.5f, 0.02f, 2.0f, wet_reflect);
+        set_last_decal(s);
     }
 
     // Streetlights — right side, offset
@@ -3172,6 +3195,7 @@ void build_taxi_ride(Scene *s) {
         add_wall(s, 4.8f, 2.0f, z, 0.08f, 4.0f, 0.08f, streetlight_pole);
         add_wall(s, 4.8f, 4.2f, z, 0.4f, 0.15f, 0.2f, streetlight_glow);
         add_wall(s, 3.0f, -0.26f, z, 1.5f, 0.02f, 2.0f, wet_reflect);
+        set_last_decal(s);
     }
 
     // Parked cars (dark silhouettes on sides of road)
@@ -3185,6 +3209,7 @@ void build_taxi_ride(Scene *s) {
         // Taillight (red glow if behind camera direction)
         add_wall(s, side - 0.85f, 0.35f, z + 0.35f, 0.06f, 0.06f, 0.04f,
                  (Color){180, 20, 20, 120});
+        set_last_decal(s);
     }
 
     // Distant city skyline — tall dark silhouettes at far Z
@@ -3237,29 +3262,30 @@ void build_return_taxi(Scene *s) {
     // RETURN TAXI — dawn Auckland. Same interior, different world.
     build_taxi_ride(s);
 
-    // Override fog — dawn pink-gold instead of teal
-    s->fog_color = (Color){45, 38, 32, 255};
+    // Override fog — dawn mauve instead of teal.
+    // Keeping some blue in the mix avoids a red-vs-green-only read in the hero frame.
+    s->fog_color = (Color){58, 50, 56, 255};
     s->fog_density = 0.003f;
 
     // Recolor exterior walls (indices >= static_wall_count) to dawn palette
     for (int i = s->static_wall_count; i < s->wall_count; i++) {
         Wall *w = &s->walls[i];
         unsigned char r = w->color.r, g = w->color.g, b = w->color.b;
-        // Road surfaces — lighten from near-black to warm grey
+        // Road surfaces — lighten from near-black to dawn slate.
         if (r < 35 && g < 35 && b < 40 && w->size.y < 0.2f)
-            w->color = (Color){55, 52, 48, 255};
-        // Buildings — dark blue → warm ochre silhouettes
+            w->color = (Color){68, 64, 72, 255};
+        // Buildings — keep the skyline warm, but anchor it with mauve/slate rather than pure ochre.
         else if (r < 30 && b > r && w->size.y > 2.0f)
-            w->color = (Color){60 + (r*2)%20, 52 + (g*2)%15, 42 + (b)%10, 255};
-        // Windows — sodium amber → pale dawn reflections
+            w->color = (Color){72 + (r * 2) % 14, 64 + (g * 2) % 12, 70 + b % 14, 255};
+        // Windows — sodium amber -> pale dawn reflections.
         else if (r > 200 && g > 150 && b < 120 && w->color.a < 200)
-            w->color = (Color){140, 160, 180, 50};
-        // Streetlight glow — nearly off at dawn
+            w->color = (Color){156, 170, 198, 56};
+        // Streetlight glow — nearly off at dawn.
         else if (r > 220 && g > 160 && w->size.y < 0.2f && w->size.x < 0.5f)
-            w->color = (Color){80, 75, 70, 30};
-        // Wet road reflections — pink-gold sky
+            w->color = (Color){92, 86, 96, 34};
+        // Wet road reflections — mauve dawn sky rather than amber.
         else if (w->color.a < 50 && r > 200)
-            w->color = (Color){180, 140, 110, 15};
+            w->color = (Color){170, 152, 188, 24};
     }
 
     // Add Sky Tower — just a building drifting past, no wormhole
@@ -4342,6 +4368,14 @@ void build_space_corridor(Scene *s) {
             add_light_panel(s, cx + W/2 - 0.2f, H - 0.15f, cz, 0.15f, 0.08f, seg_len * 0.8f, warm_amber);
         }
 
+        // Guide-light seams — barely there in motion, but enough to keep the walk readable.
+        add_wall(s, cx, 0.015f, cz, 0.26f, 0.01f, seg_len * 0.22f, (Color){118, 150, 210, 34});
+        set_last_decal(s);
+        if (i % 2 == 0) {
+            add_wall(s, cx, 0.015f, cz, 0.65f, 0.01f, seg_len * 0.08f, (Color){230, 185, 118, 28});
+            set_last_decal(s);
+        }
+
         // ── PIPE CONDUITS along ceiling ── (decorative)
         add_wall(s, cx - W/2 + 0.25f, H - 0.12f, cz, 0.06f, 0.06f, seg_len, pipe_metal);
         set_last_material(s, MAT_BRASS); set_last_no_collide(s);
@@ -4471,6 +4505,15 @@ void build_space_corridor(Scene *s) {
     add_wall(s, end1_x, H * 0.375f, end1_z + seg_len/2 - 0.14f,
              W - 0.5f, H * 0.75f, 0.04f, cream);
     set_last_material(s, MAT_WALLPAPER);
+    // Suite spill — the far end needs to read as an arrival, not a black cap.
+    add_light_panel(s, end1_x, 1.45f, end1_z + seg_len/2 - 0.08f, 0.08f, 1.9f, 0.16f,
+                    (Color){225, 195, 132, 150});
+    add_wall(s, end1_x, 0.02f, end1_z + seg_len/2 - 0.55f, 1.2f, 0.02f, 1.4f,
+             (Color){205, 168, 102, 34});
+    set_last_decal(s);
+    add_wall(s, end1_x, H - 0.04f, end1_z + seg_len/2 - 0.35f, 0.95f, 0.02f, 0.7f,
+             (Color){185, 150, 88, 18});
+    set_last_decal(s);
 
     // ============================================================
     // THE IMPOSSIBLE DOOR — opens to raw hull. Not a room.
@@ -4697,7 +4740,12 @@ void build_space_corridor(Scene *s) {
     }
 
     // Interactive objects
-    add_object(s, mid_x + 0.5f, 2.2f, mid_z, "newspaper", (Color){235, 232, 228, 200}, 1);
+    {
+        float a_note = start_angle + 1.35f * (total_angle / segs);
+        float note_x = sinf(a_note) * curve_radius + 0.45f;
+        float note_z = -cosf(a_note) * curve_radius + curve_radius + 0.25f;
+        add_object(s, note_x, 1.95f, note_z, "newspaper", (Color){235, 232, 228, 210}, 1);
+    }
 
     // ── GLB PROPS — atmospheric floor lamp mid-corridor ──
     {

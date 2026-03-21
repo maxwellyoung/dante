@@ -42,10 +42,10 @@ mat_cap = mat("Driver_Cap", 42, 40, 36, roughness=0.75)
 mat_collar = mat("Driver_Collar", 225, 220, 210, roughness=0.7)
 mat_watch = mat("Driver_Watch", 210, 180, 100, metallic=0.8, roughness=0.3)
 
-# Driver seat position in engine coords: x=-0.4, y(height)=~0.84, z(depth)=-0.88
-# Blender coords (Z-up, -Y=forward): X=-0.4, Y=+0.88 (forward toward windshield), Z=height
+# Driver seat position in engine coords: x=+0.4, y(height)=~0.84, z(depth)=-0.88
+# Blender coords (Z-up, -Y=forward): X=+0.4, Y=+0.88 (forward toward windshield), Z=height
 # Note: engine -Z maps to Blender -Y (forward), so engine dz=-0.88 → Blender Y=+0.88
-dx = -0.4   # X stays X
+dx = 0.4   # X stays X
 dy = 0.88   # engine Z=-0.88 → Blender Y=+0.88 (toward front of car)
 # Z = height (was Y in the old wrong script)
 
@@ -62,22 +62,16 @@ def scl(sx, sh, sd):
 bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 0.84))
 torso = bpy.context.active_object
 torso.name = "Driver_Torso"
-torso.scale = scl(0.44, 0.50, 0.30)
+torso.scale = scl(0.36, 0.46, 0.26)
 bpy.ops.object.transform_apply(scale=True)
-mod = torso.modifiers.new("Subsurf", "SUBSURF")
-mod.levels = 1
-bpy.ops.object.modifier_apply(modifier="Subsurf")
 torso.data.materials.append(mat_coat)
 
 # ── SHOULDERS — wider than torso ──
 bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 0.96))
 shoulders = bpy.context.active_object
 shoulders.name = "Driver_Shoulders"
-shoulders.scale = scl(0.58, 0.12, 0.30)
+shoulders.scale = scl(0.48, 0.12, 0.24)
 bpy.ops.object.transform_apply(scale=True)
-mod = shoulders.modifiers.new("Subsurf", "SUBSURF")
-mod.levels = 1
-bpy.ops.object.modifier_apply(modifier="Subsurf")
 shoulders.data.materials.append(mat_coat)
 
 # ── COLLAR — white V visible from behind ──
@@ -99,11 +93,8 @@ neck.data.materials.append(mat_skin)
 bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.20, -0.02))
 head = bpy.context.active_object
 head.name = "Driver_Head"
-head.scale = scl(0.24, 0.26, 0.24)
+head.scale = scl(0.21, 0.23, 0.21)
 bpy.ops.object.transform_apply(scale=True)
-mod = head.modifiers.new("Subsurf", "SUBSURF")
-mod.levels = 1
-bpy.ops.object.modifier_apply(modifier="Subsurf")
 head.data.materials.append(mat_skin)
 
 # ── EARS ──
@@ -120,7 +111,7 @@ for side in [-1, 1]:
 bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.22, -0.11))
 hair = bpy.context.active_object
 hair.name = "Driver_Hair"
-hair.scale = scl(0.22, 0.18, 0.08)
+hair.scale = scl(0.20, 0.14, 0.10)
 bpy.ops.object.transform_apply(scale=True)
 hair.data.materials.append(mat_hair)
 
@@ -129,13 +120,15 @@ bpy.ops.mesh.primitive_cylinder_add(radius=0.15, depth=0.07, vertices=10,
                                      location=loc(dx, 1.35, -0.02))
 cap_body = bpy.context.active_object
 cap_body.name = "Driver_CapBody"
+cap_body.scale = (1.05, 0.95, 0.85)
+bpy.ops.object.transform_apply(scale=True)
 cap_body.data.materials.append(mat_cap)
 
 # Cap brim — extends forward (toward windshield = negative depth_offset)
 bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.33, 0.12))
 brim = bpy.context.active_object
 brim.name = "Driver_Brim"
-brim.scale = scl(0.28, 0.025, 0.14)
+brim.scale = scl(0.32, 0.025, 0.16)
 bpy.ops.object.transform_apply(scale=True)
 brim.data.materials.append(mat_cap)
 

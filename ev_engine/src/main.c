@@ -859,7 +859,7 @@ int main(void) {
             .flow_order = 1, .flow_next = STATE_LOBBY},
         {STATE_LOBBY, "lobby",
             .angles = {
-                {{0, 1.6f, 6}, {-2, 3, -8}},            // hero: staircase + elevator + chandelier
+                {{5.9f, 1.42f, 4.6f}, {-1.4f, 1.80f, -5.7f}}, // hero: desk edge and carpet pull you into the elevator axis
                 {{0, 1.6f, 8}, {0, 2, -5}},              // spawn: entering from front
                 {{-6, 1.6f, 0}, {6, 2, -4}},             // patrol_left: reception desk angle
                 {{6, 1.6f, 0}, {-6, 2, -4}},             // patrol_right: piano angle
@@ -964,7 +964,7 @@ int main(void) {
             .flow_order = 6, .flow_next = STATE_SPACE_SUITE},
         {STATE_SPACE_SUITE, "space_suite",
             .angles = {
-                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // hero: entering, bed + window depth
+                {{2.2f, 1.55f, 4.9f}, {-1.4f, 1.35f, -3.8f}}, // hero: diagonal entry with lounge foreground and bed depth
                 {{1.5f, 1.6f, 4.5f}, {-1.0f, 1.4f, -3.5f}}, // spawn: offset entry angle
                 {{-5, 1.6f, 0}, {5, 1.8f, -2}},           // patrol_left: desk side
                 {{5, 1.6f, 0}, {-5, 1.8f, -2}},           // patrol_right: window side
@@ -1015,7 +1015,7 @@ int main(void) {
             .flow_order = 10, .flow_next = STATE_RETURN_TAXI},
         {STATE_RETURN_TAXI, "return_taxi",
             .angles = {
-                {{0, 1.0f, 0}, {-0.3f, 0.9f, -1.2f}},    // hero: driver + dashboard
+                {{-0.42f, 1.00f, 0.12f}, {0.62f, 0.98f, -1.46f}}, // hero: driver silhouette framed against the pale windshield
                 {{0, 1.0f, 0}, {0.5f, 0.8f, -0.5f}},      // spawn
                 {{0, 1.0f, 0}, {-1, 0.8f, 0}},             // patrol_left
                 {{0, 1.0f, 0}, {1, 0.8f, 0}},              // patrol_right
@@ -1052,7 +1052,7 @@ int main(void) {
             .flow_order = -1, .flow_next = STATE_PARIS_DREAM},
         {STATE_CLEANED_SUITE, "cleaned_suite",
             .angles = {
-                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // hero: entry depth still reads after cleanup
+                {{2.0f, 1.55f, 4.9f}, {-1.2f, 1.35f, -3.9f}}, // hero: diagonal entry still reads after cleanup
                 {{1.5f, 1.6f, 4.5f}, {-1.0f, 1.4f, -3.5f}}, // spawn
                 {{-5, 1.6f, 0}, {5, 1.8f, -2}},           // patrol_left
                 {{5, 1.6f, 0}, {-5, 1.8f, -2}},           // patrol_right
