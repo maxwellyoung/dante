@@ -36,7 +36,7 @@ NOTE = "NOTE"
 TRANSITIONAL_SCENES = {"hallway", "hotel_ext", "elevator", "hyperspace",
                        "taxi", "space_corridor", "return_taxi", "stars"}
 CUTSCENE_SCENES = {"bed", "cleaned_suite"}
-FLOOR_PROBE_EXEMPT_SCENES = {"balcony", "taxi", "return_taxi", "bed", "stars"}
+FLOOR_PROBE_EXEMPT_SCENES = {"balcony", "taxi", "return_taxi", "bed", "stars", "hyperspace"}
 
 # ── Design Commandments (from CLAUDE.md) ──
 COMMANDMENTS = [

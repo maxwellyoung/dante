@@ -84,6 +84,21 @@ void balcony_update(float dt) {
                         Vector3 to_cig = Vector3Normalize(Vector3Subtract(obj->pos, g.player.camera.position));
                         g.cigarette_cam_target = Vector3Add(g.player.camera.position, Vector3Scale(to_cig, 0.5f));
                         break;
+                    } else if (strcmp(obj->name, "telescope") == 0) {
+                        obj->step++; obj->done = true;
+                        PlayInteract(&g.audio, INTERACT_CLICK);
+                        set_exposure(0.18f);
+                        SetPostFXWarmth(&g.postfx, 0.85f);
+                        SetPostFXGrain(&g.postfx, 0.25f);
+                        SetPostFXCA(&g.postfx, 1.8f);
+                        break;
+                    } else if (strcmp(obj->name, "airlock_panel") == 0) {
+                        obj->step++; obj->done = true;
+                        PlayInteract(&g.audio, INTERACT_CLICK);
+                        set_exposure(0.14f);
+                        SetPostFXWarmth(&g.postfx, 0.9f);
+                        SetPostFXGrain(&g.postfx, 0.45f);
+                        break;
                     }
                 }
             }

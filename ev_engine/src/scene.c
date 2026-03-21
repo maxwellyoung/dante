@@ -3337,11 +3337,17 @@ void build_hyperspace(Scene *s) {
     add_sphere(s, 0, 0, -95.0f, 3.0f, (Color){200, 220, 255, 180});
     add_sphere(s, 0, 0, -95.0f, 5.0f, (Color){150, 180, 230, 60});
 
-    // Void floor/ceiling — barely visible, gives orientation
+    // Outer void shell — keeps the tunnel from collapsing into black.
     add_wall(s, 0, -3.0f, -45, 6, 0.02f, 90, void_black);
     set_last_material(s, MAT_MARBLE);
     add_wall(s, 0, 3.0f, -45, 6, 0.02f, 90, void_black);
     set_last_material(s, MAT_MARBLE);
+
+    // Inner guide planes — subtle horizon so the tunnel reads without flattening it.
+    add_wall(s, 0, -1.05f, -45, 2.8f, 0.03f, 90, (Color){20, 42, 78, 54});
+    set_last_material(s, MAT_GLASS);
+    add_wall(s, 0, 1.05f, -45, 2.2f, 0.03f, 90, (Color){34, 52, 88, 34});
+    set_last_material(s, MAT_GLASS);
 
     // Additional Godard color flashes — denser in the middle section
     add_wall(s, 0.7f, 0.8f, -35, 0.08f, 0.4f, 0.3f, godard_red);
