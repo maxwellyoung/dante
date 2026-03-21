@@ -161,24 +161,33 @@ def profile_cinematographer(scene):
     hero = get_hero_metrics(scene)
     dark = scene.get("dark_by_design", False)
     name = scene["name"]
+    thirds = hero.get("rule_of_thirds_energy", 0)
+    contrast = hero.get("contrast_ratio", 1)
+    hues = hero.get("hue_buckets", 0)
+    warmth = hero.get("warmth", 0)
+    sat = hero.get("saturation_avg", 0)
 
     # ── Composition ──
     edge_density = hero.get("edge_density", 0)
     cvar = hero.get("color_variance", 0)
     if not dark:
         if edge_density < 3:
-            if cvar > 2000:
+            if cvar > 2000 and (sat > 0.25 or contrast > 1.8 or thirds > 10):
+                issues.append((NOTE, f"Soft edges ({edge_density:.0f}%) but color blocking reads as intentional composition"))
+            elif cvar > 2000:
                 score -= 0.5
                 issues.append((MINOR, f"Soft edges ({edge_density:.0f}%) but strong color fields — Rothko territory"))
             else:
                 score -= 2.0
                 issues.append((CRITICAL, f"Edge density {edge_density:.0f}% — no readable geometry at any distance"))
         elif edge_density < 8:
-            score -= 0.5
-            issues.append((MINOR, f"Edge density {edge_density:.0f}% — sparse visual structure"))
+            if contrast >= 2.5 and thirds >= 10:
+                issues.append((NOTE, f"Edge density {edge_density:.0f}% — sparse but carried by contrast and blocking"))
+            else:
+                score -= 0.5
+                issues.append((MINOR, f"Edge density {edge_density:.0f}% — sparse visual structure"))
 
     # Rule of thirds
-    thirds = hero.get("rule_of_thirds_energy", 0)
     if thirds > 15 and not dark:
         issues.append((NOTE, f"Strong thirds energy ({thirds:.0f}) — good classical composition"))
     elif thirds < 3 and not dark:
@@ -186,7 +195,6 @@ def profile_cinematographer(scene):
         issues.append((MINOR, "Weak rule-of-thirds energy — consider reframing hero shot"))
 
     # ── Contrast / Drama ──
-    contrast = hero.get("contrast_ratio", 1)
     if not dark:
         if contrast < 1.3:
             score -= 1.5
@@ -198,10 +206,6 @@ def profile_cinematographer(scene):
             issues.append((NOTE, "Excellent dark-scene contrast — pools of light work"))
 
     # ── Color ──
-    hues = hero.get("hue_buckets", 0)
-    warmth = hero.get("warmth", 0)
-    sat = hero.get("saturation_avg", 0)
-
     if not dark:
         if hues < 2:
             score -= 1.5

@@ -1104,6 +1104,14 @@ void build_lobby(Scene *s) {
         set_last_material(s, MAT_BRASS);
         add_light_panel(s, sx, 2.15f, elev_z + 0.08f, 0.12f, 0.55f, 0.08f, (Color){240, 220, 165, 135});
     }
+    // Tall mirror panels tighten the elevator composition and give the hero frame more vertical rhythm.
+    for (int side = -1; side <= 1; side += 2) {
+        float mx = elev_x + side * 1.95f;
+        add_wall(s, mx, 2.05f, elev_z + 0.03f, 0.72f, 1.85f, 0.03f, (Color){138, 150, 170, 70});
+        set_last_material(s, MAT_GLASS);
+        add_door_frame(s, mx, 2.05f, elev_z + 0.01f, 0.88f, 1.95f, 0.05f, gold);
+        set_last_material(s, MAT_BRASS);
+    }
     // Quiet planters near the elevator give the back wall some layered silhouette.
     for (int side = -1; side <= 1; side += 2) {
         float px = elev_x + side * 4.0f;
@@ -1300,6 +1308,15 @@ void build_lobby(Scene *s) {
     add_picture_frame(s, 4.5f, 3.0f, -hd + 0.18f, 1.2f, 0.9f, gold, (Color){40,65,160,255});
     // Smaller frame — near sitting area wall
     add_picture_frame(s, -hw + 0.18f, 2.8f, 0, 0.8f, 0.6f, wood_dark, (Color){170,155,130,255});
+    // Tall mirrored panels on the left wall so the hero frame has readable vertical structure,
+    // not just a long quiet plaster run.
+    for (int pi = 0; pi < 2; pi++) {
+        float pz = -2.4f + pi * 4.8f;
+        add_wall(s, -hw + 0.16f, 2.45f, pz, 0.03f, 2.35f, 1.15f, (Color){150, 158, 170, 82});
+        set_last_material(s, MAT_GLASS);
+        add_door_frame(s, -hw + 0.13f, 2.45f, pz, 0.06f, 2.55f, 1.25f, gold);
+        set_last_material(s, MAT_BRASS);
+    }
 
     // ============================================================
     // WAINSCOTING — decorative panels on back wall sections
@@ -4986,6 +5003,19 @@ void build_space_suite(Scene *s) {
     // Window sill — brass ledge at bottom of glass
     add_wall(s, -rw/2+0.15f, 0.22f, win_cz, 0.12f, 0.04f, win_w+0.2f, brass);
     set_last_material(s, MAT_BRASS);
+    // Curtain stacks and pelmet keep the window from reading as one blank slab in long shots.
+    for (int side = -1; side <= 1; side += 2) {
+        float cz = win_cz + side * (win_w * 0.5f + 0.28f);
+        add_wall(s, -rw/2+0.24f, rh/2, cz, 0.18f, rh-0.7f, 0.45f, (Color){68, 78, 110, 135});
+        set_last_material(s, MAT_FABRIC);
+        set_last_no_collide(s);
+        add_wall(s, -rw/2+0.16f, rh-0.42f, cz, 0.05f, 0.14f, 0.55f, brass);
+        set_last_material(s, MAT_BRASS);
+        set_last_no_collide(s);
+    }
+    add_wall(s, -rw/2+0.20f, rh-0.22f, win_cz, 0.10f, 0.12f, win_w+0.85f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_no_collide(s);
     // Balcony portal cue — subtle sliding-door seam in the glass band
     add_wall(s, -rw/2+0.12f, 1.4f, -0.5f, 0.03f, 2.2f, 1.25f, brass);
     set_last_material(s, MAT_BRASS);
@@ -5137,6 +5167,17 @@ void build_space_suite(Scene *s) {
     // Brass cap on headboard
     add_wall(s, 0, 3.25f, -5.52f, 3.7f, 0.06f, 0.08f, brass);
     set_last_material(s, MAT_BRASS);
+    // Brass reveal fins and warm slots break up the velvet mass without cluttering the floor plan.
+    for (int i = -1; i <= 1; i += 2) {
+        for (int inner = 0; inner < 2; inner++) {
+            float fx = (inner == 0) ? i * 1.85f : i * 3.85f;
+            add_wall(s, fx, 1.95f, -rd/2+0.22f, 0.05f, 2.45f, 0.04f, brass);
+            set_last_material(s, MAT_BRASS);
+            set_last_no_collide(s);
+            add_light_panel(s, fx, 1.95f, -rd/2+0.26f, 0.09f, 1.9f, 0.03f, (Color){236, 198, 140, 24});
+            set_last_no_collide(s);
+        }
+    }
 
     // LEFT NIGHTSTAND — her side
     add_wall(s, -2.5f, 0.32f, -4.8f, 0.6f, 0.6f, 0.6f, wood);

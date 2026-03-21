@@ -886,7 +886,7 @@ int main(void) {
             .flow_order = -1, .flow_next = STATE_ROOM},  // orphaned
         {STATE_ROOM, "room",
             .angles = {
-                {{0, 1.6f, 3}, {0, 1.2f, -3.5f}},       // hero: toward bed + headboard
+                {{4.8f, 1.6f, 3.8f}, {-1.6f, 1.25f, -2.8f}}, // hero: diagonal room reveal with bed depth and side structure
                 {{5.5f, 1.6f, 4}, {-2, 1.2f, -2}},       // spawn: from door toward bed
                 {{-4, 1.6f, 0}, {4, 1.4f, -2}},          // patrol_left: window side
                 {{4, 1.6f, 0}, {-4, 1.4f, -2}},          // patrol_right: bathroom side
@@ -937,9 +937,9 @@ int main(void) {
             .flow_order = 3, .flow_next = STATE_HYPERSPACE},
         {STATE_SPACE_LOBBY, "space_lobby",
             .angles = {
-                {{5, 1.6f, 5}, {-5, 3, -6}},             // hero: diagonal — window + chandelier
+                {{-7, 1.6f, 0}, {7, 2, -4}},              // hero: elevator silhouette plus dark-wall rhythm
                 {{0, 1.6f, 6}, {0, 2, -3}},               // spawn: entering, chandelier visible
-                {{-7, 1.6f, 0}, {7, 2, -4}},              // patrol_left: far corner
+                {{-9, 1.6f, 3}, {5, 2, -6}},              // patrol_left: far corner, more mezzanine read
                 {{7, 1.6f, 0}, {-7, 2, -4}},              // patrol_right: opposite corner
                 {{0, 1.6f, -6}, {0, 2, 6}},               // patrol_back: from window looking in
                 {{3, 1.6f, 3}, {0, 0.5f, 0}},             // detail: floor/fountain
@@ -1015,7 +1015,7 @@ int main(void) {
             .flow_order = 10, .flow_next = STATE_RETURN_TAXI},
         {STATE_RETURN_TAXI, "return_taxi",
             .angles = {
-                {{-0.42f, 1.00f, 0.12f}, {0.62f, 0.98f, -1.46f}}, // hero: driver silhouette framed against the pale windshield
+                {{-0.75f, 1.00f, 0.65f}, {0.30f, 0.95f, -1.55f}}, // hero: rear-seat diagonal with driver and windshield both readable
                 {{0, 1.0f, 0}, {0.5f, 0.8f, -0.5f}},      // spawn
                 {{0, 1.0f, 0}, {-1, 0.8f, 0}},             // patrol_left
                 {{0, 1.0f, 0}, {1, 0.8f, 0}},              // patrol_right

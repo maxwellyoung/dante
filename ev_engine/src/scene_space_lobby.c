@@ -25,17 +25,17 @@ void space_lobby_load(void) {
     g.player.gravity_mult = 0.4f;
     StartAmbient(&g.audio, DRONE_SPACE_LOBBY);
     SetSceneLighting(&g.lighting, LightingPreset_SpaceLobby());
-    set_exposure(-0.05f);
-    SetPostFXGrain(&g.postfx, 0.4f);
-    SetPostFXCA(&g.postfx, 2.5f);
-    SetPostFXWarmth(&g.postfx, -0.16f);
+    set_exposure(-0.08f);
+    SetPostFXGrain(&g.postfx, 0.32f);
+    SetPostFXCA(&g.postfx, 2.1f);
+    SetPostFXWarmth(&g.postfx, -0.24f);
     g.lobby_gibbons_looked = false;
     g.lobby_crouch_reward = false;
     g.lobby_visit_count++;
     if (g.lobby_visit_count > 1) {
-        float revisit_warmth = fminf(0.06f, (g.lobby_visit_count - 1) * 0.03f);
-        SetPostFXWarmth(&g.postfx, -0.16f + revisit_warmth);
-        set_exposure(-0.05f + revisit_warmth * 0.08f);
+        float revisit_warmth = fminf(0.05f, (g.lobby_visit_count - 1) * 0.025f);
+        SetPostFXWarmth(&g.postfx, -0.24f + revisit_warmth);
+        set_exposure(-0.08f + revisit_warmth * 0.06f);
     }
     // Gibbons
     {
@@ -80,8 +80,9 @@ void space_lobby_update(float dt) {
             g.player.vel.x *= slow;
             g.player.vel.z *= slow;
             g.player.fov_current += (60.0f - g.player.fov_current) * t * 0.04f;
-            set_exposure(-0.05f + t * 0.12f);
-            SetPostFXGrain(&g.postfx, 0.4f - t * 0.2f);
+            set_exposure(-0.08f + t * 0.10f);
+            SetPostFXGrain(&g.postfx, 0.32f - t * 0.14f);
+            SetPostFXWarmth(&g.postfx, -0.24f + t * 0.04f);
         }
         // Earth glow pulse
         {
