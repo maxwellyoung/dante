@@ -771,6 +771,76 @@ int main(void) {
             .force_elevator_to_corridor = true,
             .flow_order = -1, .flow_next = STATE_GLASSHOUSE},
     };
+#elif defined(QA_SHELL_SUITE_ONLY)
+    QAEntry qa_scenes[] = {
+        {STATE_SPACE_SUITE, "space_suite_shell",
+            .angles = {
+                {{0, 1.6f, 5.1f}, {0, 1.5f, -4.5f}},            // hero: full-room shell read
+                {{0.2f, 1.6f, 4.6f}, {-5.8f, 1.5f, -0.5f}},     // window: left shell + frame
+                {{-5.6f, 1.4f, 2.2f}, {-6.9f, 1.6f, -0.5f}},    // window_corner: sill + mullions
+                {{5.9f, 1.5f, 2.6f}, {9.5f, 1.4f, 2.5f}},       // bathroom_door: shell to bathroom volume
+                {{8.5f, 1.5f, 2.5f}, {11.4f, 1.5f, 2.5f}},      // bathroom_far: shell/collision fit
+                {{0, 2.9f, 0}, {0, 4.9f, -0.5f}},               // ceiling: shell crown
+                {{0, 1.0f, 5.5f}, {0, 0.0f, 4.8f}},             // threshold_floor: floor plane/entry
+            },
+            .angle_names = {"hero", "window", "window_corner", "bathroom_door", "bathroom_far", "ceiling", "threshold_floor"},
+            .angle_count = 7,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_BALCONY},
+    };
+#elif defined(QA_CAST_ONLY)
+    QAEntry qa_scenes[] = {
+        {STATE_LOBBY, "cast_lobby",
+            .angles = {
+                {{-1.6f, 1.7f, -3.6f}, {-3.2f, 1.7f, -7.1f}},   // hero: Gibbons in lobby
+                {{-2.0f, 1.5f, -5.2f}, {-3.0f, 1.6f, -7.0f}},   // close: facial/material read
+                {{0.0f, 1.6f, 6.0f}, {-3.0f, 1.8f, -7.0f}},     // contextual: lobby composition
+            },
+            .angle_names = {"hero", "close", "context"},
+            .angle_count = 3,
+            .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_ELEVATOR},
+        {STATE_ELEVATOR, "cast_elevator",
+            .angles = {
+                {{-0.4f, 1.6f, 0.5f}, {0.45f, 1.5f, -0.15f}},   // hero: Gibbons profile in elevator
+                {{0.0f, 1.3f, 0.8f}, {0.45f, 1.4f, -0.05f}},    // close: feet/pose read
+                {{0.3f, 2.0f, 0.4f}, {0.45f, 1.6f, -0.1f}},     // upper: cap/shoulders
+            },
+            .angle_names = {"hero", "close", "upper"},
+            .angle_count = 3,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_HYPERSPACE},
+        {STATE_SPACE_CORRIDOR, "cast_space_corridor",
+            .angles = {
+                {{0.2f, 1.6f, 4.0f}, {0.0f, 1.6f, 8.5f}},       // hero: Gibbons leading
+                {{-1.2f, 1.5f, 7.0f}, {-0.2f, 1.6f, 9.0f}},     // close: side silhouette
+                {{0.0f, 1.8f, 1.0f}, {0.0f, 1.6f, 10.0f}},      // contextual corridor shot
+            },
+            .angle_names = {"hero", "close", "context"},
+            .angle_count = 3,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_SPACE_SUITE},
+        {STATE_SPACE_SUITE, "cast_space_suite",
+            .angles = {
+                {{0.3f, 1.6f, 4.8f}, {0.0f, 1.6f, 5.6f}},       // hero: Gibbons at entry
+                {{-0.8f, 1.5f, 5.0f}, {0.0f, 1.6f, 5.6f}},      // close: material/color read
+                {{0.0f, 1.6f, 3.5f}, {0.0f, 1.5f, 5.6f}},       // contextual suite framing
+            },
+            .angle_names = {"hero", "close", "context"},
+            .angle_count = 3,
+            .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_BALCONY},
+        {STATE_CAR, "cast_taxi",
+            .angles = {
+                {{0.0f, 1.0f, 0.0f}, {-0.3f, 0.95f, -1.2f}},    // hero: taxi driver
+                {{0.0f, 1.0f, 0.0f}, {-0.1f, 1.1f, -0.95f}},    // close: face/cap
+                {{0.0f, 1.0f, 0.0f}, {0.0f, 0.9f, -2.0f}},      // contextual cockpit
+            },
+            .angle_names = {"hero", "close", "context"},
+            .angle_count = 3,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_HOTEL_EXT},
+    };
 #else
     QAEntry qa_scenes[] = {
         {STATE_HOTEL_EXT, "hotel_ext",
@@ -992,8 +1062,13 @@ int main(void) {
     // ── Determine mode ──
 #ifdef QA_E2E
     const bool e2e_mode = true;
+    const bool full_angle_mode = true;
+#elif defined(QA_SHELL_ONLY) || defined(QA_SHELL_SUITE_ONLY) || defined(QA_CAST_ONLY)
+    const bool e2e_mode = false;
+    const bool full_angle_mode = true;
 #else
     const bool e2e_mode = false;
+    const bool full_angle_mode = false;
 #endif
     const char *report_path = e2e_mode ? "qa/e2e_report.json" : "qa/report.json";
 
@@ -1189,7 +1264,7 @@ int main(void) {
         double load_time_ms = (GetTime() - load_start) * 1000.0;
 
         // ── Determine how many angles to shoot ──
-        int num_angles = e2e_mode ? qa_scenes[qi].angle_count : 2;  // basic mode: hero + spawn only
+        int num_angles = full_angle_mode ? qa_scenes[qi].angle_count : 2;
 
         // ── Take screenshots from all angles ──
         PixelMetrics angle_metrics[QA_MAX_ANGLES] = {0};

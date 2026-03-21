@@ -1535,9 +1535,18 @@ void build_hallway(Scene *s) {
     add_crown_molding(s, W/2-0.08f, H, -L/2, L, 1.0f, gold);
 
     // Room service tray outside door 3 (right side)
-    add_wall(s, (W/2-0.1f)*0.95f, 0.03f, -3.5f - 2*4.5f, 0.5f, 0.04f, 0.35f, (Color){200,198,195,255});
-    add_cylinder(s, (W/2-0.1f)*0.95f - 0.1f, 0.1f, -3.5f - 2*4.5f, 0.08f, 0.1f, (Color){240,238,234,255});
-    add_wall(s, (W/2-0.1f)*0.95f + 0.1f, 0.06f, -3.5f - 2*4.5f, 0.2f, 0.02f, 0.2f, (Color){240,238,234,255});
+    {
+        float tray_x = (W / 2 - 0.1f) * 0.95f;
+        float tray_z = -3.5f - 2 * 4.5f;
+        int tray_mdl = find_model_asset("room_service_tray");
+        if (tray_mdl >= 0) {
+            add_model(s, tray_x, 0, tray_z, 1, 1, 1, 90, tray_mdl, MAT_BRASS, WHITE);
+        } else {
+            add_wall(s, tray_x, 0.03f, tray_z, 0.5f, 0.04f, 0.35f, (Color){200,198,195,255});
+            add_cylinder(s, tray_x - 0.1f, 0.1f, tray_z, 0.08f, 0.1f, (Color){240,238,234,255});
+            add_wall(s, tray_x + 0.1f, 0.06f, tray_z, 0.2f, 0.02f, 0.2f, (Color){240,238,234,255});
+        }
+    }
 
     // ── Infrastructure density ──
     // Fire extinguisher on right wall
@@ -1699,12 +1708,19 @@ void build_hotel_room(Scene *s) {
     add_wall(s, 5.78f, 1.8f, 0, 0.03f, 1.2f, 0.05f, gold);
 
     // Sofa — warm gray
-    add_wall(s, -4.2f, 0.25f, 1.5f, 2.4f, 0.5f, 0.9f, warm_gray);
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, -4.2f, 0.6f, 1.95f, 2.4f, 0.6f, 0.15f, warm_gray);
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, -5.4f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
-    add_wall(s, -3.0f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
+    {
+        int sofa_mdl = find_model_asset("sofa");
+        if (sofa_mdl >= 0) {
+            add_model(s, -4.2f, 0, 1.5f, 1, 1, 1, 90, sofa_mdl, MAT_LEATHER, WHITE);
+        } else {
+            add_wall(s, -4.2f, 0.25f, 1.5f, 2.4f, 0.5f, 0.9f, warm_gray);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, -4.2f, 0.6f, 1.95f, 2.4f, 0.6f, 0.15f, warm_gray);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, -5.4f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
+            add_wall(s, -3.0f, 0.4f, 1.5f, 0.08f, 0.45f, 0.9f, warm_gray);
+        }
+    }
 
     // Coffee table — flat top with 4 cylinder legs
     add_wall(s, -4.2f, 0.38f, 3.0f, 1.45f, 0.03f, 0.85f, gold);       // top surface
@@ -1715,9 +1731,24 @@ void build_hotel_room(Scene *s) {
     add_cylinder(s, -3.55f, 0.18f, 3.38f, 0.025f, 0.35f, wood);        // leg BR
 
     // Suitcase
-    add_wall(s, 2.2f, 0.2f, 3.8f, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
-    add_wall(s, 2.05f, 0.32f, 4.02f, 0.18f, 0.13f, 0.02f, (Color){50,80,180,255});
-    add_wall(s, 2.3f, 0.28f, 4.02f, 0.13f, 0.1f, 0.02f, godard_red);
+    {
+        int suitcase_mdl = find_model_asset("suitcase");
+        if (suitcase_mdl >= 0) {
+            add_model(s, 2.2f, 0, 3.8f, 1, 1, 1, 0, suitcase_mdl, MAT_LEATHER, WHITE);
+        } else {
+            add_wall(s, 2.2f, 0.2f, 3.8f, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
+            add_wall(s, 2.05f, 0.32f, 4.02f, 0.18f, 0.13f, 0.02f, (Color){50,80,180,255});
+            add_wall(s, 2.3f, 0.28f, 4.02f, 0.13f, 0.1f, 0.02f, godard_red);
+        }
+    }
+
+    // Standing ashtray by the desk — the room keeps the habit from the lobby.
+    {
+        int ashtray_mdl = find_model_asset("standing_ashtray");
+        if (ashtray_mdl >= 0) {
+            add_model(s, 5.2f, 0, -1.8f, 1, 1, 1, 0, ashtray_mdl, MAT_BRASS, WHITE);
+        }
+    }
 
     // Balcony door
     add_wall(s, -5.7f, 1.5f, -1, 0.08f, 2.8f, 1.7f, (Color){190,205,225,100});
@@ -4613,7 +4644,7 @@ void build_space_corridor(Scene *s) {
         int floor_lamp_mdl = find_model_asset("floor_lamp");
         if (floor_lamp_mdl >= 0) {
             add_model(s, mid_x - 1.5f, 0, mid_z + 2.0f, 1,1,1, 0,
-                     floor_lamp_mdl, MAT_BRASS, warm_amber);
+                     floor_lamp_mdl, MAT_BRASS, WHITE);
         }
     }
 
@@ -4658,6 +4689,44 @@ void build_space_corridor(Scene *s) {
 }
 
 
+static bool build_space_suite_shell(Scene *s, float rw, float rd, float rh) {
+    int shell_mdl = find_model_asset("space_suite_shell");
+    if (shell_mdl < 0)
+        return false;
+
+    float door_z = -3.5f;
+    float door_half = 0.65f;
+    float wall_front_z = (rd / 2 + (door_z + door_half)) / 2.0f;
+    float wall_front_d = rd / 2 - (door_z + door_half);
+    float wall_back_z = (-rd / 2 + (door_z - door_half)) / 2.0f;
+    float wall_back_d = (door_z - door_half) - (-rd / 2);
+    float bx = rw / 2 + 2.5f;
+    float bz = 2.5f;
+
+    (void)shell_mdl;
+    // Slight over-scale keeps the shell from z-fighting the procedural suite underneath.
+    add_shell(s, "space_suite_shell", 0, 0, 0, 1.002f, 1.002f, 1.002f, 0, MAT_CONCRETE, WHITE);
+
+    // Explicit collision remains code-authored even when the shell drives visuals.
+    add_collision_floor(s, 0, 0, 0, rw, rd);
+    add_collision_ceiling(s, 0, rh, 0, rw, rd);
+    add_collision_wall(s, 0, rh / 2, -rd / 2, rw, rh, 0.24f);
+    add_collision_wall(s, 0, rh / 2, rd / 2, rw, rh, 0.24f);
+    add_collision_wall(s, -rw / 2, rh / 2, 0, 0.24f, rh, rd);
+    add_collision_wall(s, rw / 2, rh / 2, wall_front_z, 0.24f, rh, wall_front_d);
+    add_collision_wall(s, rw / 2, rh / 2, wall_back_z, 0.24f, rh, wall_back_d);
+    add_collision_wall(s, rw / 2, rh - 0.5f, door_z, 0.24f, rh - 2.7f, door_half * 2);
+
+    add_collision_floor(s, bx, 0, bz, 4, 4);
+    add_collision_ceiling(s, bx, 3.0f, bz, 4, 4);
+    add_collision_wall(s, bx, 1.5f, bz - 2.0f, 4, 3, 0.16f);
+    add_collision_wall(s, bx, 1.5f, bz + 2.0f, 4, 3, 0.16f);
+    add_collision_wall(s, bx - 2.0f, 1.5f, bz, 0.16f, 3, 4);
+    add_collision_wall(s, bx + 2.0f, 1.5f, bz, 0.16f, 3, 4);
+    return true;
+}
+
+
 void build_space_suite(Scene *s) {
     memset(s, 0, sizeof(Scene));
     // ============================================================
@@ -4689,6 +4758,8 @@ void build_space_suite(Scene *s) {
     // Left wall (X-) = window wall, Right wall (X+) = service wall
     // Back wall (Z-) = bed wall, Front wall (Z+) = entry wall
     float rw = 14, rd = 12, rh = 5;
+    bool use_suite_shell = build_space_suite_shell(s, rw, rd, rh);
+    (void)use_suite_shell;
 
     // ============================================================
     // 1. FLOOR — herringbone wood with area rug
@@ -5023,7 +5094,7 @@ void build_space_suite(Scene *s) {
     {
         int sofa_mdl = find_model_asset("sofa");
         if (sofa_mdl >= 0) {
-            add_model(s, -3, 0, 2.0f, 1,1,1, -90, sofa_mdl, MAT_LEATHER, navy);
+            add_model(s, -3, 0, 2.0f, 1,1,1, -90, sofa_mdl, MAT_LEATHER, WHITE);
         } else {
             add_sofa(s, -3, 0, 2.0f, -90.0f, navy);
         }
@@ -5576,7 +5647,7 @@ void build_space_suite(Scene *s) {
     {
         int floor_lamp_mdl = find_model_asset("floor_lamp");
         if (floor_lamp_mdl >= 0) {
-            add_model(s, -5.5f, 0, -1.0f, 1,1,1, 0, floor_lamp_mdl, MAT_BRASS, brass);
+            add_model(s, -5.5f, 0, -1.0f, 1,1,1, 0, floor_lamp_mdl, MAT_BRASS, WHITE);
             // Emissive shade + paired point light (slots 4-5 reserved for lamp activation)
             add_light_panel(s, -5.5f, 1.4f, -1.0f, 0.2f, 0.3f, 0.2f, warm_light);
         }
@@ -5590,22 +5661,22 @@ void build_space_suite(Scene *s) {
 
         int photo_frame_mdl = find_model_asset("photograph_frame");
         if (photo_frame_mdl >= 0) {
-            add_model(s, 2.5f, 0.64f, -4.6f, 1,1,1, 0, photo_frame_mdl, MAT_WOOD, cream);
+            add_model(s, 2.5f, 0.64f, -4.6f, 1,1,1, 0, photo_frame_mdl, MAT_WOOD, WHITE);
         }
 
         int ashtray_mdl = find_model_asset("standing_ashtray");
         if (ashtray_mdl >= 0) {
-            add_model(s, -4.8f, 0, 1.5f, 1,1,1, 0, ashtray_mdl, MAT_BRASS, brass);
+            add_model(s, -4.8f, 0, 1.5f, 1,1,1, 0, ashtray_mdl, MAT_BRASS, WHITE);
         }
 
         int record_mdl = find_model_asset("record_player");
         if (record_mdl >= 0) {
-            add_model(s, -3.5f, 0.37f, 3.8f, 1,1,1, -20, record_mdl, MAT_WOOD, dark_wood);
+            add_model(s, -3.5f, 0.37f, 3.8f, 1,1,1, -20, record_mdl, MAT_WOOD, WHITE);
         }
 
         int tray_mdl = find_model_asset("room_service_tray");
         if (tray_mdl >= 0) {
-            add_model(s, -2.5f, 0.37f, 3.6f, 1,1,1, 5, tray_mdl, MAT_BRASS, brass);
+            add_model(s, -2.5f, 0.37f, 3.6f, 1,1,1, 5, tray_mdl, MAT_BRASS, WHITE);
         }
 
         int desk_lamp_mdl = find_model_asset("desk_lamp");
@@ -5616,7 +5687,7 @@ void build_space_suite(Scene *s) {
 
         int ice_bucket_mdl = find_model_asset("ice_bucket");
         if (ice_bucket_mdl >= 0) {
-            add_model(s, -2.9f, 0.39f, 3.1f, 1,1,1, 0, ice_bucket_mdl, MAT_BRASS, brass);
+            add_model(s, -2.9f, 0.39f, 3.1f, 1,1,1, 0, ice_bucket_mdl, MAT_BRASS, WHITE);
         }
     }
 

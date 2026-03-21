@@ -51,14 +51,15 @@ def add_box(name, loc, size, mat):
     return obj
 
 
-def add_torus(name, loc, major_radius, minor_radius, rotation, mat):
+def add_torus(name, loc, major_radius, minor_radius, rotation, mat,
+              major_segments=18, minor_segments=8):
     bpy.ops.mesh.primitive_torus_add(
         major_radius=major_radius,
         minor_radius=minor_radius,
         location=loc,
         rotation=rotation,
-        major_segments=48,
-        minor_segments=12,
+        major_segments=major_segments,
+        minor_segments=minor_segments,
     )
     obj = bpy.context.active_object
     obj.name = name
@@ -74,6 +75,15 @@ def select_all_meshes():
         obj.select_set(True)
     if meshes:
         bpy.context.view_layer.objects.active = meshes[0]
+    return meshes
+
+
+def join_meshes(name):
+    meshes = select_all_meshes()
+    if len(meshes) > 1:
+        bpy.ops.object.join()
+    if bpy.context.active_object:
+        bpy.context.active_object.name = name
 
 
 clear_scene()
@@ -135,7 +145,7 @@ add_box("BathroomFar", (BATH_X + 2.0, 1.5, BATH_Z), (0.16, 3.0, 4.0), cream)
 add_box("BathroomCeiling", (BATH_X, 3.0, BATH_Z), (4.0, 0.12, 4.0), hull)
 add_box("BathroomMirrorFrame", (BATH_X - 0.8, 1.4, BATH_Z + 1.49), (1.9, 1.2, 0.04), brass)
 
-select_all_meshes()
+join_meshes("SpaceSuiteShell")
 
 export_path = os.environ.get("EV_EXPORT_PATH", "/Users/klaus/space_suite_shell.glb")
 bpy.ops.export_scene.gltf(

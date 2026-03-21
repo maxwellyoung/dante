@@ -28,6 +28,7 @@ static const ModelRegistryEntry k_model_registry[] = {
     {"desk_lamp", "assets/desk_lamp.glb", MODEL_KIND_PROP, false, 3, true, MODEL_STATUS_ACTIVE},
     {"ice_bucket", "assets/ice_bucket.glb", MODEL_KIND_PROP, false, 4, true, MODEL_STATUS_ACTIVE},
     {"elevator_car", "assets/elevator_car.glb", MODEL_KIND_SHELL, false, 5, true, MODEL_STATUS_ACTIVE},
+    {"space_suite_shell", "assets/space_suite_shell.glb", MODEL_KIND_SHELL, false, 6, true, MODEL_STATUS_ACTIVE},
 };
 
 static int load_model_asset_slot(int index, EVLighting *lighting) {
