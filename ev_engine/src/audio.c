@@ -1137,6 +1137,14 @@ void InitEVAudio(EVAudio *audio) {
 
 void UnloadEVAudio(EVAudio *audio) {
     if (!audio->initialized) return;
+    for (int i = 0; i < EV_AUDIO_TRANSIENT_SLOTS; i++) {
+        if (!audio->transient_active[i]) continue;
+        StopSound(audio->transient_sounds[i]);
+        UnloadSound(audio->transient_sounds[i]);
+        audio->transient_sounds[i] = (Sound){0};
+        audio->transient_ttls[i] = 0.0f;
+        audio->transient_active[i] = false;
+    }
     for (int i = 0; i < 4; i++) {
         UnloadSound(audio->step_marble[i]);
         UnloadSound(audio->step_carpet[i]);
@@ -1207,8 +1215,44 @@ static float get_drone_base_vol(EVAudio *audio, DroneType t) {
     return 0.04f;
 }
 
+static void update_transient_sounds(EVAudio *audio, float dt) {
+    for (int i = 0; i < EV_AUDIO_TRANSIENT_SLOTS; i++) {
+        if (!audio->transient_active[i]) continue;
+        audio->transient_ttls[i] -= dt;
+        if (audio->transient_ttls[i] > 0.0f || IsSoundPlaying(audio->transient_sounds[i])) continue;
+        UnloadSound(audio->transient_sounds[i]);
+        audio->transient_sounds[i] = (Sound){0};
+        audio->transient_ttls[i] = 0.0f;
+        audio->transient_active[i] = false;
+    }
+}
+
+static void queue_transient_sound(EVAudio *audio, Sound snd, float ttl) {
+    int slot = -1;
+
+    for (int i = 0; i < EV_AUDIO_TRANSIENT_SLOTS; i++) {
+        if (!audio->transient_active[i]) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0) {
+        slot = 0;
+        for (int i = 1; i < EV_AUDIO_TRANSIENT_SLOTS; i++) {
+            if (audio->transient_ttls[i] < audio->transient_ttls[slot]) slot = i;
+        }
+        StopSound(audio->transient_sounds[slot]);
+        UnloadSound(audio->transient_sounds[slot]);
+    }
+
+    audio->transient_sounds[slot] = snd;
+    audio->transient_ttls[slot] = ttl;
+    audio->transient_active[slot] = true;
+}
+
 void UpdateEVAudio(EVAudio *audio, bool moving, bool sprinting, SurfaceType surface, float dt) {
     if (!audio->initialized) return;
+    update_transient_sounds(audio, dt);
 
     // ── Ducking: briefly lower ambient when interactions fire ──
     float duck_mult = 1.0f;
@@ -2602,8 +2646,7 @@ void PlayImpactSound(EVAudio *audio, float intensity, ImpactType type) {
     UnloadWave(w);
     SetSoundVolume(snd, 0.4f * intensity);
     PlaySound(snd);
-    // Note: sound plays and self-destructs in Raylib's audio thread
-    // For production: pool these. For now, this works.
+    queue_transient_sound(audio, snd, 0.35f);
 }
 
 // ── Bed ritual music — placeholder warm chord progression ──

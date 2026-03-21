@@ -91,7 +91,8 @@ void taxi_update(float dt) {
             }
         }
     }
-    if (g.state_time > 4.5f && g.scene.objects[0].done && g.vig_text != NULL) {
+    if (g.state_time > 4.5f && g.scene.object_count > 0
+        && g.scene.objects[0].done && g.vig_text != NULL) {
         hide_text();
     }
 

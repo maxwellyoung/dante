@@ -28,6 +28,8 @@ void space_lobby_load(void) {
     set_exposure(-0.05f);
     SetPostFXGrain(&g.postfx, 0.4f);
     SetPostFXCA(&g.postfx, 2.5f);
+    g.lobby_gibbons_looked = false;
+    g.lobby_crouch_reward = false;
     g.lobby_visit_count++;
     if (g.lobby_visit_count > 1) {
         float revisit_warmth = fminf(0.15f, (g.lobby_visit_count - 1) * 0.08f);
@@ -98,27 +100,25 @@ void space_lobby_update(float dt) {
         }
         // Gibbons head turn — he watches you see it
         {
-            static bool gibbons_looked = false;
-            if (pz < -3.0f && !gibbons_looked && g.gibbons.active) {
+            if (pz < -3.0f && !g.lobby_gibbons_looked && g.gibbons.active) {
                 g.gibbons.yaw = atan2f(-8.0f - g.gibbons.pos.z,
                                        0.0f - g.gibbons.pos.x);
-                gibbons_looked = true;
+                g.lobby_gibbons_looked = true;
             }
         }
         // Earth needs no words. The speed change, the FOV, the glow — that's enough.
         // Crouch at the glass: FOV widens, camera drops. A child looking up.
         {
-            static bool crouch_reward = false;
-            if (pz < -5.0f && g.player.crouching && !crouch_reward) {
-                crouch_reward = true;
+            if (pz < -5.0f && g.player.crouching && !g.lobby_crouch_reward) {
+                g.lobby_crouch_reward = true;
                 // Wider FOV — the planet fills your vision
                 g.player.fov_current = 85.0f;
                 set_exposure(0.15f);
                 SetPostFXGrain(&g.postfx, 0.15f);  // clarity — this is real
             }
-            if (!g.player.crouching && crouch_reward) {
+            if (!g.player.crouching && g.lobby_crouch_reward) {
                 // Stand up — return to normal
-                crouch_reward = false;
+                g.lobby_crouch_reward = false;
             }
         }
     }

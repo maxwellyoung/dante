@@ -13,6 +13,7 @@ void balcony_load(void) {
     init_player(&g.player, g.scene.spawn);
     g.eiffel_sparkle = false; g.sparkle_timer = 0;
     g.cigarette_anim = false; g.cigarette_anim_timer = 0;
+    g.balcony_post_cig_chill = false;
     StopAmbient(&g.audio);
     StopClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);
@@ -115,9 +116,8 @@ void balcony_update(float dt) {
     // After cigarette: the gust picks up. The room gets colder.
     // The architecture speaks. Not the text.
     if (!g.cigarette_anim && g.cigarette_anim_timer > 2.0f) {
-        static bool post_cig_chill = false;
-        if (!post_cig_chill) {
-            post_cig_chill = true;
+        if (!g.balcony_post_cig_chill) {
+            g.balcony_post_cig_chill = true;
             // Post-cigarette: warmth drops, grain increases. The moment passed.
             SetPostFXWarmth(&g.postfx, 0.6f);
             SetPostFXGrain(&g.postfx, 0.65f);

@@ -68,7 +68,8 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed);
 
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
-                      Model *sphere_model, Model *cone_model);
+                      Model *sphere_model, Model *cone_model,
+                      Model *skytower_model);
 void draw_earth(Camera3D camera, float time,
                 Model *sphere_model, EVLighting *lighting,
                 Vector3 earth_center);

@@ -14,6 +14,44 @@
 #include <stdio.h>
 #include <string.h>
 
+static void rotate_xz(float *x, float *z, float angle) {
+    float c = cosf(angle), s = sinf(angle);
+    float rx = *x * c - *z * s;
+    float rz = *x * s + *z * c;
+    *x = rx;
+    *z = rz;
+}
+
+static bool wall_contains_xz(const Wall *w, float x, float z, float pad) {
+    switch (w->shape) {
+        case SHAPE_CUBE:
+        case SHAPE_MODEL: {
+            float hx = w->size.x * 0.5f + pad;
+            float hz = w->size.z * 0.5f + pad;
+            if (w->rotation_y != 0.0f) {
+                float lx = x - w->pos.x;
+                float lz = z - w->pos.z;
+                rotate_xz(&lx, &lz, -w->rotation_y * DEG2RAD);
+                return lx > -hx && lx < hx && lz > -hz && lz < hz;
+            }
+            return x > w->pos.x - hx && x < w->pos.x + hx
+                && z > w->pos.z - hz && z < w->pos.z + hz;
+        }
+        case SHAPE_CYLINDER:
+        case SHAPE_CONE:
+        case SHAPE_SPHERE:
+        case SHAPE_SKYTOWER:
+        case SHAPE_TORUS: {
+            float r = fmaxf(w->size.x, w->size.z) * 0.5f + pad;
+            float dx = x - w->pos.x;
+            float dz = z - w->pos.z;
+            return dx * dx + dz * dz < r * r;
+        }
+        default:
+            return false;
+    }
+}
+
 // ── Initialization ──────────────────────────────────────────────────
 
 static void init_common(NPC *npc, Vector3 start, Vector3 *waypoints, int count,
@@ -95,28 +133,25 @@ static void npc_apply_gravity(NPC *npc, float dt) {
     }
 }
 
-static void npc_find_ground(NPC *npc, Scene *scene) {
+static void npc_find_ground(NPC *npc, Scene *scene, float dt) {
     if (!npc->use_physics || !scene) return;
     float best_y = 0;  // default floor
     float pr = npc->collision_radius;
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
         float top = w->pos.y + w->size.y / 2;
         if (top < npc->pos.y + 0.1f && top > best_y &&
             top <= npc->ground_y + 0.6f &&
-            npc->pos.x > w->pos.x - w->size.x/2 - pr &&
-            npc->pos.x < w->pos.x + w->size.x/2 + pr &&
-            npc->pos.z > w->pos.z - w->size.z/2 - pr &&
-            npc->pos.z < w->pos.z + w->size.z/2 + pr) {
+            wall_contains_xz(w, npc->pos.x, npc->pos.z, pr)) {
             best_y = top;
         }
     }
     // Smooth step-up
     float spd = (best_y > npc->ground_y) ? 12.0f : 8.0f;
     float diff = best_y - npc->ground_y;
-    float step = diff * fminf(1.0f, spd * 0.016f);
+    float step = diff * fminf(1.0f, spd * dt);
     npc->ground_y += step;
 }
 
@@ -126,29 +161,48 @@ static void npc_collide_walls(NPC *npc, Scene *scene) {
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
         float wall_top = w->pos.y + w->size.y / 2;
         float wall_bot = w->pos.y - w->size.y / 2;
         // Skip step-over-able walls
         if (wall_top <= npc->ground_y + 0.5f && wall_top > npc->ground_y - 0.1f) continue;
 
-        if (npc->pos.x > w->pos.x - w->size.x/2 - pr &&
-            npc->pos.x < w->pos.x + w->size.x/2 + pr &&
-            npc->pos.z > w->pos.z - w->size.z/2 - pr &&
-            npc->pos.z < w->pos.z + w->size.z/2 + pr &&
+        if (wall_contains_xz(w, npc->pos.x, npc->pos.z, pr) &&
             npc->pos.y > wall_bot && npc->pos.y < wall_top) {
+            if (w->shape == SHAPE_CUBE || w->shape == SHAPE_MODEL) {
+                float lx = npc->pos.x - w->pos.x;
+                float lz = npc->pos.z - w->pos.z;
+                if (w->rotation_y != 0.0f) rotate_xz(&lx, &lz, -w->rotation_y * DEG2RAD);
+                float hx = w->size.x * 0.5f;
+                float hz = w->size.z * 0.5f;
+                float dx_l = (-hx - pr) - lx;
+                float dx_r = lx - (hx + pr);
+                float dz_f = (-hz - pr) - lz;
+                float dz_b = lz - (hz + pr);
+                float pen_x = (fabsf(dx_l) < fabsf(dx_r)) ? dx_l : -dx_r;
+                float pen_z = (fabsf(dz_f) < fabsf(dz_b)) ? dz_f : -dz_b;
 
-            float dx_l = (w->pos.x - w->size.x/2 - pr) - npc->pos.x;
-            float dx_r = npc->pos.x - (w->pos.x + w->size.x/2 + pr);
-            float dz_f = (w->pos.z - w->size.z/2 - pr) - npc->pos.z;
-            float dz_b = npc->pos.z - (w->pos.z + w->size.z/2 + pr);
-            float pen_x = (fabsf(dx_l) < fabsf(dx_r)) ? dx_l : -dx_r;
-            float pen_z = (fabsf(dz_f) < fabsf(dz_b)) ? dz_f : -dz_b;
-
-            if (fabsf(pen_x) < fabsf(pen_z)) {
-                npc->pos.x += pen_x;
+                if (fabsf(pen_x) < fabsf(pen_z)) {
+                    lx += pen_x;
+                } else {
+                    lz += pen_z;
+                }
+                if (w->rotation_y != 0.0f) rotate_xz(&lx, &lz, w->rotation_y * DEG2RAD);
+                npc->pos.x = w->pos.x + lx;
+                npc->pos.z = w->pos.z + lz;
             } else {
-                npc->pos.z += pen_z;
+                float dx = npc->pos.x - w->pos.x;
+                float dz = npc->pos.z - w->pos.z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 < 0.0001f) {
+                    npc->pos.x += pr;
+                } else {
+                    float r = fmaxf(w->size.x, w->size.z) * 0.5f + pr;
+                    float d = sqrtf(d2);
+                    float scale = r / d;
+                    npc->pos.x = w->pos.x + dx * scale;
+                    npc->pos.z = w->pos.z + dz * scale;
+                }
             }
         }
     }
@@ -256,7 +310,7 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
 
     // Physics
     if (npc->use_physics && scene) {
-        npc_find_ground(npc, scene);
+        npc_find_ground(npc, scene, dt);
         npc_apply_gravity(npc, dt);
         npc_collide_walls(npc, scene);
     }

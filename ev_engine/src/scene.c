@@ -14,52 +14,78 @@
 #endif
 // PI provided by config.h via game_ctx.h
 
+static Scene *last_added_wall_scene = NULL;
+static int last_added_wall_index = -1;
+
+static void note_last_added_wall(Scene *s, int index) {
+    last_added_wall_scene = s;
+    last_added_wall_index = index;
+}
+
+static Wall *get_last_added_wall(Scene *s) {
+    if (last_added_wall_scene != s) return NULL;
+    if (last_added_wall_index < 0 || last_added_wall_index >= s->wall_count) return NULL;
+    return &s->walls[last_added_wall_index];
+}
+
 void add_wall(Scene *s, float x, float y, float z, float w, float h, float d, Color c) {
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — wall at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {w, h, d}, .color = c, .active = true,
         .shape = SHAPE_CUBE,
     };
+    note_last_added_wall(s, idx);
 }
 
 void add_cylinder(Scene *s, float x, float y, float z, float diameter, float height, Color c) {
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — cylinder at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
         .active = true, .shape = SHAPE_CYLINDER,
     };
+    note_last_added_wall(s, idx);
 }
 
 void add_sphere(Scene *s, float x, float y, float z, float diameter, Color c) {
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — sphere at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {diameter, diameter, diameter}, .color = c,
         .active = true, .shape = SHAPE_SPHERE,
     };
+    note_last_added_wall(s, idx);
 }
 
 void add_cone(Scene *s, float x, float y, float z, float diameter, float height, Color c) {
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — cone at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {diameter, height, diameter}, .color = c,
         .active = true, .shape = SHAPE_CONE,
     };
+    note_last_added_wall(s, idx);
 }
 
 void add_object(Scene *s, float x, float y, float z, const char *name, Color c, int max_steps) {
@@ -79,12 +105,15 @@ void add_skytower(Scene *s, float x, float y, float z, float scale, Color c) {
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — skytower at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {scale, scale, scale}, .color = c,
         .active = true, .shape = SHAPE_SKYTOWER,
     };
+    note_last_added_wall(s, idx);
 }
 
 void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz,
@@ -92,15 +121,18 @@ void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — model at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {sx, sy, sz}, .color = c,
         .active = true, .shape = SHAPE_MODEL,
         .material = mat, .rotation_y = rotation_deg,
         .model_index = model_index,
         .no_collide = true,  // SHAPE_MODEL has no collision geometry — use add_collision_wall()
     };
+    note_last_added_wall(s, idx);
 }
 
 // Find a loaded model asset by name — returns index or -1
@@ -114,16 +146,19 @@ int find_model_asset(const char *name) {
 
 // Set material on the most recently added wall — chainable, non-breaking
 void set_last_material(Scene *s, MaterialType mat) {
-    if (s->wall_count > 0) s->walls[s->wall_count - 1].material = mat;
+    Wall *w = get_last_added_wall(s);
+    if (w) w->material = mat;
 }
 
 void set_last_rotation(Scene *s, float degrees) {
-    if (s->wall_count > 0) s->walls[s->wall_count - 1].rotation_y = degrees;
+    Wall *w = get_last_added_wall(s);
+    if (w) w->rotation_y = degrees;
 }
 
 // Mark most recent wall as decal — rendered with polygon offset to prevent z-fighting
 void set_last_decal(Scene *s) {
-    if (s->wall_count > 0) s->walls[s->wall_count - 1].is_decal = true;
+    Wall *w = get_last_added_wall(s);
+    if (w) w->is_decal = true;
 }
 
 // Convenience: add_wall + auto-mark as decal (floor overlays, light shafts, puddles)
@@ -134,8 +169,9 @@ void add_wall_decal(Scene *s, float x, float y, float z, float w, float h, float
 
 // Mark most recent wall as pushable — nudge physics
 void set_last_pushable(Scene *s, float mass, float damping) {
-    if (s->wall_count > 0) {
-        Wall *w = &s->walls[s->wall_count - 1];
+    {
+        Wall *w = get_last_added_wall(s);
+        if (!w) return;
         w->pushable = true;
         w->push_mass = mass;
         w->push_damping = damping;
@@ -145,16 +181,18 @@ void set_last_pushable(Scene *s, float mass, float damping) {
 }
 
 void set_last_breakable(Scene *s, float health) {
-    if (s->wall_count > 0) {
-        Wall *w = &s->walls[s->wall_count - 1];
+    {
+        Wall *w = get_last_added_wall(s);
+        if (!w) return;
         w->breakable = true;
         w->health = health;
     }
 }
 
 void set_last_hinge(Scene *s, float closed_angle, float open_angle) {
-    if (s->wall_count > 0) {
-        Wall *w = &s->walls[s->wall_count - 1];
+    {
+        Wall *w = get_last_added_wall(s);
+        if (!w) return;
         w->hinge = true;
         w->hinge_angle = closed_angle;
         w->hinge_target = closed_angle;
@@ -170,13 +208,16 @@ void add_collision_wall(Scene *s, float x, float y, float z, float w, float h, f
     if (s->wall_count >= MAX_WALLS) {
         fprintf(stderr, "[EV] WARNING: wall overflow (%d/%d) — collision wall at (%.1f,%.1f,%.1f) dropped\n",
                 s->wall_count, MAX_WALLS, x, y, z);
+        note_last_added_wall(s, -1);
         return;
     }
-    s->walls[s->wall_count++] = (Wall){
+    int idx = s->wall_count++;
+    s->walls[idx] = (Wall){
         .pos = {x, y, z}, .size = {w, h, d},
         .color = (Color){0, 0, 0, 0},  // invisible
         .active = true, .shape = SHAPE_CUBE,
     };
+    note_last_added_wall(s, idx);
 }
 
 // Invisible floor plane (thin collision slab)
@@ -199,7 +240,8 @@ void add_shell(Scene *s, const char *model_name, float x, float y, float z,
     }
     add_model(s, x, y, z, sx, sy, sz, rotation_deg, mi, mat, c);
     // Shell meshes don't collide — use add_collision_wall() for physics
-    s->walls[s->wall_count - 1].no_collide = true;
+    Wall *w = get_last_added_wall(s);
+    if (w) w->no_collide = true;
 }
 
 // ── P5: Enhanced geometry helpers ──

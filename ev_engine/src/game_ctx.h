@@ -101,6 +101,7 @@ typedef struct {
     // ── Balcony flash ──
     bool balcony_flash_triggered;
     float balcony_flash_timer;
+    bool balcony_post_cig_chill;
 
     // ── Cigarette camera animation ──
     bool cigarette_anim;
@@ -123,12 +124,16 @@ typedef struct {
 
     // ── Door positions for spatial audio ──
     Vector3 door_positions[3];
+    float corridor_ghost_delay;
+    bool corridor_ghost_was_moving;
 
     // ── Agency removal ──
     float agency_removal_timer;
 
     // ── Lobby memory palace ──
     int lobby_visit_count;
+    bool lobby_gibbons_looked;
+    bool lobby_crouch_reward;
 
     // ── Skybox ──
     EVSkybox skybox;
@@ -204,6 +209,21 @@ typedef struct {
     int backstory_count;          // how many choices completed
     int backstory_phase;          // which choice we're on (pre-title or taxi)
     float beat_timer;             // time within current dialogue beat
+    bool title_prologue_done;
+    int title_prologue_phase;
+    float title_prologue_pause;
+    bool title_breath_played;
+
+    // ── Suite scene-local state ──
+    bool suite_zone_auto_lamp;
+    bool suite_zone_auto_champ;
+    bool suite_zone_auto_desk;
+    bool suite_phone_ringing;
+    bool suite_phone_killed;
+    float suite_window_dwell;
+    bool suite_window_revealed;
+    float suite_zone_timers[4];
+    bool suite_zone_fired[4];
 
     // ── Pause menu ──
     MenuMode menu_mode;

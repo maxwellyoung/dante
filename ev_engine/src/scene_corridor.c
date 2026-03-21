@@ -34,9 +34,13 @@ void corridor_load(void) {
     // The corridor is quieter. The player notices what's missing.
     if (g.backstory_count <= 3) {
         PlayMuffledPiano(&g.audio);
-        PlaySound(g.audio.snd_running_water);
+        if (g.audio.initialized && !IsSoundPlaying(g.audio.snd_running_water))
+            PlaySound(g.audio.snd_running_water);
     }
-    PlaySound(g.audio.snd_tv_murmur);
+    if (g.audio.initialized && !IsSoundPlaying(g.audio.snd_tv_murmur))
+        PlaySound(g.audio.snd_tv_murmur);
+    g.corridor_ghost_delay = 0.0f;
+    g.corridor_ghost_was_moving = false;
     {
         float zs = g.backstory_count > 3 ? 0.65f : 1.0f;
         g.door_positions[0] = (Vector3){-3.5f, 1.6f, 4.0f * zs};
@@ -119,14 +123,12 @@ void corridor_update(float dt) {
     // Matches your pace. Stops when you stop. Starts a beat after you start.
     // First playthrough only — on replay, the corridor is emptier.
     if (g.backstory_count <= 3) {
-        static float ghost_delay = 0;
-        static bool ghost_was_moving = false;
         bool player_moving = g.player.moving;
-        if (player_moving && !ghost_was_moving) {
-            ghost_delay = 0.4f;  // beat of silence before they start
+        if (player_moving && !g.corridor_ghost_was_moving) {
+            g.corridor_ghost_delay = 0.4f;  // beat of silence before they start
         }
-        if (ghost_delay > 0) ghost_delay -= dt;
-        bool ghost_moving = player_moving && ghost_delay <= 0;
+        if (g.corridor_ghost_delay > 0) g.corridor_ghost_delay -= dt;
+        bool ghost_moving = player_moving && g.corridor_ghost_delay <= 0;
 
         // Footstep volume — muffled through wall, positional
         float ghost_vol = ghost_moving ? 0.012f : 0;
@@ -134,10 +136,10 @@ void corridor_update(float dt) {
         float ghost_pan = g.player.camera.position.x > 0 ? 0.2f : 0.8f;
         SetSoundVolume(g.audio.snd_footsteps_above, ghost_vol);
         SetSoundPan(g.audio.snd_footsteps_above, ghost_pan);
-        if (ghost_moving && !IsSoundPlaying(g.audio.snd_footsteps_above)) {
+        if (g.audio.initialized && ghost_moving && !IsSoundPlaying(g.audio.snd_footsteps_above)) {
             PlaySound(g.audio.snd_footsteps_above);
         }
-        ghost_was_moving = player_moving;
+        g.corridor_ghost_was_moving = player_moving;
     }
 
     // Speed modulation near windows

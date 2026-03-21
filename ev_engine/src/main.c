@@ -68,9 +68,10 @@ static void draw_dialogue(void) {
     if (revealed > total_chars) revealed = total_chars;
 
     // Build revealed substring
-    char buf[256];
-    int len = revealed < 255 ? revealed : 255;
-    memcpy(buf, g.dlg_text, len);
+    int len = revealed;
+    char *buf = malloc((size_t)len + 1);
+    if (!buf) return;
+    memcpy(buf, g.dlg_text, (size_t)len);
     buf[len] = '\0';
 
     // ── House of Cards lower-third — left-aligned, minimal, elegant ──
@@ -125,6 +126,7 @@ static void draw_dialogue(void) {
         int cursor_x = text_x + MeasureText(buf, font_dlg) + 2;
         DrawRectangle(cursor_x, text_y + 2, 1, font_dlg - 4, (Color){245, 242, 235, ta});
     }
+    free(buf);
 }
 
 // ── Narrative choice system ──
@@ -206,9 +208,11 @@ static void draw_choice(void) {
     const char *prefix_a = (g.choice_cursor == 0) ? "> " : "  ";
     const char *prefix_b = (g.choice_cursor == 1) ? "> " : "  ";
 
+    const char *choice_a = g.choice_a ? g.choice_a : "";
+    const char *choice_b = g.choice_b ? g.choice_b : "";
     char buf_a[128], buf_b[128];
-    snprintf(buf_a, sizeof(buf_a), "%s%s", prefix_a, g.choice_a);
-    snprintf(buf_b, sizeof(buf_b), "%s%s", prefix_b, g.choice_b);
+    snprintf(buf_a, sizeof(buf_a), "%s%s", prefix_a, choice_a);
+    snprintf(buf_b, sizeof(buf_b), "%s%s", prefix_b, choice_b);
 
     DrawText(buf_a, x + 1, oa_y + 1, fs_o, (Color){0, 0, 0, 140});
     DrawText(buf_a, x, oa_y, fs_o, (Color){245, 242, 235, a_alpha});
@@ -501,7 +505,7 @@ void load_state(GameState s) {
     ApplyVisualStyle(&g.postfx, g.current_style);
 
     // Dispatch to scene-specific load
-    if ((int)s < scene_desc_count && scene_descs[s].load) {
+    if ((int)s >= 0 && (int)s < scene_desc_count && scene_descs[s].load) {
         scene_descs[s].load();
     }
 
@@ -683,6 +687,7 @@ int main(void) {
             ModelAsset *ma = &g.model_assets[g.model_asset_count];
             const char *fname = GetFileNameWithoutExt(path);
             strncpy(ma->name, fname, sizeof(ma->name) - 1);
+            ma->name[sizeof(ma->name) - 1] = '\0';
             ma->model = LoadModel(path);
             if (ma->model.meshCount > 0) {
                 if (g.lighting.ready) {
@@ -2376,7 +2381,7 @@ int main(void) {
             }
 
         // ---- UPDATE (dispatched via scene registry) ----
-        if ((int)g.state < scene_desc_count && scene_descs[g.state].update) {
+        if ((int)g.state >= 0 && (int)g.state < scene_desc_count && scene_descs[g.state].update) {
             scene_descs[g.state].update(dt);
         }
 
@@ -2405,7 +2410,8 @@ int main(void) {
         g.lighting.shadowPassRan = false;
         if (g.lighting.shadowReady && g.state != STATE_TITLE && g.state != STATE_BED && g.state != STATE_STARS) {
             draw_shadow_pass(&g.scene, &g.lighting,
-                            &g.cube_model, &g.cyl_model, &g.sphere_model, &g.cone_model);
+                            &g.cube_model, &g.cyl_model, &g.sphere_model, &g.cone_model,
+                            &g.skytower_model);
         }
 
         // ---- RENDER ----
@@ -2419,8 +2425,7 @@ int main(void) {
         switch (g.state) {
             case STATE_TITLE: {
                 // During prologue: black screen + choices only, no title animation
-                extern bool prologue_done;
-                if (!prologue_done) {
+                if (!g.title_prologue_done) {
                     ClearBackground(BLACK);
                 } else {
                     draw_title();

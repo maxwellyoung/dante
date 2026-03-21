@@ -127,6 +127,45 @@ static void rotate_xz(float *x, float *z, float angle) {
     *x = rx; *z = rz;
 }
 
+static bool wall_contains_xz(const Wall *w, float x, float z, float pad) {
+    switch (w->shape) {
+        case SHAPE_CUBE:
+        case SHAPE_MODEL: {
+            float hx = w->size.x * 0.5f + pad;
+            float hz = w->size.z * 0.5f + pad;
+            if (w->rotation_y != 0.0f) {
+                float lx = x - w->pos.x;
+                float lz = z - w->pos.z;
+                rotate_xz(&lx, &lz, -w->rotation_y * DEG2RAD);
+                return lx > -hx && lx < hx && lz > -hz && lz < hz;
+            }
+            return x > w->pos.x - hx && x < w->pos.x + hx
+                && z > w->pos.z - hz && z < w->pos.z + hz;
+        }
+        case SHAPE_CYLINDER:
+        case SHAPE_CONE:
+        case SHAPE_SPHERE:
+        case SHAPE_SKYTOWER:
+        case SHAPE_TORUS: {
+            float r = fmaxf(w->size.x, w->size.z) * 0.5f + pad;
+            float dx = x - w->pos.x;
+            float dz = z - w->pos.z;
+            return dx * dx + dz * dz < r * r;
+        }
+        default:
+            return false;
+    }
+}
+
+static bool wall_supports_player(const Wall *w, Vector3 pos, float current_ground_y,
+                                 float max_step, float pad, float *out_top) {
+    float top = w->pos.y + w->size.y * 0.5f;
+    if (top >= pos.y || top <= current_ground_y || top > max_step) return false;
+    if (!wall_contains_xz(w, pos.x, pos.z, pad)) return false;
+    *out_top = top;
+    return true;
+}
+
 // ── Collision — shape-aware, multi-pass with proper slide ────────────
 // Handles cubes (AABB + rotated OBB), cylinders, spheres, cones.
 // Skips no_collide, decals, and tiny decorative geometry.
@@ -318,10 +357,7 @@ static bool touching_wall(Player *p, Scene *scene) {
         if (wt < p->ground_y + 1.0f) continue;  // too short
         if (wb > pos.y) continue;                 // above us
 
-        if (pos.x > w->pos.x - w->size.x/2 - pr &&
-            pos.x < w->pos.x + w->size.x/2 + pr &&
-            pos.z > w->pos.z - w->size.z/2 - pr &&
-            pos.z < w->pos.z + w->size.z/2 + pr) {
+        if (wall_contains_xz(w, pos.x, pos.z, pr)) {
             return true;
         }
     }
@@ -339,13 +375,11 @@ static bool find_mantle_ledge(Player *p, Scene *scene, Vector3 fwd,
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
+        if (w->shape != SHAPE_CUBE && w->shape != SHAPE_MODEL) continue;
         float wt = w->pos.y + w->size.y / 2;
-        if (wt > pos.y && wt < pos.y + phys.mantle_reach && wt > best &&
-            cx > w->pos.x - w->size.x/2 - pr &&
-            cx < w->pos.x + w->size.x/2 + pr &&
-            cz > w->pos.z - w->size.z/2 - pr &&
-            cz < w->pos.z + w->size.z/2 + pr) {
+        if (wt > pos.y && wt < pos.y + phys.mantle_reach && wt > best
+            && wall_contains_xz(w, cx, cz, pr)) {
             best = wt;
         }
     }
@@ -367,7 +401,8 @@ static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active) continue;
+        if (w->shape != SHAPE_CUBE && w->shape != SHAPE_MODEL) continue;
         if (w->no_collide || w->is_decal) continue;
         float wt = w->pos.y + w->size.y / 2;
         float wb = w->pos.y - w->size.y / 2;
@@ -378,10 +413,7 @@ static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
         // Wall must extend below us (we're against it, not above it)
         if (wb > pos.y - phys.eye_height + 0.5f) continue;
         // XZ proximity check
-        if (cx > w->pos.x - w->size.x/2 - pr &&
-            cx < w->pos.x + w->size.x/2 + pr &&
-            cz > w->pos.z - w->size.z/2 - pr &&
-            cz < w->pos.z + w->size.z/2 + pr) {
+        if (wall_contains_xz(w, cx, cz, pr)) {
             best = wt;
         }
     }
@@ -724,57 +756,10 @@ void update_player(Player *p, Scene *scene, float dt) {
             if (!w->active || w->no_collide || w->is_decal) continue;
             // Skip tiny decorative objects for ground detection too
             if (w->size.x < 0.1f && w->size.y < 0.1f && w->size.z < 0.1f) continue;
-            float top, hx, hz;
-            switch (w->shape) {
-                case SHAPE_CUBE: {
-                    top = w->pos.y + w->size.y / 2;
-                    if (top >= new_pos.y || top <= ground_y || top > p->ground_y + 0.6f)
-                        break;
-                    hx = w->size.x / 2 + 0.3f;
-                    hz = w->size.z / 2 + 0.3f;
-                    if (w->rotation_y != 0.0f) {
-                        // Rotated ground: test in local space
-                        float angle = -w->rotation_y * (PI / 180.0f);
-                        float lx = new_pos.x - w->pos.x;
-                        float lz = new_pos.z - w->pos.z;
-                        rotate_xz(&lx, &lz, angle);
-                        if (lx > -hx && lx < hx && lz > -hz && lz < hz)
-                            ground_y = top;
-                    } else {
-                        if (new_pos.x > w->pos.x - hx && new_pos.x < w->pos.x + hx &&
-                            new_pos.z > w->pos.z - hz && new_pos.z < w->pos.z + hz)
-                            ground_y = top;
-                    }
-                    break;
-                }
-                case SHAPE_CYLINDER: {
-                    // Cylinder: size.x = diameter, size.y = height
-                    top = w->pos.y + w->size.y / 2;
-                    float cr = w->size.x / 2 + 0.3f;
-                    float cdx = new_pos.x - w->pos.x;
-                    float cdz = new_pos.z - w->pos.z;
-                    if (top < new_pos.y && top > ground_y &&
-                        top <= p->ground_y + 0.6f &&
-                        cdx*cdx + cdz*cdz < cr*cr) {
-                        ground_y = top;
-                    }
-                    break;
-                }
-                case SHAPE_SPHERE: {
-                    // Sphere top: center.y + radius (size.y/2 for uniform, approximate as AABB)
-                    top = w->pos.y + w->size.y / 2;
-                    float sr = w->size.x / 2 + 0.3f;
-                    float sdx = new_pos.x - w->pos.x;
-                    float sdz = new_pos.z - w->pos.z;
-                    if (top < new_pos.y && top > ground_y &&
-                        top <= p->ground_y + 0.6f &&
-                        sdx*sdx + sdz*sdz < sr*sr) {
-                        ground_y = top;
-                    }
-                    break;
-                }
-                default:
-                    break;
+            float top = 0.0f;
+            if (wall_supports_player(w, new_pos, ground_y, p->ground_y + phys.step_height,
+                                     0.3f, &top)) {
+                ground_y = top;
             }
         }
 

@@ -605,10 +605,13 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                             // Multi-material models (GLB): draw with their own Blender colors.
                             // Single-color override only if the wall color isn't white (255,255,255).
                             bool override_color = !(w->color.r == 255 && w->color.g == 255 && w->color.b == 255);
+                            Color saved_colors[ma->model.materialCount > 0 ? ma->model.materialCount : 1];
                             if (override_color) {
                                 // Simple prop — override all material slots with wall color
-                                for (int mj = 0; mj < ma->model.materialCount; mj++)
+                                for (int mj = 0; mj < ma->model.materialCount; mj++) {
+                                    saved_colors[mj] = ma->model.materials[mj].maps[MATERIAL_MAP_DIFFUSE].color;
                                     ma->model.materials[mj].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
+                                }
                             }
                             if (w->rotation_x != 0.0f) {
                                 // Compound rotation: X pre-rotation then Y
@@ -623,6 +626,10 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                             } else {
                                 DrawModelEx(ma->model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
                                            w->size, WHITE);
+                            }
+                            if (override_color) {
+                                for (int mj = 0; mj < ma->model.materialCount; mj++)
+                                    ma->model.materials[mj].maps[MATERIAL_MAP_DIFFUSE].color = saved_colors[mj];
                             }
                         }
                         break;
@@ -1173,25 +1180,29 @@ void draw_rain(Camera3D camera, float time) {
 // No rlgl matrix stack manipulation — we set mvp directly per-draw.
 // This avoids the state corruption that caused the original disable.
 // ============================================================
+static void draw_shadow_meshes(const Model *model, Shader shadow_shader,
+                               int shadow_mvp_loc, Matrix shadow_mvp) {
+    if (!model || model->meshCount <= 0 || model->materialCount <= 0) return;
+
+    SetShaderValueMatrix(shadow_shader, shadow_mvp_loc, shadow_mvp);
+    for (int mesh_index = 0; mesh_index < model->meshCount; mesh_index++) {
+        int mat_index = 0;
+        if (model->meshMaterial) mat_index = model->meshMaterial[mesh_index];
+        if (mat_index < 0 || mat_index >= model->materialCount) mat_index = 0;
+        Material mat = model->materials[mat_index];
+        mat.shader = shadow_shader;
+        DrawMesh(model->meshes[mesh_index], mat, MatrixIdentity());
+    }
+}
+
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
-                      Model *sphere_model, Model *cone_model) {
+                      Model *sphere_model, Model *cone_model,
+                      Model *skytower_model) {
     if (!lighting->shadowReady) return;
 
     // Flush any pending rlgl work before we touch FBO state
     rlDrawRenderBatchActive();
-
-    // Save original shaders
-    Shader origCube = cube_model->materials[0].shader;
-    Shader origCyl  = cyl_model->materials[0].shader;
-    Shader origSph  = sphere_model->materials[0].shader;
-    Shader origCone = cone_model->materials[0].shader;
-
-    // Assign depth-only shadow shader to all models
-    cube_model->materials[0].shader   = lighting->shadowShader;
-    cyl_model->materials[0].shader    = lighting->shadowShader;
-    sphere_model->materials[0].shader = lighting->shadowShader;
-    cone_model->materials[0].shader   = lighting->shadowShader;
 
     // Bind shadow FBO, set viewport, clear depth only
     rlEnableFramebuffer(lighting->shadowFBO);
@@ -1203,27 +1214,59 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active) continue;
+        if (!w->active || w->color.a == 0) continue;
 
         Matrix matScale = MatrixScale(w->size.x, w->size.y, w->size.z);
         Matrix matRot = MatrixRotateY(w->rotation_y * DEG2RAD);
         Matrix matTrans = MatrixTranslate(w->pos.x, w->pos.y, w->pos.z);
         Matrix matModel = MatrixMultiply(MatrixMultiply(matScale, matRot), matTrans);
+        const Model *m = NULL;
+
+        switch (w->shape) {
+            case SHAPE_CYLINDER:
+                m = cyl_model;
+                break;
+            case SHAPE_SPHERE:
+                m = sphere_model;
+                break;
+            case SHAPE_CONE:
+                m = cone_model;
+                break;
+            case SHAPE_SKYTOWER: {
+                Matrix rx = MatrixRotateX(-90.0f * DEG2RAD);
+                Matrix scl = MatrixScale(w->size.x, w->size.x, w->size.x);
+                matModel = MatrixMultiply(MatrixMultiply(scl, rx), matTrans);
+                m = skytower_model;
+                break;
+            }
+            case SHAPE_TORUS:
+                matModel = MatrixMultiply(MatrixMultiply(MatrixScale(w->size.x, w->size.y * 0.3f, w->size.z), matRot), matTrans);
+                m = sphere_model;
+                break;
+            case SHAPE_MODEL: {
+                int mi = w->model_index;
+                if (mi >= 0 && mi < g.model_asset_count && g.model_assets[mi].loaded) {
+                    Matrix scl = MatrixScale(w->size.x, w->size.y, w->size.z);
+                    Matrix ry = MatrixRotateY(w->rotation_y * DEG2RAD);
+                    if (w->rotation_x != 0.0f) {
+                        Matrix rx = MatrixRotateX(w->rotation_x * DEG2RAD);
+                        matModel = MatrixMultiply(MatrixMultiply(scl, MatrixMultiply(rx, ry)), matTrans);
+                    } else {
+                        matModel = MatrixMultiply(MatrixMultiply(scl, ry), matTrans);
+                    }
+                    m = &g.model_assets[mi].model;
+                }
+                break;
+            }
+            default:
+                m = cube_model;
+                break;
+        }
+        if (!m) continue;
 
         // shadow mvp = lightSpaceMatrix * modelMatrix
-        Matrix shadowMvp = MatrixMultiply(matModel, lsm);
-        SetShaderValueMatrix(lighting->shadowShader, lighting->shadowMvpLoc, shadowMvp);
-
-        Model *m;
-        switch (w->shape) {
-            case SHAPE_CYLINDER: m = cyl_model; break;
-            case SHAPE_SPHERE:   m = sphere_model; break;
-            case SHAPE_CONE:     m = cone_model; break;
-            default:             m = cube_model; break;
-        }
-
-        // Identity model matrix — full transform is baked into the shader's mvp
-        DrawMesh(m->meshes[0], m->materials[0], MatrixIdentity());
+        Matrix shadowMvp = MatrixMultiply(lsm, matModel);
+        draw_shadow_meshes(m, lighting->shadowShader, lighting->shadowMvpLoc, shadowMvp);
     }
 
     // Flush ALL draw calls before restoring state
@@ -1232,12 +1275,6 @@ void draw_shadow_pass(Scene *scene, EVLighting *lighting,
     // Unbind shadow FBO and restore viewport
     rlDisableFramebuffer();
     rlViewport(0, 0, RENDER_W, RENDER_H);
-
-    // Restore original shaders
-    cube_model->materials[0].shader   = origCube;
-    cyl_model->materials[0].shader    = origCyl;
-    sphere_model->materials[0].shader = origSph;
-    cone_model->materials[0].shader   = origCone;
 
     lighting->shadowPassRan = true;
 }
