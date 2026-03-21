@@ -43,7 +43,7 @@ dev-diff:
 	@./qa/run.sh --diff
 
 clean:
-	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o src/*.e2e.o qa/audit_report.json a.out
+	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o src/*.e2e.o src/*.shellqa.o qa/audit_report.json a.out
 
 # ── QA Mode — automated screenshot + pixel analysis ───────────────
 QA_OBJ = $(SRC:.c=.qa.o)
@@ -56,6 +56,18 @@ qa: validate-model-registry $(QA_OBJ)
 
 src/%.qa.o: src/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -c $< -o $@
+
+# Shell acceptance QA — dedicated production shell pass
+SHELL_QA_OBJ = $(SRC:.c=.shellqa.o)
+
+qa-shell: validate-model-registry $(SHELL_QA_OBJ)
+	$(CC) $(SHELL_QA_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots
+	./$(BIN)
+	@rm -f src/*.shellqa.o
+
+src/%.shellqa.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_SHELL_ONLY -c $< -o $@
 
 # Full QA pipeline: build + run + diff + archive
 qa-full:
@@ -151,6 +163,7 @@ quality:
 	@$(MAKE) check
 	@$(MAKE) test
 	@$(MAKE) validate-model-registry
+	@$(MAKE) qa-shell
 	@./qa/run.sh
 	@./qa/run_e2e.sh --grade
 	@echo "=== Quality gate passed ==="
@@ -209,4 +222,4 @@ playtest: clean
 	@ls -lh playtest/endearing_void
 	@echo "=== Playtest ready: ./playtest/ ==="
 
-.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit validate-model-registry quality
+.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-shell qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit validate-model-registry quality

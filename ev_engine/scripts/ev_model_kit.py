@@ -46,6 +46,8 @@ THE 12 RULES OF FORM (Endearing Void)
     curvature or emotional weight demands it.
 """
 
+import os
+
 import bpy
 import math
 from collections import OrderedDict
@@ -510,14 +512,16 @@ class EVModelKit:
             print(f"\n[EV] EXPORT BLOCKED — fix warnings above")
             return
 
+        export_path = os.environ.get("EV_EXPORT_PATH", filepath)
+
         bpy.ops.export_scene.gltf(
-            filepath=filepath,
+            filepath=export_path,
             export_format='GLB',
             export_yup=True,
             export_apply=True,
             export_animations=True,
         )
-        print(f"[EV] Exported: {filepath}")
+        print(f"[EV] Exported: {export_path}")
 
     def preview_placement(self):
         """

@@ -127,7 +127,7 @@ If validation fails, `kit.export_glb()` is blocked. `OBJ` export still exists fo
 8. Registry gate:       `python3 scripts/validate_model_registry.py`
 ```
 
-`./scripts/mcp_model.sh full model_foo.py foo` now runs that sequence end to end: Blender build, Blender-side validation renders, GLB export, deploy to `assets/`, GLB visual QA, then repo registry validation.
+`./scripts/mcp_model.sh full model_foo.py foo` now runs that sequence end to end: Blender build, Blender-side validation renders, GLB export, deploy to `assets/`, GLB visual QA, then repo registry validation. It prefers local headless Blender when available, and you can force the Mini-first path with `PREFER_REMOTE_BLENDER=1`.
 
 ## Environments vs Props
 
@@ -135,6 +135,8 @@ There are two distinct 3D paths:
 
 - Props and characters: use `ev_model_kit.py`, `ev_suite_workbench.py`, and `mcp_model.sh`.
 - Environment shells: use `ev_shell_workbench.py`, export a shell `GLB`, then pair it with explicit collision volumes via `add_shell()` + `add_collision_wall()`.
+
+For shell acceptance, use `make qa-shell`. That pass isolates the production elevator shell and captures doorway, corner, floor, ceiling, and panel views so shell/collision alignment can be checked without rerunning the full 17-scene sweep.
 
 That split is deliberate. The engine is already strong at procedural architecture, so full room shells should be reserved for spaces where silhouette and spatial weirdness are the point, not as a blanket replacement for every room.
 

@@ -715,6 +715,7 @@ int main(void) {
         int angle_count;
         bool dark_by_design;
         bool outdoor;
+        bool force_elevator_to_corridor;
         // Game flow
         int flow_order;     // position in canonical game flow (-1 = orphaned)
         GameState flow_next; // expected next scene in flow
@@ -726,6 +727,25 @@ int main(void) {
     // BALCONY → BED → STARS → PARIS_DREAM → RETURN_TAXI
     // Orphaned: HALLWAY, ROOM, BATHROOM (Paris hotel — dev keys only)
 
+#ifdef QA_SHELL_ONLY
+    QAEntry qa_scenes[] = {
+        {STATE_ELEVATOR, "elevator_shell",
+            .angles = {
+                {{0, 1.6f, 0.2f}, {0.45f, 1.1f, -0.65f}},     // hero: wall panel + shell read
+                {{0, 1.55f, 0.82f}, {0, 1.25f, 1.05f}},       // doorway: threshold + front seam
+                {{-0.72f, 1.25f, -0.55f}, {-1.0f, 1.15f, -0.95f}}, // left_corner: shell/collision alignment
+                {{0.72f, 1.25f, -0.55f}, {1.0f, 1.15f, -0.95f}},   // right_corner
+                {{0, 0.72f, -0.1f}, {0, 0.02f, -0.35f}},      // floor: walkable plane
+                {{0, 2.05f, -0.15f}, {0, 2.55f, -0.55f}},     // ceiling: top shell fit
+                {{0.65f, 1.45f, 0.12f}, {0.98f, 1.4f, -0.2f}}, // panel_detail: lighting/material read
+            },
+            .angle_names = {"hero", "doorway", "left_corner", "right_corner", "floor", "ceiling", "panel_detail"},
+            .angle_count = 7,
+            .dark_by_design = true, .outdoor = false,
+            .force_elevator_to_corridor = true,
+            .flow_order = -1, .flow_next = STATE_GLASSHOUSE},
+    };
+#else
     QAEntry qa_scenes[] = {
         {STATE_HOTEL_EXT, "hotel_ext",
             .angles = {
@@ -940,6 +960,7 @@ int main(void) {
             .outdoor = false,
             .flow_order = -1, .flow_next = STATE_MONTAGE},
     };
+#endif
     int qa_count = (int)(sizeof(qa_scenes)/sizeof(qa_scenes[0]));
 
     // ── Determine mode ──
@@ -1136,6 +1157,7 @@ int main(void) {
 
     for (int qi = 0; qi < qa_count; qi++) {
         double load_start = GetTime();
+        g.elevator_to_corridor = qa_scenes[qi].force_elevator_to_corridor;
         load_state(qa_scenes[qi].gs);
         g.fade_alpha = 0.0f; g.fade_target = 0.0f;
         double load_time_ms = (GetTime() - load_start) * 1000.0;
@@ -1148,6 +1170,7 @@ int main(void) {
         for (int ai = 0; ai < num_angles; ai++) {
             // Reload scene for each angle (clean state)
             if (ai > 0) {
+                g.elevator_to_corridor = qa_scenes[qi].force_elevator_to_corridor;
                 load_state(qa_scenes[qi].gs);
                 g.fade_alpha = 0.0f; g.fade_target = 0.0f;
             }
@@ -1169,6 +1192,7 @@ int main(void) {
             QA_ANALYZE_IMAGE(&shot_img, &angle_metrics[ai]);
             UnloadImage(shot_img);
         }
+        g.elevator_to_corridor = false;
 
         // Also save backward-compat aliases for basic mode
         {

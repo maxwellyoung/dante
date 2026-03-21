@@ -448,7 +448,10 @@ def analyze(report_path):
     urgent_count = 0
     for s in normalized_scenes:
         issues = []
-        if s.get("edge_density", 99) < 3 and not s.get("dark_by_design"):
+        edge = s.get("edge_density", 99)
+        cvar = s.get("color_variance", 99999)
+        bstd = s.get("brightness_std", 999)
+        if edge < 1.8 and cvar < 1500 and bstd < 25 and not s.get("dark_by_design"):
             issues.append("no visible geometry in hero shot — FIX CAMERA ANGLE or scene geometry")
         if s.get("luma", 99) < 10 and not s.get("dark_by_design"):
             issues.append("scene is invisible — FIX LIGHTING")
