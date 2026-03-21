@@ -69,7 +69,7 @@ typedef struct {
     Model skytower_model;
     bool skytower_loaded;
 
-    // ── Model assets (loaded from assets/*.glb, assets/*.obj) ──
+    // ── Model assets (stable runtime slots populated from model_registry.c) ──
     ModelAsset model_assets[MAX_MODEL_ASSETS];
     int model_asset_count;
 

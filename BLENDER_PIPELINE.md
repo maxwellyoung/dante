@@ -11,7 +11,7 @@ After: One shared toolkit (`ev_model_kit.py`) that enforces locked materials, va
 ## Quick Start
 
 ```python
-# Every model script starts the same way:
+# Every prop model script starts the same way:
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ev_model_kit import *
@@ -26,9 +26,11 @@ kit.cylinder("Leg", (0.2, 0.175, 0.2),
              radius=0.02, depth=0.35, material=WOOD_DARK)
 
 # Export runs validation automatically
-kit.export_obj("/Users/klaus/model_name.obj")
+kit.export_glb("/Users/klaus/model_name.glb")
 kit.preview_placement()  # prints C code for scene placement
 ```
+
+Runtime note: the engine is effectively `GLB`-first now. `OBJ` remains useful for legacy/debug assets, but production props and shells should export as `GLB` so they play nicely with the current Raylib/macOS VAO limits and multi-material rendering path.
 
 ## The 12 Rules of Form
 
@@ -41,7 +43,7 @@ kit.preview_placement()  # prints C code for scene placement
 | 5 | **Warm Neutrals, One Accent** | Base: cream/navy/wood/brass. Max ONE accent (Godard red, Earth blue). Kit counts accents. |
 | 6 | **Scale Is Sacred** | 1 unit = 1 meter. Reference `SCALE_REF` dict. Kit warns on outlier dimensions. |
 | 7 | **Join Everything** | One object per model, multi-material via slots. `kit.join_all()` handles this. |
-| 8 | **Vertex Colors Carry** | OBJ exports with vertex colors that tint the engine's procedural shader. |
+| 8 | **Blender Colors Carry** | Authored `GLB` assets should preserve Blender material color intent; `OBJ` is fallback-only. |
 | 9 | **Y-Up Export** | GLB exports Y-up automatically. OBJ rotated in engine. |
 | 10 | **Origin at Floor Center** | `kit.join_all()` sets origin to bottom-center automatically. |
 | 11 | **No Hidden Geometry** | Kit checks for loose vertices. No internal faces. |
@@ -102,7 +104,7 @@ Does the object need CURVES that boxes can't do?
 
 ## Validation Gates
 
-`kit.export_obj()` runs these checks automatically:
+`kit.export_glb()` runs these checks automatically:
 
 1. **Tri count** — Must be under `tri_budget`. Blocks export if over.
 2. **Scale check** — Warns if largest dimension > 5m or < 0.05m.
@@ -110,19 +112,31 @@ Does the object need CURVES that boxes can't do?
 4. **Accent count** — Warns if more than 1 accent material used.
 5. **Loose vertices** — Checks for hidden/orphaned geometry.
 
-If validation fails, export is blocked. Use `kit.force_export_obj()` to override (with printed justification).
+If validation fails, `kit.export_glb()` is blocked. `OBJ` export still exists for legacy/debug workflows, but it is no longer the main runtime target.
 
 ## Full Pipeline
 
 ```
-1. Write script using ev_model_kit
-2. Send to Blender:     python3 blender_send.py model_foo.py
-3. Validation runs automatically (blocks export if failing)
-4. Fetch to engine:     scp mini-ts:~/foo.obj assets/
-5. Add to priority:     main.c priority_models[] (if important)
-6. Place in scene:      find_model_asset("foo") + add_model()
-7. QA check:            make qa
+1. Write prop script using `ev_model_kit`
+2. Send to Blender:     `python3 blender_send.py model_foo.py`
+3. Validate + export:   `kit.export_glb("~/foo.glb")`
+4. Fetch to engine:     `scp mini-ts:~/foo.glb ev_engine/assets/`
+5. Register it:         add a `ModelRegistryEntry` in `src/model_registry.c`
+6. Place in scene:      `find_model_asset("foo") + add_model()` or `add_shell()`
+7. Visual QA:           `./scripts/glb_qa.sh assets/foo.glb`
+8. Registry gate:       `python3 scripts/validate_model_registry.py`
 ```
+
+`./scripts/mcp_model.sh full model_foo.py foo` now runs that sequence end to end: Blender build, Blender-side validation renders, GLB export, deploy to `assets/`, GLB visual QA, then repo registry validation.
+
+## Environments vs Props
+
+There are two distinct 3D paths:
+
+- Props and characters: use `ev_model_kit.py`, `ev_suite_workbench.py`, and `mcp_model.sh`.
+- Environment shells: use `ev_shell_workbench.py`, export a shell `GLB`, then pair it with explicit collision volumes via `add_shell()` + `add_collision_wall()`.
+
+That split is deliberate. The engine is already strong at procedural architecture, so full room shells should be reserved for spaces where silhouette and spatial weirdness are the point, not as a blanket replacement for every room.
 
 ## Pixar's "Form" Applied to 960x600
 

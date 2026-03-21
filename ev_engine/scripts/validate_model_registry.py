@@ -17,7 +17,9 @@ ENTRY_RE = re.compile(
     r'\{"([^"]+)",\s*"([^"]+)",\s*(MODEL_KIND_\w+),\s*(true|false),\s*(\d+),\s*(true|false),\s*(MODEL_STATUS_\w+)\}'
 )
 REF_RE = re.compile(r'find_model_asset\("([^"]+)"\)')
+SHELL_REF_RE = re.compile(r'add_shell\([^,]+,\s*"([^"]+)"')
 BUDGET_RE = re.compile(r"#define\s+MODEL_STARTUP_VAO_BUDGET\s+(\d+)")
+COLLISION_RE = re.compile(r'add_collision_(?:wall|floor|ceiling)\(')
 
 
 def fail(message: str, errors: list[str]) -> None:
@@ -61,12 +63,39 @@ def main() -> int:
         registry_by_name[entry["name"]] = entry
 
     scene_refs = set()
+    shell_refs: dict[str, list[tuple[Path, int]]] = {}
     for path in SRC_DIR.glob("*.c"):
-        scene_refs.update(REF_RE.findall(path.read_text()))
+        text = path.read_text()
+        scene_refs.update(REF_RE.findall(text))
+
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            for match in SHELL_REF_RE.finditer(line):
+                name = match.group(1)
+                shell_refs.setdefault(name, []).append((path, i))
+                start = max(0, i - 60)
+                end = min(len(lines), i + 61)
+                window = "\n".join(lines[start:end])
+                if not COLLISION_RE.search(window):
+                    fail(f"shell '{name}' in {path.name}:{i + 1} has no nearby authored collision", errors)
 
     for ref in sorted(scene_refs):
         if ref not in registry_by_name:
             fail(f"scene reference '{ref}' is not present in model registry", errors)
+
+    for ref, sites in sorted(shell_refs.items()):
+        entry = registry_by_name.get(ref)
+        if not entry:
+            fail(f"shell reference '{ref}' is not present in model registry", errors)
+            continue
+        if entry["kind"] != "MODEL_KIND_SHELL":
+            fail(f"add_shell() uses non-shell asset '{ref}' ({entry['kind']})", errors)
+
+    for entry in entries:
+        if entry["status"] != "MODEL_STATUS_ACTIVE" or entry["kind"] != "MODEL_KIND_SHELL":
+            continue
+        if entry["name"] not in shell_refs:
+            fail(f"active shell asset '{entry['name']}' is not placed via add_shell()", errors)
 
     for entry in entries:
         if entry["status"] != "MODEL_STATUS_ACTIVE":

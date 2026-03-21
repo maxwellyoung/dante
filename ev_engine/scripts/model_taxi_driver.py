@@ -3,6 +3,9 @@
 Flat cap, dark coat, hands on wheel. Auckland at 2AM.
 Single mesh, export as GLB (avoids OBJ VAO bus error).
 ~200 tris target.
+
+AXIS CONVENTION: Blender Z-up, Y-forward. export_yup handles conversion.
+All locations use (X, Y_forward, Z_height) — Blender native.
 """
 import bpy
 import math
@@ -37,14 +40,27 @@ mat_cap = mat("Driver_Cap", 42, 40, 36, roughness=0.75)
 mat_collar = mat("Driver_Collar", 225, 220, 210, roughness=0.7)
 mat_watch = mat("Driver_Watch", 210, 180, 100, metallic=0.8, roughness=0.3)
 
-# Driver sits at x=-0.4, z=-0.88 (matching build_taxi_ride positions)
-dx, dz = -0.4, -0.88
+# Driver seat position in engine coords: x=-0.4, y(height)=~0.84, z(depth)=-0.88
+# Blender coords (Z-up, -Y=forward): X=-0.4, Y=+0.88 (forward toward windshield), Z=height
+# Note: engine -Z maps to Blender -Y (forward), so engine dz=-0.88 → Blender Y=+0.88
+dx = -0.4   # X stays X
+dy = 0.88   # engine Z=-0.88 → Blender Y=+0.88 (toward front of car)
+# Z = height (was Y in the old wrong script)
+
+def loc(x, height, depth_offset=0):
+    """Convert engine-think (x, height, depth_from_seat) to Blender (X, Y, Z).
+    depth_offset: negative = toward windshield, positive = toward player."""
+    return (x, dy - depth_offset, height)
+
+def scl(sx, sh, sd):
+    """Convert engine-think scale (width, height, depth) to Blender (X, Y, Z)."""
+    return (sx, sd, sh)
 
 # ── TORSO — the main mass, seen from behind ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 0.84, dz))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 0.84))
 torso = bpy.context.active_object
 torso.name = "Driver_Torso"
-torso.scale = (0.44, 0.50, 0.30)
+torso.scale = scl(0.44, 0.50, 0.30)
 bpy.ops.object.transform_apply(scale=True)
 mod = torso.modifiers.new("Subsurf", "SUBSURF")
 mod.levels = 1
@@ -52,10 +68,10 @@ bpy.ops.object.modifier_apply(modifier="Subsurf")
 torso.data.materials.append(mat_coat)
 
 # ── SHOULDERS — wider than torso ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 0.96, dz))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 0.96))
 shoulders = bpy.context.active_object
 shoulders.name = "Driver_Shoulders"
-shoulders.scale = (0.58, 0.12, 0.30)
+shoulders.scale = scl(0.58, 0.12, 0.30)
 bpy.ops.object.transform_apply(scale=True)
 mod = shoulders.modifiers.new("Subsurf", "SUBSURF")
 mod.levels = 1
@@ -63,25 +79,25 @@ bpy.ops.object.modifier_apply(modifier="Subsurf")
 shoulders.data.materials.append(mat_coat)
 
 # ── COLLAR — white V visible from behind ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 1.03, dz + 0.02))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.03, -0.02))
 collar = bpy.context.active_object
 collar.name = "Driver_Collar"
-collar.scale = (0.26, 0.08, 0.18)
+collar.scale = scl(0.26, 0.08, 0.18)
 bpy.ops.object.transform_apply(scale=True)
 collar.data.materials.append(mat_collar)
 
 # ── NECK ──
 bpy.ops.mesh.primitive_cylinder_add(radius=0.07, depth=0.10, vertices=8,
-                                     location=(dx, 1.08, dz + 0.01))
+                                     location=loc(dx, 1.08, -0.01))
 neck = bpy.context.active_object
 neck.name = "Driver_Neck"
 neck.data.materials.append(mat_skin)
 
 # ── HEAD — the key silhouette piece ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 1.20, dz + 0.02))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.20, -0.02))
 head = bpy.context.active_object
 head.name = "Driver_Head"
-head.scale = (0.24, 0.26, 0.24)
+head.scale = scl(0.24, 0.26, 0.24)
 bpy.ops.object.transform_apply(scale=True)
 mod = head.modifiers.new("Subsurf", "SUBSURF")
 mod.levels = 1
@@ -91,96 +107,96 @@ head.data.materials.append(mat_skin)
 # ── EARS ──
 for side in [-1, 1]:
     bpy.ops.mesh.primitive_cube_add(size=1,
-        location=(dx + side * 0.13, 1.18, dz + 0.02))
+        location=loc(dx + side * 0.13, 1.18, -0.02))
     ear = bpy.context.active_object
     ear.name = "Driver_Ear"
-    ear.scale = (0.04, 0.08, 0.06)
+    ear.scale = scl(0.04, 0.08, 0.06)
     bpy.ops.object.transform_apply(scale=True)
     ear.data.materials.append(mat_skin)
 
 # ── HAIR — dark patch on back of head (player sees this most) ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 1.22, dz + 0.11))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.22, -0.11))
 hair = bpy.context.active_object
 hair.name = "Driver_Hair"
-hair.scale = (0.22, 0.18, 0.08)
+hair.scale = scl(0.22, 0.18, 0.08)
 bpy.ops.object.transform_apply(scale=True)
 hair.data.materials.append(mat_hair)
 
 # ── FLAT CAP — the signature ──
 bpy.ops.mesh.primitive_cylinder_add(radius=0.15, depth=0.07, vertices=10,
-                                     location=(dx, 1.35, dz + 0.02))
+                                     location=loc(dx, 1.35, -0.02))
 cap_body = bpy.context.active_object
 cap_body.name = "Driver_CapBody"
 cap_body.data.materials.append(mat_cap)
 
-# Cap brim — extends forward
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 1.33, dz - 0.12))
+# Cap brim — extends forward (toward windshield = negative depth_offset)
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 1.33, 0.12))
 brim = bpy.context.active_object
 brim.name = "Driver_Brim"
-brim.scale = (0.28, 0.025, 0.14)
+brim.scale = scl(0.28, 0.025, 0.14)
 bpy.ops.object.transform_apply(scale=True)
 brim.data.materials.append(mat_cap)
 
 # ── LEFT ARM — reaching to wheel ──
 # Upper arm
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx - 0.22, 0.84, dz - 0.05))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx - 0.22, 0.84, 0.05))
 l_upper = bpy.context.active_object
 l_upper.name = "Driver_LUpperArm"
-l_upper.scale = (0.13, 0.28, 0.13)
+l_upper.scale = scl(0.13, 0.28, 0.13)
 bpy.ops.object.transform_apply(scale=True)
 l_upper.data.materials.append(mat_coat)
 
-# Forearm — reaching forward
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx - 0.20, 0.76, dz - 0.28))
+# Forearm — reaching forward toward wheel
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx - 0.20, 0.76, 0.28))
 l_fore = bpy.context.active_object
 l_fore.name = "Driver_LForearm"
-l_fore.scale = (0.11, 0.14, 0.22)
+l_fore.scale = scl(0.11, 0.14, 0.22)
 bpy.ops.object.transform_apply(scale=True)
 l_fore.data.materials.append(mat_coat)
 
 # Left hand on wheel
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx - 0.16, 0.74, dz - 0.42))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx - 0.16, 0.74, 0.42))
 l_hand = bpy.context.active_object
 l_hand.name = "Driver_LHand"
-l_hand.scale = (0.10, 0.07, 0.08)
+l_hand.scale = scl(0.10, 0.07, 0.08)
 bpy.ops.object.transform_apply(scale=True)
 l_hand.data.materials.append(mat_skin)
 
 # Watch — brass glint
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx - 0.19, 0.74, dz - 0.34))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx - 0.19, 0.74, 0.34))
 watch = bpy.context.active_object
 watch.name = "Driver_Watch"
-watch.scale = (0.04, 0.03, 0.06)
+watch.scale = scl(0.04, 0.03, 0.06)
 bpy.ops.object.transform_apply(scale=True)
 watch.data.materials.append(mat_watch)
 
 # ── RIGHT ARM — resting ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx + 0.22, 0.84, dz + 0.02))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx + 0.22, 0.84, -0.02))
 r_upper = bpy.context.active_object
 r_upper.name = "Driver_RUpperArm"
-r_upper.scale = (0.13, 0.28, 0.13)
+r_upper.scale = scl(0.13, 0.28, 0.13)
 bpy.ops.object.transform_apply(scale=True)
 r_upper.data.materials.append(mat_coat)
 
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx + 0.24, 0.70, dz + 0.08))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx + 0.24, 0.70, -0.08))
 r_fore = bpy.context.active_object
 r_fore.name = "Driver_RForearm"
-r_fore.scale = (0.11, 0.22, 0.11)
+r_fore.scale = scl(0.11, 0.22, 0.11)
 bpy.ops.object.transform_apply(scale=True)
 r_fore.data.materials.append(mat_coat)
 
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx + 0.24, 0.56, dz + 0.08))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx + 0.24, 0.56, -0.08))
 r_hand = bpy.context.active_object
 r_hand.name = "Driver_RHand"
-r_hand.scale = (0.10, 0.07, 0.08)
+r_hand.scale = scl(0.10, 0.07, 0.08)
 bpy.ops.object.transform_apply(scale=True)
 r_hand.data.materials.append(mat_skin)
 
 # ── CENTER SEAM — visible from behind ──
-bpy.ops.mesh.primitive_cube_add(size=1, location=(dx, 0.80, dz + 0.15))
+bpy.ops.mesh.primitive_cube_add(size=1, location=loc(dx, 0.80, -0.15))
 seam = bpy.context.active_object
 seam.name = "Driver_Seam"
-seam.scale = (0.02, 0.40, 0.02)
+seam.scale = scl(0.02, 0.40, 0.02)
 bpy.ops.object.transform_apply(scale=True)
 seam.data.materials.append(mat_hair)  # dark line
 
@@ -203,14 +219,14 @@ if meshes:
 
     total_verts = len(driver.data.vertices)
     total_tris = sum(max(0, len(p.vertices)-2) for p in driver.data.polygons)
-    print("TaxiDriver: " + str(total_verts) + " verts, " + str(total_tris) + " tris")
+    print(f"TaxiDriver: {total_verts} verts, {total_tris} tris")
 
     # Select only the driver for export
     bpy.ops.object.select_all(action='DESELECT')
     driver.select_set(True)
     bpy.context.view_layer.objects.active = driver
 
-    # Export as GLB (single file, avoids OBJ VAO bus error)
+    # Export as GLB — export_yup converts Blender Z-up to Raylib Y-up
     bpy.ops.export_scene.gltf(
         filepath='/Users/klaus/taxi_driver.glb',
         export_format='GLB',
@@ -220,3 +236,4 @@ if meshes:
         export_yup=True,
     )
     print("Exported to /Users/klaus/taxi_driver.glb")
+    print("scp mini-ts:~/taxi_driver.glb assets/taxi_driver.glb")

@@ -59,10 +59,12 @@ int main(void) {
     printf("Checking constants...\n");
     assert(MAX_WALLS == 2048);
     assert(MAX_OBJECTS == 64);
+    assert(MAX_MODEL_ASSETS == 32);
     assert(RENDER_W == 1920);
     assert(RENDER_H == 1200);
     printf("  MAX_WALLS   = %d  OK\n", MAX_WALLS);
     printf("  MAX_OBJECTS = %d  OK\n", MAX_OBJECTS);
+    printf("  MAX_MODEL_ASSETS = %d  OK\n", MAX_MODEL_ASSETS);
     printf("  RENDER_W    = %d  OK\n", RENDER_W);
     printf("  RENDER_H    = %d  OK\n", RENDER_H);
 
@@ -75,10 +77,14 @@ int main(void) {
     assert(sizeof(EVAudio) > 0);
     assert(sizeof(EVPostFX) > 0);
     assert(sizeof(EVLighting) > 0);
+    assert(sizeof(ModelRegistryEntry) > 0);
+    assert(sizeof(ModelAsset) > 0);
     printf("  sizeof(Wall)           = %zu  OK\n", sizeof(Wall));
     printf("  sizeof(Player)         = %zu  OK\n", sizeof(Player));
     printf("  sizeof(Scene)          = %zu  OK\n", sizeof(Scene));
     printf("  sizeof(InteractObject) = %zu  OK\n", sizeof(InteractObject));
+    printf("  sizeof(ModelRegistryEntry) = %zu  OK\n", sizeof(ModelRegistryEntry));
+    printf("  sizeof(ModelAsset)     = %zu  OK\n", sizeof(ModelAsset));
     printf("  sizeof(EVAudio)        = %zu  OK\n", sizeof(EVAudio));
     printf("  sizeof(EVPostFX)       = %zu  OK\n", sizeof(EVPostFX));
     printf("  sizeof(EVLighting)     = %zu  OK\n", sizeof(EVLighting));

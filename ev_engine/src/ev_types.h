@@ -239,11 +239,37 @@ typedef enum {
 typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER, SHAPE_TORUS, SHAPE_MODEL } ShapeType;
 
 // ── Model asset registry ────────────────────────────────────────────
-// Loaded 3D models (.glb/.obj) from assets/ directory.
+// Loaded 3D models from the engine-owned registry.
 // Walls with SHAPE_MODEL use model_index to reference these.
-#define MAX_MODEL_ASSETS 16
+typedef enum {
+    MODEL_KIND_PROP,
+    MODEL_KIND_SHELL,
+} ModelKind;
+
+typedef enum {
+    MODEL_STATUS_DORMANT,
+    MODEL_STATUS_ACTIVE,
+} ModelStatus;
+
+typedef struct {
+    const char *name;              // filename without extension (e.g. "gibbons")
+    const char *path;              // asset path relative to engine root
+    ModelKind kind;
+    bool startup_load;
+    int estimated_vao_cost;
+    bool preserve_blender_colors;
+    ModelStatus status;
+} ModelRegistryEntry;
+
+#define MAX_MODEL_ASSETS 32
 typedef struct {
     char name[64];              // filename without extension (e.g. "taxi", "gibbons")
+    const char *path;           // registry-owned asset path
+    ModelKind kind;
+    bool startup_load;
+    int estimated_vao_cost;
+    bool preserve_blender_colors;
+    ModelStatus status;
     Model model;
     bool loaded;
     // Animation (GLB only)
@@ -282,6 +308,7 @@ typedef struct {
     ShapeType shape;
     MaterialType material;  // default 0 = MAT_CONCRETE (C zero-init)
     float rotation_y;
+    float rotation_x;       // SHAPE_MODEL: X-axis pre-rotation (axis-correcting bad exports)
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
     bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
     int model_index;        // SHAPE_MODEL only: index into model_assets[]

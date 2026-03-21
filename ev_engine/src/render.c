@@ -16,6 +16,8 @@
 
 static void draw_tinted_model_ex(Model *model, Color tint, Vector3 position,
                                  Vector3 axis, float angle, Vector3 scale);
+static bool is_white_tint(Color c);
+static bool should_override_model_color(const Wall *w, const ModelAsset *ma);
 
 // ============================================================
 // POST-PROCESSING SHADER
@@ -605,9 +607,9 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                         int mi = w->model_index;
                         if (mi >= 0 && mi < g.model_asset_count && g.model_assets[mi].loaded) {
                             ModelAsset *ma = &g.model_assets[mi];
-                            // Multi-material models (GLB): draw with their own Blender colors.
-                            // Single-color override only if the wall color isn't white (255,255,255).
-                            bool override_color = !(w->color.r == 255 && w->color.g == 255 && w->color.b == 255);
+                            // Registry-marked authored models may preserve Blender colors.
+                            // Scene tint still wins whenever the placement explicitly asks for it.
+                            bool override_color = should_override_model_color(w, ma);
                             Color saved_colors[ma->model.materialCount > 0 ? ma->model.materialCount : 1];
                             if (override_color) {
                                 // Simple prop — override all material slots with wall color
@@ -1214,6 +1216,16 @@ static void draw_tinted_model_ex(Model *model, Color tint, Vector3 position,
     for (int i = 0; i < model->materialCount; i++) {
         model->materials[i].maps[MATERIAL_MAP_DIFFUSE].color = saved_colors[i];
     }
+}
+
+static bool is_white_tint(Color c) {
+    return c.r == 255 && c.g == 255 && c.b == 255;
+}
+
+static bool should_override_model_color(const Wall *w, const ModelAsset *ma) {
+    if (!w || !ma) return false;
+    if (!ma->preserve_blender_colors) return true;
+    return !is_white_tint(w->color);
 }
 
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,

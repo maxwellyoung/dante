@@ -14,10 +14,8 @@
 
 // ── Build the test environment ──
 static void build_shell_test(Scene *s) {
-    // ── 1. The shell: bathtub as a stand-in for a room mesh ──
-    // In production this would be a full room GLB from Blender.
-    // Using bathtub scaled up to demonstrate visual-only mesh rendering.
-    add_shell(s, "bathtub", 0, 0, 0, 3, 3, 3, 0, MAT_MARBLE, WHITE);
+    // ── 1. The shell: the production elevator shell, reused as a debug sandbox ──
+    add_shell(s, "elevator_car", 0, 0, 0, 1, 1, 1, 0, MAT_BRASS, WHITE);
 
     // ── 2. Collision geometry: invisible boxes defining the walkable space ──
     // Floor — the player walks on this, not the model
@@ -44,8 +42,12 @@ static void build_shell_test(Scene *s) {
     add_sofa(s, -3, 0, 4, 0, (Color){80, 60, 50, 255});
     add_chair(s, 3, 0, 3, -30, (Color){120, 90, 60, 255}, (Color){70, 55, 45, 255});
 
-    // ── 5. A second shell model to test multiple shells ──
-    add_shell(s, "piano", 5, 0, -3, 1, 1, 1, 45, MAT_WOOD, WHITE);
+    // ── 5. A regular prop beside the shell — confirms shell/prop split stays clean ──
+    {
+        int piano_mdl = find_model_asset("piano");
+        if (piano_mdl >= 0)
+            add_model(s, 5, 0, -3, 1, 1, 1, 45, piano_mdl, MAT_WOOD, WHITE);
+    }
 
     // ── 6. Light panels to illuminate the space ──
     add_light_panel(s, 0, 4.8f, 0, 3, 0.05f, 3, (Color){255, 240, 200, 255});

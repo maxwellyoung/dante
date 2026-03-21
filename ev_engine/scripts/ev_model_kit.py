@@ -20,7 +20,7 @@ Usage:
     leg = kit.cylinder("Leg", (0.2, 0.175, 0.2), radius=0.02, depth=0.35,
                        material=kit.WOOD_DARK)
 
-    kit.export_obj("/Users/klaus/armchair.obj")
+    kit.export_glb("/Users/klaus/armchair.glb")
 
 THE 12 RULES OF FORM (Endearing Void)
 ======================================
@@ -35,8 +35,8 @@ THE 12 RULES OF FORM (Endearing Void)
  6. SCALE IS SACRED — 1 unit = 1 meter. Chair seat = 0.45m. Door = 2.1m.
     Table height = 0.75m. Bed width = 1.8m (queen). Check before export.
  7. JOIN EVERYTHING — One object per model. Multi-material via material slots.
- 8. VERTEX COLORS CARRY — OBJ exports with vertex colors. These tint the
-    engine's procedural shader. Get them right in Blender.
+ 8. BLENDER COLORS CARRY — GLB exports should preserve Blender material color intent.
+    OBJ is legacy fallback only; get the authored color read right in Blender.
  9. Y-UP EXPORT — GLB exports Y-up automatically. OBJ must rotate -90 X in engine.
 10. ORIGIN AT FLOOR CENTER — Model origin at bottom-center so placement is intuitive.
     add_model(s, x, 0, z, ...) puts the model ON the floor.
