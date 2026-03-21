@@ -984,7 +984,7 @@ void build_lobby(Scene *s) {
     {
         int chand_mdl = find_model_asset("chandelier");
         if (chand_mdl >= 0) {
-            add_model(s, 0, H - 1.5f, 0, 2.5f, 2.5f, 2.5f, 0, chand_mdl, MAT_BRASS, gold);
+            add_model(s, 0, H - 1.5f, 0, 2.5f, 2.5f, 2.5f, 0, chand_mdl, MAT_BRASS, WHITE);
             add_light_panel(s, 0, H - 2.0f, 0, 2.0f, 0.5f, 2.0f, PAL_LIGHT_WARM);
         } else {
             add_chandelier(s, 0, H - 1.5f, 0, 8, 1.2f, gold, PAL_LIGHT_WARM);
@@ -1000,7 +1000,7 @@ void build_lobby(Scene *s) {
         int desk_mdl = find_model_asset("reception_desk");
         if (desk_mdl >= 0) {
             // Curved GLB desk — rotated to face entrance, scaled to match
-            add_model(s, desk_x, 0, desk_z, 1.4f, 1.0f, 1.4f, -90, desk_mdl, MAT_WOOD, wood_dark);
+            add_model(s, desk_x, 0, desk_z, 1.4f, 1.0f, 1.4f, -90, desk_mdl, MAT_WOOD, WHITE);
         } else {
             // Procedural fallback
             add_wall(s, desk_x, 0.45f, desk_z, 1.2f, 0.9f, 5.0f, wood_dark);
@@ -1190,10 +1190,17 @@ void build_lobby(Scene *s) {
     add_cylinder(s, lug_x - 0.4f, 0.06f, lug_z, 0.12f, 0.04f, PAL_CHARCOAL);
     add_cylinder(s, lug_x + 0.4f, 0.06f, lug_z, 0.12f, 0.04f, PAL_CHARCOAL);
     // Suitcase ON the trolley — someone's luggage waiting
-    add_wall(s, lug_x, 0.5f, lug_z, 0.6f, 0.28f, 0.4f, leather_brn);
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, lug_x, 0.66f, lug_z, 0.62f, 0.02f, 0.42f, gold);
-    set_last_material(s, MAT_BRASS);
+    {
+        int suitcase_mdl = find_model_asset("suitcase");
+        if (suitcase_mdl >= 0) {
+            add_model(s, lug_x, 0.35f, lug_z, 1, 1, 1, 0, suitcase_mdl, MAT_LEATHER, WHITE);
+        } else {
+            add_wall(s, lug_x, 0.5f, lug_z, 0.6f, 0.28f, 0.4f, leather_brn);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, lug_x, 0.66f, lug_z, 0.62f, 0.02f, 0.42f, gold);
+            set_last_material(s, MAT_BRASS);
+        }
+    }
 
     // ============================================================
     // POTTED PLANTS — large, in brass pots
@@ -2034,12 +2041,19 @@ void build_balcony(Scene *s) {
     add_cylinder(s, 0, 0.49f, -0.8f, 0.1f, 0.03f, (Color){140,135,130,255});
     add_object(s, 0, 0.55f, -0.8f, "cigarette", (Color){200,195,185,255}, 1);
 
-    // ── TELESCOPE — procedural until a GLB runtime asset exists ──
-    add_cylinder(s, 2.5f, 0.9f, -0.5f, 0.06f, 0.6f, gold);
-    set_last_material(s, MAT_BRASS);
-    add_cylinder(s, 2.3f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
-    add_cylinder(s, 2.7f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
-    add_cylinder(s, 2.5f, 0.45f, -0.7f, 0.015f, 0.9f, gold);
+    // ── TELESCOPE — communal, pointed toward Earth ──
+    {
+        int telescope_mdl = find_model_asset("telescope");
+        if (telescope_mdl >= 0) {
+            add_model(s, 2.5f, 0, -0.5f, 1, 1, 1, 90, telescope_mdl, MAT_BRASS, WHITE);
+        } else {
+            add_cylinder(s, 2.5f, 0.9f, -0.5f, 0.06f, 0.6f, gold);
+            set_last_material(s, MAT_BRASS);
+            add_cylinder(s, 2.3f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
+            add_cylinder(s, 2.7f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
+            add_cylinder(s, 2.5f, 0.45f, -0.7f, 0.015f, 0.9f, gold);
+        }
+    }
 
     // Distant station modules (tiny lit rectangles)
     add_wall(s, -30, 5, -50, 1.5f, 0.8f, 0.3f, (Color){140,150,165,80});
@@ -2910,7 +2924,7 @@ void build_taxi_ride(Scene *s) {
         if (driver_mdl >= 0) {
             // GLB axis fix: Blender script used Y-up, export_yup swapped Y↔Z.
             // rotation_x=-90 corrects the orientation back to intended pose.
-            add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_FABRIC, (Color){200,180,140,255});
+            add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_FABRIC, WHITE);
             set_last_rotation_x(s, -90.0f);
             set_last_no_collide(s);
         } else {
@@ -3833,10 +3847,17 @@ void build_space_lobby(Scene *s) {
     add_wall(s, -6, 1.05f, 8.3f, 0.6f, 0.04f, 0.04f, brass);
     set_last_material(s, MAT_BRASS);
     // Suitcase on trolley
-    add_wall(s, -6, 0.55f, 8, 0.7f, 0.35f, 0.45f, (Color){150,100,60,255});
-    set_last_material(s, MAT_LEATHER);
-    // Luggage tag — blue
-    add_wall(s, -5.7f, 0.6f, 8.2f, 0.12f, 0.08f, 0.02f, godard_blue);
+    {
+        int suitcase_mdl = find_model_asset("suitcase");
+        if (suitcase_mdl >= 0) {
+            add_model(s, -6, 0.35f, 8, 1, 1, 1, 0, suitcase_mdl, MAT_LEATHER, WHITE);
+        } else {
+            add_wall(s, -6, 0.55f, 8, 0.7f, 0.35f, 0.45f, (Color){150,100,60,255});
+            set_last_material(s, MAT_LEATHER);
+            // Luggage tag — blue
+            add_wall(s, -5.7f, 0.6f, 8.2f, 0.12f, 0.08f, 0.02f, godard_blue);
+        }
+    }
 
     // ================================================================
     // SIGNAGE — station directional signs
@@ -3896,9 +3917,16 @@ void build_space_lobby(Scene *s) {
     add_wall(s, -12, 7.5f, 3, 0.8f, 0.06f, 0.5f, godard_red);
     set_last_material(s, MAT_LEATHER);
     // Suitcase floating at waist height
-    add_wall(s, 14, 1.5f, 6, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, 13.85f, 1.62f, 6.22f, 0.18f, 0.13f, 0.02f, godard_blue);
+    {
+        int suitcase_mdl = find_model_asset("suitcase");
+        if (suitcase_mdl >= 0) {
+            add_model(s, 14, 1.3f, 6, 1, 1, 1, 18, suitcase_mdl, MAT_LEATHER, WHITE);
+        } else {
+            add_wall(s, 14, 1.5f, 6, 0.8f, 0.35f, 0.5f, (Color){150,100,60,255});
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, 13.85f, 1.62f, 6.22f, 0.18f, 0.13f, 0.02f, godard_blue);
+        }
+    }
     // Napkin drifting
     add_wall(s, -5, 4.5f, 7, 0.3f, 0.01f, 0.3f, white);
     // Pen floating end-over-end
@@ -5037,7 +5065,7 @@ void build_space_suite(Scene *s) {
         int glasses_mdl = find_model_asset("champagne_glasses");
         if (glasses_mdl >= 0) {
             // Use 3D model — tray + both glasses + wine glass in one piece
-            add_model(s, -2.7f, 0.39f, 3.3f, 1,1,1, 0, glasses_mdl, MAT_GLASS, glass_clr);
+            add_model(s, -2.7f, 0.39f, 3.3f, 1,1,1, 0, glasses_mdl, MAT_GLASS, WHITE);
             set_last_pushable(s, 0.2f, 3.0f);
             set_last_breakable(s, 1.0f);
         } else {
@@ -5101,7 +5129,7 @@ void build_space_suite(Scene *s) {
     {
         int phone_mdl = find_model_asset("telephone");
         if (phone_mdl >= 0) {
-            add_model(s, rw/2-0.8f, S_DESK_H+0.01f, -1.8f, 1,1,1, -90, phone_mdl, MAT_BRASS, brass);
+            add_model(s, rw/2-0.8f, S_DESK_H+0.01f, -1.8f, 1,1,1, -90, phone_mdl, MAT_BRASS, WHITE);
         } else {
             // Fallback: simple box phone
             add_wall(s, rw/2-0.8f, S_DESK_H+0.04f, -1.8f, 0.14f, 0.06f, 0.1f, brass);
@@ -5119,18 +5147,25 @@ void build_space_suite(Scene *s) {
     // 11. ENTRY ZONE — front wall area
     // ============================================================
 
-    // SUITCASE — procedural until a GLB runtime asset exists
-    add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
-    set_last_material(s, MAT_BRASS);
-    set_last_decal(s);
-    add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
-    set_last_material(s, MAT_LEATHER);
-    add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
-    set_last_material(s, MAT_FABRIC);
-    add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
-    set_last_material(s, MAT_FABRIC);
+    // SUITCASE — by the entry, still packed
+    {
+        int suitcase_mdl = find_model_asset("suitcase");
+        if (suitcase_mdl >= 0) {
+            add_model(s, 4.5f, 0, 4.5f, 1, 1, 1, 0, suitcase_mdl, MAT_LEATHER, WHITE);
+        } else {
+            add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
+            set_last_material(s, MAT_BRASS);
+            set_last_decal(s);
+            add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
+            set_last_material(s, MAT_LEATHER);
+            add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
+            set_last_material(s, MAT_FABRIC);
+            add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
+            set_last_material(s, MAT_FABRIC);
+        }
+    }
 
     // Luggage rack — brass frame near entry
     add_wall(s, 5.5f, 0.5f, 4.8f, 1.0f, 0.04f, 0.5f, brass);
@@ -5548,7 +5583,7 @@ void build_space_suite(Scene *s) {
 
         int wine_glass_mdl = find_model_asset("wine_glass");
         if (wine_glass_mdl >= 0) {
-            add_model(s, -3.3f, 0.39f, 3.6f, 1,1,1, 15, wine_glass_mdl, MAT_GLASS, glass_clr);
+            add_model(s, -3.3f, 0.39f, 3.6f, 1,1,1, 15, wine_glass_mdl, MAT_GLASS, WHITE);
             set_last_pushable(s, 0.15f, 3.0f);
             set_last_breakable(s, 1.0f);
         }
@@ -5575,7 +5610,7 @@ void build_space_suite(Scene *s) {
 
         int desk_lamp_mdl = find_model_asset("desk_lamp");
         if (desk_lamp_mdl >= 0) {
-            add_model(s, 6.0f, 0.45f, -1.5f, 1,1,1, -90, desk_lamp_mdl, MAT_BRASS, brass);
+            add_model(s, 6.0f, 0.45f, -1.5f, 1,1,1, -90, desk_lamp_mdl, MAT_BRASS, WHITE);
             add_light_panel(s, 6.0f, 0.6f, -1.5f, 0.15f, 0.2f, 0.15f, warm_light);
         }
 
@@ -6096,14 +6131,19 @@ void build_glasshouse(Scene *s) {
         set_last_material(s, MAT_FABRIC);
     }
 
-    // ── TELESCOPE — communal, pointing at Earth. Procedural until GLB-backed. ──
+    // ── TELESCOPE — communal, pointing at Earth. ──
     {
         float tx = 0, tz = -D + 2;
-        add_cylinder(s, tx, 0.9f, tz, 0.06f, 0.6f, brass);
-        set_last_material(s, MAT_BRASS);
-        add_cylinder(s, tx - 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
-        add_cylinder(s, tx + 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
-        add_cylinder(s, tx, 0.45f, tz - 0.2f, 0.015f, 0.9f, brass);
+        int telescope_mdl = find_model_asset("telescope");
+        if (telescope_mdl >= 0) {
+            add_model(s, tx, 0, tz, 1, 1, 1, 90, telescope_mdl, MAT_BRASS, WHITE);
+        } else {
+            add_cylinder(s, tx, 0.9f, tz, 0.06f, 0.6f, brass);
+            set_last_material(s, MAT_BRASS);
+            add_cylinder(s, tx - 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
+            add_cylinder(s, tx + 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
+            add_cylinder(s, tx, 0.45f, tz - 0.2f, 0.015f, 0.9f, brass);
+        }
     }
 
     // ── BAR/SERVICE COUNTER — along back wall ──

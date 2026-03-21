@@ -33,6 +33,10 @@ MAJOR = "MAJOR"
 MINOR = "MINOR"
 NOTE = "NOTE"
 
+TRANSITIONAL_SCENES = {"hallway", "hotel_ext", "elevator", "hyperspace",
+                       "taxi", "space_corridor", "return_taxi", "stars"}
+CUTSCENE_SCENES = {"bed", "cleaned_suite"}
+
 # ── Design Commandments (from CLAUDE.md) ──
 COMMANDMENTS = [
     "Wonder and melancholy, not horror",
@@ -98,9 +102,9 @@ def profile_first_timer(scene):
     # Can I find interactive objects?
     obj_count = scene.get("interact_count", 0)
     unreachable = scene.get("obj_unreachable", 0)
-    transitional = name in ("hallway", "hotel_ext", "elevator", "hyperspace",
-                            "taxi", "space_corridor", "return_taxi", "stars")
-    if not transitional:
+    transitional = name in TRANSITIONAL_SCENES
+    cutscene = name in CUTSCENE_SCENES
+    if not transitional and not cutscene:
         if obj_count == 0:
             score -= 2.0
             issues.append((CRITICAL, "No interactive objects — player has nothing to do"))

@@ -242,6 +242,10 @@ def score_color(s):
     return max(1, min(5, round(score))), notes
 
 
+TRANSITIONAL_SCENES = {"hallway", "hotel_ext", "elevator", "hyperspace", "taxi", "space_corridor", "return_taxi"}
+CUTSCENE_SCENES = {"bed", "stars", "cleaned_suite"}
+
+
 def score_interaction(s):
     """Diegetic, visible consequence. Every interaction changes the world."""
     score = 5.0
@@ -250,8 +254,11 @@ def score_interaction(s):
     unreachable = s.get("obj_unreachable", 0)
     name = s.get("name", "")
 
+    if name in CUTSCENE_SCENES:
+        return 5, ["non-playable scene — object density not applicable"]
+
     # Some scenes are transitional — no objects expected
-    transitional = name in ("hallway", "hotel_ext", "elevator", "hyperspace", "taxi", "space_corridor")
+    transitional = name in TRANSITIONAL_SCENES
     if transitional:
         if count == 0:
             return 3, ["transitional scene — no objects expected"]
