@@ -2271,9 +2271,11 @@ int main(void) {
             g.nudge_mode = !g.nudge_mode;
             if (g.nudge_mode) {
                 g.nudge_selected = raycast_wall(g.player.camera, &g.scene);
+                g.nudge_repeat = 0.0f;
                 show_text("NUDGE MODE");
             } else {
                 g.nudge_selected = -1;
+                g.nudge_repeat = 0.0f;
                 hide_text();
             }
         }
@@ -2293,9 +2295,8 @@ int main(void) {
 
                 // Arrow keys: X/Z movement (or Y with Ctrl)
                 // Hold key = continuous nudge via IsKeyDown at 10Hz
-                static float nudge_repeat = 0;
-                nudge_repeat -= dt;
-                bool repeat_ok = nudge_repeat <= 0;
+                g.nudge_repeat -= dt;
+                bool repeat_ok = g.nudge_repeat <= 0;
 
                 #define NUDGE_KEY(key) (IsKeyPressed(key) || (IsKeyDown(key) && repeat_ok))
                 bool any_held = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_LEFT) ||
@@ -2316,7 +2317,7 @@ int main(void) {
                 if (NUDGE_KEY(KEY_LEFT_BRACKET))  { w->size.x -= step; w->size.z -= step; moved = true; }
                 #undef NUDGE_KEY
 
-                if (moved && any_held) nudge_repeat = 0.1f;  // 10Hz repeat
+                if (moved && any_held) g.nudge_repeat = 0.1f;  // 10Hz repeat
 
                 if (moved) {
                     printf("[NUDGE] wall[%d] pos=(%.2ff, %.2ff, %.2ff) size=(%.2ff, %.2ff, %.2ff)\n",
@@ -2768,11 +2769,12 @@ int main(void) {
 
         // DIAGNOSTIC — log per-g.state on frame 5 of each new g.state
         {
-            static GameState dbg_prev = -1;
-            static int dbg_sf = 0;
-            if ((int)g.state != (int)dbg_prev) { dbg_prev = g.state; dbg_sf = 0; }
-            dbg_sf++;
-            if (dbg_sf == 5) {
+            if ((int)g.state != (int)g.dbg_prev_state) {
+                g.dbg_prev_state = g.state;
+                g.dbg_state_frame = 0;
+            }
+            g.dbg_state_frame++;
+            if (g.dbg_state_frame == 5) {
                 Image di = LoadImageFromTexture(g.render_target.texture);
                 Color *px = LoadImageColors(di);
                 long rs = 0, gs = 0, bs = 0;

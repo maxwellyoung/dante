@@ -683,6 +683,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(-2.0f, -2.0f);  // stronger bias than decals — shadows always on top
         if (lighting->ready) SetMaterialId(lighting, 0);
+        Color saved_shadow_color = cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
         int shadow_count = 0;
         for (int i = 0; i < scene->wall_count && shadow_count < RENDER_MAX_BLOB_SHADOWS; i++) {
             Wall *w = &scene->walls[i];
@@ -704,6 +705,7 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                 }
             }
         }
+        cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_shadow_color;
         rlDrawRenderBatchActive();
         glDisable(GL_POLYGON_OFFSET_FILL);
     }

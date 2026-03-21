@@ -153,6 +153,11 @@ typedef struct {
     // ── Nudge mode ──
     bool nudge_mode;
     int nudge_selected;
+    float nudge_repeat;
+
+    // ── Frame diagnostics ──
+    GameState dbg_prev_state;
+    int dbg_state_frame;
 
     // ── Vignette text (legacy — system messages) ──
     const char *vig_text;
@@ -250,6 +255,7 @@ static inline void game_ctx_init(GameCtx *g) {
     g->phone_wall_idx = -1;
     g->bed_clock_rate = 1.0f;
     g->nudge_selected = -1;
+    g->dbg_prev_state = -1;
     g->text_y_offset = 20.0f;
     g->dlg_chars_per_sec = 28.0f;
     g->ambient_fade = 1.0f;

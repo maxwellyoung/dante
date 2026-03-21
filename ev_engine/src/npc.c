@@ -376,11 +376,13 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
 
             // Shadow disc
             if (cyl_model) {
+                Color saved_shadow_color = cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
                 cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0,0,0,80};
                 SetMaterialId(lighting, 0);
                 DrawModelEx(*cyl_model,
                     (Vector3){npc->pos.x, base_y_m + 0.02f, npc->pos.z},
                     (Vector3){0,1,0}, 0, (Vector3){0.5f, 0.01f, 0.5f}, WHITE);
+                cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_shadow_color;
             }
 
             // Luggage cart trailing behind
