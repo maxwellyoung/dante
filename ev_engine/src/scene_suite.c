@@ -87,7 +87,7 @@ void suite_load(void) {
             npc_set_dialogue(&g.gibbons, suite_lines_first, 3, 4.0f);
     }
     // Thermostat — interactable (changes room warmth)
-    add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 3);
+    add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 1);
     // Adjoining door — interactable (opens to empty room)
     add_object(&g.scene, 6.86f, 1.5f, 3.5f, "adjoining_door", (Color){140,105,65,255}, 1);
     // Photograph — face-down first play, face-up on return (you turned it last time)
@@ -167,7 +167,8 @@ void suite_update(float dt) {
         float warm_t = 0;
         if (pz < -2.0f) warm_t = fminf(1.0f, (-2.0f - pz) / 4.0f);
         float temp = warm_t * 0.3f - cold_t * 0.2f;
-        float base_warmth = (float)g.tasks_done / SPACE_TASK_COUNT;
+        float ambient_warmth = 0.14f;
+        float base_warmth = ambient_warmth + (float)g.tasks_done / SPACE_TASK_COUNT;
         float time_warmth = fminf(0.15f, g.state_time * 0.001f);
         SetPostFXWarmth(&g.postfx, base_warmth + temp + time_warmth);
         float spatial_grain = 0.35f + cold_t * 0.3f - warm_t * 0.1f;
@@ -214,7 +215,7 @@ void suite_update(float dt) {
             float vw_t = 1.0f - (vw_dist / 3.0f);
             vw_t *= vw_t;  // quadratic falloff — stronger close up
             // The void pulls warmth from the room
-            float bw = (float)g.tasks_done / SPACE_TASK_COUNT;
+            float bw = 0.14f + (float)g.tasks_done / SPACE_TASK_COUNT;
             SetPostFXWarmth(&g.postfx, fmaxf(0, bw - vw_t * 0.4f));
             SetPostFXGrain(&g.postfx, 0.35f + vw_t * 0.4f);
             // Subtle desaturation

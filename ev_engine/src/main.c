@@ -1355,12 +1355,31 @@ int main(void) {
             float min_fx = 0.0f, max_fx = 0.0f;
             float min_fz = 0.0f, max_fz = 0.0f;
             bool found_floor_bounds = false;
+            float probe_floor_y = 0.0f;
+            bool found_probe_floor = false;
             for (int w = 0; w < g.scene.wall_count; w++) {
                 Wall *wl = &g.scene.walls[w];
                 if (!qa_is_floor_like_wall(wl))
                     continue;
                 float top_y = wl->pos.y + wl->size.y/2;
                 if (top_y > g.scene.spawn.y + 0.5f || top_y < g.scene.spawn.y - 3.0f)
+                    continue;
+                if (g.scene.spawn.x > wl->pos.x - wl->size.x/2 && g.scene.spawn.x < wl->pos.x + wl->size.x/2 &&
+                    g.scene.spawn.z > wl->pos.z - wl->size.z/2 && g.scene.spawn.z < wl->pos.z + wl->size.z/2) {
+                    if (!found_probe_floor || top_y > probe_floor_y) {
+                        probe_floor_y = top_y;
+                        found_probe_floor = true;
+                    }
+                }
+            }
+            for (int w = 0; w < g.scene.wall_count; w++) {
+                Wall *wl = &g.scene.walls[w];
+                if (!qa_is_floor_like_wall(wl))
+                    continue;
+                float top_y = wl->pos.y + wl->size.y/2;
+                if (top_y > g.scene.spawn.y + 0.5f || top_y < g.scene.spawn.y - 3.0f)
+                    continue;
+                if (found_probe_floor && fabsf(top_y - probe_floor_y) > 0.35f)
                     continue;
                 float wx0 = wl->pos.x - wl->size.x/2, wx1 = wl->pos.x + wl->size.x/2;
                 float wz0 = wl->pos.z - wl->size.z/2, wz1 = wl->pos.z + wl->size.z/2;
@@ -1400,6 +1419,7 @@ int main(void) {
                             // Floor check: wall is a plausible floor near the spawn plane.
                             if (qa_is_floor_like_wall(wl) &&
                                 top_y > g.scene.spawn.y - 3.0f && top_y < g.scene.spawn.y + 0.5f &&
+                                (!found_probe_floor || fabsf(top_y - probe_floor_y) <= 0.35f) &&
                                 py > wy - hh && py < wy + hh + 2.0f &&
                                 px > wx - hw && px < wx + hw && pz > wz - hd && pz < wz + hd) {
                                 has_floor = true;

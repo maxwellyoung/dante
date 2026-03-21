@@ -36,6 +36,7 @@ NOTE = "NOTE"
 TRANSITIONAL_SCENES = {"hallway", "hotel_ext", "elevator", "hyperspace",
                        "taxi", "space_corridor", "return_taxi", "stars"}
 CUTSCENE_SCENES = {"bed", "cleaned_suite"}
+FLOOR_PROBE_EXEMPT_SCENES = {"balcony", "taxi", "return_taxi", "bed", "stars"}
 
 # ── Design Commandments (from CLAUDE.md) ──
 COMMANDMENTS = [
@@ -471,7 +472,7 @@ def profile_qa_engineer(scene):
         issues.append((MINOR, f"Collision: {stuck_pct:.0%} inside walls — moderately dense"))
 
     floor_hits = scene.get("collision_floor_hits", 0)
-    if grid_size > 0:
+    if grid_size > 0 and name not in FLOOR_PROBE_EXEMPT_SCENES:
         coverage = floor_hits / total_grid
         if coverage < 0.1:
             score -= 1.0

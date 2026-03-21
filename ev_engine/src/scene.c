@@ -2004,6 +2004,8 @@ void build_balcony(Scene *s) {
     // Door back to suite — warm light spilling through
     add_door_frame(s, 0, 0, bd/2-0.15f, 1.2f, 2.6f, 0.1f, gold);
     add_light_panel(s, 0, 1.3f, bd/2-0.2f, 1.0f, 2.4f, 0.02f, (Color){240,220,175,60});
+    add_wall(s, 0, 0.02f, bd/2-0.8f, 1.6f, 0.02f, 1.4f, (Color){236,205,150,42});
+    set_last_decal(s);
     // Emergency airlock panel
     add_wall(s, 3.0f, 1.2f, bd/2-0.14f, 0.3f, 0.4f, 0.04f, (Color){180,40,40,200});
     add_wall(s, 3.0f, 1.2f, bd/2-0.12f, 0.26f, 0.36f, 0.02f, hull);
@@ -2181,7 +2183,8 @@ void build_balcony(Scene *s) {
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 0.5f};
-    s->has_exit = false;
+    s->exit_pos = (Vector3){0, 1.6f, bd/2-0.3f};
+    s->has_exit = true;
 }
 
 void build_bathroom(Scene *s) {
@@ -2293,6 +2296,9 @@ void build_bathroom(Scene *s) {
 
     // Door frame around bathroom entrance
     add_door_frame(s, 0, 1.3f, bd/2-0.1f, 1.0f, 2.6f, 0.12f, brass);
+    add_light_panel(s, 0, 1.2f, bd/2-0.18f, 0.9f, 2.0f, 0.05f, (Color){238,204,150,26});
+    add_wall(s, 0, 0.02f, bd/2-0.7f, 1.5f, 0.02f, 1.0f, (Color){228,190,135,34});
+    set_last_decal(s);
 
     // Baseboards — all 4 walls
     add_baseboard(s, 0, 0, -bd/2+0.08f, bw, 0, (Color){158,155,150,255});
@@ -2329,7 +2335,7 @@ void build_bathroom(Scene *s) {
 
     s->spawn = (Vector3){0, 1.6f, 1.0f};
     s->exit_pos = (Vector3){0, 1.6f, bd/2-0.2f};
-    s->has_exit = false;  // exit via interact object
+    s->has_exit = true;  // exit still uses interact object in scene logic
 }
 
 void build_elevator(Scene *s) {
@@ -4889,6 +4895,12 @@ void build_space_suite(Scene *s) {
     // Window sill — brass ledge at bottom of glass
     add_wall(s, -rw/2+0.15f, 0.22f, win_cz, 0.12f, 0.04f, win_w+0.2f, brass);
     set_last_material(s, MAT_BRASS);
+    // Balcony portal cue — subtle sliding-door seam in the glass band
+    add_wall(s, -rw/2+0.12f, 1.4f, -0.5f, 0.03f, 2.2f, 1.25f, brass);
+    set_last_material(s, MAT_BRASS);
+    add_light_panel(s, -rw/2+0.18f, 1.1f, -0.5f, 0.08f, 1.8f, 1.0f, (Color){240,206,150,22});
+    add_wall(s, -rw/2+0.65f, 0.02f, -0.5f, 1.2f, 0.02f, 1.3f, (Color){232,198,138,30});
+    set_last_decal(s);
 
     // Earth glow on floor — the emotional anchor
     add_wall(s, -rw/2+3.5f, 0.02f, win_cz, 5, 0.02f, 5, earth_glow);
@@ -4940,6 +4952,9 @@ void build_space_suite(Scene *s) {
     // Room number plate — "2046" (a brass rectangle)
     add_wall(s, 3, 2.7f, rd/2-0.12f, 0.3f, 0.12f, 0.02f, brass);
     set_last_material(s, MAT_BRASS);
+    add_light_panel(s, 3, 2.2f, rd/2-0.19f, 1.35f, 0.28f, 0.08f, (Color){242,212,160,42});
+    add_wall(s, 3, 0.02f, rd/2-0.7f, 1.8f, 0.02f, 1.2f, (Color){238,206,150,46});
+    set_last_decal(s);
 
     // BATHROOM DOOR — right wall, toward front
     add_door_frame(s, rw/2-0.15f, 1.3f, 2.5f, 1.2f, 2.6f, 0.3f, brass);
@@ -4948,6 +4963,9 @@ void build_space_suite(Scene *s) {
     set_last_hinge(s, 0.0f, 90.0f);
     // Towel bar visible on bathroom door frame
     add_cylinder(s, rw/2-0.08f, 1.4f, 2.5f, 0.02f, 0.6f, brass);
+    add_light_panel(s, rw/2-0.23f, 1.2f, 2.5f, 0.06f, 1.9f, 0.12f, (Color){240,200,125,34});
+    add_wall(s, rw/2-1.4f, 0.02f, 2.5f, 1.6f, 0.02f, 1.2f, (Color){232,194,135,38});
+    set_last_decal(s);
 
     // ADJOINING DOOR — right wall, toward back (leads to darkness)
     add_door_frame(s, rw/2-0.15f, 1.3f, -3.5f, 1.2f, 2.6f, 0.3f, brass);
@@ -5377,6 +5395,9 @@ void build_space_suite(Scene *s) {
     add_cylinder(s, 2.8f, 2.2f, -rd/2+0.22f, 0.06f, 0.04f, brass);
     add_cone(s, 2.8f, 2.3f, -rd/2+0.22f, 0.12f, 0.1f, cream);
     add_light_panel(s, 2.8f, 2.3f, -rd/2+0.25f, 0.15f, 0.2f, 0.15f, warm_light);
+    add_light_panel(s, 0, 1.9f, -rd/2+0.28f, 4.8f, 1.4f, 0.08f, (Color){240,205,145,20});
+    add_wall(s, 0, 0.02f, -4.2f, 3.6f, 0.02f, 1.6f, (Color){210,165,110,26});
+    set_last_decal(s);
 
     // ============================================================
     // 17. BASEBOARDS AND CROWN MOLDING — every edge
@@ -5425,10 +5446,10 @@ void build_space_suite(Scene *s) {
     // ============================================================
     // 21. INTERACTIVE OBJECTS
     // ============================================================
-    add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 2);
-    add_object(s, rw/2-1.2f, 1.0f, -1.5f, "desk", (Color){200,155,90,255}, 2);
+    add_object(s, -2.5f, 1.2f, -4.8f, "lamp", (Color){240,210,120,255}, 1);
+    add_object(s, rw/2-1.2f, 1.0f, -1.5f, "desk", (Color){200,155,90,255}, 1);
     add_object(s, -3, 0.5f, 3.5f, "champagne", gold, 2);
-    add_object(s, 0, 0.8f, -4.5f, "bed", white, 2);
+    add_object(s, 0, 0.8f, -4.5f, "bed", white, 1);
 
     // ============================================================
     // 22. THE MOTIF: cigarette
@@ -5605,6 +5626,8 @@ void build_space_suite(Scene *s) {
     add_cone(s, -3, rh-0.65f, 3.5f, 0.25f, 0.2f, brass);     // mount
     add_sphere(s, -3, rh-0.95f, 3.5f, 0.18f, (Color){240,235,220,140}); // globe
     add_light_panel(s, -3, rh-0.95f, 3.5f, 0.3f, 0.3f, 0.3f, warm_light);
+    add_wall(s, -3, 0.02f, 3.5f, 2.6f, 0.02f, 1.9f, (Color){225,182,120,26});
+    set_last_decal(s);
 
     // ============================================================
     // 26. DRAPE HARDWARE — curtain tracks on window wall
@@ -5705,7 +5728,8 @@ void build_space_suite(Scene *s) {
     tag_materials_by_color(s);
 
     s->spawn = (Vector3){0, 1.6f, 4};
-    s->has_exit = false;
+    s->exit_pos = (Vector3){-rw/2+0.6f, 1.6f, -0.5f};
+    s->has_exit = true;
 }
 
 // ============================================================

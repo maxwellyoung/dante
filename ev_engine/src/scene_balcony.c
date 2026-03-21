@@ -10,6 +10,8 @@ void hide_text(void);
 
 void balcony_load(void) {
     build_balcony(&g.scene);
+    g.scene.exit_pos = (Vector3){0.0f, 1.6f, 2.7f};
+    g.scene.has_exit = true;
     init_player(&g.player, g.scene.spawn);
     g.eiffel_sparkle = false; g.sparkle_timer = 0;
     g.cigarette_anim = false; g.cigarette_anim_timer = 0;

@@ -201,6 +201,8 @@ void room_update(float dt) {
 
 void bathroom_load(void) {
     build_bathroom(&g.scene);
+    g.scene.exit_pos = (Vector3){0.0f, 1.6f, 1.8f};
+    g.scene.has_exit = true;
     init_player(&g.player, g.scene.spawn);
     StopAmbient(&g.audio);
     StartAmbient(&g.audio, DRONE_ROOM);
