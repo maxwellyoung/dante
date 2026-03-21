@@ -865,22 +865,23 @@ void build_lobby(Scene *s) {
     Color gold        = PAL_BRASS;
     Color wood_dark   = PAL_WOOD_DARK;
     Color wood        = PAL_WOOD;
-    Color marble_floor = {185, 178, 168, 255};   // warm grey veined marble
+    Color marble_floor = {176, 174, 182, 255};   // cooler grey marble to keep the lobby from turning orange soup
     Color marble_col  = PAL_MARBLE_A;
     Color wallpaper   = {215, 210, 200, 255};     // warm plaster / parchment
     Color leather_brn = PAL_LEATHER;
-    Color burgundy    = {120, 35, 40, 255};       // deep Lutetia red
+    Color burgundy    = {120, 52, 60, 255};       // oxblood, less raw primary red
     Color navy        = PAL_NAVY;
-    Color plant_green = {55, 115, 58, 255};
+    Color plant_green = {58, 102, 86, 255};       // desaturated jade, not Christmas green
     Color pot_brass   = {165, 145, 95, 255};
     Color lamp_shade  = {235, 228, 215, 255};
     Color lamp_glow   = {240, 220, 160, 160};
+    Color banker_teal = {48, 92, 108, 220};
 
     // Room dimensions
     float W = 20.0f, D = 16.0f, H = 7.5f;
     float hw = W / 2, hd = D / 2;
 
-    s->fog_color = (Color){95, 82, 65, 255};  // warm amber haze
+    s->fog_color = (Color){86, 82, 92, 255};  // cooler taupe haze so the brass stays readable
     s->fog_density = 0.003f;
 
     // ============================================================
@@ -888,6 +889,12 @@ void build_lobby(Scene *s) {
     // ============================================================
     add_wall(s, 0, -0.05f, 0, W, 0.1f, D, marble_floor);
     set_last_material(s, MAT_MARBLE);
+    add_wall(s, 0, 0.02f, -1.5f, 3.4f, 0.02f, 11.5f, navy);
+    set_last_material(s, MAT_MARBLE); set_last_decal(s);
+    add_wall(s, -1.15f, 0.03f, -1.5f, 0.08f, 0.02f, 11.8f, gold);
+    set_last_material(s, MAT_BRASS); set_last_decal(s);
+    add_wall(s, 1.15f, 0.03f, -1.5f, 0.08f, 0.02f, 11.8f, gold);
+    set_last_material(s, MAT_BRASS); set_last_decal(s);
 
     // ============================================================
     // CEILING — coffered panels
@@ -1017,7 +1024,7 @@ void build_lobby(Scene *s) {
     set_last_material(s, MAT_BRASS);
     add_cylinder(s, desk_x - 0.2f, 1.08f, desk_z + 2.0f, 0.03f, 0.2f, gold);
     set_last_material(s, MAT_BRASS);
-    add_cone(s, desk_x - 0.2f, 1.22f, desk_z + 2.0f, 0.22f, 0.1f, lamp_shade);
+    add_cone(s, desk_x - 0.2f, 1.22f, desk_z + 2.0f, 0.22f, 0.1f, banker_teal);
     add_light_panel(s, desk_x - 0.2f, 1.15f, desk_z + 2.0f, 0.3f, 0.2f, 0.3f, lamp_glow);
 
     // ── Hotel bell on desk ──
@@ -1453,7 +1460,7 @@ void build_hallway(Scene *s) {
     Color gold = PAL_BRASS;
     Color godard_red = PAL_RED;
     Color godard_blue = PAL_BLUE;
-    Color carpet_a = {160, 55, 45, 255};      // DOMINANT — warm terracotta/red carpet
+    Color carpet_a = {130, 68, 62, 255};      // muted terracotta so the corridor stops clipping into pure red
     Color warm_amber = PAL_GLOW_AMBER;
     Color ceiling_dark = PAL_CHARCOAL;
 
@@ -1464,6 +1471,12 @@ void build_hallway(Scene *s) {
     // Floor — single plane, checkerboard carpet
     add_wall(s, 0, -0.05f, -L/2, W, 0.1f, L, carpet_a);
     set_last_material(s, MAT_CHECKERBOARD);
+    add_wall(s, 0, 0.02f, -L/2, 1.4f, 0.02f, L, godard_blue);
+    set_last_material(s, MAT_FABRIC); set_last_decal(s);
+    add_wall(s, -0.78f, 0.03f, -L/2, 0.06f, 0.02f, L, gold);
+    set_last_material(s, MAT_BRASS); set_last_decal(s);
+    add_wall(s, 0.78f, 0.03f, -L/2, 0.06f, 0.02f, L, gold);
+    set_last_material(s, MAT_BRASS); set_last_decal(s);
 
     add_wall(s, 0, H, -L/2, W, 0.2f, L, ceiling_dark);
     for (int i = 0; i < 4; i++)
@@ -1498,6 +1511,8 @@ void build_hallway(Scene *s) {
 
     add_wall(s, 0, 0.01f, -L/2, 1.6f, 0.02f, L, (Color){170, 65, 50, 255});
     add_light_panel(s, 0, 2.2f, -L+0.2f, 2.5f, 1.8f, 0.05f, (Color){230, 200, 120, 180});
+    add_wall_decal(s, 0, 1.2f, -L+0.28f, 1.8f, 1.6f, 0.02f, (Color){115, 150, 210, 70});
+    add_wall_decal(s, 0, 0.02f, -L+1.5f, 2.2f, 0.02f, 1.2f, (Color){115, 150, 210, 85});
 
     // Flowers — near the end window
     add_wall(s, W/2-0.12f, 0.8f, -L+4, 0.35f, 0.04f, 0.22f, gold);
@@ -1595,10 +1610,10 @@ void build_hotel_room(Scene *s) {
     // BOUNDS: 12m x 10m, fully enclosed (4 walls + floor + ceiling + corner blocks)
     s->surface = SURFACE_WOOD;
 
-    Color wall_gold = {200, 188, 155, 255};  // warm champagne — Hotel Chevalier, not Minecraft
+    Color wall_gold = {188, 182, 168, 255};  // cooler champagne so the moonlight has something to push against
     Color gold = PAL_BRASS;
     Color cream = PAL_CREAM;
-    Color godard_red = PAL_RED;
+    Color godard_red = (Color){118, 52, 60, 255};
     Color wood = PAL_WOOD_DARK;
     Color dark_wood = {105, 78, 48, 255};
     Color white = PAL_WHITE;
@@ -1672,6 +1687,8 @@ void build_hotel_room(Scene *s) {
     set_last_material(s, MAT_FABRIC);
     add_wall(s, 0, 2.05f, -4.48f, 3.7f, 0.05f, 0.06f, gold);
     set_last_material(s, MAT_BRASS);
+    add_wall(s, 0, 0.57f, -2.55f, 2.2f, 0.05f, 0.48f, (Color){54, 76, 122, 255});
+    set_last_material(s, MAT_FABRIC);
 
     add_wall(s, -2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
     add_wall(s, 2.5f, 0.3f, -3.8f, 0.6f, 0.6f, 0.6f, wood);
@@ -1725,6 +1742,8 @@ void build_hotel_room(Scene *s) {
     // Coffee table — flat top with 4 cylinder legs
     add_wall(s, -4.2f, 0.38f, 3.0f, 1.45f, 0.03f, 0.85f, gold);       // top surface
     set_last_material(s, MAT_BRASS);
+    add_wall(s, -4.2f, 0.02f, 2.95f, 2.4f, 0.02f, 1.35f, (Color){62, 88, 135, 28});
+    set_last_decal(s);
     add_cylinder(s, -4.85f, 0.18f, 2.62f, 0.025f, 0.35f, wood);        // leg FL
     add_cylinder(s, -3.55f, 0.18f, 2.62f, 0.025f, 0.35f, wood);        // leg FR
     add_cylinder(s, -4.85f, 0.18f, 3.38f, 0.025f, 0.35f, wood);        // leg BL
@@ -2009,6 +2028,7 @@ void build_balcony(Scene *s) {
     // Emergency airlock panel
     add_wall(s, 3.0f, 1.2f, bd/2-0.14f, 0.3f, 0.4f, 0.04f, (Color){180,40,40,200});
     add_wall(s, 3.0f, 1.2f, bd/2-0.12f, 0.26f, 0.36f, 0.02f, hull);
+    add_object(s, 3.0f, 1.2f, bd/2-0.22f, "airlock_panel", (Color){180,40,40,220}, 1);
 
     // Side hull walls with external pipes (trimmed to prevent corner overlap)
     add_wall(s, -bw/2, 2.5f, 0, 0.3f, 5, bd+0.3f, hull);
@@ -2091,6 +2111,7 @@ void build_balcony(Scene *s) {
             add_cylinder(s, 2.7f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
             add_cylinder(s, 2.5f, 0.45f, -0.7f, 0.015f, 0.9f, gold);
         }
+        add_object(s, 2.35f, 1.02f, -0.52f, "telescope", gold, 1);
     }
 
     // Distant station modules (tiny lit rectangles)
@@ -3360,6 +3381,7 @@ void build_space_lobby(Scene *s) {
     Color marble_a = PAL_MARBLE_A;
     Color marble_b = PAL_MARBLE_B;
     Color warm_light = PAL_LIGHT_WARM;
+    Color oxblood = {120, 52, 60, 255};
     s->fog_color = PAL_FOG_STATION;
     s->fog_density = 0.0006f;
 
@@ -3659,8 +3681,8 @@ void build_space_lobby(Scene *s) {
     // SEATING CLUSTER — 2 sofas facing each other, coffee table between
     // ================================================================
     // Right side of lobby
-    add_sofa(s, 12, 0, 0, 270, godard_red);    // facing left (toward center)
-    add_sofa(s, 8, 0, 0, 90, godard_red);      // facing right (toward first sofa)
+    add_sofa(s, 12, 0, 0, 270, oxblood);       // facing left (toward center)
+    add_sofa(s, 8, 0, 0, 90, navy);            // facing right, blue counterweight to the oxblood
     // Coffee table between sofas
     add_wall(s, 10, 0.4f, 0, 1.2f, 0.04f, 0.6f, marble_a);
     set_last_material(s, MAT_MARBLE);
@@ -3671,6 +3693,8 @@ void build_space_lobby(Scene *s) {
     add_cylinder(s, 10.5f, 0.2f, 0.2f, 0.03f, 0.4f, brass);
     // Navy rug under seating cluster
     add_rug(s, 10, 0, 0, 6, 4, navy, brass);
+    add_wall(s, 10, 0.02f, 0, 6.6f, 0.02f, 4.6f, (Color){205, 198, 185, 38});
+    set_last_decal(s);
 
     // ================================================================
     // TWO CHAIRS angled toward Earth window — Commandment 9

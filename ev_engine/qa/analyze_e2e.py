@@ -376,9 +376,10 @@ def profile_accessibility(scene):
     sat = hero.get("saturation_avg", 0)
     if len(rgb) == 3 and sat > 0.15:
         # Protanopia/Deuteranopia: red and green look similar
-        # If the main color interest is in the red-green range, flag it
+        # Only flag when the palette is actually leaning on a red-vs-green split.
+        # Warm amber / taupe scenes are not the same thing and were being misclassified.
         r, g, b = rgb
-        if abs(r - g) > 30 and b < min(r, g) * 0.6 and sat > 0.2:
+        if abs(r - g) > 45 and b < min(r, g) * 0.45 and sat > 0.2:
             score -= 0.5
             issues.append((MINOR, "Color palette relies on red-green distinction — may be invisible to ~8% of players"))
 
