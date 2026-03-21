@@ -25,6 +25,20 @@ import json
 import sys
 import os
 
+def normalize_scene(scene):
+    """Support both legacy flat metrics and current nested angle metrics."""
+    normalized = dict(scene)
+    angles = scene.get("angles") or []
+    hero = next((angle for angle in angles if angle.get("name") == "hero"), None)
+    if hero is None and angles:
+        hero = angles[0]
+    if hero:
+        for key, value in hero.items():
+            if key == "name":
+                continue
+            normalized[key] = value
+    return normalized
+
 # ── Scoring functions ──────────────────────────────────────────────
 
 def score_composition(s):
@@ -337,7 +351,9 @@ def analyze(report_path):
     print("=" * 72)
     print()
 
-    for s in scenes:
+    normalized_scenes = [normalize_scene(scene) for scene in scenes]
+
+    for s in normalized_scenes:
         name = s["name"]
         comp_score, comp_notes = score_composition(s)
         light_score, light_notes = score_lighting(s)
@@ -423,7 +439,7 @@ def analyze(report_path):
     # ── Urgent action items ──
     print("  URGENT FIXES:")
     urgent_count = 0
-    for s in scenes:
+    for s in normalized_scenes:
         issues = []
         if s.get("edge_density", 99) < 3 and not s.get("dark_by_design"):
             issues.append("no visible geometry in hero shot — FIX CAMERA ANGLE or scene geometry")
@@ -456,7 +472,7 @@ def analyze(report_path):
     for p in pillar_totals:
         avg = pillar_totals[p] / pillar_counts[p] if pillar_counts[p] > 0 else 0
         grades["pillars"][p] = {"avg": round(avg, 1), "grade": grade_letter(avg)}
-    for s in scenes:
+    for s in normalized_scenes:
         cs, _ = score_composition(s)
         ls, _ = score_lighting(s)
         ms, _ = score_materials(s)
