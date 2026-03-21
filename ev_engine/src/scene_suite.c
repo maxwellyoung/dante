@@ -35,7 +35,7 @@ void suite_load(void) {
     StopMuffledPiano(&g.audio); StopFootstepsAbove(&g.audio);
     StopDistantVoices(&g.audio);
     StopCorridorMusic(&g.audio);
-    StopSound(g.audio.snd_running_water); StopSound(g.audio.snd_tv_murmur);
+    StopRunningWater(&g.audio); StopTvMurmur(&g.audio);
     PlayDoorThud(&g.audio);
     PlayAirlockHiss(&g.audio);
     g.player.gravity_mult = 0.5f;
@@ -597,8 +597,7 @@ void suite_update(float dt) {
                         add_wall(&g.scene, -6.8f, 2.0f, -1.0f, 0.1f, 3.0f, 4.0f, (Color){200,210,220,25});
                         add_wall(&g.scene, -6.6f, 2.5f, -0.5f, 0.08f, 2.0f, 3.0f, (Color){200,210,220,15});
                         SetSoundVolume(g.audio.snd_running_water, 0.04f);
-                        if (g.audio.initialized && !IsSoundPlaying(g.audio.snd_running_water))
-                            PlaySound(g.audio.snd_running_water);
+                        PlayRunningWater(&g.audio);
                         // The bath is big. You can see that. The water runs. That's enough.
                         obj->done = true;
                         break;

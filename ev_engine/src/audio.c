@@ -1461,6 +1461,22 @@ void StopDistantVoices(EVAudio *audio) {
     StopSound(audio->snd_distant_voices);
     audio->distant_voices_playing = false;
 }
+void PlayRunningWater(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!IsSoundPlaying(audio->snd_running_water)) PlaySound(audio->snd_running_water);
+}
+void StopRunningWater(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_running_water);
+}
+void PlayTvMurmur(EVAudio *audio) {
+    if (!audio->initialized) return;
+    if (!IsSoundPlaying(audio->snd_tv_murmur)) PlaySound(audio->snd_tv_murmur);
+}
+void StopTvMurmur(EVAudio *audio) {
+    if (!audio->initialized) return;
+    StopSound(audio->snd_tv_murmur);
+}
 void PlayFootstepsAbove(EVAudio *audio) {
     if (!audio->initialized) return;
     if (!audio->footsteps_above_playing) {

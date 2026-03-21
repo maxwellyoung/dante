@@ -177,6 +177,10 @@ void PlayMuffledPiano(EVAudio *audio);
 void StopMuffledPiano(EVAudio *audio);
 void PlayDistantVoices(EVAudio *audio);
 void StopDistantVoices(EVAudio *audio);
+void PlayRunningWater(EVAudio *audio);
+void StopRunningWater(EVAudio *audio);
+void PlayTvMurmur(EVAudio *audio);
+void StopTvMurmur(EVAudio *audio);
 void PlayFootstepsAbove(EVAudio *audio);
 void StopFootstepsAbove(EVAudio *audio);
 

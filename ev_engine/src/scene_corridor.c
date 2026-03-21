@@ -34,11 +34,9 @@ void corridor_load(void) {
     // The corridor is quieter. The player notices what's missing.
     if (g.backstory_count <= 3) {
         PlayMuffledPiano(&g.audio);
-        if (g.audio.initialized && !IsSoundPlaying(g.audio.snd_running_water))
-            PlaySound(g.audio.snd_running_water);
+        PlayRunningWater(&g.audio);
     }
-    if (g.audio.initialized && !IsSoundPlaying(g.audio.snd_tv_murmur))
-        PlaySound(g.audio.snd_tv_murmur);
+    PlayTvMurmur(&g.audio);
     g.corridor_ghost_delay = 0.0f;
     g.corridor_ghost_was_moving = false;
     {
@@ -136,9 +134,7 @@ void corridor_update(float dt) {
         float ghost_pan = g.player.camera.position.x > 0 ? 0.2f : 0.8f;
         SetSoundVolume(g.audio.snd_footsteps_above, ghost_vol);
         SetSoundPan(g.audio.snd_footsteps_above, ghost_pan);
-        if (g.audio.initialized && ghost_moving && !IsSoundPlaying(g.audio.snd_footsteps_above)) {
-            PlaySound(g.audio.snd_footsteps_above);
-        }
+        if (ghost_moving) PlayFootstepsAbove(&g.audio);
         g.corridor_ghost_was_moving = player_moving;
     }
 
