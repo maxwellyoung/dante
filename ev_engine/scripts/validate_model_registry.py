@@ -10,8 +10,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
 ASSET_DIR = ROOT / "assets"
+SCRIPT_DIR = ROOT / "scripts"
 REGISTRY_C = SRC_DIR / "model_registry.c"
 REGISTRY_H = SRC_DIR / "model_registry.h"
+SOURCE_EXEMPTIONS: set[str] = set()
 
 ENTRY_RE = re.compile(
     r'\{"([^"]+)",\s*"([^"]+)",\s*(MODEL_KIND_\w+),\s*(true|false),\s*(\d+),\s*(true|false),\s*(MODEL_STATUS_\w+)\}'
@@ -103,6 +105,10 @@ def main() -> int:
         asset_path = ROOT / entry["path"]
         if not asset_path.exists():
             fail(f"active registry asset missing: {entry['name']} -> {entry['path']}", errors)
+        if entry["path"].endswith(".glb") and entry["name"] not in SOURCE_EXEMPTIONS:
+            source_path = SCRIPT_DIR / f"model_{entry['name']}.py"
+            if not source_path.exists():
+                fail(f"active GLB asset '{entry['name']}' has no source script at scripts/model_{entry['name']}.py", errors)
 
     startup_cost = sum(
         entry["estimated_vao_cost"]
