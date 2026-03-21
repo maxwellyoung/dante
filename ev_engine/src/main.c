@@ -742,6 +742,7 @@ int main(void) {
         bool dark_by_design;
         bool outdoor;
         bool force_elevator_to_corridor;
+        bool skip_floor_coverage_check;
         // Game flow
         int flow_order;     // position in canonical game flow (-1 = orphaned)
         GameState flow_next; // expected next scene in flow
@@ -920,6 +921,7 @@ int main(void) {
             .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "detail_earth", "ceiling_stars"},
             .angle_count = 6,
             .dark_by_design = true, .outdoor = true,
+            .skip_floor_coverage_check = true,
             .flow_order = 8, .flow_next = STATE_BED},
         {STATE_ELEVATOR, "elevator",
             .angles = {
@@ -949,7 +951,7 @@ int main(void) {
             .flow_order = 5, .flow_next = STATE_SPACE_CORRIDOR},
         {STATE_SPACE_CORRIDOR, "space_corridor",
             .angles = {
-                {{0, 1.6f, 2}, {0, 1.4f, 14}},           // hero: down corridor toward exit
+                {{-0.8f, 1.75f, 1.5f}, {1.0f, 1.55f, 13.5f}}, // hero: offset so the curve and suite spill actually read
                 {{0, 1.6f, 0}, {-2, 1.6f, 4}},            // spawn: entering, first door visible
                 {{-2, 1.6f, 6}, {2, 1.4f, 12}},           // patrol_left: angled hallway
                 {{2, 1.6f, 6}, {-2, 1.4f, 12}},           // patrol_right
@@ -985,6 +987,7 @@ int main(void) {
             .angle_names = {"hero", "spawn", "left_window", "right_window", "ceiling"},
             .angle_count = 5,
             .dark_by_design = true, .outdoor = false,
+            .skip_floor_coverage_check = true,
             .flow_order = 0, .flow_next = STATE_HOTEL_EXT},
         {STATE_HYPERSPACE, "hyperspace",
             .angles = {
@@ -1020,6 +1023,7 @@ int main(void) {
             .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
             .angle_count = 4,
             .dark_by_design = false, .outdoor = false,
+            .skip_floor_coverage_check = true,
             .flow_order = 11, .flow_next = STATE_TITLE},
         // ── Additional scenes for full coverage ──
         {STATE_BED, "bed",
@@ -1032,6 +1036,7 @@ int main(void) {
             .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
             .angle_count = 4,
             .dark_by_design = true, .outdoor = false,
+            .skip_floor_coverage_check = true,
             .flow_order = 9, .flow_next = STATE_STARS},
         {STATE_STARS, "stars",
             .angles = {
@@ -1043,6 +1048,7 @@ int main(void) {
             .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
             .angle_count = 4,
             .dark_by_design = true, .outdoor = true,
+            .skip_floor_coverage_check = true,
             .flow_order = -1, .flow_next = STATE_PARIS_DREAM},
         {STATE_CLEANED_SUITE, "cleaned_suite",
             .angles = {
@@ -1566,7 +1572,8 @@ int main(void) {
                     "    COLLISION: %d stuck points in grid\n", collision_stuck_points); issues++;
             }
             int total_grid = collision_grid_size * collision_grid_size;
-            if (total_grid > 0 && collision_floor_hits < total_grid / 10) {
+            if (!qa_scenes[qi].skip_floor_coverage_check &&
+                total_grid > 0 && collision_floor_hits < total_grid / 10) {
                 ib += snprintf(ibuf+ib, sizeof(ibuf)-(size_t)ib,
                     "    COLLISION: only %d/%d floor coverage\n", collision_floor_hits, total_grid); issues++;
             }

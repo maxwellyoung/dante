@@ -47,9 +47,9 @@ void corridor_load(void) {
         g.door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f * zs};
     }
     SetSceneLighting(&g.lighting, LightingPreset_SpaceCorridor());
-    set_exposure(0.10f);
-    SetPostFXGrain(&g.postfx, 0.35f);
-    SetPostFXWarmth(&g.postfx, 0.04f);
+    set_exposure(0.16f);
+    SetPostFXGrain(&g.postfx, 0.28f);
+    SetPostFXWarmth(&g.postfx, 0.05f);
     // Room service tray outside Door 2 (Room Six) — two plates, one untouched
     // Second playthrough: "Six checked out. The trays stopped coming."
     if (g.backstory_count <= 3) {
@@ -243,9 +243,9 @@ void corridor_update(float dt) {
         if (dark_dist < 4.0f) {
             float dark_t = 1.0f - (dark_dist / 4.0f);
             dark_t *= dark_t;
-            SetPostFXGrain(&g.postfx, 0.4f + dark_t * 0.4f);
-            SetPostFXWarmth(&g.postfx, 0.04f - dark_t * 0.05f);
-            set_exposure(0.02f - dark_t * 0.10f);
+            SetPostFXGrain(&g.postfx, 0.32f + dark_t * 0.20f);
+            SetPostFXWarmth(&g.postfx, 0.05f - dark_t * 0.03f);
+            set_exposure(0.12f - dark_t * 0.03f);
         }
     }
     if (g.scene.has_exit) {

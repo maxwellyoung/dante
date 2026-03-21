@@ -2985,10 +2985,9 @@ void build_taxi_ride(Scene *s) {
     {
         int driver_mdl = find_model_asset("taxi_driver");
         if (driver_mdl >= 0) {
-            // GLB axis fix: Blender script used Y-up, export_yup swapped Y↔Z.
-            // rotation_x=-90 corrects the orientation back to intended pose.
+            // The current GLB exports Y-up correctly. Leaving the old X-axis hack
+            // in place lays the driver over and ruins the silhouette from the back seat.
             add_model(s, 0, 0, 0, 1,1,1, 0, driver_mdl, MAT_FABRIC, WHITE);
-            set_last_rotation_x(s, -90.0f);
             set_last_no_collide(s);
         } else {
             // Fallback: procedural cube-person
@@ -2997,7 +2996,7 @@ void build_taxi_ride(Scene *s) {
             Color driver_skin = {205, 180, 145, 255};
             Color driver_cuff = {180, 175, 168, 255};
             Color driver_hair = {50, 42, 35, 255};
-            float dx = -0.4f, dz = -0.88f;
+            float dx = 0.4f, dz = -0.88f;
 
             add_wall(s, dx, 0.72f, dz, 0.44f, 0.50f, 0.30f, driver_coat);
             set_last_material(s, MAT_FABRIC);
@@ -3048,6 +3047,20 @@ void build_taxi_ride(Scene *s) {
     set_last_material(s, MAT_LEATHER);
     // Seat back
     add_wall(s, 0, 0.65f, 0.35f, 1.4f, 0.5f, 0.1f, leather);
+    set_last_material(s, MAT_LEATHER);
+
+    // Front seats — the driver should read as a person in a taxi, not a floating slab.
+    add_wall(s, -0.42f, 0.34f, -0.62f, 0.42f, 0.12f, 0.32f, leather);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, -0.42f, 0.74f, -0.40f, 0.44f, 0.86f, 0.10f, leather);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, -0.42f, 1.18f, -0.36f, 0.24f, 0.18f, 0.10f, leather);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 0.42f, 0.34f, -0.62f, 0.42f, 0.12f, 0.32f, leather);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 0.42f, 0.74f, -0.40f, 0.44f, 0.86f, 0.10f, leather);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 0.42f, 1.18f, -0.36f, 0.24f, 0.18f, 0.10f, leather);
     set_last_material(s, MAT_LEATHER);
 
     // A-pillars (window frames) — left and right
