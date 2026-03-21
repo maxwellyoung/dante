@@ -98,7 +98,7 @@ if (telephone >= 0) {
 
 ### Blender Pipeline (Mac Mini)
 
-Blender runs on Mac Mini (`ssh mini-ts`, port 9877). Use `/blender` skill or `scripts/blender_send.py`.
+Blender runs on Mac Mini (`ssh mini-ts`, port 9877), but `scripts/mcp_model.sh full` now prefers local headless Blender when it is installed. Set `PREFER_REMOTE_BLENDER=1` if you explicitly want the Mini-first path. Use `/blender` skill or `scripts/blender_send.py` for direct MCP work.
 
 ```bash
 # Model in Blender, export GLB, deploy, run GLB QA, validate registry
