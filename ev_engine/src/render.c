@@ -14,6 +14,9 @@
 #include <stdio.h>
 #include <string.h>
 
+static void draw_tinted_model_ex(Model *model, Color tint, Vector3 position,
+                                 Vector3 axis, float angle, Vector3 scale);
+
 // ============================================================
 // POST-PROCESSING SHADER
 // Architectural photograph + 16mm film stock
@@ -563,39 +566,39 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                 switch (w->shape) {
                     case SHAPE_CYLINDER:
                         if (cyl_model_loaded) {
-                            cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*cyl_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
-                                       (Vector3){w->size.x, w->size.y, w->size.x}, WHITE);
+                            draw_tinted_model_ex(cyl_model, w->color, draw_pos,
+                                                 (Vector3){0,1,0}, w->rotation_y,
+                                                 (Vector3){w->size.x, w->size.y, w->size.x});
                         }
                         break;
                     case SHAPE_SPHERE:
                         if (sphere_model_loaded) {
-                            sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*sphere_model, draw_pos, (Vector3){0,1,0}, 0,
-                                       (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
+                            draw_tinted_model_ex(sphere_model, w->color, draw_pos,
+                                                 (Vector3){0,1,0}, 0,
+                                                 (Vector3){w->size.x, w->size.y, w->size.z});
                         }
                         break;
                     case SHAPE_CONE:
                         if (cone_model_loaded) {
-                            cone_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*cone_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
-                                       (Vector3){w->size.x, w->size.y, w->size.z}, WHITE);
+                            draw_tinted_model_ex(cone_model, w->color, draw_pos,
+                                                 (Vector3){0,1,0}, w->rotation_y,
+                                                 (Vector3){w->size.x, w->size.y, w->size.z});
                         }
                         break;
                     case SHAPE_SKYTOWER:
                         if (skytower_model_loaded) {
-                            skytower_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
                             // Model is Z-up from Blender — rotate -90° on X to stand upright
-                            DrawModelEx(*skytower_model, draw_pos, (Vector3){1,0,0}, -90,
-                                       (Vector3){w->size.x, w->size.x, w->size.x}, WHITE);
+                            draw_tinted_model_ex(skytower_model, w->color, draw_pos,
+                                                 (Vector3){1,0,0}, -90,
+                                                 (Vector3){w->size.x, w->size.x, w->size.x});
                         }
                         break;
                     case SHAPE_TORUS:
                         // Uses sphere model as placeholder — torus needs GenMeshTorus in main.c
                         if (sphere_model_loaded) {
-                            sphere_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*sphere_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
-                                       (Vector3){w->size.x, w->size.y * 0.3f, w->size.z}, WHITE);
+                            draw_tinted_model_ex(sphere_model, w->color, draw_pos,
+                                                 (Vector3){0,1,0}, w->rotation_y,
+                                                 (Vector3){w->size.x, w->size.y * 0.3f, w->size.z});
                         }
                         break;
                     case SHAPE_MODEL: {
@@ -636,9 +639,8 @@ void draw_scene_3d(Player *player, Scene *scene, EVLighting *lighting,
                     }
                     default: // SHAPE_CUBE
                         if (cube_model_loaded) {
-                            cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = w->color;
-                            DrawModelEx(*cube_model, draw_pos, (Vector3){0,1,0}, w->rotation_y,
-                                       w->size, WHITE);
+                            draw_tinted_model_ex(cube_model, w->color, draw_pos,
+                                                 (Vector3){0,1,0}, w->rotation_y, w->size);
                         }
                         break;
                 }
@@ -1192,6 +1194,23 @@ static void draw_shadow_meshes(const Model *model, Shader shadow_shader,
         Material mat = model->materials[mat_index];
         mat.shader = shadow_shader;
         DrawMesh(model->meshes[mesh_index], mat, MatrixIdentity());
+    }
+}
+
+static void draw_tinted_model_ex(Model *model, Color tint, Vector3 position,
+                                 Vector3 axis, float angle, Vector3 scale) {
+    if (!model || model->materialCount <= 0) return;
+
+    Color saved_colors[model->materialCount > 0 ? model->materialCount : 1];
+    for (int i = 0; i < model->materialCount; i++) {
+        saved_colors[i] = model->materials[i].maps[MATERIAL_MAP_DIFFUSE].color;
+        model->materials[i].maps[MATERIAL_MAP_DIFFUSE].color = tint;
+    }
+
+    DrawModelEx(*model, position, axis, angle, scale, WHITE);
+
+    for (int i = 0; i < model->materialCount; i++) {
+        model->materials[i].maps[MATERIAL_MAP_DIFFUSE].color = saved_colors[i];
     }
 }
 
