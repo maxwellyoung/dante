@@ -2,6 +2,7 @@
 // Material palette. Clean volumes. Dramatic light.
 #include "scene.h"
 #include "game_ctx.h"
+#include "model_registry.h"
 #include "scale.h"
 #include "palette.h"
 #include <math.h>
@@ -138,9 +139,18 @@ void add_model(Scene *s, float x, float y, float z, float sx, float sy, float sz
 // Find a loaded model asset by name — returns index or -1
 int find_model_asset(const char *name) {
     for (int i = 0; i < g.model_asset_count; i++) {
-        if (strcmp(g.model_assets[i].name, name) == 0 && g.model_assets[i].loaded)
-            return i;
+        ModelAsset *ma = &g.model_assets[i];
+        if (strcmp(ma->name, name) != 0)
+            continue;
+        if (ma->status != MODEL_STATUS_ACTIVE) {
+            fprintf(stderr, "[EV] WARNING: model asset '%s' is dormant\n", name);
+            return -1;
+        }
+        if (!ma->loaded && !ensure_model_asset_loaded(i, &g.lighting))
+            return -1;
+        return i;
     }
+    fprintf(stderr, "[EV] WARNING: model asset '%s' is not registered\n", name);
     return -1;
 }
 
@@ -2024,20 +2034,12 @@ void build_balcony(Scene *s) {
     add_cylinder(s, 0, 0.49f, -0.8f, 0.1f, 0.03f, (Color){140,135,130,255});
     add_object(s, 0, 0.55f, -0.8f, "cigarette", (Color){200,195,185,255}, 1);
 
-    // ── TELESCOPE — pointing at Earth, between the chairs ──
-    {
-        int scope_mdl = find_model_asset("telescope");
-        if (scope_mdl >= 0) {
-            add_model(s, 2.5f, 0, -0.5f, 1,1,1, 15, scope_mdl, MAT_BRASS, (Color){255,255,255,255});
-        } else {
-            // Fallback: brass cylinder on tripod
-            add_cylinder(s, 2.5f, 0.9f, -0.5f, 0.06f, 0.6f, gold);
-            set_last_material(s, MAT_BRASS);
-            add_cylinder(s, 2.3f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
-            add_cylinder(s, 2.7f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
-            add_cylinder(s, 2.5f, 0.45f, -0.7f, 0.015f, 0.9f, gold);
-        }
-    }
+    // ── TELESCOPE — procedural until a GLB runtime asset exists ──
+    add_cylinder(s, 2.5f, 0.9f, -0.5f, 0.06f, 0.6f, gold);
+    set_last_material(s, MAT_BRASS);
+    add_cylinder(s, 2.3f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
+    add_cylinder(s, 2.7f, 0.45f, -0.3f, 0.015f, 0.9f, gold);
+    add_cylinder(s, 2.5f, 0.45f, -0.7f, 0.015f, 0.9f, gold);
 
     // Distant station modules (tiny lit rectangles)
     add_wall(s, -30, 5, -50, 1.5f, 0.8f, 0.3f, (Color){140,150,165,80});
@@ -2635,6 +2637,29 @@ void build_elevator(Scene *s) {
 
 }
 
+static bool build_elevator_space_shell_pilot(Scene *s, float ew, float ed, float eh, Color warm_panel) {
+    int shell_mdl = find_model_asset("elevator_car");
+    if (shell_mdl < 0)
+        return false;
+
+    (void)shell_mdl;
+    add_shell(s, "elevator_car", 0, 0, 0, 1, 1, 1, 0, MAT_BRASS, WHITE);
+
+    // Explicit collision remains authored in code even when the shell drives visuals.
+    add_collision_floor(s, 0, 0, 0, ew, ed);
+    add_collision_ceiling(s, 0, eh, 0, ew, ed);
+    add_collision_wall(s, 0, eh / 2, -ed / 2, ew, eh, 0.08f);
+    add_collision_wall(s, 0, eh / 2, ed / 2, ew, eh, 0.08f);
+    add_collision_wall(s, ew / 2, eh / 2, 0, 0.08f, eh, ed);
+    add_collision_wall(s, -ew / 2, eh / 2, 0, 0.08f, eh, ed);
+
+    // Keep a small amount of authored lighting/UI glow so the shell can stay visual-only.
+    add_light_panel(s, 0, eh - 0.08f, 0, 1.0f, 0.04f, 1.0f, warm_panel);
+    add_light_panel(s, 0, eh - 0.3f, ed / 2 - 0.04f, 0.35f, 0.15f, 0.01f,
+                    (Color){240, 200, 120, 180});
+    return true;
+}
+
 
 void build_elevator_space(Scene *s) {
     memset(s, 0, sizeof(Scene));
@@ -2661,73 +2686,75 @@ void build_elevator_space(Scene *s) {
     // ============================================================
     // INTERIOR — same brass box as terrestrial, you recognize it
     // ============================================================
+    bool use_shell_pilot = build_elevator_space_shell_pilot(s, ew, ed, eh, warm_panel);
 
-    // Floor — dark marble
-    add_wall(s, 0, -0.05f, 0, ew, 0.1f, ed, floor_marble);
-    set_last_material(s, MAT_MARBLE);
+    if (!use_shell_pilot) {
+        // Floor — dark marble
+        add_wall(s, 0, -0.05f, 0, ew, 0.1f, ed, floor_marble);
+        set_last_material(s, MAT_MARBLE);
 
-    // Ceiling
-    add_wall(s, 0, eh, 0, ew, 0.1f, ed, brass);
-    set_last_material(s, MAT_BRASS);
+        // Ceiling
+        add_wall(s, 0, eh, 0, ew, 0.1f, ed, brass);
+        set_last_material(s, MAT_BRASS);
 
-    // Ceiling light panel
-    add_light_panel(s, 0, eh - 0.08f, 0, 1.0f, 0.04f, 1.0f, warm_panel);
+        // Ceiling light panel
+        add_light_panel(s, 0, eh - 0.08f, 0, 1.0f, 0.04f, 1.0f, warm_panel);
 
-    // Back wall — brass
-    add_wall(s, 0, eh/2, -ed/2, ew, eh, 0.08f, brass);
-    set_last_material(s, MAT_BRASS);
-    // Front wall — doors (closed)
-    add_wall(s, 0, eh/2, ed/2, ew, eh, 0.08f, brass);
-    set_last_material(s, MAT_BRASS);
-    // Right wall — brass
-    add_wall(s, ew/2, eh/2, 0, 0.08f, eh, ed, brass);
-    set_last_material(s, MAT_BRASS);
+        // Back wall — brass
+        add_wall(s, 0, eh/2, -ed/2, ew, eh, 0.08f, brass);
+        set_last_material(s, MAT_BRASS);
+        // Front wall — doors (closed)
+        add_wall(s, 0, eh/2, ed/2, ew, eh, 0.08f, brass);
+        set_last_material(s, MAT_BRASS);
+        // Right wall — brass
+        add_wall(s, ew/2, eh/2, 0, 0.08f, eh, ed, brass);
+        set_last_material(s, MAT_BRASS);
 
-    // LEFT WALL — glass viewport. Now you see the station, not Auckland.
-    add_wall(s, -ew/2, eh/2, 0, 0.02f, eh, ed, (Color){100, 130, 160, 20});
-    set_last_material(s, MAT_GLASS);
-    add_wall(s, -ew/2, eh-0.02f, 0, 0.04f, 0.06f, ed, brass);   // top frame
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -ew/2, 0.02f, 0, 0.04f, 0.06f, ed, brass);      // bottom frame
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -ew/2, eh/2, -ed/2, 0.04f, eh, 0.06f, brass);   // left frame
-    set_last_material(s, MAT_BRASS);
-    add_wall(s, -ew/2, eh/2, ed/2, 0.04f, eh, 0.06f, brass);    // right frame
-    set_last_material(s, MAT_BRASS);
+        // LEFT WALL — glass viewport. Now you see the station, not Auckland.
+        add_wall(s, -ew/2, eh/2, 0, 0.02f, eh, ed, (Color){100, 130, 160, 20});
+        set_last_material(s, MAT_GLASS);
+        add_wall(s, -ew/2, eh-0.02f, 0, 0.04f, 0.06f, ed, brass);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, -ew/2, 0.02f, 0, 0.04f, 0.06f, ed, brass);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, -ew/2, eh/2, -ed/2, 0.04f, eh, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_wall(s, -ew/2, eh/2, ed/2, 0.04f, eh, 0.06f, brass);
+        set_last_material(s, MAT_BRASS);
 
-    // FLOOR — glass panel so you see the lobby dropping away
-    add_wall(s, 0, -0.02f, 0, ew-0.2f, 0.01f, ed-0.2f, (Color){80, 110, 140, 15});
-    set_last_material(s, MAT_GLASS);
-    // Brass grid lines on glass floor
-    add_wall(s, 0, -0.01f, 0, 0.03f, 0.02f, ed-0.2f, brass);
-    add_wall(s, 0, -0.01f, 0, ew-0.2f, 0.02f, 0.03f, brass);
+        // FLOOR — glass panel so you see the lobby dropping away
+        add_wall(s, 0, -0.02f, 0, ew-0.2f, 0.01f, ed-0.2f, (Color){80, 110, 140, 15});
+        set_last_material(s, MAT_GLASS);
+        add_wall(s, 0, -0.01f, 0, 0.03f, 0.02f, ed-0.2f, brass);
+        add_wall(s, 0, -0.01f, 0, ew-0.2f, 0.02f, 0.03f, brass);
 
-    // Mirror on back wall
-    add_wall(s, 0, 1.4f, -ed/2 + 0.06f, 1.2f, 1.4f, 0.03f, mirror);
-    set_last_material(s, MAT_GLASS);
+        // Mirror on back wall
+        add_wall(s, 0, 1.4f, -ed/2 + 0.06f, 1.2f, 1.4f, 0.03f, mirror);
+        set_last_material(s, MAT_GLASS);
 
-    // Button panel — second button lit (floor 2: corridor level)
-    float panel_x = ew/2 - 0.06f;
-    float panel_z = 0.3f;
-    add_wall(s, panel_x, 1.2f, panel_z, 0.04f, 0.7f, 0.2f, (Color){150, 135, 100, 255});
-    set_last_material(s, MAT_BRASS);
-    for (int i = 0; i < 4; i++) {
-        float by = 0.95f + i * 0.15f;
-        Color bc = (i == 1) ? btn_lit : btn_dark;
-        add_wall(s, panel_x - 0.01f, by, panel_z, 0.03f, 0.08f, 0.08f, bc);
+        // Button panel — second button lit (floor 2: corridor level)
+        float panel_x = ew/2 - 0.06f;
+        float panel_z = 0.3f;
+        add_wall(s, panel_x, 1.2f, panel_z, 0.04f, 0.7f, 0.2f, (Color){150, 135, 100, 255});
+        set_last_material(s, MAT_BRASS);
+        for (int i = 0; i < 4; i++) {
+            float by = 0.95f + i * 0.15f;
+            Color bc = (i == 1) ? btn_lit : btn_dark;
+            add_wall(s, panel_x - 0.01f, by, panel_z, 0.03f, 0.08f, 0.08f, bc);
+        }
+
+        // Door seam
+        add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
+
+        // Floor indicator
+        add_wall(s, 0, eh - 0.3f, ed/2 - 0.06f, 0.5f, 0.25f, 0.02f, (Color){60, 55, 45, 255});
+        set_last_material(s, MAT_BRASS);
+        add_light_panel(s, 0, eh - 0.3f, ed/2 - 0.04f, 0.35f, 0.15f, 0.01f, (Color){240, 200, 120, 180});
+
+        // Handrail
+        add_wall(s, 0, 0.9f, -ed/2 + 0.08f, 1.4f, 0.03f, 0.03f, brass);
+        set_last_material(s, MAT_BRASS);
     }
-
-    // Door seam
-    add_wall(s, 0, eh/2, ed/2 - 0.02f, 0.04f, eh, 0.02f, (Color){30, 28, 25, 255});
-
-    // Floor indicator
-    add_wall(s, 0, eh - 0.3f, ed/2 - 0.06f, 0.5f, 0.25f, 0.02f, (Color){60, 55, 45, 255});
-    set_last_material(s, MAT_BRASS);
-    add_light_panel(s, 0, eh - 0.3f, ed/2 - 0.04f, 0.35f, 0.15f, 0.01f, (Color){240, 200, 120, 180});
-
-    // Handrail
-    add_wall(s, 0, 0.9f, -ed/2 + 0.08f, 1.4f, 0.03f, 0.03f, brass);
-    set_last_material(s, MAT_BRASS);
 
     // ============================================================
     // EXTERIOR — the space station dropping away below
@@ -5092,25 +5119,18 @@ void build_space_suite(Scene *s) {
     // 11. ENTRY ZONE — front wall area
     // ============================================================
 
-    // SUITCASE — half-packed, by the door
-    {
-        int case_mdl = find_model_asset("suitcase");
-        if (case_mdl >= 0) {
-            add_model(s, 4.5f, 0, 4.5f, 1,1,1, 0, case_mdl, MAT_LEATHER, (Color){255,255,255,255});
-        } else {
-            add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
-            set_last_material(s, MAT_LEATHER);
-            add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
-            set_last_material(s, MAT_BRASS);
-            set_last_decal(s);
-            add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
-            set_last_material(s, MAT_LEATHER);
-            add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
-            set_last_material(s, MAT_FABRIC);
-            add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
-            set_last_material(s, MAT_FABRIC);
-        }
-    }
+    // SUITCASE — procedural until a GLB runtime asset exists
+    add_wall(s, 4.5f, 0.15f, 4.5f, 0.7f, 0.3f, 0.45f, dark_wood);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 4.5f, 0.32f, 4.5f, 0.72f, 0.02f, 0.47f, brass);
+    set_last_material(s, MAT_BRASS);
+    set_last_decal(s);
+    add_wall(s, 4.5f, 0.34f, 4.72f, 0.68f, 0.16f, 0.02f, dark_wood);
+    set_last_material(s, MAT_LEATHER);
+    add_wall(s, 4.8f, 0.28f, 4.7f, 0.25f, 0.04f, 0.35f, (Color){55,85,175,220});
+    set_last_material(s, MAT_FABRIC);
+    add_wall(s, 4.3f, 0.08f, 4.4f, 0.35f, 0.08f, 0.25f, navy);
+    set_last_material(s, MAT_FABRIC);
 
     // Luggage rack — brass frame near entry
     add_wall(s, 5.5f, 0.5f, 4.8f, 1.0f, 0.04f, 0.5f, brass);
@@ -6076,19 +6096,14 @@ void build_glasshouse(Scene *s) {
         set_last_material(s, MAT_FABRIC);
     }
 
-    // ── TELESCOPE — communal, pointing at Earth ──
+    // ── TELESCOPE — communal, pointing at Earth. Procedural until GLB-backed. ──
     {
         float tx = 0, tz = -D + 2;
-        int scope_mdl = find_model_asset("telescope");
-        if (scope_mdl >= 0) {
-            add_model(s, tx, 0, tz, 1,1,1, 0, scope_mdl, MAT_BRASS, (Color){255,255,255,255});
-        } else {
-            add_cylinder(s, tx, 0.9f, tz, 0.06f, 0.6f, brass);
-            set_last_material(s, MAT_BRASS);
-            add_cylinder(s, tx - 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
-            add_cylinder(s, tx + 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
-            add_cylinder(s, tx, 0.45f, tz - 0.2f, 0.015f, 0.9f, brass);
-        }
+        add_cylinder(s, tx, 0.9f, tz, 0.06f, 0.6f, brass);
+        set_last_material(s, MAT_BRASS);
+        add_cylinder(s, tx - 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
+        add_cylinder(s, tx + 0.2f, 0.45f, tz + 0.2f, 0.015f, 0.9f, brass);
+        add_cylinder(s, tx, 0.45f, tz - 0.2f, 0.015f, 0.9f, brass);
     }
 
     // ── BAR/SERVICE COUNTER — along back wall ──

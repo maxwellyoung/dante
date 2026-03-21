@@ -139,6 +139,10 @@ check:
 	done; \
 	echo "=== Done ==="; \
 	if [ $$fail -eq 0 ]; then echo "All files clean."; else echo "Warnings found (see above)."; fi
+	@python3 scripts/validate_model_registry.py
+
+validate-model-registry:
+	@python3 scripts/validate_model_registry.py
 
 count:
 	@echo "=== Line counts ==="
@@ -194,4 +198,4 @@ playtest: clean
 	@ls -lh playtest/endearing_void
 	@echo "=== Playtest ready: ./playtest/ ==="
 
-.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit
+.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit validate-model-registry

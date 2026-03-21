@@ -6,6 +6,7 @@
 #include "rlgl.h"
 #include "raymath.h"
 #include "game_ctx.h"
+#include "model_registry.h"
 #include "ui.h"
 #include <math.h>
 #include <stdio.h>
@@ -673,86 +674,11 @@ int main(void) {
         printf("[EV] WARNING: assets/skytower.obj not found\n");
     }
 
-    // ── Load model assets from assets/ directory ──
-    // Priority-ordered list — load only the models that matter most.
-    // Too many OBJ models exhaust Raylib's VAO slots → bus error.
-    // Procedural fallbacks handle everything not loaded here.
+    // ── Initialize model registry ──
+    // Stable slots come from the registry, not from startup load order.
+    init_model_registry_assets();
 #ifndef QA_MODE
-    {
-        // Priority order: narrative weight → visual impact
-        // NOTE: Loading multiple OBJ models after Gibbons (17 meshes) causes
-        // bus error on macOS Metal — Raylib VAO exhaustion. Load only GLB models
-        // until OBJs are consolidated into single-mesh exports.
-        // The OBJ files remain in assets/ — procedural fallbacks render them.
-        // Each GLB model consumes VAO slots (1 per material).
-        // Gibbons=17, taxi_driver=6, bed=5, others=3-4 each.
-        // Primitives+skytower use 6. Budget ~40 VAOs safely.
-        // Load in priority order, stop if approaching limit.
-        const char *priority_models[] = {
-            "assets/gibbons.glb",        // rigged bellhop — Walk/Idle/Bow/Gesture anims
-            "assets/taxi_driver.glb",     // 6 VAOs — first impression
-            "assets/champagne_glasses.glb", // 4 VAOs — narrative core
-            "assets/telephone.glb",       // 3 VAOs — suite desk
-            "assets/bed.glb",            // 5 VAOs — emotional endpoint
-            "assets/bathtub.glb",        // 3 VAOs — Chevalier moment
-            "assets/piano.glb",          // 3 VAOs — lobby centrepiece
-            "assets/floor_lamp.glb",     // 3 VAOs — suite atmosphere
-            "assets/wine_glass.glb",     // 2 VAOs — narrative (lipstick)
-            "assets/photograph_frame.glb", // 2 VAOs — emotional prop
-            "assets/standing_ashtray.glb", // 3 VAOs — atmospheric
-            "assets/reception_desk.glb",  // 3 VAOs — lobby centrepiece (curved!)
-            "assets/chandelier.glb",      // 3 VAOs — lobby grand light
-            "assets/potted_plant.glb",    // 5 VAOs — organic lobby greenery
-            "assets/sofa.glb",            // 2 VAOs — suite living zone
-            "assets/elevator_car.glb",    // 5 VAOs — ascent cage interior
-            "assets/record_player.glb",  // 3 VAOs — suite furniture
-            "assets/room_service_tray.glb", // 2 VAOs — untouched service
-            "assets/desk_lamp.glb",       // 3 VAOs — suite desk accent
-            "assets/ice_bucket.glb",      // 4 VAOs — luxury atmosphere
-            NULL
-            // VAO budget: ~64 VAOs total. May hit limit on macOS Metal.
-            // If bus error on startup, remove last entries.
-        };
-        for (int pi = 0; priority_models[pi] && g.model_asset_count < MAX_MODEL_ASSETS; pi++) {
-            const char *path = priority_models[pi];
-            if (!FileExists(path)) continue;
-
-            ModelAsset *ma = &g.model_assets[g.model_asset_count];
-            const char *fname = GetFileNameWithoutExt(path);
-            strncpy(ma->name, fname, sizeof(ma->name) - 1);
-            ma->name[sizeof(ma->name) - 1] = '\0';
-            ma->model = LoadModel(path);
-            if (ma->model.meshCount > 0) {
-                if (g.lighting.ready) {
-                    for (int mi = 0; mi < ma->model.materialCount; mi++)
-                        ma->model.materials[mi].shader = g.lighting.shader;
-                }
-                if (IsFileExtension(path, ".glb")) {
-                    long fsize = GetFileLength(path);
-                    if (fsize > 0 && fsize < 5 * 1024 * 1024) {
-                        ma->anims = LoadModelAnimations(path, &ma->anim_count);
-                        printf("[EV]   Animations: %d\n", ma->anim_count);
-                    }
-                }
-                ma->loaded = true;
-                printf("[EV] Model asset '%s' loaded — %d meshes, %d mats, %d anims\n",
-                       ma->name, ma->model.meshCount, ma->model.materialCount, ma->anim_count);
-                // Bounding box diag for character models
-                if (strcmp(ma->name, "gibbons") == 0) {
-                    BoundingBox bb = GetModelBoundingBox(ma->model);
-                    printf("[GIBBONS DIAG] BB min=(%.3f,%.3f,%.3f) max=(%.3f,%.3f,%.3f) size=(%.3f,%.3f,%.3f)\n",
-                           bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z,
-                           bb.max.x-bb.min.x, bb.max.y-bb.min.y, bb.max.z-bb.min.z);
-                }
-                fflush(stdout);
-                g.model_asset_count++;
-            } else {
-                UnloadModel(ma->model);
-            }
-        }
-        if (g.model_asset_count > 0)
-            printf("[EV] Loaded %d model asset(s)\n", g.model_asset_count);
-    }
+    preload_startup_model_assets(&g.lighting);
 #endif // !QA_MODE
 
     DisableCursor();
@@ -920,8 +846,8 @@ int main(void) {
             .flow_order = 6, .flow_next = STATE_SPACE_SUITE},
         {STATE_SPACE_SUITE, "space_suite",
             .angles = {
-                {{3, 1.6f, 0}, {-6, 2, -2}},             // hero: from right looking at Earth window
-                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // spawn: entering, bed visible
+                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // hero: entering, bed + window depth
+                {{1.5f, 1.6f, 4.5f}, {-1.0f, 1.4f, -3.5f}}, // spawn: offset entry angle
                 {{-5, 1.6f, 0}, {5, 1.8f, -2}},           // patrol_left: desk side
                 {{5, 1.6f, 0}, {-5, 1.8f, -2}},           // patrol_right: window side
                 {{0, 1.6f, -4}, {0, 1.6f, 5}},            // patrol_back: from window
@@ -1004,8 +930,8 @@ int main(void) {
             .flow_order = -1, .flow_next = STATE_PARIS_DREAM},
         {STATE_CLEANED_SUITE, "cleaned_suite",
             .angles = {
-                {{3, 1.6f, 0}, {-6, 2, -2}},             // hero: same as suite for comparison
-                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // spawn
+                {{0, 1.6f, 5}, {0, 1.6f, -4}},            // hero: entry depth still reads after cleanup
+                {{1.5f, 1.6f, 4.5f}, {-1.0f, 1.4f, -3.5f}}, // spawn
                 {{-5, 1.6f, 0}, {5, 1.8f, -2}},           // patrol_left
                 {{5, 1.6f, 0}, {-5, 1.8f, -2}},           // patrol_right
             },
