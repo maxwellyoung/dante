@@ -7,6 +7,8 @@ Single mesh, export as GLB (avoids OBJ VAO bus error).
 AXIS CONVENTION: Blender Z-up, Y-forward. export_yup handles conversion.
 All locations use (X, Y_forward, Z_height) — Blender native.
 """
+import os
+
 import bpy
 import math
 
@@ -227,13 +229,14 @@ if meshes:
     bpy.context.view_layer.objects.active = driver
 
     # Export as GLB — export_yup converts Blender Z-up to Raylib Y-up
+    export_path = os.environ.get("EV_EXPORT_PATH", '/Users/klaus/taxi_driver.glb')
     bpy.ops.export_scene.gltf(
-        filepath='/Users/klaus/taxi_driver.glb',
+        filepath=export_path,
         export_format='GLB',
         use_selection=True,
         export_apply=True,
         export_animations=False,
         export_yup=True,
     )
-    print("Exported to /Users/klaus/taxi_driver.glb")
-    print("scp mini-ts:~/taxi_driver.glb assets/taxi_driver.glb")
+    print(f"Exported to {export_path}")
+    print("Run: ./scripts/mcp_model.sh full scripts/model_taxi_driver.py taxi_driver")

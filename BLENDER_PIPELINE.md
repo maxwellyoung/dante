@@ -120,7 +120,7 @@ If validation fails, `kit.export_glb()` is blocked. `OBJ` export still exists fo
 1. Write prop script using `ev_model_kit`
 2. Send to Blender:     `python3 blender_send.py model_foo.py`
 3. Validate + export:   `kit.export_glb("~/foo.glb")`
-4. Fetch to engine:     `scp mini-ts:~/foo.glb ev_engine/assets/`
+4. Fetch to engine:     handled by `./scripts/mcp_model.sh full ...`
 5. Register it:         add a `ModelRegistryEntry` in `src/model_registry.c`
 6. Place in scene:      `find_model_asset("foo") + add_model()` or `add_shell()`
 7. Visual QA:           `./scripts/glb_qa.sh assets/foo.glb`

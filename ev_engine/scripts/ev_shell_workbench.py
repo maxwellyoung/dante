@@ -455,8 +455,10 @@ def shell_export(name=None, export_dir=None, material_id="MAT_CONCRETE",
                 for b in boxes
             ],
         }, f, indent=2)
-    print(f"// Then run: ./scripts/glb_qa.sh assets/{name}.glb")
-    print(f"// And validate: python3 scripts/validate_model_registry.py")
+    print(f"// Canonical path: ./scripts/mcp_model.sh full scripts/model_{name}.py {name}")
+    print(f"// Quick checks: ./scripts/glb_qa.sh assets/{name}.glb")
+    print(f"// Registry gate: python3 scripts/validate_model_registry.py")
+    print(f"// Shell acceptance: make qa-shell")
     print(f"\n// Collision data saved: {json_path}")
 
     return filepath

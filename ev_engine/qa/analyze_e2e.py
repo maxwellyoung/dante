@@ -708,7 +708,7 @@ def analyze_e2e(report_path):
                 print("     —")
 
             # Show additional critical/major issues
-            all_important = criticals[1:] + majors[1 if criticals else 0:]
+            all_important = criticals[1:] + majors[1:]
             for severity, msg in all_important[:2]:
                 prefix = "!!" if severity == CRITICAL else " !"
                 print(f"│  {'':17s}          {prefix} {msg}")
