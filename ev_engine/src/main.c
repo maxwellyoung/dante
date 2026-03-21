@@ -1313,6 +1313,7 @@ int main(void) {
         int mat_counts[17] = {0};
         int decal_count = 0, model_count = 0, pushable_count = 0, breakable_count = 0, hinge_count = 0;
         int no_collide_count = 0;
+        int collidable_wall_count = 0;
         float wall_volume_total = 0;  // rough total volume of all walls
         for (int w = 0; w < g.scene.wall_count; w++) {
             Wall *wl = &g.scene.walls[w];
@@ -1323,6 +1324,7 @@ int main(void) {
             if (wl->breakable) breakable_count++;
             if (wl->hinge) hinge_count++;
             if (wl->no_collide) no_collide_count++;
+            if (!wl->no_collide && !wl->is_decal) collidable_wall_count++;
             wall_volume_total += wl->size.x * wl->size.y * wl->size.z;
         }
         int mat_types_used = 0;
@@ -1377,12 +1379,14 @@ int main(void) {
                 collision_grid_size = 11;
                 float span_x = max_fx - min_fx;
                 float span_z = max_fz - min_fz;
-                float grid_spacing_x = collision_grid_size > 1 ? span_x / (collision_grid_size - 1) : 0.0f;
-                float grid_spacing_z = collision_grid_size > 1 ? span_z / (collision_grid_size - 1) : 0.0f;
+                // Sample cell centers inside the authored floor footprint so perimeter hull
+                // walls do not masquerade as cramped interior collision.
+                float grid_spacing_x = collision_grid_size > 0 ? span_x / collision_grid_size : 0.0f;
+                float grid_spacing_z = collision_grid_size > 0 ? span_z / collision_grid_size : 0.0f;
                 for (int gx = 0; gx < collision_grid_size; gx++) {
                     for (int gz = 0; gz < collision_grid_size; gz++) {
-                        float px = min_fx + gx * grid_spacing_x;
-                        float pz = min_fz + gz * grid_spacing_z;
+                        float px = min_fx + (gx + 0.5f) * grid_spacing_x;
+                        float pz = min_fz + (gz + 0.5f) * grid_spacing_z;
                         float py = g.scene.spawn.y;
                         // Check if position is inside any wall (stuck) or has floor beneath
                         bool has_floor = false;
@@ -1659,6 +1663,7 @@ int main(void) {
             fprintf(jf, "      \"breakable_count\": %d,\n", breakable_count);
             fprintf(jf, "      \"hinge_count\": %d,\n", hinge_count);
             fprintf(jf, "      \"no_collide_count\": %d,\n", no_collide_count);
+            fprintf(jf, "      \"collidable_wall_count\": %d,\n", collidable_wall_count);
             fprintf(jf, "      \"wall_volume\": %.1f,\n", wall_volume_total);
             // Spawn
             fprintf(jf, "      \"spawn\": [%.1f, %.1f, %.1f],\n", g.scene.spawn.x, g.scene.spawn.y, g.scene.spawn.z);

@@ -567,10 +567,12 @@ def profile_speedrunner(scene):
         issues.append((MINOR, f"Load time {load_ms:.0f}ms — adds up over multiple runs"))
 
     # ── Scene complexity (more walls = more collision checks = slower physics) ──
-    walls = scene.get("walls", 0)
-    if walls > 500:
+    collidable_walls = scene.get("collidable_wall_count")
+    if collidable_walls is None:
+        collidable_walls = scene.get("walls", 0) - scene.get("no_collide_count", 0)
+    if collidable_walls > 500:
         score -= 0.5
-        issues.append((MINOR, f"{walls} walls — dense collision geometry may slow physics"))
+        issues.append((MINOR, f"{collidable_walls} collidable walls — dense collision geometry may slow physics"))
 
     # ── Multi-step objects (take time) ──
     objects = scene.get("objects", [])

@@ -3628,8 +3628,8 @@ void build_space_lobby(Scene *s) {
     set_last_material(s, MAT_BRASS);
     add_cone(s, -14, 1.45f, -4, 0.18f, 0.12f, (Color){40, 100, 60, 200});
     add_light_panel(s, -14, 1.35f, -4, 0.25f, 0.3f, 0.25f, warm_light);
-    // Hotel bell
-    add_cylinder(s, -11, 1.18f, -3.5f, 0.07f, 0.04f, (Color){200,195,180,255});
+    // Hotel bell — closer to the lobby approach, easier to notice from spawn
+    add_cylinder(s, -9.8f, 1.18f, -2.9f, 0.07f, 0.04f, (Color){200,195,180,255});
     set_last_material(s, MAT_BRASS);
     // Guest book — open, leather bound
     add_wall(s, -13, 1.15f, -3.6f, 0.45f, 0.03f, 0.35f, (Color){60,40,25,255});
@@ -4109,9 +4109,15 @@ void build_space_lobby(Scene *s) {
     add_cylinder(s, 10, lh-0.05f, 2, 0.7f, 0.04f, brass);
     set_last_material(s, MAT_BRASS);
 
+    // Crystal flute on the coffee table — a visible right-side lure instead of a hidden phantom
+    add_cylinder(s, 10.0f, 0.68f, 0.0f, 0.04f, 0.14f, (Color){210,210,215,180});
+    set_last_material(s, MAT_GLASS);
+    add_wall(s, 10.0f, 0.62f, 0.0f, 0.04f, 0.06f, 0.04f, (Color){235, 210, 120, 150});
+    set_last_material(s, MAT_GLASS);
+
     // Interactive objects
-    add_object(s, -11, 1.18f, -3.5f, "bell", (Color){200,195,180,255}, 1);
-    add_object(s, 8, 2.2f, -5, "wineglass", (Color){210,210,215,255}, 1);
+    add_object(s, -9.8f, 1.18f, -2.9f, "bell", (Color){200,195,180,255}, 1);
+    add_object(s, 10.0f, 0.68f, 0.0f, "wineglass", (Color){210,210,215,255}, 1);
 
     // ================================================================
     // MATERIAL VARIETY — additional elements for visual richness
