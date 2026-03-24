@@ -98,9 +98,20 @@ local function get_run_stats(self)
     return self.services and self.services.run_stats or g_run_stats
 end
 
+local Palette = require("infernal_ascent_palette")
+
+local function is_trial_intro_window(scene, room_time)
+    return scene
+        and scene.trial_rule
+        and scene.trial_rule ~= ""
+        and (room_time or 0) < 2.2
+end
+
 function UI:show_scene_intro(scene, room_index, room_count)
-    -- Micro-trial rooms: no chapter card, just a fast banner
-    if scene.room_type == "trial" then
+    -- Micro-trial rooms: no chapter card, just a fast banner.
+    -- Key this off trial_rule so authored campaign rooms can use richer
+    -- room_type values like traversal/combat/posture without losing the fast intro.
+    if scene.trial_rule and scene.trial_rule ~= "" then
         self.hint_timer = 0
         self.objective_timer = 0
         self.story_callout = nil
@@ -142,7 +153,7 @@ function UI:show_scene_intro(scene, room_index, room_count)
         beat = scene.transition_beat or "",
         question = scene.dramatic_question or "",
         hook = scene.environment_hook or "",
-        accent = scene.accent_color or { 0.9, 0.55, 0.18 },
+        accent = scene.accent_color or Palette.ui.action,
         timer = 2.2,
         removed_ability = scene.removed_ability or "none",
         environment_hook = scene.environment_hook or "",
@@ -194,15 +205,16 @@ function UI:draw_fragments(collected, required, label, room_type)
     local game_mode = get_game_mode(self)
     local encounters = get_encounters(self)
     local stats = get_run_stats(self) or {}
+    local trial_intro_active = is_trial_intro_window(level and level.scene, stats.room_time)
     local has_compact_objective = level and level.hud_objective_text and level.hud_objective_text ~= ""
     local show_objective = game_mode == "proving_ground"
-        or self.objective_timer > 0
+        or (self.objective_timer > 0 and not trial_intro_active)
         or has_compact_objective
-        or (encounters and encounters:is_active())
+        or ((encounters and encounters:is_active()) and not trial_intro_active)
     local objective_y = 46
     local header_height = show_objective and 58 or 36
 
-    if game_mode == "campaign" and encounters and encounters:is_active() then
+    if game_mode == "campaign" and encounters and encounters:is_active() and not trial_intro_active then
         header_height = 66
     end
 
@@ -221,7 +233,7 @@ function UI:draw_fragments(collected, required, label, room_type)
         love.graphics.print(string.format("Fragments %d/%d", collected, required), 12, 28)
     end
 
-    if game_mode == "campaign" and encounters and encounters:is_active() then
+    if game_mode == "campaign" and encounters and encounters:is_active() and not trial_intro_active then
         love.graphics.setColor(0.96, 0.58, 0.34, 1)
         love.graphics.print("Guardian trial active", 12, 46)
         objective_y = 58
@@ -328,7 +340,12 @@ end
 function UI.draw_encounter_status(self)
     local game_mode = get_game_mode(self)
     local encounters = get_encounters(self)
+    local level = get_level(self)
+    local stats = get_run_stats(self) or {}
     if game_mode ~= "campaign" or not encounters then
+        return
+    end
+    if is_trial_intro_window(level and level.scene, stats.room_time) then
         return
     end
 

@@ -20,7 +20,9 @@ run: $(BIN)
 	./$(BIN)
 
 # Dev mode — skip title, boot straight into a scene
-# Usage: make dev SCENE=STATE_SPACE_LOBBY
+# Usage: make dev SCENE=STATE_PROTO_LAB
+#        make dev SCENE=STATE_PROTO_MOVEMENT
+#        make dev SCENE=STATE_SPACE_LOBBY
 #   or:  make dev  (defaults to STATE_SPACE_LOBBY)
 SCENE ?= STATE_SPACE_LOBBY
 DEV_OBJ = $(SRC:.c=.dev.o)

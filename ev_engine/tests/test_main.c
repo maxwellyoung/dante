@@ -91,7 +91,7 @@ int main(void) {
 
     // GameState enum count — keep this in sync with the last declared enum value.
     printf("\nChecking GameState enum...\n");
-    assert(GAMESTATE_COUNT == 22);
+    assert(GAMESTATE_COUNT == 26);
     printf("  GameState count = %d  OK\n", GAMESTATE_COUNT);
     printf("  STATE_TITLE         = %d\n", STATE_TITLE);
     printf("  STATE_BATHROOM      = %d\n", STATE_BATHROOM);

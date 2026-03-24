@@ -1048,7 +1048,7 @@ void draw_title(void) {
             float pulse = 0.88f + 0.12f * sinf(t * 1.8f);
             ea = (unsigned char)((float)ea * pulse);
             int ey = RENDER_H - 50*UI_SCALE + (int)(title_enter_y_offset * UI_SCALE);
-            const char *prompt = "PRESS ENTER";
+            const char *prompt = "ENTER HOTEL   P PROTOTYPE LAB";
             int pfs = 10 * UI_SCALE;
             int pw = MeasureText(prompt, pfs);
             DrawText(prompt, cx - pw / 2, ey, pfs,

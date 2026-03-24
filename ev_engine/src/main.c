@@ -18,6 +18,9 @@ float ev_mouse_sens = MOUSE_SENS_DEFAULT;
 // ── Global game context — replaces ~80 file-scope statics ──
 GameCtx g;
 
+void draw_prototype_lab(void);
+void draw_prototype_overlay(void);
+
 static Model make_generated_model(Mesh mesh) {
     Model model = {0};
     model.transform = MatrixIdentity();
@@ -259,7 +262,7 @@ InteractSoundType get_interact_sound_ext(const char *name) {
 // ============================================================
 // PAUSE MENU & SETTINGS
 // ============================================================
-static const char *pause_labels[] = {"RESUME", "SETTINGS", "QUIT"};
+static const char *pause_labels[] = {"RESUME", "SETTINGS", "PROTOTYPE LAB", "QUIT"};
 static const char *settings_labels[] = {"SENSITIVITY", "VOLUME", "STYLE", "FULLSCREEN", "BACK"};
 static int menu_item_count(void) { return (g.menu_mode == MENU_SETTINGS) ? SETTINGS_ITEM_COUNT : PAUSE_ITEM_COUNT; }
 static void menu_init_springs(void) { for (int i = 0; i < MENU_MAX_ITEMS; i++) { g.menu_item_x[i] = (float)(RENDER_W + i * 24); g.menu_item_vx[i] = 0; } }
@@ -331,7 +334,13 @@ static bool update_pause_menu(void) {
         switch (g.menu_cursor) {
             case 0: menu_close(); break;
             case 1: menu_open(MENU_SETTINGS); break;
-            case 2: CloseWindow(); break;
+            case 2:
+                menu_close();
+                load_state(STATE_PROTO_LAB);
+                g.fade_alpha = 0.0f;
+                g.fade_target = 0.0f;
+                break;
+            case 3: CloseWindow(); break;
         }
     } else if (g.menu_mode == MENU_SETTINGS) {
         switch (g.menu_cursor) {
@@ -472,7 +481,8 @@ static int raycast_wall(Camera3D cam, Scene *sc) {
 // Write current g.state to temp file for dev-watch to read on restart
 static void write_state_file(GameState s) {
     const char *names[] = {
-        "STATE_TITLE", "STATE_CAR", "STATE_DRIVING", "STATE_HOTEL_EXT",
+        "STATE_TITLE", "STATE_PROTO_LAB", "STATE_PROTO_MOVEMENT", "STATE_PROTO_SHOOTER",
+        "STATE_PROTO_PUZZLE", "STATE_CAR", "STATE_DRIVING", "STATE_HOTEL_EXT",
         "STATE_LOBBY", "STATE_ELEVATOR", "STATE_HALLWAY", "STATE_ROOM",
         "STATE_BATHROOM", "STATE_BALCONY", "STATE_BED", "STATE_STARS",
         "STATE_HYPERSPACE", "STATE_SPACE_LOBBY", "STATE_SPACE_CORRIDOR",
@@ -1061,6 +1071,40 @@ int main(void) {
             .angle_count = 4,
             .outdoor = false,
             .flow_order = -1, .flow_next = STATE_MONTAGE},
+        {STATE_PROTO_MOVEMENT, "proto_movement",
+            .angles = {
+                {{0.0f, 1.9f, 16.5f}, {0.0f, 1.5f, -10.0f}},    // hero: full route compression
+                {{0.0f, 1.6f, 18.0f}, {0.0f, 1.5f, 10.0f}},     // spawn: first read
+                {{-4.8f, 2.0f, 4.0f}, {1.0f, 1.5f, -6.0f}},     // patrol_left: wall usage
+                {{4.8f, 2.0f, -8.0f}, {-0.5f, 1.4f, -16.0f}},   // patrol_right: finish lane
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_PROTO_SHOOTER},
+        {STATE_PROTO_SHOOTER, "proto_shooter",
+            .angles = {
+                {{0.0f, 1.75f, 14.5f}, {0.0f, 1.8f, -12.5f}},   // hero: full lane pressure read
+                {{0.0f, 1.6f, 15.5f}, {0.0f, 1.7f, 7.0f}},      // spawn: first cover and hot lane
+                {{-5.0f, 1.8f, 2.0f}, {-1.5f, 2.1f, -8.5f}},    // patrol_left: armor target / cover relation
+                {{3.8f, 1.9f, -6.5f}, {0.0f, 2.0f, -15.0f}},    // patrol_right: breach lane to gate
+                {{0.0f, 2.8f, 0.5f}, {0.0f, 0.5f, -8.5f}},      // overview: floor hazard strips
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right", "overview"},
+            .angle_count = 5,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_PROTO_PUZZLE},
+        {STATE_PROTO_PUZZLE, "proto_puzzle",
+            .angles = {
+                {{0.0f, 1.85f, 12.5f}, {2.0f, 1.4f, -9.5f}},    // hero: room logic from entry
+                {{0.0f, 1.6f, 11.0f}, {0.0f, 1.4f, 7.5f}},      // spawn: relay A read
+                {{-7.8f, 1.8f, 4.8f}, {-3.0f, 1.3f, 0.8f}},     // patrol_left: mid-stage bridge relation
+                {{5.8f, 1.9f, -8.5f}, {6.0f, 1.5f, -12.5f}},    // patrol_right: gate destination
+            },
+            .angle_names = {"hero", "spawn", "patrol_left", "patrol_right"},
+            .angle_count = 4,
+            .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_TITLE},
     };
 #endif
     int qa_count = (int)(sizeof(qa_scenes)/sizeof(qa_scenes[0]));
@@ -2533,8 +2577,10 @@ int main(void) {
         }
 
         // Physics — pushable objects, grab/carry/throw, breakables, doors
-        physics_grab_input(&g.scene, &g.player, &g.grab, dt);
-        physics_update(&g.scene, &g.player, &g.grab, dt);
+        if (!g.prototype_eval_active) {
+            physics_grab_input(&g.scene, &g.player, &g.grab, dt);
+            physics_update(&g.scene, &g.player, &g.grab, dt);
+        }
 
         // Gibbons dialogue → new dialogue system
         if (g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
@@ -2580,6 +2626,11 @@ int main(void) {
                 break;
             }
 
+            case STATE_PROTO_LAB: {
+                draw_prototype_lab();
+                break;
+            }
+
             case STATE_CAR:
             case STATE_DRIVING:
                 // 3D taxi scene with night sky (GPU skybox)
@@ -2614,6 +2665,9 @@ int main(void) {
             case STATE_SPACE_LOBBY:
             case STATE_SPACE_CORRIDOR:
             case STATE_SPACE_SUITE:
+            case STATE_PROTO_MOVEMENT:
+            case STATE_PROTO_SHOOTER:
+            case STATE_PROTO_PUZZLE:
             case STATE_HYPERSPACE:
             case STATE_PARIS_DREAM:
             case STATE_CLEANED_SUITE:
@@ -2853,7 +2907,8 @@ int main(void) {
             g.state == STATE_LOBBY || g.state == STATE_ELEVATOR || g.state == STATE_BALCONY ||
             g.state == STATE_SPACE_LOBBY || g.state == STATE_SPACE_CORRIDOR ||
             g.state == STATE_SPACE_SUITE || g.state == STATE_HALLWAY ||
-            g.state == STATE_GLASSHOUSE) {
+            g.state == STATE_GLASSHOUSE || g.state == STATE_PROTO_MOVEMENT ||
+            g.state == STATE_PROTO_SHOOTER || g.state == STATE_PROTO_PUZZLE) {
             ui_draw_hud(&g.player, &g.scene);
             // No progress dots. No step counter. The world changes ARE the feedback.
         }
@@ -2869,6 +2924,8 @@ int main(void) {
         draw_dialogue();
         // Narrative choices
         draw_choice();
+        // Prototype lab HUD + evaluation
+        draw_prototype_overlay();
 
         // Pause menu overlay — drawn into 480x300, gets film grain treatment
         if (g.menu_mode != MENU_NONE) draw_pause_menu();
@@ -2940,12 +2997,14 @@ int main(void) {
 #ifndef PLAYTEST
         if (g.show_debug) {
             const char *state_names[] = {
-                "TITLE", "CAR", "DRIVING", "EXTERIOR", "LOBBY",
-                "ELEVATOR", "HALLWAY", "ROOM", "BATHROOM", "BALCONY",
-                "BED", "STARS", "HYPERSPACE", "SP_LOBBY", "SP_CORRIDOR", "SP_SUITE",
-                "PARIS_DREAM", "RETURN_TAXI"
+                "TITLE", "PROTO_LAB", "PROTO_MOVE", "PROTO_SHOOT", "PROTO_PUZZLE",
+                "CAR", "DRIVING", "EXTERIOR", "LOBBY", "ELEVATOR",
+                "HALLWAY", "ROOM", "BATHROOM", "BALCONY", "BED",
+                "STARS", "HYPERSPACE", "SP_LOBBY", "SP_CORRIDOR", "SP_SUITE",
+                "PARIS_DREAM", "CLEANED", "MONTAGE", "RETURN_TAXI", "GLASSHOUSE",
+                "SHELL_TEST"
             };
-            const char *sn = (g.state >= 0 && g.state < 18) ? state_names[g.state] : "???";
+            const char *sn = (g.state >= 0 && g.state < 26) ? state_names[g.state] : "???";
             int dfs = 20 * UI_SCALE;  // debug font size
             int dsp = 25 * UI_SCALE;  // debug line spacing
             int dm = 10 * UI_SCALE;   // debug margin

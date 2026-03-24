@@ -105,6 +105,10 @@ void title_update(float dt) {
         PlayTitleBreath(&g.audio);
         g.title_breath_played = true;
     }
+    if (IsKeyPressed(KEY_P)) {
+        g.title_breath_played = false;
+        transition_to(STATE_PROTO_LAB);
+    }
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
         g.title_breath_played = false;
         transition_to(STATE_CAR);

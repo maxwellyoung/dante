@@ -207,6 +207,10 @@ static inline PhysicsConfig physics_default(void) {
 
 typedef enum {
     STATE_TITLE,
+    STATE_PROTO_LAB,
+    STATE_PROTO_MOVEMENT,
+    STATE_PROTO_SHOOTER,
+    STATE_PROTO_PUZZLE,
     STATE_CAR,
     STATE_DRIVING,
     STATE_HOTEL_EXT,
@@ -229,6 +233,83 @@ typedef enum {
     STATE_GLASSHOUSE,   // observation lounge — the first big space
     STATE_SHELL_TEST,   // dev-only: shell system validation
 } GameState;
+
+typedef enum {
+    PROTOTYPE_NONE = 0,
+    PROTOTYPE_MOVEMENT,
+    PROTOTYPE_SHOOTER,
+    PROTOTYPE_PUZZLE,
+    PROTOTYPE_COUNT,
+} PrototypeId;
+
+typedef enum {
+    PROTO_LAB_PLAY = 0,
+    PROTO_LAB_REVIEW,
+    PROTO_LAB_COMPARE,
+    PROTO_LAB_RESET,
+    PROTO_LAB_ACTION_COUNT,
+} PrototypeLabAction;
+
+typedef struct {
+    bool completed;
+    float completion_time;
+    int resets;
+    float distance;
+    int jumps;
+    int dashes;
+    int shots_fired;
+    int shots_hit;
+    int shot_ricochets;
+    int direct_hits;
+    int bank_shots_attempted;
+    int bank_shot_hits;
+    int breach_uses;
+    int breach_kills;
+    int grapples_fired;
+    int grapples_latched;
+    int anchor_assisted_clears;
+    int armored_kills;
+    int exposure_hits;
+    int recharge_pickups;
+    int puzzle_actions;
+    int puzzle_misreads;
+    int route_nodes_triggered;
+    int shortcut_uses;
+    int recovery_uses;
+    int finish_cleanliness;
+    int relay_interactions;
+    int invalid_states;
+    int puzzle_stage_clears;
+    float hintless_solve_time;
+    float first_meaningful_action_time;
+} PrototypeRunStats;
+
+typedef struct {
+    int would_replay;
+    int readability;
+    int mechanical_depth;
+    int ship_confidence;
+    int best_moment;
+    int main_friction;
+    bool submitted;
+} PrototypeEval;
+
+typedef struct {
+    const char *display_name;
+    const char *core_question;
+    const char *allowed_verbs;
+    const char *success_condition;
+    const char *score_fields;
+    int recommended_session_length;
+    int max_resets;
+    float max_completion_time;
+    float min_distance;
+    int min_jumps;
+    int min_dashes;
+    int min_shots_hit;
+    int min_puzzle_actions;
+    int max_puzzle_misreads;
+} PrototypeQAExpectation;
 
 typedef enum {
     SURFACE_MARBLE,

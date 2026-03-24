@@ -43,13 +43,13 @@ g_circle_transition = nil
 g_native_width, g_native_height = 480, 270
 g_main_canvas = nil
 
-circle_data = {}
 local campaign = require("campaign")
 local proving_ground = require("proving_ground")
 local SceneContract = require("scene_contract")
 local RuntimeServices = require("runtime_services")
 local FPSMode = require("fps_mode")
 local EnderingVoid = require("endearing_void")
+local Palette = require("infernal_ascent_palette")
 Player = require("player")
 Level = require("level")
 Camera = require("camera")
@@ -63,6 +63,10 @@ Projectiles = require("projectiles")
 PreviewPlayer = require("preview_player")
 EncounterController = require("encounter_controller")
 local Autoplay = require("autoplay")
+
+-- Legacy circles mode now reuses the authored room list instead of an orphaned
+-- standalone table. This keeps --circles smoke coverage meaningful.
+circle_data = campaign.rooms or {}
 
 local native_is_down = love.keyboard.isDown
 
@@ -978,7 +982,7 @@ function love.draw()
     -- Circle transition overlay
     if g_circle_transition then
         local ct = g_circle_transition
-        local alpha = 0
+        local alpha
         if ct.timer > ct.duration - 0.3 then
             alpha = (ct.duration - ct.timer) / 0.3
         elseif ct.timer < 0.3 then
@@ -1006,7 +1010,7 @@ function love.draw()
 
         -- Grade flash
         if g_trial_score and g_trial_score.timer > 0 then
-            local accent = g_current_scene and g_current_scene.accent_color or {0.92, 0.55, 0.18}
+            local accent = g_current_scene and g_current_scene.accent_color or Palette.ui.action
             local alpha = math.min(1, g_trial_score.timer / 0.3)
 
             -- Grade letter
@@ -1100,7 +1104,7 @@ function love.keyreleased(key)
     end
 end
 
-function love.mousemoved(x, y, dx, dy)
+function love.mousemoved(x, y, dx, _dy)
     if g_ev_active then
         g_ev_mode:mousemoved(x, y, dx)
         return

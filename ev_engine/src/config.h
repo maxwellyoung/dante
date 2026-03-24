@@ -6,7 +6,7 @@
 #define TRANSITION_HOLD_DEFAULT 0.15f
 #define MAX_RAIN 200
 #define MENU_MAX_ITEMS 8
-#define PAUSE_ITEM_COUNT 3
+#define PAUSE_ITEM_COUNT 4
 #define SETTINGS_ITEM_COUNT 5
 
 // Physics constants — single source of truth (matches PhysicsConfig defaults)
