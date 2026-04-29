@@ -380,8 +380,11 @@ def workbench_export(kit, export_dir=None, position=(0, 0, 0), rotation_deg=0,
     print(f"        add_model(s, {x}f, {y}f, {z}f, 1,1,1, {rotation_deg}, {name}_mdl, {material_id}, {color});")
     print(f"    }}")
     print(f"}}")
-    print(f"\n// Also add to priority_models[] in main.c:")
-    print(f"\"assets/{name}.glb\",")
+    print(f"\n// Also add a registry entry in src/model_registry.c:")
+    print(f"{{\"{name}\", \"assets/{name}.glb\", MODEL_KIND_PROP, false, 3, true, MODEL_STATUS_ACTIVE}},")
+    print(f"// Canonical path: ./scripts/mcp_model.sh full scripts/model_{name}.py {name}")
+    print(f"// Quick checks: ./scripts/glb_qa.sh assets/{name}.glb")
+    print(f"// Registry gate: python3 scripts/validate_model_registry.py")
 
     return filepath
 

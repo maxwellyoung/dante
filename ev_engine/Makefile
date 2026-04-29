@@ -20,7 +20,9 @@ run: $(BIN)
 	./$(BIN)
 
 # Dev mode — skip title, boot straight into a scene
-# Usage: make dev SCENE=STATE_SPACE_LOBBY
+# Usage: make dev SCENE=STATE_PROTO_LAB
+#        make dev SCENE=STATE_PROTO_MOVEMENT
+#        make dev SCENE=STATE_SPACE_LOBBY
 #   or:  make dev  (defaults to STATE_SPACE_LOBBY)
 SCENE ?= STATE_SPACE_LOBBY
 DEV_OBJ = $(SRC:.c=.dev.o)
@@ -43,12 +45,12 @@ dev-diff:
 	@./qa/run.sh --diff
 
 clean:
-	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o src/*.e2e.o
+	rm -f $(OBJ) $(BIN) endearing_void_release tests/test_main src/*.qa.o src/*.e2e.o src/*.shellqa.o src/*.shellsuiteqa.o src/*.castqa.o qa/audit_report.json a.out
 
 # ── QA Mode — automated screenshot + pixel analysis ───────────────
 QA_OBJ = $(SRC:.c=.qa.o)
 
-qa: $(QA_OBJ)
+qa: validate-model-registry $(QA_OBJ)
 	$(CC) $(QA_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
 	@mkdir -p qa/screenshots
 	./$(BIN)
@@ -56,6 +58,40 @@ qa: $(QA_OBJ)
 
 src/%.qa.o: src/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -c $< -o $@
+
+# Shell acceptance QA — dedicated production shell pass
+SHELL_QA_OBJ = $(SRC:.c=.shellqa.o)
+
+qa-shell: validate-model-registry $(SHELL_QA_OBJ)
+	$(CC) $(SHELL_QA_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots
+	./$(BIN)
+	@rm -f src/*.shellqa.o
+
+src/%.shellqa.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_SHELL_ONLY -c $< -o $@
+
+SHELL_SUITE_QA_OBJ = $(SRC:.c=.shellsuiteqa.o)
+
+qa-shell-suite: validate-model-registry $(SHELL_SUITE_QA_OBJ)
+	$(CC) $(SHELL_SUITE_QA_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots
+	./$(BIN)
+	@rm -f src/*.shellsuiteqa.o
+
+src/%.shellsuiteqa.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_SHELL_SUITE_ONLY -c $< -o $@
+
+CAST_QA_OBJ = $(SRC:.c=.castqa.o)
+
+qa-cast: validate-model-registry $(CAST_QA_OBJ)
+	$(CC) $(CAST_QA_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
+	@mkdir -p qa/screenshots
+	./$(BIN)
+	@rm -f src/*.castqa.o
+
+src/%.castqa.o: src/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_CAST_ONLY -c $< -o $@
 
 # Full QA pipeline: build + run + diff + archive
 qa-full:
@@ -81,7 +117,7 @@ qa-history:
 # ── E2E QA — Full multi-angle, multi-profile pipeline ─────────────
 E2E_OBJ = $(SRC:.c=.e2e.o)
 
-qa-e2e: $(E2E_OBJ)
+qa-e2e: validate-model-registry $(E2E_OBJ)
 	$(CC) $(E2E_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
 	@mkdir -p qa/screenshots qa/diffs
 	./$(BIN)
@@ -109,7 +145,7 @@ qa-e2e-grade:
 # ── Engine Audit — hardcore technical probing ──────────────────
 AUDIT_OBJ = $(SRC:.c=.audit.o)
 
-qa-audit: $(AUDIT_OBJ)
+qa-audit: validate-model-registry $(AUDIT_OBJ)
 	$(CC) $(AUDIT_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
 	@mkdir -p qa/screenshots
 	./$(BIN)
@@ -139,6 +175,24 @@ check:
 	done; \
 	echo "=== Done ==="; \
 	if [ $$fail -eq 0 ]; then echo "All files clean."; else echo "Warnings found (see above)."; fi
+	@python3 scripts/validate_model_registry.py
+
+validate-model-registry:
+	@python3 scripts/validate_model_registry.py
+
+quality:
+	@echo "=== Quality gate ==="
+	@$(MAKE) clean
+	@$(MAKE) -j4
+	@$(MAKE) check
+	@$(MAKE) test
+	@$(MAKE) validate-model-registry
+	@$(MAKE) qa-shell
+	@$(MAKE) qa-shell-suite
+	@$(MAKE) qa-cast
+	@$(MAKE) qa
+	@./qa/run_e2e.sh
+	@echo "=== Quality gate passed ==="
 
 count:
 	@echo "=== Line counts ==="
@@ -194,4 +248,4 @@ playtest: clean
 	@ls -lh playtest/endearing_void
 	@echo "=== Playtest ready: ./playtest/ ==="
 
-.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit
+.PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-shell qa-shell-suite qa-cast qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit validate-model-registry quality

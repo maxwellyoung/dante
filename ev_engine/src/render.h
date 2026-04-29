@@ -68,7 +68,8 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed);
 
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
-                      Model *sphere_model, Model *cone_model);
+                      Model *sphere_model, Model *cone_model,
+                      Model *skytower_model);
 void draw_earth(Camera3D camera, float time,
                 Model *sphere_model, EVLighting *lighting,
                 Vector3 earth_center);
@@ -87,5 +88,6 @@ void draw_dust_motes(Camera3D camera, float time);
 void draw_zero_g_sparkles(Camera3D camera, float time);
 void draw_rain(Camera3D camera, float time);
 void draw_text_box(const char *text, int y, int font_size, Color text_color);
+void draw_earthshine_2d(float time);
 
 #endif

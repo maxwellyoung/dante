@@ -1,11 +1,17 @@
 // scene_registry.c — Function pointer table indexed by GameState
 #include "game_ctx.h"
 
-extern GameCtx g;
-
 // Forward declarations — implemented in scene_*.c files (or main.c during migration)
 void title_load(void);
 void title_update(float dt);
+void prototype_lab_load(void);
+void prototype_lab_update(float dt);
+void prototype_movement_load(void);
+void prototype_movement_update(float dt);
+void prototype_shooter_load(void);
+void prototype_shooter_update(float dt);
+void prototype_puzzle_load(void);
+void prototype_puzzle_update(float dt);
 void taxi_load(void);
 void taxi_update(float dt);
 void driving_update(float dt);
@@ -50,6 +56,10 @@ void shell_test_update(float dt);
 
 const SceneDesc scene_descs[] = {
     [STATE_TITLE]          = { .load = title_load,       .update = title_update,       .indoor = true  },
+    [STATE_PROTO_LAB]      = { .load = prototype_lab_load, .update = prototype_lab_update, .indoor = true  },
+    [STATE_PROTO_MOVEMENT] = { .load = prototype_movement_load, .update = prototype_movement_update, .indoor = true  },
+    [STATE_PROTO_SHOOTER]  = { .load = prototype_shooter_load, .update = prototype_shooter_update, .indoor = true  },
+    [STATE_PROTO_PUZZLE]   = { .load = prototype_puzzle_load, .update = prototype_puzzle_update, .indoor = true  },
     [STATE_CAR]            = { .load = taxi_load,        .update = taxi_update,         .indoor = true  },
     [STATE_DRIVING]        = { .load = NULL,             .update = driving_update,      .indoor = true  },
     [STATE_HOTEL_EXT]      = { .load = exterior_load,    .update = exterior_update,     .indoor = false },

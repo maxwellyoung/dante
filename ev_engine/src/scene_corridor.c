@@ -2,10 +2,9 @@
 #include "game_ctx.h"
 #include <math.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void transition_to(GameState s);
+void SetPostFXWarmth(EVPostFX *pfx, float warmth);
 
 void corridor_load(void) {
     build_space_corridor(&g.scene);
@@ -36,9 +35,11 @@ void corridor_load(void) {
     // The corridor is quieter. The player notices what's missing.
     if (g.backstory_count <= 3) {
         PlayMuffledPiano(&g.audio);
-        PlaySound(g.audio.snd_running_water);
+        PlayRunningWater(&g.audio);
     }
-    PlaySound(g.audio.snd_tv_murmur);
+    PlayTvMurmur(&g.audio);
+    g.corridor_ghost_delay = 0.0f;
+    g.corridor_ghost_was_moving = false;
     {
         float zs = g.backstory_count > 3 ? 0.65f : 1.0f;
         g.door_positions[0] = (Vector3){-3.5f, 1.6f, 4.0f * zs};
@@ -46,8 +47,9 @@ void corridor_load(void) {
         g.door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f * zs};
     }
     SetSceneLighting(&g.lighting, LightingPreset_SpaceCorridor());
-    set_exposure(0.08f);
-    SetPostFXGrain(&g.postfx, 0.35f);
+    set_exposure(0.16f);
+    SetPostFXGrain(&g.postfx, 0.28f);
+    SetPostFXWarmth(&g.postfx, 0.05f);
     // Room service tray outside Door 2 (Room Six) — two plates, one untouched
     // Second playthrough: "Six checked out. The trays stopped coming."
     if (g.backstory_count <= 3) {
@@ -121,14 +123,12 @@ void corridor_update(float dt) {
     // Matches your pace. Stops when you stop. Starts a beat after you start.
     // First playthrough only — on replay, the corridor is emptier.
     if (g.backstory_count <= 3) {
-        static float ghost_delay = 0;
-        static bool ghost_was_moving = false;
         bool player_moving = g.player.moving;
-        if (player_moving && !ghost_was_moving) {
-            ghost_delay = 0.4f;  // beat of silence before they start
+        if (player_moving && !g.corridor_ghost_was_moving) {
+            g.corridor_ghost_delay = 0.4f;  // beat of silence before they start
         }
-        if (ghost_delay > 0) ghost_delay -= dt;
-        bool ghost_moving = player_moving && ghost_delay <= 0;
+        if (g.corridor_ghost_delay > 0) g.corridor_ghost_delay -= dt;
+        bool ghost_moving = player_moving && g.corridor_ghost_delay <= 0;
 
         // Footstep volume — muffled through wall, positional
         float ghost_vol = ghost_moving ? 0.012f : 0;
@@ -136,10 +136,8 @@ void corridor_update(float dt) {
         float ghost_pan = g.player.camera.position.x > 0 ? 0.2f : 0.8f;
         SetSoundVolume(g.audio.snd_footsteps_above, ghost_vol);
         SetSoundPan(g.audio.snd_footsteps_above, ghost_pan);
-        if (ghost_moving && !IsSoundPlaying(g.audio.snd_footsteps_above)) {
-            PlaySound(g.audio.snd_footsteps_above);
-        }
-        ghost_was_moving = player_moving;
+        if (ghost_moving) PlayFootstepsAbove(&g.audio);
+        g.corridor_ghost_was_moving = player_moving;
     }
 
     // Speed modulation near windows
@@ -245,8 +243,9 @@ void corridor_update(float dt) {
         if (dark_dist < 4.0f) {
             float dark_t = 1.0f - (dark_dist / 4.0f);
             dark_t *= dark_t;
-            SetPostFXGrain(&g.postfx, 0.4f + dark_t * 0.4f);
-            set_exposure(0.0f - dark_t * 0.15f);
+            SetPostFXGrain(&g.postfx, 0.32f + dark_t * 0.20f);
+            SetPostFXWarmth(&g.postfx, 0.05f - dark_t * 0.03f);
+            set_exposure(0.12f - dark_t * 0.03f);
         }
     }
     if (g.scene.has_exit) {

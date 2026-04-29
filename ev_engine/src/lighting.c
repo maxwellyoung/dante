@@ -106,7 +106,7 @@ static const char *fs_source =
     "    if (proj.z > 1.0) return 0.0;\n"
     "    float bias = 0.002;\n"
     "    float shadow = 0.0;\n"
-    "    vec2 texelSize = 1.0 / vec2(2048.0) * 1.3;\n"
+    "    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0)) * 1.3;\n"
     "    for (int x = -1; x <= 1; x++) {\n"
     "        for (int y = -1; y <= 1; y++) {\n"
     "            float d = texture(shadowMap, proj.xy + vec2(x,y)*texelSize).r;\n"
@@ -657,6 +657,8 @@ void CreateShadowMap(EVLighting *lighting) {
     lighting->shadowFBO = rlLoadFramebuffer();
     if (lighting->shadowFBO == 0) {
         printf("[EV] WARNING: Shadow FBO failed\n");
+        UnloadShader(lighting->shadowShader);
+        lighting->shadowShader = (Shader){0};
         return;
     }
 
@@ -678,8 +680,12 @@ void CreateShadowMap(EVLighting *lighting) {
         printf("[EV] Shadow map created — %dx%d depth texture\n", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     } else {
         printf("[EV] WARNING: Shadow FBO incomplete\n");
+        rlUnloadTexture(lighting->shadowDepthTex);
+        lighting->shadowDepthTex = 0;
         rlUnloadFramebuffer(lighting->shadowFBO);
         lighting->shadowFBO = 0;
+        UnloadShader(lighting->shadowShader);
+        lighting->shadowShader = (Shader){0};
     }
 
     rlDisableFramebuffer();
@@ -701,7 +707,7 @@ void UpdateShadowMatrix(EVLighting *lighting, Vector3 keyDir, Vector3 sceneCente
     Matrix lightView = MatrixLookAt(lightPos, sceneCenter, (Vector3){0, 1, 0});
     Matrix lightProj = MatrixOrtho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius,
                                     0.1f, sceneRadius * 4.0f);
-    lighting->lightSpaceMatrix = MatrixMultiply(lightView, lightProj);
+    lighting->lightSpaceMatrix = MatrixMultiply(lightProj, lightView);
 
     // Upload to lighting shader
     SetShaderValueMatrix(lighting->shader, lighting->lightSpaceMatrixLoc, lighting->lightSpaceMatrix);

@@ -435,8 +435,8 @@ def shell_export(name=None, export_dir=None, material_id="MAT_CONCRETE",
     print(f"//     SetPostFXGrain(&g.postfx, 0.3f);")
     print(f"// }}")
     print(f"")
-    print(f"// Add to priority_models[] in main.c:")
-    print(f"// \"assets/{name}.glb\",")
+    print(f"// Add a registry entry in src/model_registry.c:")
+    print(f"// {{\"{name}\", \"assets/{name}.glb\", MODEL_KIND_SHELL, false, 5, true, MODEL_STATUS_ACTIVE}},")
 
     # Also save collision data as JSON for iteration
     json_path = os.path.join(SCRIPT_DIR, '..', 'qa', f"{name}_collision.json")
@@ -455,6 +455,10 @@ def shell_export(name=None, export_dir=None, material_id="MAT_CONCRETE",
                 for b in boxes
             ],
         }, f, indent=2)
+    print(f"// Canonical path: ./scripts/mcp_model.sh full scripts/model_{name}.py {name}")
+    print(f"// Quick checks: ./scripts/glb_qa.sh assets/{name}.glb")
+    print(f"// Registry gate: python3 scripts/validate_model_registry.py")
+    print(f"// Shell acceptance: make qa-shell")
     print(f"\n// Collision data saved: {json_path}")
 
     return filepath

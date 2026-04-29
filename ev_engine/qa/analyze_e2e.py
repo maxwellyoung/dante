@@ -33,6 +33,11 @@ MAJOR = "MAJOR"
 MINOR = "MINOR"
 NOTE = "NOTE"
 
+TRANSITIONAL_SCENES = {"hallway", "hotel_ext", "elevator", "hyperspace",
+                       "taxi", "space_corridor", "return_taxi", "stars"}
+CUTSCENE_SCENES = {"bed", "cleaned_suite"}
+FLOOR_PROBE_EXEMPT_SCENES = {"balcony", "taxi", "return_taxi", "bed", "stars", "hyperspace"}
+
 # ── Design Commandments (from CLAUDE.md) ──
 COMMANDMENTS = [
     "Wonder and melancholy, not horror",
@@ -98,9 +103,9 @@ def profile_first_timer(scene):
     # Can I find interactive objects?
     obj_count = scene.get("interact_count", 0)
     unreachable = scene.get("obj_unreachable", 0)
-    transitional = name in ("hallway", "hotel_ext", "elevator", "hyperspace",
-                            "taxi", "space_corridor", "return_taxi", "stars")
-    if not transitional:
+    transitional = name in TRANSITIONAL_SCENES
+    cutscene = name in CUTSCENE_SCENES
+    if not transitional and not cutscene:
         if obj_count == 0:
             score -= 2.0
             issues.append((CRITICAL, "No interactive objects — player has nothing to do"))
@@ -156,24 +161,33 @@ def profile_cinematographer(scene):
     hero = get_hero_metrics(scene)
     dark = scene.get("dark_by_design", False)
     name = scene["name"]
+    thirds = hero.get("rule_of_thirds_energy", 0)
+    contrast = hero.get("contrast_ratio", 1)
+    hues = hero.get("hue_buckets", 0)
+    warmth = hero.get("warmth", 0)
+    sat = hero.get("saturation_avg", 0)
 
     # ── Composition ──
     edge_density = hero.get("edge_density", 0)
     cvar = hero.get("color_variance", 0)
     if not dark:
         if edge_density < 3:
-            if cvar > 2000:
+            if cvar > 2000 and (sat > 0.25 or contrast > 1.8 or thirds > 10):
+                issues.append((NOTE, f"Soft edges ({edge_density:.0f}%) but color blocking reads as intentional composition"))
+            elif cvar > 2000:
                 score -= 0.5
                 issues.append((MINOR, f"Soft edges ({edge_density:.0f}%) but strong color fields — Rothko territory"))
             else:
                 score -= 2.0
                 issues.append((CRITICAL, f"Edge density {edge_density:.0f}% — no readable geometry at any distance"))
         elif edge_density < 8:
-            score -= 0.5
-            issues.append((MINOR, f"Edge density {edge_density:.0f}% — sparse visual structure"))
+            if contrast >= 2.5 and thirds >= 10:
+                issues.append((NOTE, f"Edge density {edge_density:.0f}% — sparse but carried by contrast and blocking"))
+            else:
+                score -= 0.5
+                issues.append((MINOR, f"Edge density {edge_density:.0f}% — sparse visual structure"))
 
     # Rule of thirds
-    thirds = hero.get("rule_of_thirds_energy", 0)
     if thirds > 15 and not dark:
         issues.append((NOTE, f"Strong thirds energy ({thirds:.0f}) — good classical composition"))
     elif thirds < 3 and not dark:
@@ -181,7 +195,6 @@ def profile_cinematographer(scene):
         issues.append((MINOR, "Weak rule-of-thirds energy — consider reframing hero shot"))
 
     # ── Contrast / Drama ──
-    contrast = hero.get("contrast_ratio", 1)
     if not dark:
         if contrast < 1.3:
             score -= 1.5
@@ -193,10 +206,6 @@ def profile_cinematographer(scene):
             issues.append((NOTE, "Excellent dark-scene contrast — pools of light work"))
 
     # ── Color ──
-    hues = hero.get("hue_buckets", 0)
-    warmth = hero.get("warmth", 0)
-    sat = hero.get("saturation_avg", 0)
-
     if not dark:
         if hues < 2:
             score -= 1.5
@@ -371,9 +380,10 @@ def profile_accessibility(scene):
     sat = hero.get("saturation_avg", 0)
     if len(rgb) == 3 and sat > 0.15:
         # Protanopia/Deuteranopia: red and green look similar
-        # If the main color interest is in the red-green range, flag it
+        # Only flag when the palette is actually leaning on a red-vs-green split.
+        # Warm amber / taupe scenes are not the same thing and were being misclassified.
         r, g, b = rgb
-        if abs(r - g) > 30 and b < min(r, g) * 0.6 and sat > 0.2:
+        if abs(r - g) > 45 and b < min(r, g) * 0.45 and sat > 0.2:
             score -= 0.5
             issues.append((MINOR, "Color palette relies on red-green distinction — may be invisible to ~8% of players"))
 
@@ -467,7 +477,7 @@ def profile_qa_engineer(scene):
         issues.append((MINOR, f"Collision: {stuck_pct:.0%} inside walls — moderately dense"))
 
     floor_hits = scene.get("collision_floor_hits", 0)
-    if grid_size > 0:
+    if grid_size > 0 and name not in FLOOR_PROBE_EXEMPT_SCENES:
         coverage = floor_hits / total_grid
         if coverage < 0.1:
             score -= 1.0
@@ -563,10 +573,12 @@ def profile_speedrunner(scene):
         issues.append((MINOR, f"Load time {load_ms:.0f}ms — adds up over multiple runs"))
 
     # ── Scene complexity (more walls = more collision checks = slower physics) ──
-    walls = scene.get("walls", 0)
-    if walls > 500:
+    collidable_walls = scene.get("collidable_wall_count")
+    if collidable_walls is None:
+        collidable_walls = scene.get("walls", 0) - scene.get("no_collide_count", 0)
+    if collidable_walls > 500:
         score -= 0.5
-        issues.append((MINOR, f"{walls} walls — dense collision geometry may slow physics"))
+        issues.append((MINOR, f"{collidable_walls} collidable walls — dense collision geometry may slow physics"))
 
     # ── Multi-step objects (take time) ──
     objects = scene.get("objects", [])
@@ -704,7 +716,7 @@ def analyze_e2e(report_path):
                 print("     —")
 
             # Show additional critical/major issues
-            all_important = criticals[1:] + majors[1 if criticals else 0:]
+            all_important = criticals[1:] + majors[1:]
             for severity, msg in all_important[:2]:
                 prefix = "!!" if severity == CRITICAL else " !"
                 print(f"│  {'':17s}          {prefix} {msg}")

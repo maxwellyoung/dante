@@ -62,48 +62,48 @@ ui.c / ui.h         — Spring physics, icons, UI components
 config.h            — centralized constants (PI, SAMPLE_RATE, task counts, etc.)
 
 assets/skytower.obj — Sky Tower 3D model (first external mesh)
-assets/*.glb, *.obj — Auto-loaded model assets (ModelAsset registry)
+assets/*.glb, *.obj — Authored assets; active runtime models are declared in src/model_registry.c
 scripts/blender_send.py — Blender MCP socket helper (model/rig/export)
 scripts/ev_shell_workbench.py — Blender level editor for room shells (Gehry workflow)
 ```
 
 ### 3D Model Asset System
 
-**Auto-loading**: Any `.glb` or `.obj` in `assets/` is auto-loaded at startup into `g.model_assets[]` (max 16). Lighting shader applied to all material slots. GLB animations loaded and ticked each frame.
+**Registry loading**: `src/model_registry.c` is the single source of truth for authored runtime models. The engine preallocates stable slots in `g.model_assets[]` (max 32), preloads only `startup_load=true` entries, and lazy-loads other active assets on first `find_model_asset()` use. Lighting shader is applied to all loaded material slots, and GLB animations are loaded when present.
 
 **Placing models in scenes:**
 ```c
-int taxi = find_model_asset("taxi");  // lookup by filename without extension
-if (taxi >= 0) {
+int telephone = find_model_asset("telephone");  // lookup by registry name
+if (telephone >= 0) {
     add_model(s, 0, 0, -5,           // position
               1, 1, 1,               // scale
               0,                     // rotation degrees
-              taxi,                  // model_index
-              MAT_CONCRETE,          // materialId for shader
-              (Color){220,200,50,255}); // base color
+              telephone,             // model_index
+              MAT_BRASS,             // materialId for shader
+              WHITE);                // base color
 }
 ```
 
 **Key types** (`ev_types.h`):
-- `ModelAsset` — Model + animations + name + frame tracking
+- `ModelRegistryEntry` — Authoritative manifest entry (name, path, kind, startup policy, VAO budget, status)
+- `ModelAsset` — Runtime slot populated from the registry, plus model/anims/frame tracking
 - `SHAPE_MODEL` — ShapeType for walls referencing loaded models
 - `model_index` — field on Wall struct, indexes `g.model_assets[]`
 
 **Formats:**
-- **Static props** (.obj): 50-200 tris, no textures, no animation
-- **Animated models** (.glb): 200-800 tris, simple rigs, max 4 bone influences
+- **Canonical authored format** (`.glb`): props, shells, and animated models
+- **Legacy fallback** (`.obj`): inspection/debug assets only; `skytower.obj` is the main surviving runtime exception
 - **No UV textures** — GLSL materialId system handles surfaces procedurally
 - **Scale**: 1 unit = 1 meter. GLB exports Y-up (matches Raylib).
 
 ### Blender Pipeline (Mac Mini)
 
-Blender runs on Mac Mini (`ssh mini-ts`, port 9877). Use `/blender` skill or `scripts/blender_send.py`.
+Blender runs on Mac Mini (`ssh mini-ts`, port 9877), but `scripts/mcp_model.sh full` now prefers local headless Blender when it is installed. Set `PREFER_REMOTE_BLENDER=1` if you explicitly want the Mini-first path. Use `/blender` skill or `scripts/blender_send.py` for direct MCP work.
 
 ```bash
-# Model in Blender, export GLB, fetch to engine
-ssh mini-ts 'python3 ~/blender_send.py --export-glb /Users/klaus/taxi.glb'
-scp mini-ts:~/taxi.glb assets/
-make run  # auto-loads new model
+# Model in Blender, export GLB, deploy, run GLB QA, validate registry
+./scripts/mcp_model.sh full scripts/model_taxi_driver.py taxi_driver
+make run  # registry-backed load path
 ```
 
 ### Shell System (Gehry-esque Environments)

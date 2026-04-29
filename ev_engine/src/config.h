@@ -6,13 +6,27 @@
 #define TRANSITION_HOLD_DEFAULT 0.15f
 #define MAX_RAIN 200
 #define MENU_MAX_ITEMS 8
-#define PAUSE_ITEM_COUNT 3
+#define PAUSE_ITEM_COUNT 4
 #define SETTINGS_ITEM_COUNT 5
+
+// Physics constants — single source of truth (matches PhysicsConfig defaults)
+#define PHYS_GRAVITY 18.0f
+#define PHYS_MAX_DT 0.05f
+#define PHYS_MAX_SUBSTEPS 4
+
+// Render constants
+#define RENDER_CULL_DIST 80.0f          // distance cull threshold (meters)
+#define RENDER_MAX_BLOB_SHADOWS 40      // blob shadow budget per frame
 
 // Spring defaults (Kowalski)
 #define SPRING_K 280.0f
 #define SPRING_D 26.0f
 #define SPRING_M 0.9f
+
+// PI — single definition, avoid per-file redefinitions with varying precision
+#ifndef PI
+#define PI 3.14159265358979f
+#endif
 
 // Z-fighting prevention — geometry offset layers
 // Use these instead of magic 0.01f nudges.  Each layer guarantees no overlap.

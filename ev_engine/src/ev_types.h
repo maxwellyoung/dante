@@ -207,6 +207,10 @@ static inline PhysicsConfig physics_default(void) {
 
 typedef enum {
     STATE_TITLE,
+    STATE_PROTO_LAB,
+    STATE_PROTO_MOVEMENT,
+    STATE_PROTO_SHOOTER,
+    STATE_PROTO_PUZZLE,
     STATE_CAR,
     STATE_DRIVING,
     STATE_HOTEL_EXT,
@@ -231,6 +235,83 @@ typedef enum {
 } GameState;
 
 typedef enum {
+    PROTOTYPE_NONE = 0,
+    PROTOTYPE_MOVEMENT,
+    PROTOTYPE_SHOOTER,
+    PROTOTYPE_PUZZLE,
+    PROTOTYPE_COUNT,
+} PrototypeId;
+
+typedef enum {
+    PROTO_LAB_PLAY = 0,
+    PROTO_LAB_REVIEW,
+    PROTO_LAB_COMPARE,
+    PROTO_LAB_RESET,
+    PROTO_LAB_ACTION_COUNT,
+} PrototypeLabAction;
+
+typedef struct {
+    bool completed;
+    float completion_time;
+    int resets;
+    float distance;
+    int jumps;
+    int dashes;
+    int shots_fired;
+    int shots_hit;
+    int shot_ricochets;
+    int direct_hits;
+    int bank_shots_attempted;
+    int bank_shot_hits;
+    int breach_uses;
+    int breach_kills;
+    int grapples_fired;
+    int grapples_latched;
+    int anchor_assisted_clears;
+    int armored_kills;
+    int exposure_hits;
+    int recharge_pickups;
+    int puzzle_actions;
+    int puzzle_misreads;
+    int route_nodes_triggered;
+    int shortcut_uses;
+    int recovery_uses;
+    int finish_cleanliness;
+    int relay_interactions;
+    int invalid_states;
+    int puzzle_stage_clears;
+    float hintless_solve_time;
+    float first_meaningful_action_time;
+} PrototypeRunStats;
+
+typedef struct {
+    int would_replay;
+    int readability;
+    int mechanical_depth;
+    int ship_confidence;
+    int best_moment;
+    int main_friction;
+    bool submitted;
+} PrototypeEval;
+
+typedef struct {
+    const char *display_name;
+    const char *core_question;
+    const char *allowed_verbs;
+    const char *success_condition;
+    const char *score_fields;
+    int recommended_session_length;
+    int max_resets;
+    float max_completion_time;
+    float min_distance;
+    int min_jumps;
+    int min_dashes;
+    int min_shots_hit;
+    int min_puzzle_actions;
+    int max_puzzle_misreads;
+} PrototypeQAExpectation;
+
+typedef enum {
     SURFACE_MARBLE,
     SURFACE_CARPET,
     SURFACE_WOOD,
@@ -239,11 +320,37 @@ typedef enum {
 typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER, SHAPE_TORUS, SHAPE_MODEL } ShapeType;
 
 // ── Model asset registry ────────────────────────────────────────────
-// Loaded 3D models (.glb/.obj) from assets/ directory.
+// Loaded 3D models from the engine-owned registry.
 // Walls with SHAPE_MODEL use model_index to reference these.
-#define MAX_MODEL_ASSETS 16
+typedef enum {
+    MODEL_KIND_PROP,
+    MODEL_KIND_SHELL,
+} ModelKind;
+
+typedef enum {
+    MODEL_STATUS_DORMANT,
+    MODEL_STATUS_ACTIVE,
+} ModelStatus;
+
+typedef struct {
+    const char *name;              // filename without extension (e.g. "gibbons")
+    const char *path;              // asset path relative to engine root
+    ModelKind kind;
+    bool startup_load;
+    int estimated_vao_cost;
+    bool preserve_blender_colors;
+    ModelStatus status;
+} ModelRegistryEntry;
+
+#define MAX_MODEL_ASSETS 32
 typedef struct {
     char name[64];              // filename without extension (e.g. "taxi", "gibbons")
+    const char *path;           // registry-owned asset path
+    ModelKind kind;
+    bool startup_load;
+    int estimated_vao_cost;
+    bool preserve_blender_colors;
+    ModelStatus status;
     Model model;
     bool loaded;
     // Animation (GLB only)
@@ -282,6 +389,7 @@ typedef struct {
     ShapeType shape;
     MaterialType material;  // default 0 = MAT_CONCRETE (C zero-init)
     float rotation_y;
+    float rotation_x;       // SHAPE_MODEL: X-axis pre-rotation (axis-correcting bad exports)
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
     bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
     int model_index;        // SHAPE_MODEL only: index into model_assets[]

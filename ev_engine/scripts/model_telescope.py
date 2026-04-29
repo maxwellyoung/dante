@@ -58,5 +58,5 @@ for angle in [0, 120, 240]:
 # ── Hub — where legs meet ──
 kit.sphere("Hub", (0, 0.9, 0), radius=0.03, material=BRASS, segments=6, rings=4)
 
-kit.export_obj("/Users/klaus/telescope.obj")
+kit.export_glb("/Users/klaus/telescope.glb")
 kit.preview_placement()

@@ -2,6 +2,7 @@
 // Quake air strafing, bunny hopping, wall running, ledge mantling,
 // crouch jumping, dash, coyote time, jump buffering, momentum slides
 #include "player.h"
+#include "config.h"
 #include "raymath.h"
 #include <math.h>
 #include <stddef.h>
@@ -126,6 +127,45 @@ static void rotate_xz(float *x, float *z, float angle) {
     *x = rx; *z = rz;
 }
 
+static bool wall_contains_xz(const Wall *w, float x, float z, float pad) {
+    switch (w->shape) {
+        case SHAPE_CUBE:
+        case SHAPE_MODEL: {
+            float hx = w->size.x * 0.5f + pad;
+            float hz = w->size.z * 0.5f + pad;
+            if (w->rotation_y != 0.0f) {
+                float lx = x - w->pos.x;
+                float lz = z - w->pos.z;
+                rotate_xz(&lx, &lz, -w->rotation_y * DEG2RAD);
+                return lx > -hx && lx < hx && lz > -hz && lz < hz;
+            }
+            return x > w->pos.x - hx && x < w->pos.x + hx
+                && z > w->pos.z - hz && z < w->pos.z + hz;
+        }
+        case SHAPE_CYLINDER:
+        case SHAPE_CONE:
+        case SHAPE_SPHERE:
+        case SHAPE_SKYTOWER:
+        case SHAPE_TORUS: {
+            float r = fmaxf(w->size.x, w->size.z) * 0.5f + pad;
+            float dx = x - w->pos.x;
+            float dz = z - w->pos.z;
+            return dx * dx + dz * dz < r * r;
+        }
+        default:
+            return false;
+    }
+}
+
+static bool wall_supports_player(const Wall *w, Vector3 pos, float current_ground_y,
+                                 float max_step, float pad, float *out_top) {
+    float top = w->pos.y + w->size.y * 0.5f;
+    if (top >= pos.y || top <= current_ground_y || top > max_step) return false;
+    if (!wall_contains_xz(w, pos.x, pos.z, pad)) return false;
+    *out_top = top;
+    return true;
+}
+
 // ── Collision — shape-aware, multi-pass with proper slide ────────────
 // Handles cubes (AABB + rotated OBB), cylinders, spheres, cones.
 // Skips no_collide, decals, and tiny decorative geometry.
@@ -209,7 +249,7 @@ static CollisionInfo collide_and_slide(Vector3 *new_pos, Vector3 *vel,
 
                 if (w->rotation_y != 0.0f) {
                     // Rotated: transform to local space, solve, transform back
-                    float angle = -w->rotation_y * (3.14159265f / 180.0f);
+                    float angle = -w->rotation_y * (PI / 180.0f);
                     float lx = new_pos->x - w->pos.x;
                     float lz = new_pos->z - w->pos.z;
                     rotate_xz(&lx, &lz, angle);
@@ -317,10 +357,7 @@ static bool touching_wall(Player *p, Scene *scene) {
         if (wt < p->ground_y + 1.0f) continue;  // too short
         if (wb > pos.y) continue;                 // above us
 
-        if (pos.x > w->pos.x - w->size.x/2 - pr &&
-            pos.x < w->pos.x + w->size.x/2 + pr &&
-            pos.z > w->pos.z - w->size.z/2 - pr &&
-            pos.z < w->pos.z + w->size.z/2 + pr) {
+        if (wall_contains_xz(w, pos.x, pos.z, pr)) {
             return true;
         }
     }
@@ -338,13 +375,11 @@ static bool find_mantle_ledge(Player *p, Scene *scene, Vector3 fwd,
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
+        if (w->shape != SHAPE_CUBE && w->shape != SHAPE_MODEL) continue;
         float wt = w->pos.y + w->size.y / 2;
-        if (wt > pos.y && wt < pos.y + phys.mantle_reach && wt > best &&
-            cx > w->pos.x - w->size.x/2 - pr &&
-            cx < w->pos.x + w->size.x/2 + pr &&
-            cz > w->pos.z - w->size.z/2 - pr &&
-            cz < w->pos.z + w->size.z/2 + pr) {
+        if (wt > pos.y && wt < pos.y + phys.mantle_reach && wt > best
+            && wall_contains_xz(w, cx, cz, pr)) {
             best = wt;
         }
     }
@@ -366,7 +401,8 @@ static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active) continue;
+        if (w->shape != SHAPE_CUBE && w->shape != SHAPE_MODEL) continue;
         if (w->no_collide || w->is_decal) continue;
         float wt = w->pos.y + w->size.y / 2;
         float wb = w->pos.y - w->size.y / 2;
@@ -377,10 +413,7 @@ static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
         // Wall must extend below us (we're against it, not above it)
         if (wb > pos.y - phys.eye_height + 0.5f) continue;
         // XZ proximity check
-        if (cx > w->pos.x - w->size.x/2 - pr &&
-            cx < w->pos.x + w->size.x/2 + pr &&
-            cz > w->pos.z - w->size.z/2 - pr &&
-            cz < w->pos.z + w->size.z/2 + pr) {
+        if (wall_contains_xz(w, cx, cz, pr)) {
             best = wt;
         }
     }
@@ -395,7 +428,7 @@ static bool find_climb_ledge(Player *p, Scene *scene, Vector3 fwd,
 
 void update_player(Player *p, Scene *scene, float dt) {
     // ── Clamp dt to prevent tunneling on frame spikes ────────────
-    if (dt > 0.05f) dt = 0.05f;
+    if (dt > PHYS_MAX_DT) dt = PHYS_MAX_DT;
 
     // ── Mantle in progress ──────────────────────────────────────────
     if (p->mantling) {
@@ -676,7 +709,7 @@ void update_player(Player *p, Scene *scene, float dt) {
         // smaller steps so we can't skip through thin walls at speed
         float disp = sqrtf(p->vel.x * p->vel.x + p->vel.z * p->vel.z) * dt;
         int substeps = (int)(disp / (phys.player_radius * 0.8f)) + 1;
-        if (substeps > 4) substeps = 4;
+        if (substeps > PHYS_MAX_SUBSTEPS) substeps = PHYS_MAX_SUBSTEPS;
         float sub_dt = dt / (float)substeps;
         CollisionInfo col = {false, {0,0,0}, NULL, 0, 0};
         for (int si = 0; si < substeps; si++) {
@@ -723,57 +756,10 @@ void update_player(Player *p, Scene *scene, float dt) {
             if (!w->active || w->no_collide || w->is_decal) continue;
             // Skip tiny decorative objects for ground detection too
             if (w->size.x < 0.1f && w->size.y < 0.1f && w->size.z < 0.1f) continue;
-            float top, hx, hz;
-            switch (w->shape) {
-                case SHAPE_CUBE: {
-                    top = w->pos.y + w->size.y / 2;
-                    if (top >= new_pos.y || top <= ground_y || top > p->ground_y + 0.6f)
-                        break;
-                    hx = w->size.x / 2 + 0.3f;
-                    hz = w->size.z / 2 + 0.3f;
-                    if (w->rotation_y != 0.0f) {
-                        // Rotated ground: test in local space
-                        float angle = -w->rotation_y * (3.14159265f / 180.0f);
-                        float lx = new_pos.x - w->pos.x;
-                        float lz = new_pos.z - w->pos.z;
-                        rotate_xz(&lx, &lz, angle);
-                        if (lx > -hx && lx < hx && lz > -hz && lz < hz)
-                            ground_y = top;
-                    } else {
-                        if (new_pos.x > w->pos.x - hx && new_pos.x < w->pos.x + hx &&
-                            new_pos.z > w->pos.z - hz && new_pos.z < w->pos.z + hz)
-                            ground_y = top;
-                    }
-                    break;
-                }
-                case SHAPE_CYLINDER: {
-                    // Cylinder: size.x = diameter, size.y = height
-                    top = w->pos.y + w->size.y / 2;
-                    float cr = w->size.x / 2 + 0.3f;
-                    float cdx = new_pos.x - w->pos.x;
-                    float cdz = new_pos.z - w->pos.z;
-                    if (top < new_pos.y && top > ground_y &&
-                        top <= p->ground_y + 0.6f &&
-                        cdx*cdx + cdz*cdz < cr*cr) {
-                        ground_y = top;
-                    }
-                    break;
-                }
-                case SHAPE_SPHERE: {
-                    // Sphere top: center.y + radius (size.y/2 for uniform, approximate as AABB)
-                    top = w->pos.y + w->size.y / 2;
-                    float sr = w->size.x / 2 + 0.3f;
-                    float sdx = new_pos.x - w->pos.x;
-                    float sdz = new_pos.z - w->pos.z;
-                    if (top < new_pos.y && top > ground_y &&
-                        top <= p->ground_y + 0.6f &&
-                        sdx*sdx + sdz*sdz < sr*sr) {
-                        ground_y = top;
-                    }
-                    break;
-                }
-                default:
-                    break;
+            float top = 0.0f;
+            if (wall_supports_player(w, new_pos, ground_y, p->ground_y + phys.step_height,
+                                     0.3f, &top)) {
+                ground_y = top;
             }
         }
 
@@ -821,6 +807,9 @@ void update_player(Player *p, Scene *scene, float dt) {
                 p->vy = 0;
                 p->jump_buffer = 0;
                 p->wall_running = false;
+                // Commit collision-resolved position before early return
+                p->camera.position = new_pos;
+                p->camera.target = Vector3Add(new_pos, forward);
                 return;
             }
         } else if (can_jump && wants_jump) {
@@ -847,6 +836,9 @@ void update_player(Player *p, Scene *scene, float dt) {
                 p->mantle_target_y = ledge_y;
                 p->mantle_timer = 0;
                 p->vy = 0;
+                // Commit collision-resolved position before early return
+                p->camera.position = new_pos;
+                p->camera.target = Vector3Add(new_pos, forward);
                 return;
             }
         }
@@ -973,6 +965,9 @@ void update_player(Player *p, Scene *scene, float dt) {
     // When nearly still and grounded: subtle sine camera sway
     if (p->speed_current < 0.3f && p->grounded) {
         p->idle_time += dt;
+        // Wrap to prevent float precision loss after hours of idling
+        // LCM of 1/0.7 and 1/0.5 sine periods ≈ 20s — wrapping at 1000s is safe
+        if (p->idle_time > 1000.0f) p->idle_time -= 1000.0f;
         // Scale inversely with speed — zero when moving
         float idle_scale = 1.0f - (p->speed_current / 0.3f);
         float breath_pitch = sinf(p->idle_time * 0.7f) * 0.001f * idle_scale;
@@ -986,7 +981,7 @@ void update_player(Player *p, Scene *scene, float dt) {
         p->idle_time = 0;
     }
 
-    float tilt_rad = p->tilt_current * (3.14159f / 180.0f);
+    float tilt_rad = p->tilt_current * (PI / 180.0f);
     p->camera.up = (Vector3){sinf(tilt_rad), cosf(tilt_rad), 0};
 }
 

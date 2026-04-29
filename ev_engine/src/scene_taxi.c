@@ -3,8 +3,6 @@
 #include <math.h>
 #include <string.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void show_text(const char *text);
 void hide_text(void);
@@ -93,7 +91,8 @@ void taxi_update(float dt) {
             }
         }
     }
-    if (g.state_time > 4.5f && g.scene.objects[0].done && g.vig_text != NULL) {
+    if (g.state_time > 4.5f && g.scene.object_count > 0
+        && g.scene.objects[0].done && g.vig_text != NULL) {
         hide_text();
     }
 
@@ -250,13 +249,13 @@ void return_taxi_load(void) {
     PlayCityAmbient(&g.audio);
     SetCityAmbientVolume(&g.audio, 0.02f);
     SetSceneLighting(&g.lighting, LightingPreset_ReturnTaxi());
-    set_exposure(0.05f);
-    SetPostFXWarmth(&g.postfx, 0.4f);
-    SetPostFXGrain(&g.postfx, 0.3f);
-    SetPostFXSaturation(&g.postfx, 1.05f);
-    SetPostFXCA(&g.postfx, 1.5f);
+    set_exposure(0.11f);
+    SetPostFXWarmth(&g.postfx, 0.18f);
+    SetPostFXGrain(&g.postfx, 0.24f);
+    SetPostFXSaturation(&g.postfx, 0.84f);
+    SetPostFXCA(&g.postfx, 1.1f);
     SetPostFXVignette(&g.postfx, 1.0f);
-    SetPostFXContrast(&g.postfx, 1.0f);
+    SetPostFXContrast(&g.postfx, 1.12f);
 
     // Gibbons — in the passenger seat, going home.
     // Brief eye contact. He adjusts his tie. He knew the whole time.
@@ -320,7 +319,7 @@ void return_taxi_update(float dt) {
     // Saturation drain
     {
         float drain = fminf(1.0f, g.state_time / 14.0f);
-        SetPostFXSaturation(&g.postfx, 1.05f - drain * 0.25f);
+        SetPostFXSaturation(&g.postfx, 0.92f - drain * 0.16f);
     }
 
     // Fade to black

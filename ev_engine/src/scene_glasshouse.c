@@ -9,8 +9,6 @@
 #include "game_ctx.h"
 #include <math.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void transition_to(GameState s);
 

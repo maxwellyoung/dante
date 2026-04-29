@@ -6,8 +6,9 @@
 #include <math.h>
 #include <stdio.h>
 
-static const char *pause_labels[]    = {"RESUME", "SETTINGS", "QUIT"};
+static const char *pause_labels[]    = {"RESUME", "SETTINGS", "PROTOTYPE LAB", "QUIT"};
 static const char *settings_labels[] = {"SENSITIVITY", "VOLUME", "STYLE", "FULLSCREEN", "BACK"};
+void load_state(GameState s);
 
 static int menu_item_count(GameCtx *g) { return (g->menu_mode == MENU_SETTINGS) ? SETTINGS_ITEM_COUNT : PAUSE_ITEM_COUNT; }
 static void menu_init_springs(GameCtx *g) { for (int i = 0; i < MENU_MAX_ITEMS; i++) { g->menu_item_x[i] = (float)(RENDER_W + i * 24); g->menu_item_vx[i] = 0; } }
@@ -71,7 +72,13 @@ bool update_pause_menu(GameCtx *g) {
         switch (g->menu_cursor) {
             case 0: menu_close(g); break;
             case 1: menu_open(g, MENU_SETTINGS); break;
-            case 2: CloseWindow(); break;
+            case 2:
+                menu_close(g);
+                load_state(STATE_PROTO_LAB);
+                g->fade_alpha = 0.0f;
+                g->fade_target = 0.0f;
+                break;
+            case 3: CloseWindow(); break;
         }
     } else if (g->menu_mode == MENU_SETTINGS) {
         switch (g->menu_cursor) {

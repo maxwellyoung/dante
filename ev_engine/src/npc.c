@@ -14,6 +14,44 @@
 #include <stdio.h>
 #include <string.h>
 
+static void rotate_xz(float *x, float *z, float angle) {
+    float c = cosf(angle), s = sinf(angle);
+    float rx = *x * c - *z * s;
+    float rz = *x * s + *z * c;
+    *x = rx;
+    *z = rz;
+}
+
+static bool wall_contains_xz(const Wall *w, float x, float z, float pad) {
+    switch (w->shape) {
+        case SHAPE_CUBE:
+        case SHAPE_MODEL: {
+            float hx = w->size.x * 0.5f + pad;
+            float hz = w->size.z * 0.5f + pad;
+            if (w->rotation_y != 0.0f) {
+                float lx = x - w->pos.x;
+                float lz = z - w->pos.z;
+                rotate_xz(&lx, &lz, -w->rotation_y * DEG2RAD);
+                return lx > -hx && lx < hx && lz > -hz && lz < hz;
+            }
+            return x > w->pos.x - hx && x < w->pos.x + hx
+                && z > w->pos.z - hz && z < w->pos.z + hz;
+        }
+        case SHAPE_CYLINDER:
+        case SHAPE_CONE:
+        case SHAPE_SPHERE:
+        case SHAPE_SKYTOWER:
+        case SHAPE_TORUS: {
+            float r = fmaxf(w->size.x, w->size.z) * 0.5f + pad;
+            float dx = x - w->pos.x;
+            float dz = z - w->pos.z;
+            return dx * dx + dz * dz < r * r;
+        }
+        default:
+            return false;
+    }
+}
+
 // ── Initialization ──────────────────────────────────────────────────
 
 static void init_common(NPC *npc, Vector3 start, Vector3 *waypoints, int count,
@@ -77,9 +115,12 @@ const char *npc_current_dialogue(NPC *npc) {
 
 // ── Physics ─────────────────────────────────────────────────────────
 
+// Shared with player physics — avoids magic number duplication
+#define NPC_GRAVITY 18.0f
+
 static void npc_apply_gravity(NPC *npc, float dt) {
     if (!npc->use_physics) return;
-    float gravity = 18.0f;
+    float gravity = NPC_GRAVITY;
     npc->vy -= gravity * dt;
     npc->pos.y += npc->vy * dt;
 
@@ -92,28 +133,25 @@ static void npc_apply_gravity(NPC *npc, float dt) {
     }
 }
 
-static void npc_find_ground(NPC *npc, Scene *scene) {
+static void npc_find_ground(NPC *npc, Scene *scene, float dt) {
     if (!npc->use_physics || !scene) return;
     float best_y = 0;  // default floor
     float pr = npc->collision_radius;
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
         float top = w->pos.y + w->size.y / 2;
         if (top < npc->pos.y + 0.1f && top > best_y &&
             top <= npc->ground_y + 0.6f &&
-            npc->pos.x > w->pos.x - w->size.x/2 - pr &&
-            npc->pos.x < w->pos.x + w->size.x/2 + pr &&
-            npc->pos.z > w->pos.z - w->size.z/2 - pr &&
-            npc->pos.z < w->pos.z + w->size.z/2 + pr) {
+            wall_contains_xz(w, npc->pos.x, npc->pos.z, pr)) {
             best_y = top;
         }
     }
     // Smooth step-up
     float spd = (best_y > npc->ground_y) ? 12.0f : 8.0f;
     float diff = best_y - npc->ground_y;
-    float step = diff * fminf(1.0f, spd * 0.016f);
+    float step = diff * fminf(1.0f, spd * dt);
     npc->ground_y += step;
 }
 
@@ -123,29 +161,48 @@ static void npc_collide_walls(NPC *npc, Scene *scene) {
 
     for (int i = 0; i < scene->wall_count; i++) {
         Wall *w = &scene->walls[i];
-        if (!w->active || w->shape != SHAPE_CUBE) continue;
+        if (!w->active || w->no_collide || w->is_decal) continue;
         float wall_top = w->pos.y + w->size.y / 2;
         float wall_bot = w->pos.y - w->size.y / 2;
         // Skip step-over-able walls
         if (wall_top <= npc->ground_y + 0.5f && wall_top > npc->ground_y - 0.1f) continue;
 
-        if (npc->pos.x > w->pos.x - w->size.x/2 - pr &&
-            npc->pos.x < w->pos.x + w->size.x/2 + pr &&
-            npc->pos.z > w->pos.z - w->size.z/2 - pr &&
-            npc->pos.z < w->pos.z + w->size.z/2 + pr &&
+        if (wall_contains_xz(w, npc->pos.x, npc->pos.z, pr) &&
             npc->pos.y > wall_bot && npc->pos.y < wall_top) {
+            if (w->shape == SHAPE_CUBE || w->shape == SHAPE_MODEL) {
+                float lx = npc->pos.x - w->pos.x;
+                float lz = npc->pos.z - w->pos.z;
+                if (w->rotation_y != 0.0f) rotate_xz(&lx, &lz, -w->rotation_y * DEG2RAD);
+                float hx = w->size.x * 0.5f;
+                float hz = w->size.z * 0.5f;
+                float dx_l = (-hx - pr) - lx;
+                float dx_r = lx - (hx + pr);
+                float dz_f = (-hz - pr) - lz;
+                float dz_b = lz - (hz + pr);
+                float pen_x = (fabsf(dx_l) < fabsf(dx_r)) ? dx_l : -dx_r;
+                float pen_z = (fabsf(dz_f) < fabsf(dz_b)) ? dz_f : -dz_b;
 
-            float dx_l = (w->pos.x - w->size.x/2 - pr) - npc->pos.x;
-            float dx_r = npc->pos.x - (w->pos.x + w->size.x/2 + pr);
-            float dz_f = (w->pos.z - w->size.z/2 - pr) - npc->pos.z;
-            float dz_b = npc->pos.z - (w->pos.z + w->size.z/2 + pr);
-            float pen_x = (fabsf(dx_l) < fabsf(dx_r)) ? dx_l : -dx_r;
-            float pen_z = (fabsf(dz_f) < fabsf(dz_b)) ? dz_f : -dz_b;
-
-            if (fabsf(pen_x) < fabsf(pen_z)) {
-                npc->pos.x += pen_x;
+                if (fabsf(pen_x) < fabsf(pen_z)) {
+                    lx += pen_x;
+                } else {
+                    lz += pen_z;
+                }
+                if (w->rotation_y != 0.0f) rotate_xz(&lx, &lz, w->rotation_y * DEG2RAD);
+                npc->pos.x = w->pos.x + lx;
+                npc->pos.z = w->pos.z + lz;
             } else {
-                npc->pos.z += pen_z;
+                float dx = npc->pos.x - w->pos.x;
+                float dz = npc->pos.z - w->pos.z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 < 0.0001f) {
+                    npc->pos.x += pr;
+                } else {
+                    float r = fmaxf(w->size.x, w->size.z) * 0.5f + pr;
+                    float d = sqrtf(d2);
+                    float scale = r / d;
+                    npc->pos.x = w->pos.x + dx * scale;
+                    npc->pos.z = w->pos.z + dz * scale;
+                }
             }
         }
     }
@@ -213,8 +270,8 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
             npc->yaw_target = atan2f(-to_player.x, -to_player.z);
         }
         float yaw_diff = npc->yaw_target - npc->yaw;
-        while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
-        while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
+        while (yaw_diff > PI) yaw_diff -= 2*PI;
+        while (yaw_diff < -PI) yaw_diff += 2*PI;
         npc->yaw += yaw_diff * fminf(1.0f, 5.0f * dt);
 
         // Player proximity → advance (after this waypoint's line is delivered)
@@ -243,8 +300,8 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
         // Face movement direction — smooth
         npc->yaw_target = atan2f(-dir_x, -dir_z);
         float yaw_diff = npc->yaw_target - npc->yaw;
-        while (yaw_diff > 3.14159f) yaw_diff -= 6.28318f;
-        while (yaw_diff < -3.14159f) yaw_diff += 6.28318f;
+        while (yaw_diff > PI) yaw_diff -= 2*PI;
+        while (yaw_diff < -PI) yaw_diff += 2*PI;
         npc->yaw += yaw_diff * fminf(1.0f, 8.0f * dt);
 
         // Walk cycle
@@ -253,7 +310,7 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
 
     // Physics
     if (npc->use_physics && scene) {
-        npc_find_ground(npc, scene);
+        npc_find_ground(npc, scene, dt);
         npc_apply_gravity(npc, dt);
         npc_collide_walls(npc, scene);
     }
@@ -270,7 +327,6 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     // ── GLB MODEL PATH — rigged Gibbons (496 tris, 18 bones, 4 anims) ──
     // Animations (alphabetical Raylib load): A_Bow=0, B_Gesture=1, C_Idle=2, D_Walk=3
     {
-        extern GameCtx g;
         int gi = find_model_asset("gibbons");
         if (gi >= 0 && g.model_assets[gi].loaded) {
             ModelAsset *ma = &g.model_assets[gi];
@@ -320,11 +376,13 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
 
             // Shadow disc
             if (cyl_model) {
+                Color saved_shadow_color = cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
                 cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){0,0,0,80};
                 SetMaterialId(lighting, 0);
                 DrawModelEx(*cyl_model,
                     (Vector3){npc->pos.x, base_y_m + 0.02f, npc->pos.z},
                     (Vector3){0,1,0}, 0, (Vector3){0.5f, 0.01f, 0.5f}, WHITE);
+                cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_shadow_color;
             }
 
             // Luggage cart trailing behind
@@ -345,6 +403,10 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     }
 
     // ── CUBE-PERSON FALLBACK ──
+    // Save shared model material colors — restored at end of draw
+    Color saved_cube_color = cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
+    Color saved_cyl_color = cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color;
+
     float t = npc->bob_timer;
     float idle = npc->idle_timer;
     bool walking = !npc->waiting;
@@ -409,15 +471,15 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float weight_shift = 0;
     if (!walking && idle > 3.0f) {
         float ws_cycle = fmodf(idle - 3.0f, 6.0f);
-        if (ws_cycle < 1.5f) weight_shift = sinf(ws_cycle / 1.5f * 3.14159f) * 0.04f;
+        if (ws_cycle < 1.5f) weight_shift = sinf(ws_cycle / 1.5f * PI) * 0.04f;
         else if (ws_cycle > 3.0f && ws_cycle < 4.5f)
-            weight_shift = -sinf((ws_cycle - 3.0f) / 1.5f * 3.14159f) * 0.04f;
+            weight_shift = -sinf((ws_cycle - 3.0f) / 1.5f * PI) * 0.04f;
     }
     // Watch glance: right arm lifts briefly to check watch
     float watch_glance = 0;
     if (!walking && idle > 5.0f) {
         float wg = fmodf(idle - 5.0f, 10.0f);
-        if (wg < 0.6f) watch_glance = sinf(wg / 0.6f * 3.14159f) * 0.2f;
+        if (wg < 0.6f) watch_glance = sinf(wg / 0.6f * PI) * 0.2f;
     }
     // Subtle head look-around when idle for a while
     float head_wander = 0;
@@ -463,7 +525,7 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
     float tie_adjust = 0;
     if (!walking && idle > 2.0f) {
         float cycle = fmodf(idle - 2.0f, 4.0f);
-        if (cycle < 0.8f) tie_adjust = sinf(cycle / 0.8f * 3.14159f) * 0.14f;
+        if (cycle < 0.8f) tie_adjust = sinf(cycle / 0.8f * PI) * 0.14f;
     }
 
     #define P(lx, ly, lz) (Vector3){ \
@@ -637,9 +699,26 @@ void draw_npc(NPC *npc, Model *cube_model, Model *cyl_model,
         }
     }
 
+    // Restore shared model material colors
+    cube_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_cube_color;
+    cyl_model->materials[0].maps[MATERIAL_MAP_DIFFUSE].color = saved_cyl_color;
+
     #undef P
     #undef D
     #undef DRAW
     #undef DRAW_TILT
     #undef DRAWCYL
+}
+
+// ── Interest points ──────────────────────────────────────────────────
+// A brief yaw adjustment. Professional awareness. Not investigation.
+void npc_post_interest(NPC *npc, Vector3 pos, float lifetime) {
+    if (!npc->active || npc->waiting) return;
+    (void)lifetime;  // reserved for future timed glance duration
+    // Momentary yaw adjustment toward the sound source
+    float dx = pos.x - npc->pos.x;
+    float dz = pos.z - npc->pos.z;
+    if (dx * dx + dz * dz > 0.01f) {
+        npc->yaw_target = atan2f(-dx, -dz);
+    }
 }

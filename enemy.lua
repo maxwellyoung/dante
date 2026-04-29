@@ -1,6 +1,7 @@
 -- enemy.lua
 -- Defines the behavior for a single enemy type.
 
+local Palette = require("infernal_ascent_palette")
 local Enemy = {}
 Enemy.__index = Enemy
 
@@ -24,7 +25,7 @@ function Enemy:new(x, y, services)
     instance.vy = 0
     instance.is_active = true
     instance.is_grounded = false
-    instance.color = { 0.84, 0.28, 0.24 }
+    instance.color = Palette.enemy.walker_body
     return instance
 end
 
@@ -48,9 +49,9 @@ function Enemy:draw()
 
     love.graphics.setColor(self.color[1], self.color[2], self.color[3], 1)
     love.graphics.rectangle("fill", self.x, self.y + 6, self.width, self.height - 6, 4, 4)
-    love.graphics.setColor(0.18, 0.07, 0.07, 1)
+    love.graphics.setColor(Palette.enemy.walker_shadow[1], Palette.enemy.walker_shadow[2], Palette.enemy.walker_shadow[3], 1)
     love.graphics.rectangle("fill", self.x + 5, self.y + 12, self.width - 10, 6, 2, 2)
-    love.graphics.setColor(1, 0.88, 0.74, 1)
+    love.graphics.setColor(Palette.enemy.walker_face[1], Palette.enemy.walker_face[2], Palette.enemy.walker_face[3], 1)
     love.graphics.rectangle("fill", self.x + 8, self.y + 7, self.width - 16, 8, 2, 2)
     love.graphics.setColor(1, 1, 1, 1)
 end

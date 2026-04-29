@@ -3,8 +3,6 @@
 #include <math.h>
 #include <string.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void hard_cut_to(GameState s);
 void show_text(const char *text);
@@ -12,9 +10,12 @@ void hide_text(void);
 
 void balcony_load(void) {
     build_balcony(&g.scene);
+    g.scene.exit_pos = (Vector3){0.0f, 1.6f, 2.7f};
+    g.scene.has_exit = true;
     init_player(&g.player, g.scene.spawn);
     g.eiffel_sparkle = false; g.sparkle_timer = 0;
     g.cigarette_anim = false; g.cigarette_anim_timer = 0;
+    g.balcony_post_cig_chill = false;
     StopAmbient(&g.audio);
     StopClockAmbient(&g.audio);
     StopCityAmbient(&g.audio);
@@ -83,6 +84,21 @@ void balcony_update(float dt) {
                         Vector3 to_cig = Vector3Normalize(Vector3Subtract(obj->pos, g.player.camera.position));
                         g.cigarette_cam_target = Vector3Add(g.player.camera.position, Vector3Scale(to_cig, 0.5f));
                         break;
+                    } else if (strcmp(obj->name, "telescope") == 0) {
+                        obj->step++; obj->done = true;
+                        PlayInteract(&g.audio, INTERACT_CLICK);
+                        set_exposure(0.18f);
+                        SetPostFXWarmth(&g.postfx, 0.85f);
+                        SetPostFXGrain(&g.postfx, 0.25f);
+                        SetPostFXCA(&g.postfx, 1.8f);
+                        break;
+                    } else if (strcmp(obj->name, "airlock_panel") == 0) {
+                        obj->step++; obj->done = true;
+                        PlayInteract(&g.audio, INTERACT_CLICK);
+                        set_exposure(0.14f);
+                        SetPostFXWarmth(&g.postfx, 0.9f);
+                        SetPostFXGrain(&g.postfx, 0.45f);
+                        break;
                     }
                 }
             }
@@ -117,9 +133,8 @@ void balcony_update(float dt) {
     // After cigarette: the gust picks up. The room gets colder.
     // The architecture speaks. Not the text.
     if (!g.cigarette_anim && g.cigarette_anim_timer > 2.0f) {
-        static bool post_cig_chill = false;
-        if (!post_cig_chill) {
-            post_cig_chill = true;
+        if (!g.balcony_post_cig_chill) {
+            g.balcony_post_cig_chill = true;
             // Post-cigarette: warmth drops, grain increases. The moment passed.
             SetPostFXWarmth(&g.postfx, 0.6f);
             SetPostFXGrain(&g.postfx, 0.65f);
