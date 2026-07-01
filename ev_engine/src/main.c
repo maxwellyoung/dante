@@ -20,6 +20,7 @@ GameCtx g;
 
 void draw_prototype_lab(void);
 void draw_prototype_overlay(void);
+void suite_apply_ritual_progress_for_qa(int tasks, bool window_revealed, bool bath_running);
 
 static Model make_generated_model(Mesh mesh) {
     Model model = {0};
@@ -633,9 +634,9 @@ int main(void) {
     game_ctx_init(&g);
 
 #ifdef QA_MODE
-    // Unfocused + always-run: no focus steal, GL stays active even if occluded
-    // ALWAYS_RUN keeps GL rendering when window isn't focused
-    SetConfigFlags(FLAG_WINDOW_ALWAYS_RUN);
+    // Hidden + unfocused + always-run: QA captures screenshots without stealing focus.
+    // ALWAYS_RUN keeps GL rendering when the window is hidden or not focused.
+    SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_UNFOCUSED | FLAG_WINDOW_ALWAYS_RUN);
     InitWindow(960, 600, "EV QA");
 #else
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -753,10 +754,21 @@ int main(void) {
         bool outdoor;
         bool force_elevator_to_corridor;
         bool skip_floor_coverage_check;
+        int suite_forced_tasks;
+        bool suite_force_window_revealed;
+        bool suite_force_bath_running;
         // Game flow
         int flow_order;     // position in canonical game flow (-1 = orphaned)
         GameState flow_next; // expected next scene in flow
     } QAEntry;
+
+    #define QA_APPLY_SCENE_OVERRIDES(entry) do { \
+        if ((entry).gs == STATE_SPACE_SUITE && \
+            ((entry).suite_forced_tasks > 0 || (entry).suite_force_window_revealed || (entry).suite_force_bath_running)) { \
+            suite_apply_ritual_progress_for_qa((entry).suite_forced_tasks, \
+                (entry).suite_force_window_revealed, (entry).suite_force_bath_running); \
+        } \
+    } while (0)
 
     // ── Game flow order (canonical playthrough) ──
     // TITLE → CAR → DRIVING → HOTEL_EXT → LOBBY → ELEVATOR →
@@ -789,7 +801,7 @@ int main(void) {
                 {{0, 1.6f, 5.1f}, {0, 1.5f, -4.5f}},            // hero: full-room shell read
                 {{0.2f, 1.6f, 4.6f}, {-5.8f, 1.5f, -0.5f}},     // window: left shell + frame
                 {{-5.6f, 1.4f, 2.2f}, {-6.9f, 1.6f, -0.5f}},    // window_corner: sill + mullions
-                {{5.9f, 1.5f, 2.6f}, {9.5f, 1.4f, 2.5f}},       // bathroom_door: shell to bathroom volume
+                {{4.8f, 1.45f, 3.35f}, {8.9f, 1.35f, 2.45f}},    // bathroom_door: doorway + visible wet-room volume
                 {{8.5f, 1.5f, 2.5f}, {11.4f, 1.5f, 2.5f}},      // bathroom_far: shell/collision fit
                 {{0, 2.9f, 0}, {0, 4.9f, -0.5f}},               // ceiling: shell crown
                 {{0, 1.0f, 5.5f}, {0, 0.0f, 4.8f}},             // threshold_floor: floor plane/entry
@@ -797,6 +809,31 @@ int main(void) {
             .angle_names = {"hero", "window", "window_corner", "bathroom_door", "bathroom_far", "ceiling", "threshold_floor"},
             .angle_count = 7,
             .dark_by_design = true, .outdoor = false,
+            .flow_order = -1, .flow_next = STATE_BALCONY},
+        {STATE_SPACE_SUITE, "space_suite_ritual_mid",
+            .angles = {
+                {{-2.2f, 1.25f, 4.35f}, {-3.1f, 0.55f, 3.45f}}, // champagne: one full glass, one empty
+                {{8.45f, 1.45f, 2.20f}, {10.1f, 1.10f, 2.45f}},  // bath: steam/water visible in actual wet-room
+                {{0, 1.6f, 5.1f}, {0, 1.5f, -4.5f}},            // hero_mid: room still coherent after two tasks
+            },
+            .angle_names = {"champagne", "bath", "hero_mid"},
+            .angle_count = 3,
+            .dark_by_design = true, .outdoor = false,
+            .suite_forced_tasks = 2,
+            .suite_force_bath_running = true,
+            .flow_order = -1, .flow_next = STATE_BALCONY},
+        {STATE_SPACE_SUITE, "space_suite_ritual_final",
+            .angles = {
+                {{0.0f, 2.80f, -1.80f}, {-0.10f, 0.68f, -4.75f}},  // bed: covers pulled, second pillow marked
+                {{0.2f, 1.6f, 4.6f}, {-5.8f, 1.5f, -0.5f}},     // window: reveal state, cool left wall
+                {{0, 1.6f, 5.1f}, {0, 1.5f, -4.5f}},            // hero_final: full-room read
+            },
+            .angle_names = {"bed", "window", "hero_final"},
+            .angle_count = 3,
+            .dark_by_design = true, .outdoor = false,
+            .suite_forced_tasks = 4,
+            .suite_force_window_revealed = true,
+            .suite_force_bath_running = true,
             .flow_order = -1, .flow_next = STATE_BALCONY},
     };
 #elif defined(QA_CAST_ONLY)
@@ -1310,6 +1347,7 @@ int main(void) {
         double load_start = GetTime();
         g.elevator_to_corridor = qa_scenes[qi].force_elevator_to_corridor;
         load_state(qa_scenes[qi].gs);
+        QA_APPLY_SCENE_OVERRIDES(qa_scenes[qi]);
         g.fade_alpha = 0.0f; g.fade_target = 0.0f;
         double load_time_ms = (GetTime() - load_start) * 1000.0;
 
@@ -1323,6 +1361,7 @@ int main(void) {
             if (ai > 0) {
                 g.elevator_to_corridor = qa_scenes[qi].force_elevator_to_corridor;
                 load_state(qa_scenes[qi].gs);
+                QA_APPLY_SCENE_OVERRIDES(qa_scenes[qi]);
                 g.fade_alpha = 0.0f; g.fade_target = 0.0f;
             }
 

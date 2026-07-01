@@ -102,7 +102,7 @@ static const char *postfx_fs =
     "    // Increases with speed for a visceral movement feel.\n"
     "    {\n"
     "        float r2 = dot(fromCenter, fromCenter);\n"
-    "        float distort = 1.0 + r2 * (0.03 + speedNorm * 0.04);\n"
+    "        float distort = 1.0 + r2 * (0.006 + speedNorm * 0.008);\n"
     "        uv = 0.5 + fromCenter * distort;\n"
     "        fromCenter = uv - 0.5;\n"
     "    }\n"
@@ -140,13 +140,13 @@ static const char *postfx_fs =
     "\n"
     "    // --- Chromatic aberration — RGB split at edges ---\n"
     "    float caStrength = dot(fromCenter, fromCenter) * caAmount;\n"
-    "    vec2 caOffset = fromCenter * caStrength * px * 3.0;\n"
+    "    vec2 caOffset = fromCenter * caStrength * px * 1.1;\n"
     "    float r = texture(texture0, uv + caOffset).r;\n"
     "    float g = texture(texture0, uv).g;\n"
     "    float b = texture(texture0, uv - caOffset).b;\n"
     "    vec3 col = vec3(r, g, b);\n"
     "    // Blend FXAA — smooth edges while preserving CA character\n"
-    "    col = mix(col, fxaa, 0.3);\n"
+    "    col = mix(col, fxaa, 0.55);\n"
     "\n"
     "    // --- Sharpening — unsharp mask ---\n"
     "    if (sharpenAmt > 0.0) {\n"
@@ -242,9 +242,9 @@ static const char *postfx_fs =
     "    // --- Film grain ---\n"
     "    if (grain > 0.0) {\n"
     "        float n = grainHash(uv * resolution + fract(time * 7.3) * 100.0);\n"
-    "        n = (n - 0.5) * grain * 0.15;\n"  // stronger grain
+    "        n = (n - 0.5) * grain * 0.045;\n"
     "        float shadow = 1.0 - smoothstep(0.0, 0.4, luma);\n"
-    "        col += n * (0.6 + shadow * 0.6);\n"
+    "        col += n * (0.5 + shadow * 0.25);\n"
     "    }\n"
     "\n"
     "    // --- CRT Scanlines ---\n"
@@ -271,20 +271,20 @@ static const char *postfx_fs =
     "        float edgeDist = length(fromCenter) * 2.0;\n"  // 0 at center, ~1 at edges
     "        float speedBlur = speedNorm * edgeDist * edgeDist;\n"  // stronger at edges
     "        if (speedBlur > 0.01 && edgeDist > 0.001) {\n"
-    "            vec2 blurDir = (fromCenter / edgeDist) * speedBlur * 0.04;\n"
+    "            vec2 blurDir = (fromCenter / edgeDist) * speedBlur * 0.012;\n"
     "            vec3 blur = vec3(0.0);\n"
     "            for (int s = 1; s <= 4; s++) {\n"
     "                blur += texture(texture0, uv - blurDir * float(s)).rgb;\n"
     "            }\n"
     "            blur *= 0.25;\n"
-    "            col = mix(col, blur, speedBlur * 0.5);\n"
+    "            col = mix(col, blur, speedBlur * 0.16);\n"
     "        }\n"
     "        // Speed-reactive CA boost — edges split more at speed\n"
-    "        float speedCA = speedNorm * edgeDist * 3.0;\n"
+    "        float speedCA = speedNorm * edgeDist * 0.6;\n"
     "        if (speedCA > 0.1) {\n"
-    "            vec2 scaOff = fromCenter * speedCA * px * 2.0;\n"
-    "            col.r = mix(col.r, texture(texture0, uv + scaOff).r, speedNorm * 0.3);\n"
-    "            col.b = mix(col.b, texture(texture0, uv - scaOff).b, speedNorm * 0.3);\n"
+    "            vec2 scaOff = fromCenter * speedCA * px * 0.8;\n"
+    "            col.r = mix(col.r, texture(texture0, uv + scaOff).r, speedNorm * 0.08);\n"
+    "            col.b = mix(col.b, texture(texture0, uv - scaOff).b, speedNorm * 0.08);\n"
     "        }\n"
     "    }\n"
     "\n"
@@ -341,17 +341,19 @@ EVPostFX LoadEVPostFX(void) {
         float one = 1.0f;
         SetShaderValue(pfx.postfx, pfx.warmthLoc, &zero, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.exposureLoc, &zero, SHADER_UNIFORM_FLOAT);
-        float defaultGrain = 0.3f;
+        float defaultGrain = 0.08f;
         SetShaderValue(pfx.postfx, pfx.grainLoc, &defaultGrain, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.flashLoc, &zero, SHADER_UNIFORM_FLOAT);
         float white[3] = {1.0f, 1.0f, 1.0f};
         SetShaderValue(pfx.postfx, pfx.flashColorLoc, white, SHADER_UNIFORM_VEC3);
         float defaultSat = 1.0f;
         SetShaderValue(pfx.postfx, pfx.saturationLoc, &defaultSat, SHADER_UNIFORM_FLOAT);
-        float defaultCA = 0.8f;
+        float defaultCA = 0.12f;
         SetShaderValue(pfx.postfx, pfx.caAmountLoc, &defaultCA, SHADER_UNIFORM_FLOAT);
-        SetShaderValue(pfx.postfx, pfx.contrastLoc, &one, SHADER_UNIFORM_FLOAT);
-        SetShaderValue(pfx.postfx, pfx.vignetteLoc, &one, SHADER_UNIFORM_FLOAT);
+        float defaultContrast = 0.45f;
+        float defaultVignette = 0.25f;
+        SetShaderValue(pfx.postfx, pfx.contrastLoc, &defaultContrast, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(pfx.postfx, pfx.vignetteLoc, &defaultVignette, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.tintLoc, white, SHADER_UNIFORM_VEC3);
         SetShaderValue(pfx.postfx, pfx.ditherLoc, &zero, SHADER_UNIFORM_FLOAT);
         SetShaderValue(pfx.postfx, pfx.scanlineLoc, &zero, SHADER_UNIFORM_FLOAT);
@@ -390,6 +392,8 @@ void SetPostFXExposure(EVPostFX *pfx, float exposure) {
 
 void SetPostFXGrain(EVPostFX *pfx, float grain) {
     if (pfx->ready) {
+        if (grain > 0.22f) grain = 0.22f;
+        if (grain < 0.0f) grain = 0.0f;
         SetShaderValue(pfx->postfx, pfx->grainLoc, &grain, SHADER_UNIFORM_FLOAT);
     }
 }
@@ -403,19 +407,35 @@ void SetPostFXFlash(EVPostFX *pfx, float intensity, float r, float g, float b) {
 }
 
 void SetPostFXSaturation(EVPostFX *pfx, float saturation) {
-    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->saturationLoc, &saturation, SHADER_UNIFORM_FLOAT);
+    if (pfx->ready) {
+        if (saturation < 0.68f) saturation = 0.68f;
+        if (saturation > 1.12f) saturation = 1.12f;
+        SetShaderValue(pfx->postfx, pfx->saturationLoc, &saturation, SHADER_UNIFORM_FLOAT);
+    }
 }
 
 void SetPostFXCA(EVPostFX *pfx, float caAmount) {
-    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->caAmountLoc, &caAmount, SHADER_UNIFORM_FLOAT);
+    if (pfx->ready) {
+        if (caAmount > 0.35f) caAmount = 0.35f;
+        if (caAmount < 0.0f) caAmount = 0.0f;
+        SetShaderValue(pfx->postfx, pfx->caAmountLoc, &caAmount, SHADER_UNIFORM_FLOAT);
+    }
 }
 
 void SetPostFXContrast(EVPostFX *pfx, float contrast) {
-    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->contrastLoc, &contrast, SHADER_UNIFORM_FLOAT);
+    if (pfx->ready) {
+        if (contrast > 0.75f) contrast = 0.75f;
+        if (contrast < 0.0f) contrast = 0.0f;
+        SetShaderValue(pfx->postfx, pfx->contrastLoc, &contrast, SHADER_UNIFORM_FLOAT);
+    }
 }
 
 void SetPostFXVignette(EVPostFX *pfx, float vignette) {
-    if (pfx->ready) SetShaderValue(pfx->postfx, pfx->vignetteLoc, &vignette, SHADER_UNIFORM_FLOAT);
+    if (pfx->ready) {
+        if (vignette > 0.55f) vignette = 0.55f;
+        if (vignette < 0.0f) vignette = 0.0f;
+        SetShaderValue(pfx->postfx, pfx->vignetteLoc, &vignette, SHADER_UNIFORM_FLOAT);
+    }
 }
 
 void SetPostFXTint(EVPostFX *pfx, float r, float g, float b) {
@@ -437,8 +457,8 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed) {
 //                                  sat    ca   con  vig  grn  exp   tint_r/g/b        dith scan blm  post pix  shrp
 const VisualStyle visual_styles[STYLE_COUNT] = {
     // 1: Default — clean architectural photograph. Let the geometry speak.
-    //    Minimal processing. Colors stay true. Grain is texture, not noise.
-    {"16mm Film",     1.0f,  0.9f, 1.0f, 0.75f, 0.32f,  0.10f, {1.02f,1.0f,0.98f},    0.0f,0.0f,0.30f, 0,  1,  0.35f},
+    //    Minimal processing. The blockout already has enough roughness.
+    {"Clean Hotel",   1.0f,  0.12f,0.45f,0.25f,0.08f,  0.08f, {1.01f,1.0f,0.99f},    0.0f,0.0f,0.08f, 0,  1,  0.12f},
 
     // 2: PS1 — ordered dithering, color quantization, chunky pixels
     {"PS1",           0.85f, 0.5f, 0.8f, 0.4f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},

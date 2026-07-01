@@ -117,13 +117,13 @@ typedef struct {
 // Default physics — the "feel" of the game
 static inline PhysicsConfig physics_default(void) {
     return (PhysicsConfig){
-        .walk_speed         = 4.5f,
-        .sprint_speed       = 8.5f,
-        .slide_speed_mult   = 1.5f,
+        .walk_speed         = 3.2f,
+        .sprint_speed       = 5.6f,
+        .slide_speed_mult   = 1.25f,
 
-        .ground_accel       = 10.0f,
-        .ground_friction    = 6.0f,
-        .slide_friction     = 1.5f,
+        .ground_accel       = 7.0f,
+        .ground_friction    = 7.5f,
+        .slide_friction     = 2.8f,
 
         .air_accel          = 12.0f,
         .air_speed_cap      = 1.0f,     // Quake-style: low cap = big air strafe
@@ -142,23 +142,23 @@ static inline PhysicsConfig physics_default(void) {
         .eye_height         = 1.6f,
         .slide_eye_height   = 1.2f,
         .crouch_eye_height  = 1.0f,
-        .fov_walk           = 70.0f,
-        .fov_sprint         = 82.0f,
-        .fov_slide          = 88.0f,
-        .fov_lerp_speed     = 8.0f,
-        .tilt_walk          = 1.5f,
-        .tilt_sprint        = 2.5f,
-        .tilt_slide         = 3.5f,
-        .tilt_lerp_speed    = 10.0f,
+        .fov_walk           = 62.0f,
+        .fov_sprint         = 68.0f,
+        .fov_slide          = 70.0f,
+        .fov_lerp_speed     = 4.5f,
+        .tilt_walk          = 0.45f,
+        .tilt_sprint        = 0.8f,
+        .tilt_slide         = 1.2f,
+        .tilt_lerp_speed    = 5.5f,
 
-        .bob_walk_rate      = 9.0f,
-        .bob_sprint_rate    = 14.0f,
-        .bob_slide_rate     = 18.0f,
-        .bob_walk_amp       = 0.04f,
-        .bob_sprint_amp     = 0.08f,
-        .bob_slide_amp      = 0.10f,
+        .bob_walk_rate      = 5.5f,
+        .bob_sprint_rate    = 7.5f,
+        .bob_slide_rate     = 9.0f,
+        .bob_walk_amp       = 0.012f,
+        .bob_sprint_amp     = 0.022f,
+        .bob_slide_amp      = 0.03f,
 
-        .land_dip_strength  = 0.15f,
+        .land_dip_strength  = 0.045f,
         .land_dip_decay     = 5.0f,
         .land_dip_max_vy    = 8.0f,
 
@@ -184,24 +184,24 @@ static inline PhysicsConfig physics_default(void) {
 
         .crouch_jump_bonus  = 1.5f,     // +1.5 to jump impulse from slide
 
-        .speed_fov_scale    = 1.5f,     // 1.5° per unit above sprint
-        .speed_fov_max      = 100.0f,
-        .speed_shake_threshold = 12.0f,
-        .speed_shake_intensity = 0.02f,
+        .speed_fov_scale    = 0.35f,    // restrained exploration camera
+        .speed_fov_max      = 74.0f,
+        .speed_shake_threshold = 18.0f,
+        .speed_shake_intensity = 0.004f,
 
         .climb_reach    = 2.5f,     // can grab ledges 2.5m above eye (generous)
         .climb_min_vy   = -6.0f,   // can climb even when falling (not terminal)
         .climb_wall_dist = 0.8f,   // must be close to the wall
 
-        .dash_speed     = 18.0f,
-        .dash_duration  = 0.15f,
+        .dash_speed     = 10.0f,
+        .dash_duration  = 0.12f,
         .dash_cooldown  = 0.6f,
     };
 }
 
 // Legacy macros — scenes still reference these
-#define WALK_SPEED  4.5f
-#define SPRINT_SPEED 8.5f
+#define WALK_SPEED  3.2f
+#define SPRINT_SPEED 5.6f
 
 // ─────────────────────────────────────────────────────────────────────
 

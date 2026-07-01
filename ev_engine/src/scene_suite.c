@@ -9,6 +9,79 @@ void hard_cut_to(GameState s);
 void show_text(const char *text);
 InteractSoundType get_interact_sound_ext(const char *name);
 
+static void suite_add_lamp_ritual_visuals(void) {
+    add_light_panel(&g.scene, -2.5f, 1.2f, -4.8f, 0.5f, 0.6f, 0.5f, (Color){255,220,120,200});
+    add_wall(&g.scene, -2.5f, 1.0f, -4.65f, 0.15f, 0.25f, 0.15f, (Color){220,210,185,180});
+    add_wall(&g.scene, -2.5f, 1.8f, -5.35f, 1.2f, 1.5f, 0.01f, (Color){60,45,20,40});
+}
+
+static void suite_add_champagne_ritual_visuals(void) {
+    add_cone(&g.scene, -3.1f, 0.39f, 3.5f, 0.06f, 0.08f, (Color){210,210,215,200});
+    add_cylinder(&g.scene, -3.1f, 0.44f, 3.5f, 0.02f, 0.08f, (Color){210,210,215,200});
+    add_wall_decal(&g.scene, -3.1f, 0.46f, 3.5f, 0.045f, 0.003f, 0.045f, (Color){240,210,100,200});
+    add_cone(&g.scene, -2.8f, 0.39f, 3.3f, 0.06f, 0.08f, (Color){210,210,215,200});
+    add_cylinder(&g.scene, -2.8f, 0.44f, 3.3f, 0.02f, 0.08f, (Color){210,210,215,200});
+    add_sphere(&g.scene, -2.8f, 0.7f, 3.3f, 0.1f, (Color){240,210,100,180});
+    add_sphere(&g.scene, -3.2f, 0.9f, 3.6f, 0.08f, (Color){240,210,100,160});
+    add_sphere(&g.scene, -3.0f, 1.2f, 3.4f, 0.06f, (Color){240,210,100,140});
+    SetPointLightIdx(&g.lighting, 2, -3.1f, 0.42f, 3.5f, 0.36f, 0.30f, 0.09f, 3.0f);
+}
+
+static void suite_add_desk_ritual_visuals(void) {
+    add_wall(&g.scene, 5.3f, 0.45f, -1.6f, 0.4f, 0.04f, 0.3f, (Color){55,85,175,255});
+    add_wall(&g.scene, 5.5f, 0.85f, -2.0f, 1.8f, 0.01f, 0.8f, (Color){20,25,45,255});
+    add_wall_decal(&g.scene, 5.2f, 0.86f, -2.1f, 0.06f, 0.005f, 0.06f, (Color){240,235,220,200});
+    add_wall_decal(&g.scene, 5.7f, 0.86f, -1.8f, 0.04f, 0.005f, 0.04f, (Color){240,235,220,180});
+    add_wall_decal(&g.scene, 5.4f, 0.86f, -1.6f, 0.05f, 0.005f, 0.05f, (Color){240,235,220,160});
+    add_wall_decal(&g.scene, 5.45f, 0.862f, -1.95f, 0.8f, 0.003f, 0.02f, (Color){180,60,50,100});
+    add_light_panel(&g.scene, 5.6f, 0.88f, -2.2f, 0.12f, 0.01f, 0.06f, (Color){180,200,240,120});
+}
+
+static void suite_add_bed_ritual_visuals(void) {
+    add_wall(&g.scene, 0.0f, 0.74f, -4.05f, 2.75f, 0.035f, 0.58f, (Color){248,244,235,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+    add_wall(&g.scene, 0.0f, 0.82f, -4.55f, 2.6f, 0.045f, 0.20f, (Color){212,202,190,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+    add_wall(&g.scene, 0.0f, 0.79f, -5.02f, 0.18f, 0.035f, 0.12f, (Color){90,50,25,255});
+    add_wall_decal(&g.scene, -0.58f, 0.785f, -5.20f, 0.30f, 0.006f, 0.18f, (Color){178,168,158,230});
+}
+
+static void suite_add_bath_running_visuals(void) {
+    add_light_panel(&g.scene, 8.55f, 1.30f, 2.5f, 0.04f, 1.7f, 1.7f, (Color){240,200,120,48});
+    add_wall(&g.scene, 9.20f, 0.58f, 2.05f, 1.7f, 0.012f, 0.78f, (Color){64,84,96,155});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_wall(&g.scene, 8.75f, 1.55f, 2.15f, 0.08f, 1.5f, 1.15f, (Color){205,215,224,48});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_wall(&g.scene, 9.35f, 1.85f, 2.55f, 0.06f, 1.8f, 1.35f, (Color){205,215,224,34});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_sphere(&g.scene, 9.15f, 2.45f, 2.25f, 0.12f, (Color){205,215,224,42});
+    add_sphere(&g.scene, 9.65f, 2.15f, 2.70f, 0.09f, (Color){205,215,224,34});
+}
+
+static void suite_add_window_reveal_visuals(void) {
+    g.suite_window_revealed = true;
+    g.suite_window_dwell = 15.0f;
+    SetPointLightIdx(&g.lighting, 3, -5.8f, 1.5f, -0.5f, 0.35f, 0.55f, 0.9f, 6.0f);
+    add_light_panel(&g.scene, -6.88f, 1.72f, -0.65f, 0.035f, 1.7f, 2.8f, (Color){95,150,215,86});
+    add_wall(&g.scene, -6.86f, 1.25f, -0.75f, 0.025f, 0.18f, 2.35f, (Color){90,200,190,105});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_sphere(&g.scene, -6.52f, 2.10f, 0.65f, 0.10f, (Color){110,220,210,120});
+}
+
+void suite_apply_ritual_progress_for_qa(int tasks, bool window_revealed, bool bath_running) {
+    if (tasks < 0) tasks = 0;
+    if (tasks > SPACE_TASK_COUNT) tasks = SPACE_TASK_COUNT;
+    g.tasks_done = tasks;
+    if (tasks >= 1) { suite_add_lamp_ritual_visuals(); g.interaction_phases[0] = 2; }
+    if (tasks >= 2) { suite_add_champagne_ritual_visuals(); g.interaction_phases[1] = 2; PlaySuiteMusic(&g.audio); }
+    if (tasks >= 3) { suite_add_desk_ritual_visuals(); g.interaction_phases[2] = 2; }
+    if (tasks >= 4) { suite_add_bed_ritual_visuals(); g.interaction_phases[3] = 2; SetPostFXWarmth(&g.postfx, 1.0f); }
+    if (window_revealed) suite_add_window_reveal_visuals();
+    if (bath_running) suite_add_bath_running_visuals();
+    SetPostFXWarmth(&g.postfx, 0.08f + (float)tasks / (float)SPACE_TASK_COUNT * 0.7f);
+    g.scene.fog_density = 0.001f - ((float)tasks / SPACE_TASK_COUNT * 0.0005f);
+}
+
 void suite_load(void) {
     bool replay = g.backstory_count > 3;
 
@@ -595,8 +668,7 @@ void suite_update(float dt) {
                     }
                     // Bathroom — water runs, steam appears. Say nothing.
                     if (strcmp(obj->name, "bathroom") == 0 && obj->step == 1) {
-                        add_wall(&g.scene, -6.8f, 2.0f, -1.0f, 0.1f, 3.0f, 4.0f, (Color){200,210,220,25});
-                        add_wall(&g.scene, -6.6f, 2.5f, -0.5f, 0.08f, 2.0f, 3.0f, (Color){200,210,220,15});
+                        suite_add_bath_running_visuals();
                         SetSoundVolume(g.audio.snd_running_water, 0.04f);
                         PlayRunningWater(&g.audio);
                         // The bath is big. You can see that. The water runs. That's enough.
@@ -616,7 +688,7 @@ void suite_update(float dt) {
                         if (zone_auto) g.suite_zone_auto_desk = true;
                     } else if (strcmp(obj->name, "bed") == 0 && obj->step == 1) {
                         // Pull back the covers — the Chevalier moment
-                        add_wall(&g.scene, 0, 0.54f, -4.3f, 2.8f, 0.02f, 1.4f, (Color){245,242,235,255});
+                        suite_add_bed_ritual_visuals();
                         g.interaction_phases[3] = 1;
                         g.interaction_timers[3] = 3.0f;
                         PlayBedRitual(&g.audio);

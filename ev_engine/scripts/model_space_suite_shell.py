@@ -13,7 +13,7 @@ import bpy
 
 RW, RD, RH = 14.0, 12.0, 5.0
 WIN_W, WIN_CZ = 7.0, -0.5
-DOOR_Z, DOOR_HALF = -3.5, 0.65
+ADJOINING_DOOR_Z, BATH_DOOR_Z, DOOR_HALF = -3.5, 2.5, 0.65
 BATH_X, BATH_Z = RW / 2 + 2.5, 2.5
 
 
@@ -88,11 +88,11 @@ def join_meshes(name):
 
 clear_scene()
 
-hull = make_mat("EV_Shell_Hull", (0.19, 0.21, 0.26, 1.0), roughness=0.85)
-cream = make_mat("EV_Shell_Cream", (0.86, 0.84, 0.80, 1.0), roughness=0.75)
-brass = make_mat("EV_Shell_Brass", (0.72, 0.62, 0.42, 1.0), roughness=0.32, metallic=0.75)
-glass = make_mat("EV_Shell_Glass", (0.06, 0.08, 0.14, 0.85), roughness=0.08, metallic=0.0)
-navy = make_mat("EV_Shell_Navy", (0.12, 0.13, 0.28, 1.0), roughness=0.7)
+hull = make_mat("EV_Shell_Hull", (0.35, 0.36, 0.38, 1.0), roughness=0.82)
+cream = make_mat("EV_Shell_Cream", (0.80, 0.76, 0.68, 1.0), roughness=0.76)
+brass = make_mat("EV_Shell_Brass", (0.56, 0.46, 0.30, 1.0), roughness=0.38, metallic=0.65)
+glass = make_mat("EV_Shell_Glass", (0.02, 0.04, 0.10, 0.62), roughness=0.10, metallic=0.0)
+navy = make_mat("EV_Shell_Navy", (0.08, 0.10, 0.17, 1.0), roughness=0.72)
 
 # Ceiling slab
 add_box("Ceiling", (0, RH - 0.06, 0), (RW, 0.12, RD), hull)
@@ -122,22 +122,27 @@ for i in range(1, 4):
     add_box(f"WindowMullion_{i}", (-RW / 2 + 0.10, RH / 2, mz), (0.03, RH - 0.9, 0.06), brass)
 add_box("WindowCrossbar", (-RW / 2 + 0.10, RH * 0.33, WIN_CZ), (0.03, 0.06, WIN_W), brass)
 
-# Right wall split around porthole and two doors
-wall_front_z = (RD / 2 + (DOOR_Z + DOOR_HALF)) / 2.0
-wall_front_d = RD / 2 - (DOOR_Z + DOOR_HALF)
-wall_back_z = (-RD / 2 + (DOOR_Z - DOOR_HALF)) / 2.0
-wall_back_d = (DOOR_Z - DOOR_HALF) - (-RD / 2)
-add_box("RightWall_Front", (RW / 2, RH / 2, wall_front_z), (0.18, RH, wall_front_d), hull)
-add_box("RightWall_Back", (RW / 2, RH / 2, wall_back_z), (0.18, RH, wall_back_d), hull)
-add_box("RightDoorHeader", (RW / 2, RH - 0.5, DOOR_Z), (0.18, RH - 2.7, DOOR_HALF * 2), hull)
+# Right wall split around porthole, adjoining door, and bathroom door.
+right_back_z = (-RD / 2 + (ADJOINING_DOOR_Z - DOOR_HALF)) / 2.0
+right_back_d = (ADJOINING_DOOR_Z - DOOR_HALF) - (-RD / 2)
+right_mid_z = ((ADJOINING_DOOR_Z + DOOR_HALF) + (BATH_DOOR_Z - DOOR_HALF)) / 2.0
+right_mid_d = (BATH_DOOR_Z - DOOR_HALF) - (ADJOINING_DOOR_Z + DOOR_HALF)
+right_front_z = ((BATH_DOOR_Z + DOOR_HALF) + RD / 2) / 2.0
+right_front_d = RD / 2 - (BATH_DOOR_Z + DOOR_HALF)
+add_box("RightWall_Back", (RW / 2, RH / 2, right_back_z), (0.18, RH, right_back_d), hull)
+add_box("RightWall_Mid", (RW / 2, RH / 2, right_mid_z), (0.18, RH, right_mid_d), hull)
+add_box("RightWall_Front", (RW / 2, RH / 2, right_front_z), (0.18, RH, right_front_d), hull)
+add_box("AdjoiningDoorHeader", (RW / 2, RH - 0.5, ADJOINING_DOOR_Z), (0.18, RH - 2.7, DOOR_HALF * 2), hull)
+add_box("BathroomDoorHeader", (RW / 2, RH - 0.5, BATH_DOOR_Z), (0.18, RH - 2.7, DOOR_HALF * 2), hull)
 add_torus("PortholeRing", (RW / 2 - 0.10, RH * 0.55, -1.5), 1.45, 0.10, (0, math.radians(90), 0), brass)
 add_torus("PortholeInner", (RW / 2 - 0.08, RH * 0.55, -1.5), 1.18, 0.06, (0, math.radians(90), 0), navy)
 
 # Wallpaper/trim accents
 add_box("LeftCreamBack", (-RW / 2 + 0.17, RH * 0.4, -RD / 2 + 1.5), (0.04, RH * 0.8, 2.5), cream)
 add_box("LeftCreamFront", (-RW / 2 + 0.17, RH * 0.4, RD / 2 - 1.5), (0.04, RH * 0.8, 2.5), cream)
-add_box("RightCreamFront", (RW / 2 - 0.17, RH * 0.4, wall_front_z), (0.04, RH * 0.8, wall_front_d - 0.5), cream)
-add_box("RightCreamBack", (RW / 2 - 0.17, RH * 0.4, wall_back_z), (0.04, RH * 0.8, wall_back_d - 0.5), cream)
+add_box("RightCreamBack", (RW / 2 - 0.17, RH * 0.4, right_back_z), (0.04, RH * 0.8, max(0.2, right_back_d - 0.35)), cream)
+add_box("RightCreamMid", (RW / 2 - 0.17, RH * 0.4, right_mid_z), (0.04, RH * 0.8, max(0.2, right_mid_d - 0.35)), cream)
+add_box("RightCreamFront", (RW / 2 - 0.17, RH * 0.4, right_front_z), (0.04, RH * 0.8, max(0.2, right_front_d - 0.35)), cream)
 
 # Bathroom shell volume beyond service wall
 add_box("BathroomBack", (BATH_X, 1.5, BATH_Z - 2.0), (4.0, 3.0, 0.16), cream)
