@@ -10,8 +10,8 @@ Lifecycle: active
 - Grickle visual style (Shift+0): luma-cel shader path — the Puzzle Agent look; candidate art direction for AFTERSHOW.
 - Ending permutations: bed scene queries accumulated facts (Vanaman/TWD model).
 - Sibling project: ~/Development/aftershow (Twine prologue, shares the rules system).
-- Triage + roadmap: AUDIT_2026-07.md.
+- Triage: AUDIT_2026-07.md. THE PLAN: ROADMAP.md (priority-ordered, wins conflicts).
 
 ## Next Useful Move
 
-- Ship-scope EV (the track is the only content gap), then Green Room greybox for AFTERSHOW.
+- ROADMAP.md Phase 1: ship EV tight. The track (Maxwell), spine enforcement + stopwatch audit (agent).
