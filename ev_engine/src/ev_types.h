@@ -417,6 +417,7 @@ typedef struct {
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
     bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
     int model_index;        // SHAPE_MODEL only: index into model_assets[]
+    const char *tag;        // identity for the rules DB (carrying=<tag>); NULL = anonymous
     // Nudge physics — authored responses with spring-back
     bool pushable;
     float push_mass;        // resistance (0 = immovable, 0.3 = wine glass, 1.0 = book)

@@ -335,3 +335,49 @@ criteria concept=enter scene=bed saw_glass=1 tasks_done<2
 say "One glass, still out. Somebody should put it away. Not tonight."
 norepeat
 end
+
+# ══ CARRY REACTIONS — the boombox move ═══════════════════════════════
+# Facts: holding=1 while carrying anything; carrying=<tag> for named props
+# (guest_register, vase, ashtray, coffee_cup, photograph, postcard,
+# pillow_red, pillow_blue, her_book). Fired by the idle poll — pick a thing
+# up and keep walking; the world notices. Most carries stay silent.
+
+# Amalfitano's geometry book on the washing line (2666). She left it;
+# carry it to the balcony and the game knows exactly what you're doing.
+rule carry_book_balcony
+who narrator
+criteria concept=idle scene=balcony carrying=her_book
+say "Hang it on the railing. See what it learns out here."
+norepeat
+end
+
+rule carry_book_suite
+who gibbons
+criteria concept=idle scene=space_suite carrying=her_book random<60
+say "Geometry. The previous... it was left, sir. It's yours if you want it."
+norepeat
+end
+
+# The photograph, carried instead of faced — devastating politeness.
+rule carry_photograph
+who gibbons
+criteria concept=idle scene=space_suite carrying=photograph
+say "I can have a frame sent up."
+norepeat
+end
+
+# The ashtray that shouldn't exist — Puzzle Agent beat.
+rule carry_ashtray
+who gibbons
+criteria concept=idle scene=lobby carrying=ashtray
+say "That shouldn't be here at all. Take it. I saw nothing."
+norepeat
+end
+
+# Her pillow. He says the kindest possible nothing-much.
+rule carry_pillow_blue
+who gibbons
+criteria concept=idle scene=space_suite carrying=pillow_blue
+say "Housekeeping can restore the arrangement, sir. Or not."
+norepeat
+end

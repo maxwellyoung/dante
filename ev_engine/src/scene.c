@@ -187,6 +187,12 @@ void add_wall_decal(Scene *s, float x, float y, float z, float w, float h, float
     set_last_decal(s);
 }
 
+// Name the most recent wall for the rules database (carrying=<tag> facts)
+void set_last_tag(Scene *s, const char *tag) {
+    Wall *w = get_last_added_wall(s);
+    if (w) w->tag = tag;
+}
+
 // Mark most recent wall as pushable — nudge physics
 void set_last_pushable(Scene *s, float mass, float damping) {
     {
@@ -1140,6 +1146,7 @@ void build_lobby(Scene *s) {
     add_wall(s, desk_x - 0.2f, 0.95f, desk_z, 0.5f, 0.03f, 0.35f, (Color){180,170,150,255});
     set_last_material(s, MAT_LEATHER);
     set_last_pushable(s, 0.5f, 4.0f);
+    set_last_tag(s, "guest_register");
 
     // ── Key left on desk — someone checked in ──
     add_wall(s, desk_x - 0.1f, 0.95f, desk_z - 0.8f, 0.08f, 0.02f, 0.04f, gold);
@@ -1294,6 +1301,7 @@ void build_lobby(Scene *s) {
     add_cylinder(s, con_x + 0.02f, 0.55f, con_z, 0.1f, 0.25f, (Color){180, 175, 165, 255});
     set_last_material(s, MAT_MARBLE);
     set_last_pushable(s, 0.4f, 4.0f);
+    set_last_tag(s, "vase");
     set_last_breakable(s, 1.0f);
 
     // ============================================================
@@ -1489,6 +1497,7 @@ void build_lobby(Scene *s) {
     add_cylinder(s, con_x + 0.15f, 0.42f, con_z + 0.3f, 0.08f, 0.02f, gold);
     set_last_material(s, MAT_BRASS);
     set_last_pushable(s, 0.3f, 4.0f);
+    set_last_tag(s, "ashtray");
 
     // ── Second cigarette — by the entrance, in a crack of marble ──
     add_cylinder(s, 1.8f, 0.02f, 7.0f, 0.1f, 0.45f, (Color){230,225,215,200});
@@ -1926,6 +1935,7 @@ void build_hotel_room(Scene *s) {
     // Coffee cup — bigger, white
     add_wall(s, 4.5f, 0.86f, 0.3f, 0.16f, 0.2f, 0.16f, white);
     set_last_pushable(s, 0.3f, 4.0f);
+    set_last_tag(s, "coffee_cup");
     set_last_breakable(s, 1.0f);
     // Book — bright Godard red, 2x size
     add_wall(s, 3.8f, 0.95f, -0.22f, 1.0f, 0.5f, 0.2f, godard_red);
@@ -5470,11 +5480,13 @@ void build_space_suite(Scene *s) {
     add_wall(s, 2.5f, 0.64f, -4.6f, 0.2f, 0.01f, 0.15f, (Color){240,238,230,255});
     set_last_decal(s);
     set_last_pushable(s, 0.2f, 5.0f);
+    set_last_tag(s, "photograph");
     // Postcard — unread, unknowable
     add_wall(s, 2.3f, 0.65f, -4.9f, 0.16f, 0.005f, 0.11f, cream);
     set_last_decal(s);
     set_last_rotation(s, 8.0f);
     set_last_pushable(s, 0.1f, 3.0f);
+    set_last_tag(s, "postcard");
 
     // BEDSIDE LAMPS — matching pair, warm pools
     // Left lamp
@@ -5538,10 +5550,12 @@ void build_space_suite(Scene *s) {
     add_wall(s, -3.5f, 0.52f, 1.6f, 0.35f, 0.30f, 0.30f, accent_wine);
     set_last_material(s, MAT_VELVET);
     set_last_pushable(s, 0.1f, 3.0f);
+    set_last_tag(s, "pillow_red");
     // Second throw pillow — blue (her favorite color)
     add_wall(s, -2.4f, 0.48f, 1.7f, 0.30f, 0.28f, 0.28f, PAL_BLUE);
     set_last_material(s, MAT_VELVET);
     set_last_pushable(s, 0.1f, 3.0f);
+    set_last_tag(s, "pillow_blue");
     set_last_rotation(s, 12.0f);
 
     // Scarf draped over sofa arm — someone sat here
@@ -5564,6 +5578,7 @@ void build_space_suite(Scene *s) {
     add_wall(s, -3.2f, 0.39f, 3.5f, 0.35f, 0.04f, 0.22f, PAL_BLUE);
     set_last_material(s, MAT_LEATHER);
     set_last_pushable(s, 0.5f, 4.0f);
+    set_last_tag(s, "her_book");
 
     // TWO CHAMPAGNE GLASSES on tray — one poured, one empty
     {

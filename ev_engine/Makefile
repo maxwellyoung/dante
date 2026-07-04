@@ -200,6 +200,9 @@ count:
 	@wc -l src/*.c src/*.h | sort -n
 	@echo ""
 
+factsheet:
+	@python3 scripts/factsheet.py
+
 todo:
 	@echo "=== TODOs, FIXMEs, HACKs, XXXs ==="
 	@grep -rn 'TODO\|FIXME\|HACK\|XXX' src/ || echo "  (none found)"

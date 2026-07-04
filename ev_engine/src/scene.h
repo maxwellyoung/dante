@@ -25,6 +25,7 @@ void set_last_rotation(Scene *s, float degrees);
 void set_last_decal(Scene *s);
 
 // Nudge physics — mark most recent wall as pushable
+void set_last_tag(Scene *s, const char *tag);
 void set_last_pushable(Scene *s, float mass, float damping);
 
 // Breakable — shatters on hard impact

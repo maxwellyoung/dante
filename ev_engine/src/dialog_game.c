@@ -90,6 +90,16 @@ static void build_query(DlgQuery *q, const char *who, const char *concept) {
 
     // Long-horizon facts — what the ending remembers about how you lived here
     dlg_query_add(q, "photograph_flipped", g.photograph_flipped ? 1.0f : 0.0f);
+
+    // Carry facts — the boombox move (Remo): rules see what's in your hands.
+    // Tagged props (set_last_tag) expose carrying=<tag>; anything held at
+    // all exposes holding=1. Carrying her book onto the balcony is a fact.
+    if (g.grab.state == GRAB_CARRYING && g.grab.wall_index >= 0
+        && g.grab.wall_index < g.scene.wall_count) {
+        dlg_query_add(q, "holding", 1.0f);
+        const char *tag = g.scene.walls[g.grab.wall_index].tag;
+        if (tag) dlg_query_add_sym(q, "carrying", tag);
+    }
 }
 
 static bool speak_ex(const char *who, const char *concept,
