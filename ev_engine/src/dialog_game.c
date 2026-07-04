@@ -117,8 +117,8 @@ static bool speak_ex(const char *who, const char *concept,
     show_dialogue(speaker, res.line);
 
     float cps = g.dlg_chars_per_sec > 1 ? g.dlg_chars_per_sec : 30.0f;
-    float dur = (float)strlen(res.line) / cps + 1.8f;
-    sp.duration = fminf(10.0f, fmaxf(2.8f, dur));
+    float dur = (float)strlen(res.line) / cps + 1.2f;   // read tail
+    sp.duration = fminf(10.0f, fmaxf(2.2f, dur));       // stopwatch rule: edit down
     sp.elapsed = 0;
     sp.speaking = true;
     sp.who = dlg_intern(who);
@@ -190,8 +190,9 @@ void dlg_game_update(float dt) {
                        dlg_symbol_name(sp.follow_concept));
     }
 
-    // Hold Gibbons at his waypoint while a rules-driven line is on screen
-    g.gibbons.dlg_hold = sp.speaking && sp.who == dlg_intern("gibbons");
+    // dlg_hold retired from waypoint gating (walk-and-talk): Gibbons waits
+    // for the player, not his subtitle. Field stays for explicit scene holds.
+    g.gibbons.dlg_hold = false;
 
     bool legacy_line = npc_current_dialogue(&g.gibbons) != NULL;
 

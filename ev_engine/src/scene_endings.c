@@ -113,7 +113,7 @@ void bed_update(float dt) {
         SetPostFXGrain(&g.postfx, 0.3f + desat * 0.5f);
     }
     if (g.state_time > 20)
-        hard_cut_to(STATE_MONTAGE);
+        hard_cut_to(STATE_STARS);  // spine: bed -> stars -> montage (CUT.md)
     // Breathing
     {
         float breath_rate = 0.4f;

@@ -1853,7 +1853,7 @@ int main(void) {
             {STATE_SPACE_SUITE,    STATE_BALCONY,        "space_suite",    "balcony"},
             {STATE_BALCONY,        STATE_BED,            "balcony",        "bed"},
             {STATE_BED,            STATE_STARS,          "bed",            "stars"},
-            {STATE_STARS,          STATE_PARIS_DREAM,    "stars",          "paris_dream"},
+            {STATE_STARS,          STATE_MONTAGE,        "stars",          "montage"},
             {STATE_PARIS_DREAM,    STATE_RETURN_TAXI,    "paris_dream",    "return_taxi"},
         };
         int flow_count = (int)(sizeof(flow) / sizeof(flow[0]));

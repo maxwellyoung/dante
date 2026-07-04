@@ -265,9 +265,10 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
             }
         } else {
             // No legacy lines — rules-driven dialogue (dialog_game.c) fires a
-            // "waypoint" concept at 0.5s and sets dlg_hold while its line is
-            // up. Give it that beat; if nothing matches, advance freely.
-            line_delivered = npc->idle_timer > 0.9f && !npc->dlg_hold;
+            // "waypoint" concept at 0.5s. Give it that beat to start, then
+            // advance freely: Gibbons walks off mid-line (Firewatch
+            // walk-and-talk) — he waits for the PLAYER, never his subtitle.
+            line_delivered = npc->idle_timer > 0.9f;
         }
 
         // Face toward the player — smoothly (unless reading)

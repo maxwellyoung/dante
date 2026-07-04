@@ -22,9 +22,13 @@ MIDDLE — Intimacy (≈6 min)
   → SPACE_SUITE (the ritual: lamp, champagne, desk, bed — the room warms)
 
 END — Fracture / Release (≈4 min)
-  BALCONY → BED (permutation line fires here) → PARIS_DREAM (the fracture)
-  → MONTAGE (Thirty Flights rapid cuts) → RETURN_TAXI → STARS → credits
+  BALCONY → PARIS_DREAM (the fracture) → CLEANED_SUITE (the hotel reset the
+  room; the trip never happened, institutionally) → BED (permutation line
+  fires here) → STARS → MONTAGE (Thirty Flights rapid cuts) → RETURN_TAXI
+  → TITLE (the loop closes) 
 ```
+*(Endgame order verified against the actual wiring 2026-07-05; STARS was
+orphaned — bed cut straight to montage — now restored: bed → stars → montage.)*
 
 Every scene on the spine earns its place by advancing the one story: booked
 for two, arrived as one.
@@ -35,8 +39,7 @@ for two, arrived as one.
 |---|---|
 | TITLE, CAR, DRIVING, HOTEL_EXT, LOBBY, ELEVATOR, HYPERSPACE | **Spine** |
 | SPACE_LOBBY, GLASSHOUSE, SPACE_CORRIDOR, SPACE_SUITE | **Spine** |
-| BALCONY, BED, PARIS_DREAM, MONTAGE, RETURN_TAXI, STARS | **Spine** |
-| CLEANED_SUITE | Keep only if reachable on the spine (montage return beat); otherwise gate |
+| BALCONY, PARIS_DREAM, CLEANED_SUITE, BED, STARS, MONTAGE, RETURN_TAXI | **Spine** |
 | HALLWAY, ROOM, BATHROOM (Paris hotel) | **Cut from flow** — dev keys only. Orphaned, high defect count, not on the spine |
 | PROTO_LAB / MOVEMENT / SHOOTER / PUZZLE | Dev keys only (already are). The Quake feel lives here |
 | SHELL_TEST | Dev only |
