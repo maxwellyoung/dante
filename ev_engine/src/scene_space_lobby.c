@@ -46,22 +46,8 @@ void space_lobby_load(void) {
             {0, 1.6f, 0},
         };
         init_npc(&g.gibbons, (Vector3){2, 1.6f, 4}, lobby_wps, 4, 2.5f, 3.5f);
-        static const char *lobby_lines_first[] = {
-            "The room's been ready for some time.",
-            "Take your time.",
-            "This way.",
-            "I'll be nearby.",
-        };
-        static const char *lobby_lines_return[] = {
-            "I thought you might come back.",
-            "The window hasn't moved.",
-            "Same corridor. Shorter this time.",
-            "You know where to find me.",
-        };
-        if (g.backstory_count > 3)
-            npc_set_dialogue(&g.gibbons, lobby_lines_return, 4, 3.5f);
-        else
-            npc_set_dialogue(&g.gibbons, lobby_lines_first, 4, 3.5f);
+        // Dialogue is rules-driven — assets/dialogue/ev.rules
+        // (concept=waypoint, scene=space_lobby). No npc_set_dialogue here.
     }
 }
 

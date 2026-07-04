@@ -65,6 +65,8 @@ static void init_common(NPC *npc, Vector3 start, Vector3 *waypoints, int count,
     npc->current_waypoint = 0;
     npc->idle_timer = 0;
     npc->behavior = NPC_WALKING;
+    npc->dlg_hold = false;
+    npc->dlg_fired_waypoint = -1;
     npc->waypoint_count = count > MAX_NPC_WAYPOINTS ? MAX_NPC_WAYPOINTS : count;
     for (int i = 0; i < npc->waypoint_count; i++)
         npc->waypoints[i] = waypoints[i];
@@ -262,7 +264,10 @@ void update_npc(NPC *npc, Vector3 player_pos, Scene *scene, float dt) {
                 }
             }
         } else {
-            line_delivered = true;  // no lines left — free to advance
+            // No legacy lines — rules-driven dialogue (dialog_game.c) fires a
+            // "waypoint" concept at 0.5s and sets dlg_hold while its line is
+            // up. Give it that beat; if nothing matches, advance freely.
+            line_delivered = npc->idle_timer > 0.9f && !npc->dlg_hold;
         }
 
         // Face toward the player — smoothly (unless reading)

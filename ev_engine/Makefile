@@ -6,6 +6,7 @@ LIBDIRS = -L/opt/homebrew/lib
 
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:.c=.o)
+HDR = $(wildcard src/*.h)
 BIN = endearing_void
 
 all: $(BIN)
@@ -13,7 +14,7 @@ all: $(BIN)
 $(BIN): $(OBJ)
 	$(CC) $(OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
 
-src/%.o: src/%.c
+src/%.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 run: $(BIN)
@@ -31,7 +32,7 @@ dev: $(DEV_OBJ)
 	$(CC) $(DEV_OBJ) -o $(BIN) $(LIBDIRS) $(LDFLAGS)
 	./$(BIN)
 
-src/%.dev.o: src/%.c
+src/%.dev.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DDEV_START=$(SCENE) -c $< -o $@
 
 # Dev watch — auto-rebuild + restart on source changes, preserves scene
@@ -56,7 +57,7 @@ qa: validate-model-registry $(QA_OBJ)
 	./$(BIN)
 	@rm -f src/*.qa.o
 
-src/%.qa.o: src/%.c
+src/%.qa.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -c $< -o $@
 
 # Shell acceptance QA — dedicated production shell pass
@@ -68,7 +69,7 @@ qa-shell: validate-model-registry $(SHELL_QA_OBJ)
 	./$(BIN)
 	@rm -f src/*.shellqa.o
 
-src/%.shellqa.o: src/%.c
+src/%.shellqa.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_SHELL_ONLY -c $< -o $@
 
 SHELL_SUITE_QA_OBJ = $(SRC:.c=.shellsuiteqa.o)
@@ -79,7 +80,7 @@ qa-shell-suite: validate-model-registry $(SHELL_SUITE_QA_OBJ)
 	./$(BIN)
 	@rm -f src/*.shellsuiteqa.o
 
-src/%.shellsuiteqa.o: src/%.c
+src/%.shellsuiteqa.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_SHELL_SUITE_ONLY -c $< -o $@
 
 CAST_QA_OBJ = $(SRC:.c=.castqa.o)
@@ -90,7 +91,7 @@ qa-cast: validate-model-registry $(CAST_QA_OBJ)
 	./$(BIN)
 	@rm -f src/*.castqa.o
 
-src/%.castqa.o: src/%.c
+src/%.castqa.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_CAST_ONLY -c $< -o $@
 
 # Full QA pipeline: build + run + diff + archive
@@ -123,7 +124,7 @@ qa-e2e: validate-model-registry $(E2E_OBJ)
 	./$(BIN)
 	@rm -f src/*.e2e.o
 
-src/%.e2e.o: src/%.c
+src/%.e2e.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_E2E -c $< -o $@
 
 # Full E2E pipeline: multi-angle + 6-profile analysis + flow testing
@@ -151,7 +152,7 @@ qa-audit: validate-model-registry $(AUDIT_OBJ)
 	./$(BIN)
 	@rm -f src/*.audit.o
 
-src/%.audit.o: src/%.c
+src/%.audit.o: src/%.c $(HDR)
 	$(CC) $(CFLAGS) $(INCLUDES) -DQA_MODE -DQA_AUDIT -c $< -o $@
 
 # ── Quality & Analysis ──────────────────────────────────────────────
@@ -216,13 +217,17 @@ fmt:
 	@clang-format -i src/*.c src/*.h
 	@echo "Done."
 
-test: tests/test_main
+test: tests/test_main tests/test_dialog
 	@echo "=== Running headless tests ==="
 	@./tests/test_main
+	@./tests/test_dialog
 	@echo ""
 
 tests/test_main: tests/test_main.c src/ev_types.h src/scene.h src/player.h src/audio.h src/render.h src/lighting.h
 	$(CC) -std=c99 -Wall -Wextra $(INCLUDES) -DHEADLESS_TEST tests/test_main.c -o tests/test_main
+
+tests/test_dialog: tests/test_dialog.c src/dialog.c src/dialog.h
+	$(CC) -std=c99 -Wall -Wextra tests/test_dialog.c src/dialog.c -o tests/test_dialog
 
 devclean:
 	rm -f src/*.dev.o

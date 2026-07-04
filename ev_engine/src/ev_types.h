@@ -546,6 +546,9 @@ typedef struct {
     float line_timer;       // time current line has been showing
     float line_duration;    // seconds per line (default 3.0)
     bool line_showing;
+    // Rules-driven dialogue (dialog.c / dialog_game.c) — used when lines==NULL
+    bool dlg_hold;          // dialogue system holds NPC at waypoint mid-line
+    int dlg_fired_waypoint; // last waypoint a concept was fired for (-1 = none)
 } NPC;
 
 #endif

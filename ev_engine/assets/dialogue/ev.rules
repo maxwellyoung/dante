@@ -1,0 +1,337 @@
+# ev.rules — contextual dialogue for ENDEARING VOID
+# After Elan Ruskin's GDC 2012 "AI-driven Dynamic Dialog" (Valve response rules).
+#
+# Edit this file, press F6 in-game to hot reload. No recompile.
+#
+# FORMAT
+#   rule <name>            start a rule (name shows in the log)
+#   who <speaker>          gibbons | narrator (narrator = unattributed line)
+#   criteria k=v k<n ...   ALL must be true. Ops: = < <= > >= and a..b ranges.
+#                          A criterion naming a fact absent from the query FAILS.
+#                          More criteria = more specific = wins over general rules.
+#   say "..."              response line. Repeat for variants; one is chosen at
+#                          random, cycling so all are heard before any repeats.
+#   remember k=v k+=1      write memory when the rule fires. @N = expires in N sec.
+#   then <who> <concept> after <sec>   chain a followup query when the line ends.
+#                          Re-queried at fire time — if the world changed, silence.
+#   norepeat               rule disables itself after firing once.
+#   resay <sec>            cooldown before this rule may fire again.
+#   end                    close the rule.
+#
+# FACTS AVAILABLE (dialog_game.c adds more as needed — ask for anything):
+#   concept                waypoint | idle | <any concept a "then" clause names>
+#   who                    speaker being queried
+#   scene                  space_lobby, space_corridor, space_suite, glasshouse,
+#                          balcony, lobby, elevator, taxi... (state_names table)
+#   scene_time total_time  seconds
+#   waypoint               Gibbons' current waypoint index (when he's active)
+#   gibbons_dist           metres from player to Gibbons
+#   gibbons_behavior       walking | waiting | reading | sitting | gazing | gesturing
+#   tasks_done             suite ritual progress 0..4
+#   lobby_visits           space lobby entry count
+#   backstory_count        taxi/title choices answered 0..6
+#   player_speed player_still random(0..99)
+#   window_revealed phone_ringing   (suite only)
+#   ...plus anything a rule remembered.
+
+# ══ SPACE LOBBY — the tour ═══════════════════════════════════════════
+# First visit: baseline rules. Return visit (backstory_count>3) adds one
+# criterion, scores higher, and quietly replaces every line.
+
+rule sl_tour_ready
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=0
+say "The room's been ready for some time."
+remember met_gibbons=1
+end
+
+rule sl_tour_time
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=1
+say "Take your time."
+end
+
+rule sl_tour_thisway
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=2
+say "This way."
+end
+
+rule sl_tour_nearby
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=3
+say "I'll be nearby."
+then gibbons lobby_aside after 2.5
+end
+
+# The aside only lands if the player is still standing there when the line
+# ends — walk away and the conversation self-terminates. (Slide 79.)
+rule sl_aside_lingering
+who gibbons
+criteria concept=lobby_aside scene=space_lobby player_still=1 gibbons_dist<6
+say "Most guests head straight through. No shame in lingering."
+norepeat
+end
+
+# ── Return visit — one extra criterion, so these win when true ──
+rule sl_return_ready
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=0 backstory_count>3
+say "I thought you might come back."
+end
+
+rule sl_return_window
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=1 backstory_count>3
+say "The window hasn't moved."
+end
+
+rule sl_return_corridor
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=2 backstory_count>3
+say "Same corridor. Shorter this time."
+end
+
+rule sl_return_findme
+who gibbons
+criteria concept=waypoint scene=space_lobby waypoint=3 backstory_count>3
+say "You know where to find me."
+end
+
+# ══ SPACE CORRIDOR — the walk to the suite ═══════════════════════════
+
+rule corr_nocturne
+who gibbons
+criteria concept=waypoint scene=space_corridor waypoint=0
+say "Someone in Four plays that same nocturne every evening."
+end
+
+rule corr_gentleman
+who gibbons
+criteria concept=waypoint scene=space_corridor waypoint=1
+say "The gentleman in Six orders for two. Every night. Sends half back."
+end
+
+rule corr_yours
+who gibbons
+criteria concept=waypoint scene=space_corridor waypoint=2
+say "Yours is at the end. I left the curtains open."
+end
+
+# Return visit — the corridor's stories have endings now.
+rule corr_return_nocturne
+who gibbons
+criteria concept=waypoint scene=space_corridor waypoint=0 backstory_count>3
+say "Four stopped playing last week. Nobody noticed."
+end
+
+rule corr_return_gentleman
+who gibbons
+criteria concept=waypoint scene=space_corridor waypoint=1 backstory_count>3
+say "Six checked out. The trays stopped coming."
+end
+
+rule corr_return_yours
+who gibbons
+criteria concept=waypoint scene=space_corridor waypoint=2 backstory_count>3
+say "Yours is as you left it."
+end
+
+# ══ GLASSHOUSE — the observation lounge ══════════════════════════════
+# Return visit says one thing at the first stop, then lets the room talk.
+
+rule gh_lounge
+who gibbons
+criteria concept=waypoint scene=glasshouse waypoint=0
+say "The observation lounge. Most guests spend the evening here."
+end
+
+rule gh_through
+who gibbons
+criteria concept=waypoint scene=glasshouse waypoint=1
+say "Your suite is just through."
+end
+
+rule gh_return_quieter
+who gibbons
+criteria concept=waypoint scene=glasshouse waypoint=0 backstory_count>3
+say "Quieter tonight."
+end
+
+# Return visit, second stop — the extra criterion outranks the tour line.
+rule gh_return_through
+who gibbons
+criteria concept=waypoint scene=glasshouse waypoint=1 backstory_count>3
+say "You remember the way."
+end
+
+# ══ SUITE PROPS — concept=interact, object=<name>, step=N ════════════
+# Every E-press tags its prop; the database decides if there's a line.
+# SILENT BY DESIGN (architecture speaks — do not add rules): adjoining_door,
+# wardrobe, photograph, sock, suitcase, bathroom, lamp, desk, bed, champagne.
+
+rule int_thermostat
+who gibbons
+criteria concept=interact object=thermostat step=1
+say "It's set where it's set for a reason, sir."
+resay 60
+end
+
+# Keep cycling it and he notices — step counts around the dial.
+rule int_thermostat_fiddling
+who gibbons
+criteria concept=interact object=thermostat step>=3
+say "It goes around, sir. That's all it does."
+norepeat
+end
+
+rule int_book
+who gibbons
+criteria concept=interact object=book step=1
+say "The previous guest left it. Or we provide them. I forget which."
+end
+
+rule int_wineglass
+who gibbons
+criteria concept=interact object=wineglass step=1
+say "One glass. We notice these things. We don't mention them."
+remember saw_glass=1
+then gibbons wineglass_beat after 2.0
+end
+
+# Only lands if the player is still standing with the glass when the
+# line ends. Walk away and he keeps it to himself.
+rule int_wineglass_beat
+who gibbons
+criteria concept=wineglass_beat scene=space_suite player_still=1
+say "I'll bring another up. In case."
+norepeat
+end
+
+rule int_postcard
+who gibbons
+criteria concept=interact object=postcard step=1
+say "There's a mailbox in the lobby. The rates are optimistic."
+end
+
+rule int_roomservice
+who gibbons
+criteria concept=interact object=roomservice step=1
+say "The kitchen never closes. There's no night up here to close for."
+end
+
+rule int_phone
+who gibbons
+criteria concept=interact object=phone step=1
+say "For the room, mostly. Occasionally the front desk. Never further."
+remember touched_phone=1
+end
+
+# ══ IDLE — ambient observations, polled every ~10s ═══════════════════
+# random<N keeps them scarce. resay keeps them from cycling too fast.
+# Silence is the default answer; these are exceptions to it.
+
+rule idle_lobby_smalltalk
+who gibbons
+criteria concept=idle scene=space_lobby random<25
+say "Gravity here is point nine. Nobody complains."
+say "The elevator takes eleven minutes. I've timed it."
+remember lobby_idles+=1
+resay 30
+end
+
+# Running gag: after he's made two observations, a more specific rule
+# (one extra criterion — 5 beats smalltalk's 4) takes over — once.
+rule idle_lobby_threehours
+who gibbons
+criteria concept=idle scene=space_lobby lobby_idles>=2 met_gibbons=1
+say "Still three hours to kill, sir."
+norepeat
+end
+
+rule idle_corridor
+who gibbons
+criteria concept=idle scene=space_corridor random<25
+say "The corridor is longer than it needs to be. By design, I'm told."
+say "The carpet is new. It won't be."
+resay 45
+end
+
+rule idle_glasshouse_gazing
+who gibbons
+criteria concept=idle scene=glasshouse gibbons_behavior=gazing
+say "It's rude to stare. The Earth doesn't mind."
+norepeat
+end
+
+rule idle_suite_warming
+who gibbons
+criteria concept=idle scene=space_suite tasks_done>=3 random<40
+say "The room warms up when it's used. Like anything."
+norepeat
+end
+
+rule idle_suite_phone
+who gibbons
+criteria concept=idle scene=space_suite phone_ringing=1
+say "You could answer that. Or not. It stops eventually."
+resay 20
+end
+
+# Narrator speaks where Gibbons doesn't go.
+rule idle_balcony_city
+who narrator
+criteria concept=idle scene=balcony random<20 scene_time>25
+say "The city doesn't know you're up here."
+norepeat
+end
+
+# ══ THE BED — ending permutations (concept=enter, scene=bed) ═════════
+# The Vanaman principle (TWD ending): one beat, recontextualized by the
+# player's accumulated history. Every permutation must read as a valid
+# EV story — general baseline, increasingly specific exceptions.
+# The narrator speaks unattributed. One line only. Then the music.
+
+rule end_bed_base
+who narrator
+criteria concept=enter scene=bed
+say "Three hours. Nearly done."
+norepeat
+end
+
+rule end_bed_untouched
+who narrator
+criteria concept=enter scene=bed tasks_done<1
+say "You lie down in a room that never learned your name."
+norepeat
+end
+
+rule end_bed_ritual
+who narrator
+criteria concept=enter scene=bed tasks_done>=4
+say "The room is warm. You did everything two people would have done."
+norepeat
+end
+
+rule end_bed_photo
+who narrator
+criteria concept=enter scene=bed photograph_flipped=1
+say "The photograph is face-up on the nightstand. You can't see it from here. You know."
+norepeat
+end
+
+# Most specific: full ritual AND you turned her over. Scores 6.
+rule end_bed_photo_ritual
+who narrator
+criteria concept=enter scene=bed tasks_done>=4 photograph_flipped=1
+say "The room is warm, and Paris is face-up in the dark. You did the whole evening for two. Both of you were here, in a way."
+norepeat
+end
+
+# You met the glass and did nothing else — the quietest permutation.
+rule end_bed_glass
+who narrator
+criteria concept=enter scene=bed saw_glass=1 tasks_done<2
+say "One glass, still out. Somebody should put it away. Not tonight."
+norepeat
+end

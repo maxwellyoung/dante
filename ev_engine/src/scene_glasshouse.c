@@ -37,17 +37,8 @@ void glasshouse_load(void) {
         };
         init_npc(&g.gibbons, g.scene.spawn, wps, 3, 4.0f, 1.5f);
         g.gibbons.speed = 3.0f;  // purposeful pace — not rushing, not lingering
-        static const char *lines_first[] = {
-            "The observation lounge. Most guests spend the evening here.",
-            "Your suite is just through.",
-        };
-        static const char *lines_return[] = {
-            "Quieter tonight.",
-        };
-        if (g.backstory_count > 3)
-            npc_set_dialogue(&g.gibbons, lines_return, 1, 3.0f);
-        else
-            npc_set_dialogue(&g.gibbons, lines_first, 2, 4.0f);
+        // Dialogue is rules-driven — assets/dialogue/ev.rules
+        // (concept=waypoint, scene=glasshouse). No npc_set_dialogue here.
     }
 
     SetSceneLighting(&g.lighting, LightingPreset_Balcony());  // reuse balcony preset for now

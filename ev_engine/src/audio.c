@@ -1005,6 +1005,8 @@ static Sound gen_earth_presence(void);
 void InitEVAudio(EVAudio *audio) {
     memset(audio, 0, sizeof(EVAudio));
     InitAudioDevice();
+    // EV_MUTE=1 — silence everything (dev/test runs; QA mutes separately)
+    if (getenv("EV_MUTE")) SetMasterVolume(0.0f);
     for (int i = 0; i < 4; i++) {
         audio->step_marble[i] = gen_step_marble(42+i*7);
         audio->step_carpet[i] = gen_step_carpet(100+i*11);

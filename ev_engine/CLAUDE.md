@@ -58,9 +58,12 @@ render.c            — rendering + post-FX shaders
 lighting.c          — GLSL lighting + per-scene presets
 player.c            — Quake-style movement/physics
 npc.c               — Gibbons NPC
+dialog.c            — contextual dialogue core: rule database + pattern matching (headless-testable)
+dialog_game.c       — dialogue↔engine binding: world-state queries, speech lifecycle, triggers
 ui.c / ui.h         — Spring physics, icons, UI components
 config.h            — centralized constants (PI, SAMPLE_RATE, task counts, etc.)
 
+assets/dialogue/ev.rules — writer-editable response rules (F6 hot reload, no recompile)
 assets/skytower.obj — Sky Tower 3D model (first external mesh)
 assets/*.glb, *.obj — Authored assets; active runtime models are declared in src/model_registry.c
 scripts/blender_send.py — Blender MCP socket helper (model/rig/export)
@@ -203,6 +206,19 @@ Quake-style air strafing, bunny hopping (50ms friction grace), wall running, led
 ### NPC System (`npc.c`)
 Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, per-waypoint dialogue, physics modes (ghost vs grounded). Drawing uses macros (`P()`, `D()`, `DRAW()`) for local-space positioning relative to NPC yaw.
 
+### Contextual Dialogue (`dialog.c`, `dialog_game.c`)
+Valve-style response rules (Elan Ruskin, GDC 2012 — L4D/TF2/Portal). World state flattens into facts; writers author rules in `assets/dialogue/ev.rules`; the most specific matching rule wins; responses write memory back and chain followups into conversations.
+
+- **Facts**: interned key → float (string values intern to symbol ids). Query = concept + who + scene + everything else (`build_query()` in dialog_game.c) + persistent memory.
+- **Criteria**: interval tests `lo ≤ v ≤ hi`. A criterion naming an absent fact rejects the rule. Score = criteria count → specific beats general.
+- **Responses**: `say` variants cycle randomly without repeats; `remember k=v` / `k+=1` (optional `@ttl`) writes memory; `then who concept after N` chains a followup that is **re-queried when it fires** — conversations self-terminate if the world changed; `norepeat` / `resay N` control replay.
+- **Triggers**: Gibbons waypoint stops fire `concept=waypoint` (scenes with no legacy `npc_set_dialogue` lines); an ~8s idle poll fires `concept=idle` (no match = silence); suite E-presses fire `concept=interact` with `object=<prop>` + `step=N` facts via `dlg_game_remark()` — every named prop is speakable, most stay silent by design. Scenes/code can call `dlg_game_speak(who, concept)` / `dlg_game_speak_about(...)` directly.
+- **Workflow**: edit `ev.rules`, press **F6** in-game to hot reload. Unknown state you want to gate on? Add one `dlg_query_add()` line to `build_query()`.
+- **Tests**: `tests/test_dialog.c` exercises the core headless (`make test`). `dialog.c` must stay Raylib-free.
+- **Voice-ready**: every `say` variant has a stable vox ID (`<rule>_v<n>`). `python3 scripts/vox_sheet.py > qa/vox_sheet.csv` emits the recording sheet; subtitles are the current delivery, VO drops in later against the same IDs.
+
+Legacy per-scene `npc_set_dialogue()` arrays still work and take priority scene-by-scene; migrate them into rules as scenes are touched (done: space lobby, space corridor, glasshouse; suite props fire interact concepts).
+
 ## Key Conventions
 
 - **1920×1200 visibility rule**: If it's not 3+ pixels at render resolution, scale it up or remove it. See `scale.h` for canonical dimensions.
@@ -211,7 +227,7 @@ Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, 
 - **Interaction = visible consequence**: Every E-press must change geometry or lighting, not just set a flag.
 - **Spring physics for UI**: Crosshair scale, text entry, title animation all use mass-spring-damper (k=280, d=26, m=0.9).
 
-## Visual Style Presets (Shift+1-9)
+## Visual Style Presets (Shift+1-9, Shift+0)
 
 | Key | Style | Character |
 |-----|-------|-----------|
@@ -224,6 +240,7 @@ Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, 
 | Shift+7 | Neon | Oversaturated, bloom heavy, teal-orange tint |
 | Shift+8 | Woodcut | Extreme dither, near-mono, posterized |
 | Shift+9 | Raw | No post-FX. Naked geometry and lighting |
+| Shift+0 | Grickle | Puzzle Agent storybook. Luma cel bands (hue survives), paper grain, inked edges |
 
 Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 
@@ -235,6 +252,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 | F3 | Debug overlay (FPS, walls, position, state, speed bar, movement mode) |
 | F4 | Noclip fly mode (Space=up, Ctrl=down) |
 | F5 | Nudge mode — select and reposition walls with arrow keys |
+| F6 | Hot-reload dialogue rules (assets/dialogue/ev.rules) |
 | 0-9 | Jump to scene (0=Taxi, 1=Exterior, 2=Lobby, ..., 9=Space Suite) |
 
 ## Anti-Patterns (Never)

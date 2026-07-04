@@ -74,20 +74,8 @@ void corridor_load(void) {
             {0, 1.6f, 14 * zs},
         };
         init_npc(&g.gibbons, g.scene.spawn, corr_wps, 3, 3.5f, 4.0f);
-        static const char *corr_lines_first[] = {
-            "Someone in Four plays that same nocturne every evening.",
-            "The gentleman in Six orders for two. Every night. Sends half back.",
-            "Yours is at the end. I left the curtains open.",
-        };
-        static const char *corr_lines_return[] = {
-            "Four stopped playing last week. Nobody noticed.",
-            "Six checked out. The trays stopped coming.",
-            "Yours is as you left it.",
-        };
-        if (g.backstory_count > 3)
-            npc_set_dialogue(&g.gibbons, corr_lines_return, 3, 4.0f);
-        else
-            npc_set_dialogue(&g.gibbons, corr_lines_first, 3, 4.0f);
+        // Dialogue is rules-driven — assets/dialogue/ev.rules
+        // (concept=waypoint, scene=space_corridor). No npc_set_dialogue here.
     }
 }
 

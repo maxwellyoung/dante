@@ -60,6 +60,7 @@ static const char *postfx_fs =
     "uniform float scanlineAmt;\n"
     "uniform float bloomAmt;\n"
     "uniform float posterizeAmt;\n"
+    "uniform float celAmt;\n"
     "uniform float pixelateAmt;\n"
     "uniform float sharpenAmt;\n"
     "uniform float speedNorm;\n"    // 0-1 normalized player speed
@@ -222,6 +223,13 @@ static const char *postfx_fs =
     "    vec3 curved = smoothstep(0.0, 1.0, col * 1.05 - 0.02);\n"
     "    col = mix(col, curved, contrast);\n"
     "\n"
+    "    // --- Cel bands — quantize luminance only, hue survives ---\n"
+    "    if (celAmt > 1.0) {\n"
+    "        float celLuma = dot(col, vec3(0.299, 0.587, 0.114));\n"
+    "        float banded = floor(celLuma * celAmt + 0.5) / celAmt;\n"
+    "        col *= banded / max(celLuma, 0.0001);\n"
+    "    }\n"
+    "\n"
     "    // --- Posterization — color quantization ---\n"
     "    if (posterizeAmt > 1.0) {\n"
     "        col = floor(col * posterizeAmt + 0.5) / posterizeAmt;\n"
@@ -329,6 +337,7 @@ EVPostFX LoadEVPostFX(void) {
         pfx.scanlineLoc = GetShaderLocation(pfx.postfx, "scanlineAmt");
         pfx.bloomLoc = GetShaderLocation(pfx.postfx, "bloomAmt");
         pfx.posterizeLoc = GetShaderLocation(pfx.postfx, "posterizeAmt");
+        pfx.celLoc = GetShaderLocation(pfx.postfx, "celAmt");
         pfx.pixelateLoc = GetShaderLocation(pfx.postfx, "pixelateAmt");
         pfx.sharpenLoc = GetShaderLocation(pfx.postfx, "sharpenAmt");
         pfx.speedLoc = GetShaderLocation(pfx.postfx, "speedNorm");
@@ -458,31 +467,35 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed) {
 const VisualStyle visual_styles[STYLE_COUNT] = {
     // 1: Default — clean architectural photograph. Let the geometry speak.
     //    Minimal processing. The blockout already has enough roughness.
-    {"Clean Hotel",   1.0f,  0.12f,0.45f,0.25f,0.08f,  0.08f, {1.01f,1.0f,0.99f},    0.0f,0.0f,0.08f, 0,  1,  0.12f},
+    {"Clean Hotel",   1.0f,  0.12f,0.45f,0.25f,0.08f,  0.08f, {1.01f,1.0f,0.99f},    0.0f,0.0f,0.08f, 0,  1,  0.12f, 0.0f},
 
     // 2: PS1 — ordered dithering, color quantization, chunky pixels
-    {"PS1",           0.85f, 0.5f, 0.8f, 0.4f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f},
+    {"PS1",           0.85f, 0.5f, 0.8f, 0.4f, 0.1f,  0.05f,{1.0f,0.98f,0.95f},      1.0f,0.0f,0.0f, 12, 2,  0.0f, 0.0f},
 
     // 3: Noir — crushed blacks, nearly mono, heavy vignette, sharp
-    {"Noir",          0.15f, 0.8f, 1.6f, 1.8f, 0.6f, -0.15f, {0.94f,0.94f,1.0f},     0.0f,0.0f,0.0f, 0,  1,  1.2f},
+    {"Noir",          0.15f, 0.8f, 1.6f, 1.8f, 0.6f, -0.15f, {0.94f,0.94f,1.0f},     0.0f,0.0f,0.0f, 0,  1,  1.2f, 0.0f},
 
     // 4: CRT — scanlines, bloom, phosphor glow
-    {"CRT",           0.95f, 2.0f, 1.0f, 1.0f, 0.2f,  0.05f,{1.0f,0.95f,0.9f},       0.0f,0.8f,0.4f, 0,  1,  0.0f},
+    {"CRT",           0.95f, 2.0f, 1.0f, 1.0f, 0.2f,  0.05f,{1.0f,0.95f,0.9f},       0.0f,0.8f,0.4f, 0,  1,  0.0f, 0.0f},
 
     // 5: Godard — saturated, contrasty, red push, French New Wave
-    {"Godard",        1.25f, 1.5f, 1.3f, 0.8f, 0.5f,  0.1f, {1.12f,0.96f,0.88f},     0.0f,0.0f,0.2f, 0,  1,  0.4f},
+    {"Godard",        1.25f, 1.5f, 1.3f, 0.8f, 0.5f,  0.1f, {1.12f,0.96f,0.88f},     0.0f,0.0f,0.2f, 0,  1,  0.4f, 0.0f},
 
     // 6: VHS — grain, CA, warm, scanlines
-    {"VHS",           0.75f, 5.0f, 0.6f, 1.2f, 1.0f, -0.1f, {1.08f,0.96f,0.88f},     0.15f,0.5f,0.15f, 0,  1,  0.0f},
+    {"VHS",           0.75f, 5.0f, 0.6f, 1.2f, 1.0f, -0.1f, {1.08f,0.96f,0.88f},     0.15f,0.5f,0.15f, 0,  1,  0.0f, 0.0f},
 
     // 7: Neon — oversaturated, bloom, teal-orange
-    {"Neon",          1.35f, 1.5f, 1.1f, 0.5f, 0.15f, 0.15f,{1.08f,0.92f,1.12f},     0.0f,0.0f,0.8f, 0,  1,  0.2f},
+    {"Neon",          1.35f, 1.5f, 1.1f, 0.5f, 0.15f, 0.15f,{1.08f,0.92f,1.12f},     0.0f,0.0f,0.8f, 0,  1,  0.2f, 0.0f},
 
     // 8: Woodcut — extreme dithering, near-mono, posterized
-    {"Woodcut",       0.1f,  0.3f, 1.8f, 1.2f, 0.0f,  0.0f, {1.0f,0.98f,0.95f},      1.5f,0.0f,0.0f, 4,  1,  1.8f},
+    {"Woodcut",       0.1f,  0.3f, 1.8f, 1.2f, 0.0f,  0.0f, {1.0f,0.98f,0.95f},      1.5f,0.0f,0.0f, 4,  1,  1.8f, 0.0f},
 
     // 9: Raw — nothing. Naked geometry and lighting.
-    {"Raw",           1.0f,  0.0f, 0.0f, 0.0f, 0.0f,  0.0f, {1.0f,1.0f,1.0f},        0.0f,0.0f,0.0f, 0,  1,  0.0f},
+    {"Raw",           1.0f,  0.0f, 0.0f, 0.0f, 0.0f,  0.0f, {1.0f,1.0f,1.0f},        0.0f,0.0f,0.0f, 0,  1,  0.0f, 0.0f},
+
+    // 10: Grickle — Puzzle Agent storybook. Luma cel bands (hue survives),
+    //     paper grain, inked edges, warm paper tint. Illustration, not lens.
+    {"Grickle",       0.85f, 0.0f, 0.95f,0.5f, 0.45f, 0.05f,{1.03f,1.0f,0.94f},      0.15f,0.0f,0.0f, 0,  1,  0.5f, 7.0f},
 };
 
 static void set_pfx_float(EVPostFX *pfx, int loc, float val) {
@@ -504,6 +517,7 @@ void ApplyVisualStyle(EVPostFX *pfx, int style_index) {
     set_pfx_float(pfx, pfx->posterizeLoc, s->posterize);
     set_pfx_float(pfx, pfx->pixelateLoc, s->pixelate);
     set_pfx_float(pfx, pfx->sharpenLoc, s->sharpen);
+    set_pfx_float(pfx, pfx->celLoc, s->cel);
 }
 
 void draw_text_box(const char *text, int y, int font_size, Color text_color) {

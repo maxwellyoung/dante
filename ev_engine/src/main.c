@@ -7,6 +7,7 @@
 #include "raymath.h"
 #include "game_ctx.h"
 #include "model_registry.h"
+#include "dialog.h"
 #include "ui.h"
 #include <math.h>
 #include <stdio.h>
@@ -2391,6 +2392,8 @@ int main(void) {
     return audit_fail > 0 ? 1 : 0;
 #else  // normal game
 
+    dlg_game_init();  // contextual dialogue rule database (assets/dialogue/)
+
 #ifdef DEV_START
     load_state(DEV_START);
 #else
@@ -2526,7 +2529,7 @@ int main(void) {
         // Write current g.state for dev-watch
         write_state_file(g.state);
 
-        // Visual style presets — Shift+number (1-9)
+        // Visual style presets — Shift+number (1-9, 0 = Grickle)
         if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
             int new_style = -1;
             if (IsKeyPressed(KEY_ONE))   new_style = 0;
@@ -2538,6 +2541,7 @@ int main(void) {
             if (IsKeyPressed(KEY_SEVEN)) new_style = 6;
             if (IsKeyPressed(KEY_EIGHT)) new_style = 7;
             if (IsKeyPressed(KEY_NINE))  new_style = 8;
+            if (IsKeyPressed(KEY_ZERO))  new_style = 9;
             if (new_style >= 0 && new_style < STYLE_COUNT) {
                 g.current_style = new_style;
                 ApplyVisualStyle(&g.postfx, g.current_style);
@@ -2621,15 +2625,19 @@ int main(void) {
             physics_update(&g.scene, &g.player, &g.grab, dt);
         }
 
-        // Gibbons dialogue → new dialogue system
-        if (g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
-            || g.state == STATE_GLASSHOUSE
-            || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE) {
+        // Contextual dialogue — rule database (waypoint/idle concepts, followups)
+        dlg_game_update(dt);
+
+        // Gibbons legacy waypoint lines — only when the rules system is quiet
+        if (!dlg_game_speaking()
+            && (g.state == STATE_LOBBY || g.state == STATE_SPACE_LOBBY
+                || g.state == STATE_GLASSHOUSE
+                || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE)) {
             const char *line = npc_current_dialogue(&g.gibbons);
             if (line && g.dlg_text != line) {
                 show_dialogue("GIBBONS", line);
                 hide_text();
-            } else if (!line && g.dlg_active && !g.gibbons.line_showing
+            } else if (!line && g.dlg_active && g.gibbons.lines && !g.gibbons.line_showing
                        && g.gibbons.current_line >= g.gibbons.line_count) {
                 hide_dialogue();
             }

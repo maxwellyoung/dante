@@ -24,6 +24,7 @@ typedef struct {
     int scanlineLoc;     // CRT scanline intensity
     int bloomLoc;        // glow/bloom intensity
     int posterizeLoc;    // color quantization levels (0=off, 4-32)
+    int celLoc;          // luma cel bands (0=off, 5-10 bands; hue survives)
     int pixelateLoc;     // pixel size multiplier (1=off, 2-4=chunky)
     int sharpenLoc;      // edge sharpening intensity
     int speedLoc;        // player speed (0-1 normalized for effects)
@@ -47,9 +48,10 @@ typedef struct {
     float posterize;     // color levels (0=off, 8/16/32)
     float pixelate;      // pixel size (1=off, 2-4=chunky)
     float sharpen;       // edge sharpening (0=off, 1=heavy)
+    float cel;           // luma cel bands (0=off; ~7 = storybook)
 } VisualStyle;
 
-#define STYLE_COUNT 9
+#define STYLE_COUNT 10
 extern const VisualStyle visual_styles[STYLE_COUNT];
 
 EVPostFX LoadEVPostFX(void);

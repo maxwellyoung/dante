@@ -1,5 +1,6 @@
 // scene_suite.c — STATE_SPACE_SUITE
 #include "game_ctx.h"
+#include "dialog.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -539,6 +540,10 @@ void suite_update(float dt) {
                     g.interact_freeze = 0.05f;
                     g.interact_lean = 0.5f;
                     g.interact_lean_vel = 0;
+
+                    // Two Bots One Wrench: every prop is speakable. The rule
+                    // database decides if there's a line (usually: silence).
+                    dlg_game_remark("interact", obj->name, (float)obj->step);
 
                     // Thermostat — each step changes warmth. Not a task.
                     if (strcmp(obj->name, "thermostat") == 0) {
