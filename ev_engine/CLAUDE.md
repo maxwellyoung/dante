@@ -195,13 +195,14 @@ The engine uses a **decal system** with OpenGL polygon offset to prevent z-fight
 4. **Clip planes**: tightened to near=0.05, far=300 (`rlSetClipPlanes` in main.c) — ~20× better depth precision than defaults
 5. **Never place two `add_wall()` calls at the same position** without marking one as decal
 6. Use `add_wall_decal()` for one-off decals instead of `add_wall()` + `set_last_decal()`
-7. Constants `Z_DECAL_BIAS`, `Z_DECAL_BIAS2`, `Z_TRIM_BIAS` in `config.h` for manual y-offsets when needed
+7. **Automated**: `scene_auto_decal()` runs on every scene load (thin flush trim auto-marks, duplicate walls deactivate); QA prints a `zfight:` count per scene (`scene_zfight_report`) — keep spine scenes ≤5
+8. Constants `Z_DECAL_BIAS`, `Z_DECAL_BIAS2`, `Z_TRIM_BIAS` in `config.h` for manual y-offsets when needed
 
 ### Audio System (`audio.c`)
 100% procedural — every sound synthesized from sine waves, noise, and envelopes at `SAMPLE_RATE = 44100`. No audio files. Drones are 20-32 second loops with reverb tails. Through-wall sounds (muffled piano, distant voices, footsteps above) create presence of inaccessible lives.
 
 ### Physics (`player.c`, `ev_types.h`)
-Quake-style air strafing, bunny hopping (50ms friction grace), wall running, ledge mantling, momentum slides, dashing. All tuning lives in `PhysicsConfig` (59 parameters) with defaults in `physics_default()`.
+Two feel profiles. **`physics_narrative()`** (all hotel scenes, applied in `load_state`): grounded — fast accel/stop, no air-strafing or bhop, gravity 24, step height 0.28, minimal bob/tilt. **`physics_default()`** (prototype scenes): Quake-style air strafing, bunny hopping, wall running, mantling, slides, dashing. All tuning in `PhysicsConfig` (59 parameters). Station gravity is 0.85–0.9 — the low-g float is an arrival beat (space lobby settles 0.4→0.9), never a permanent state.
 
 ### NPC System (`npc.c`)
 Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, per-waypoint dialogue, physics modes (ghost vs grounded). Drawing uses macros (`P()`, `D()`, `DRAW()`) for local-space positioning relative to NPC yaw.

@@ -18,6 +18,8 @@ typedef struct {
     float wall_bot;     // bottom of the wall we hit
 } CollisionInfo;
 
+void player_set_physics(PhysicsConfig c) { phys = c; }
+
 void init_player(Player *p, Vector3 pos) {
     phys = physics_default();
     p->camera.position = pos;

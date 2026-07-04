@@ -22,7 +22,7 @@ void space_lobby_load(void) {
     PlayGravitySettle(&g.audio);
     PlayAirlockHiss(&g.audio);
     PlayEarthPresence(&g.audio);
-    g.player.gravity_mult = 0.4f;
+    g.player.gravity_mult = 0.4f;  // arrival float — settles to 0.9 in update
     StartAmbient(&g.audio, DRONE_SPACE_LOBBY);
     SetSceneLighting(&g.lighting, LightingPreset_SpaceLobby());
     set_exposure(-0.08f);
@@ -53,6 +53,10 @@ void space_lobby_load(void) {
 
 void space_lobby_update(float dt) {
     update_player(&g.player, &g.scene, dt);
+    // Gravity settles as the station's systems take hold — the arrival beat
+    // (PlayGravitySettle) made physical. 0.4 → 0.9 over the first seconds.
+    if (g.player.gravity_mult < 0.9f)
+        g.player.gravity_mult = fminf(0.9f, g.player.gravity_mult + dt * 0.12f);
     if (g.state_time > 1.5f && !g.elevator_ding_played) {
         g.elevator_ding_played = true;
         PlayElevatorDing(&g.audio);

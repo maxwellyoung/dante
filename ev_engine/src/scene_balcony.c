@@ -23,7 +23,7 @@ void balcony_load(void) {
     PlayBalconyMusic(&g.audio);
     PlayWindAmbient(&g.audio);
     PlayBalconyGust(&g.audio);
-    g.player.gravity_mult = 0.3f;
+    g.player.gravity_mult = 0.85f; // open to the void, slightly lighter
     SetPostFXWarmth(&g.postfx, 1.0f);
     SetSceneLighting(&g.lighting, LightingPreset_Balcony());
     set_exposure(0.12f);

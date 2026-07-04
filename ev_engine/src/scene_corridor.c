@@ -27,7 +27,7 @@ void corridor_load(void) {
     StopWindAmbient(&g.audio);
     PlayAirlockHiss(&g.audio);
     PlayDoorThud(&g.audio);
-    g.player.gravity_mult = 0.4f;
+    g.player.gravity_mult = 0.9f;  // station gravity — subliminal lightness
     StartAmbient(&g.audio, DRONE_SPACE_CORRIDOR);
     PlayCorridorMusic(&g.audio);
     PlayDistantVoices(&g.audio);

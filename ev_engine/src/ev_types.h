@@ -199,6 +199,30 @@ static inline PhysicsConfig physics_default(void) {
     };
 }
 
+// Narrative physics — grounded, weighted, close to the body.
+// The hotel is walked, not surfed: no air-strafing, fast stops, real steps.
+// Prototype scenes keep physics_default() (the Quake feel is theirs).
+static inline PhysicsConfig physics_narrative(void) {
+    PhysicsConfig c = physics_default();
+    c.walk_speed        = 2.9f;
+    c.sprint_speed      = 4.7f;
+    c.ground_accel      = 14.0f;   // reach speed in ~0.2s — intent, not drift
+    c.ground_friction   = 11.0f;   // stop under your own feet
+    c.air_accel         = 2.0f;    // no air steering worth speaking of
+    c.air_speed_cap     = 3.0f;    // no Quake strafe gain
+    c.gravity           = 24.0f;   // weight
+    c.jump_impulse      = 4.6f;    // low, functional hop
+    c.step_height       = 0.28f;   // stairs yes, beds and tables no
+    c.bob_walk_amp      = 0.006f;  // presence, not bounce
+    c.bob_sprint_amp    = 0.011f;
+    c.tilt_walk         = 0.25f;
+    c.tilt_sprint       = 0.45f;
+    c.speed_fov_scale   = 0.0f;    // no speed-FOV pump
+    c.speed_shake_intensity = 0.0f;
+    c.bhop_friction_window  = 0.0f; // no bunny hopping in the hotel
+    return c;
+}
+
 // Legacy macros — scenes still reference these
 #define WALK_SPEED  3.2f
 #define SPRINT_SPEED 5.6f

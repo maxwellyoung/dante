@@ -240,6 +240,108 @@ void add_collision_wall(Scene *s, float x, float y, float z, float w, float h, f
     note_last_added_wall(s, idx);
 }
 
+
+// ── Z-fight detection — same-normal coplanar overlapping cube faces ──
+// The decal system exists to prevent this; this finds every place it wasn't
+// used. Run via QA ("zfight:N" per scene). Abutting opposite faces are fine
+// (backface culling); only same-facing coplanar overlap fights.
+static bool zf_overlap(float c1, float h1, float c2, float h2) {
+    float lo = (c1 - h1 > c2 - h2) ? c1 - h1 : c2 - h2;
+    float hi = (c1 + h1 < c2 + h2) ? c1 + h1 : c2 + h2;
+    return hi - lo > 0.01f;  // needs real shared area, not edge contact
+}
+
+
+// ── Auto-decal — remediation for what scene_zfight_report finds ──
+// For every same-normal coplanar overlapping pair, mark the THIN member
+// (≤0.12 along the shared normal) as a decal: polygon-offset rendering kills
+// the fight, and flush trim that thin never provided meaningful collision.
+// Thick-vs-thick pairs are left alone (real geometry errors — fix by hand;
+// they stay visible in the QA zfight count).
+int scene_auto_decal(Scene *s) {
+    const float eps = 0.003f;
+    int marked = 0;
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *a = &s->walls[i];
+        if (!a->active || a->is_decal || a->shape != SHAPE_CUBE) continue;
+        if (a->color.a == 0 || a->rotation_y != 0) continue;
+        for (int j = i + 1; j < s->wall_count; j++) {
+            Wall *b = &s->walls[j];
+            if (!b->active || b->is_decal || b->shape != SHAPE_CUBE) continue;
+            if (b->color.a == 0 || b->rotation_y != 0) continue;
+            float ac[3] = {a->pos.x, a->pos.y, a->pos.z};
+            float ah[3] = {a->size.x/2, a->size.y/2, a->size.z/2};
+            float bc[3] = {b->pos.x, b->pos.y, b->pos.z};
+            float bh[3] = {b->size.x/2, b->size.y/2, b->size.z/2};
+            // Exact duplicate (same box built twice) — pure error, drop one
+            if (fabsf(ac[0]-bc[0]) < eps && fabsf(ac[1]-bc[1]) < eps
+                && fabsf(ac[2]-bc[2]) < eps && fabsf(ah[0]-bh[0]) < eps
+                && fabsf(ah[1]-bh[1]) < eps && fabsf(ah[2]-bh[2]) < eps) {
+                b->active = false;
+                marked++;
+                continue;
+            }
+            for (int ax = 0; ax < 3; ax++) {
+                int u = (ax + 1) % 3, v = (ax + 2) % 3;
+                if (!zf_overlap(ac[u], ah[u], bc[u], bh[u])) continue;
+                if (!zf_overlap(ac[v], ah[v], bc[v], bh[v])) continue;
+                bool plus  = fabsf((ac[ax] + ah[ax]) - (bc[ax] + bh[ax])) < eps;
+                bool minus = fabsf((ac[ax] - ah[ax]) - (bc[ax] - bh[ax])) < eps;
+                if (!(plus || minus)) continue;
+                // thickness along the fighting normal
+                float ta = ah[ax] * 2, tb = bh[ax] * 2;
+                Wall *thin = ta <= tb ? a : b;
+                float tmin = ta <= tb ? ta : tb;
+                if (tmin <= 0.12f) {
+                    thin->is_decal = true;
+                    marked++;
+                }
+                break;
+            }
+            if (a->is_decal) break;  // a resolved — stop pairing against it
+        }
+    }
+    return marked;
+}
+
+int scene_zfight_report(Scene *s, int max_print) {
+    const float eps = 0.003f;
+    int found = 0;
+    for (int i = 0; i < s->wall_count; i++) {
+        Wall *a = &s->walls[i];
+        if (!a->active || a->is_decal || a->shape != SHAPE_CUBE) continue;
+        if (a->color.a == 0) continue;               // invisible collision wall
+        if (a->rotation_y != 0) continue;            // planes differ when rotated
+        for (int j = i + 1; j < s->wall_count; j++) {
+            Wall *b = &s->walls[j];
+            if (!b->active || b->is_decal || b->shape != SHAPE_CUBE) continue;
+            if (b->color.a == 0 || b->rotation_y != 0) continue;
+            float ac[3] = {a->pos.x, a->pos.y, a->pos.z};
+            float ah[3] = {a->size.x/2, a->size.y/2, a->size.z/2};
+            float bc[3] = {b->pos.x, b->pos.y, b->pos.z};
+            float bh[3] = {b->size.x/2, b->size.y/2, b->size.z/2};
+            for (int ax = 0; ax < 3; ax++) {
+                int u = (ax + 1) % 3, v = (ax + 2) % 3;
+                if (!zf_overlap(ac[u], ah[u], bc[u], bh[u])) continue;
+                if (!zf_overlap(ac[v], ah[v], bc[v], bh[v])) continue;
+                bool plus  = fabsf((ac[ax] + ah[ax]) - (bc[ax] + bh[ax])) < eps;
+                bool minus = fabsf((ac[ax] - ah[ax]) - (bc[ax] - bh[ax])) < eps;
+                if (plus || minus) {
+                    found++;
+                    if (found <= max_print)
+                        printf("[ZFIGHT] walls %d/%d axis %c at (%.1f,%.1f,%.1f) "
+                               "sizes (%.2f,%.2f,%.2f)/(%.2f,%.2f,%.2f)\n",
+                               i, j, "xyz"[ax], a->pos.x, a->pos.y, a->pos.z,
+                               a->size.x, a->size.y, a->size.z,
+                               b->size.x, b->size.y, b->size.z);
+                    break;  // one report per pair
+                }
+            }
+        }
+    }
+    return found;
+}
+
 // Invisible floor plane (thin collision slab)
 void add_collision_floor(Scene *s, float x, float y, float z, float w, float d) {
     add_collision_wall(s, x, y - 0.025f, z, w, 0.05f, d);

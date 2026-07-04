@@ -23,7 +23,7 @@ void glasshouse_load(void) {
     StopEarthPresence(&g.audio);
 
     PlayAirlockHiss(&g.audio);
-    g.player.gravity_mult = 0.5f;
+    g.player.gravity_mult = 0.9f;  // station gravity — subliminal lightness
     StartAmbient(&g.audio, DRONE_SPACE_LOBBY);
     PlayEarthPresence(&g.audio);
     PlayWindAmbient(&g.audio);  // the creak of glass under pressure

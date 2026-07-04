@@ -112,7 +112,7 @@ void suite_load(void) {
     StopRunningWater(&g.audio); StopTvMurmur(&g.audio);
     PlayDoorThud(&g.audio);
     PlayAirlockHiss(&g.audio);
-    g.player.gravity_mult = 0.5f;
+    g.player.gravity_mult = 0.9f;  // station gravity — subliminal lightness
     StartAmbient(&g.audio, DRONE_SPACE_SUITE);
     PlayClockAmbient(&g.audio);
     // Through-wall sounds — other lives in the hotel

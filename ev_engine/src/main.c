@@ -569,6 +569,15 @@ void load_state(GameState s) {
         scene_descs[s].load();
     }
 
+    // Movement feel: hotel scenes are walked, prototypes are surfed.
+    // Applied AFTER scene load (init_player resets to physics_default).
+    bool is_proto = (s == STATE_PROTO_LAB || s == STATE_PROTO_MOVEMENT
+                     || s == STATE_PROTO_SHOOTER || s == STATE_PROTO_PUZZLE);
+    if (!is_proto) player_set_physics(physics_narrative());
+
+    // Kill z-fighting from flush trim — thin coplanar geometry becomes decals
+    scene_auto_decal(&g.scene);
+
     // (Scene-specific load dispatched above via scene_descs[s].load())
 
     g.fade_alpha = 1.0f;
@@ -1730,11 +1739,12 @@ int main(void) {
         }
 
         // ── Console output ──
+        int zfights = scene_zfight_report(&g.scene, 0);
         const char *status = issues == 0 ? "PASS" : "FAIL";
-        printf("[QA] %-18s %s  walls:%3d  mat:%d (%.0f%%)  luma:%.0f  contrast:%.1f:1  edges:%.0f%%  hues:%d  obj:%d",
+        printf("[QA] %-18s %s  walls:%3d  mat:%d (%.0f%%)  luma:%.0f  contrast:%.1f:1  edges:%.0f%%  hues:%d  obj:%d  zfight:%d",
                qa_scenes[qi].name, status, g.scene.wall_count,
                mat_types_used, mat_cov, hero->luma, hero->contrast_ratio,
-               hero->edge_density, hero->hue_buckets, interact_count);
+               hero->edge_density, hero->hue_buckets, interact_count, zfights);
         if (e2e_mode) printf("  angles:%d  load:%.0fms", num_angles, load_time_ms);
         printf("\n");
         if (issues > 0) printf("%s", ibuf);
