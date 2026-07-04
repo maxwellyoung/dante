@@ -5,6 +5,7 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "ev_types.h"
+#include "config.h"
 #include "lighting.h"
 #include "render.h"
 #include "audio.h"
@@ -18,13 +19,9 @@
 
 // Rain drops for taxi scene
 typedef struct { float x, y, speed, len; } Raindrop;
-#define MAX_RAIN 60
 
 // Pause menu
 typedef enum { MENU_NONE, MENU_PAUSE, MENU_SETTINGS } MenuMode;
-#define MENU_MAX_ITEMS 5
-#define PAUSE_ITEM_COUNT 3
-#define SETTINGS_ITEM_COUNT 5
 
 #define PARIS_TASK_COUNT 5
 #define SPACE_TASK_COUNT 4
@@ -72,7 +69,7 @@ typedef struct {
     Model skytower_model;
     bool skytower_loaded;
 
-    // ── Model assets (loaded from assets/*.glb, assets/*.obj) ──
+    // ── Model assets (stable runtime slots populated from model_registry.c) ──
     ModelAsset model_assets[MAX_MODEL_ASSETS];
     int model_asset_count;
 
@@ -104,6 +101,7 @@ typedef struct {
     // ── Balcony flash ──
     bool balcony_flash_triggered;
     float balcony_flash_timer;
+    bool balcony_post_cig_chill;
 
     // ── Cigarette camera animation ──
     bool cigarette_anim;
@@ -126,12 +124,16 @@ typedef struct {
 
     // ── Door positions for spatial audio ──
     Vector3 door_positions[3];
+    float corridor_ghost_delay;
+    bool corridor_ghost_was_moving;
 
     // ── Agency removal ──
     float agency_removal_timer;
 
     // ── Lobby memory palace ──
     int lobby_visit_count;
+    bool lobby_gibbons_looked;
+    bool lobby_crouch_reward;
 
     // ── Skybox ──
     EVSkybox skybox;
@@ -151,6 +153,11 @@ typedef struct {
     // ── Nudge mode ──
     bool nudge_mode;
     int nudge_selected;
+    float nudge_repeat;
+
+    // ── Frame diagnostics ──
+    GameState dbg_prev_state;
+    int dbg_state_frame;
 
     // ── Vignette text (legacy — system messages) ──
     const char *vig_text;
@@ -207,6 +214,21 @@ typedef struct {
     int backstory_count;          // how many choices completed
     int backstory_phase;          // which choice we're on (pre-title or taxi)
     float beat_timer;             // time within current dialogue beat
+    bool title_prologue_done;
+    int title_prologue_phase;
+    float title_prologue_pause;
+    bool title_breath_played;
+
+    // ── Suite scene-local state ──
+    bool suite_zone_auto_lamp;
+    bool suite_zone_auto_champ;
+    bool suite_zone_auto_desk;
+    bool suite_phone_ringing;
+    bool suite_phone_killed;
+    float suite_window_dwell;
+    bool suite_window_revealed;
+    float suite_zone_timers[4];
+    bool suite_zone_fired[4];
 
     // ── Pause menu ──
     MenuMode menu_mode;
@@ -217,6 +239,58 @@ typedef struct {
     float menu_overlay_va;
     float setting_master_vol;
     bool setting_fullscreen;
+
+    // ── Prototype lab ──
+    PrototypeId prototype_selected;
+    PrototypeId prototype_active;
+    PrototypeLabAction prototype_lab_action;
+    PrototypeRunStats prototype_run;
+    PrototypeRunStats prototype_last_run[PROTOTYPE_COUNT];
+    PrototypeRunStats prototype_best_run[PROTOTYPE_COUNT];
+    PrototypeEval prototype_last_eval[PROTOTYPE_COUNT];
+    bool prototype_eval_active;
+    bool prototype_preserve_run_stats;
+    int prototype_eval_cursor;
+    int prototype_eval_draft[6];
+    Vector3 prototype_prev_pos;
+    bool prototype_first_action_recorded;
+    float prototype_shot_cooldown;
+    float prototype_alt_shot_cooldown;
+    float prototype_shot_flash_timer;
+    float prototype_hit_flash_timer;
+    float prototype_miss_flash_timer;
+    float prototype_breach_flash_timer;
+    float prototype_bank_flash_timer;
+    float prototype_hook_flash_timer;
+    float prototype_hint_timer;
+    float prototype_shooter_heat;
+    float prototype_shooter_overload_timer;
+    float prototype_shooter_suppression_pause;
+    float prototype_grapple_cooldown;
+    float prototype_grapple_timer;
+    Vector3 prototype_grapple_anchor;
+    bool prototype_grapple_active;
+    float prototype_movement_finish_window;
+    float prototype_movement_route_timer;
+    int prototype_wall_indices[16];
+    Vector3 prototype_wall_home[16];
+    int prototype_wall_count;
+    int prototype_ricochet_indices[8];
+    int prototype_ricochet_count;
+    int prototype_target_total;
+    int prototype_targets_hit;
+    int prototype_threat_total;
+    int prototype_threats_disabled;
+    int prototype_gate_wall_index;
+    bool prototype_gate_open;
+    int prototype_route_wall_index_a;
+    int prototype_route_wall_index_b;
+    int prototype_route_wall_index_c;
+    int prototype_recovery_wall_index;
+    int prototype_route_nodes_live;
+    int prototype_puzzle_stage;
+    int prototype_puzzle_goal;
+    int prototype_puzzle_router_state;
 } GameCtx;
 
 // Initialize all fields to sane defaults
@@ -233,15 +307,28 @@ static inline void game_ctx_init(GameCtx *g) {
     g->phone_wall_idx = -1;
     g->bed_clock_rate = 1.0f;
     g->nudge_selected = -1;
+    g->dbg_prev_state = -1;
     g->text_y_offset = 20.0f;
     g->dlg_chars_per_sec = 28.0f;
     g->ambient_fade = 1.0f;
     g->setting_master_vol = 1.0f;
+    g->prototype_selected = PROTOTYPE_MOVEMENT;
+    g->prototype_active = PROTOTYPE_NONE;
+    g->prototype_lab_action = PROTO_LAB_PLAY;
+    g->prototype_gate_wall_index = -1;
+    g->prototype_route_wall_index_a = -1;
+    g->prototype_route_wall_index_b = -1;
+    g->prototype_route_wall_index_c = -1;
+    g->prototype_recovery_wall_index = -1;
     for (int i = 0; i < 6; i++) g->backstory[i] = -1;
 }
 
 // Scene registry — extern, defined in scene_registry.c
 extern const SceneDesc scene_descs[];
 extern const int scene_desc_count;
+
+// Global game context — defined in main.c, declared here once
+// so per-scene .c files don't each need their own extern.
+extern GameCtx g;
 
 #endif

@@ -36,6 +36,7 @@ typedef struct {
     Particle particles[MAX_PARTICLES];
     Emitter emitters[MAX_EMITTERS];
     int emitter_count;
+    unsigned int rng_seed;
 } ParticleSystem;
 
 void particle_init(ParticleSystem *ps);

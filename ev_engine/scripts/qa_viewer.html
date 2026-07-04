@@ -159,7 +159,7 @@ if (modelFile) {
     const surfaceArea = 2 * (size.x * size.y + size.y * size.z + size.x * size.z);
     const triPerSqm = tris / Math.max(surfaceArea, 0.01);
     // Scale thresholds by object size — large objects need fewer tris/m²
-    const sizeScale = Math.max(1, maxSize / 0.5); // objects >0.5m get relaxed thresholds
+    const sizeScale = Math.max(1, maxDim / 0.5); // objects >0.5m get relaxed thresholds
     const adjDensity = triPerSqm * sizeScale;
     if (adjDensity < 100) scores.triDensity = { score: 30, note: `${Math.round(triPerSqm)}/m² — very sparse` };
     else if (adjDensity < 300) scores.triDensity = { score: 60, note: `${Math.round(triPerSqm)}/m² — low` };

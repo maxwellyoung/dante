@@ -99,7 +99,10 @@ function EncounterController:start()
     -- Longer arming delay for instant-trigger encounters so player reads the room
     local instant_trigger = (self.config.trigger_x or math.huge) <= 32
     self.wave_delay = instant_trigger and 1.0 or 0.18
-    if self.config.intro_title then
+    local scene_has_trial_rule = self.scene
+        and self.scene.trial_rule
+        and self.scene.trial_rule ~= ""
+    if self.config.intro_title and not scene_has_trial_rule then
         local ui = get_ui(self)
         ui:show_banner(
             self.config.intro_title,

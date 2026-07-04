@@ -1,4 +1,7 @@
+local Palette = require("infernal_ascent_palette")
+
 local SceneContract = {}
+local DEFAULT_WORLD = Palette.world.proving_ground
 
 local DEFAULT_QA_EXPECTATIONS = {
     required_result = nil,
@@ -33,13 +36,13 @@ local DEFAULT_SCENE = {
     encounter_config = nil,
     beat_config = nil,
     music_state = "default",
-    bg = { 0.08, 0.09, 0.11 },
-    solid_color = { 0.28, 0.31, 0.36 },
-    accent_color = { 0.92, 0.55, 0.18 },
-    hazard_color = { 0.88, 0.22, 0.2 },
-    sludge_color = { 0.32, 0.48, 0.24 },
-    gate_color = { 0.92, 0.55, 0.18 },
-    locked_gate_color = { 0.42, 0.22, 0.18 },
+    bg = DEFAULT_WORLD.bg,
+    solid_color = DEFAULT_WORLD.solid,
+    accent_color = DEFAULT_WORLD.accent,
+    hazard_color = DEFAULT_WORLD.hazard,
+    sludge_color = DEFAULT_WORLD.sludge,
+    gate_color = DEFAULT_WORLD.gate,
+    locked_gate_color = DEFAULT_WORLD.locked_gate,
     fragments_required = 0,
     show_gate = true,
     removed_ability = "none",

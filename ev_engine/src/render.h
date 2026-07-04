@@ -24,6 +24,7 @@ typedef struct {
     int scanlineLoc;     // CRT scanline intensity
     int bloomLoc;        // glow/bloom intensity
     int posterizeLoc;    // color quantization levels (0=off, 4-32)
+    int celLoc;          // luma cel bands (0=off, 5-10 bands; hue survives)
     int pixelateLoc;     // pixel size multiplier (1=off, 2-4=chunky)
     int sharpenLoc;      // edge sharpening intensity
     int speedLoc;        // player speed (0-1 normalized for effects)
@@ -47,9 +48,10 @@ typedef struct {
     float posterize;     // color levels (0=off, 8/16/32)
     float pixelate;      // pixel size (1=off, 2-4=chunky)
     float sharpen;       // edge sharpening (0=off, 1=heavy)
+    float cel;           // luma cel bands (0=off; ~7 = storybook)
 } VisualStyle;
 
-#define STYLE_COUNT 9
+#define STYLE_COUNT 10
 extern const VisualStyle visual_styles[STYLE_COUNT];
 
 EVPostFX LoadEVPostFX(void);
@@ -68,7 +70,8 @@ void SetPostFXSpeed(EVPostFX *pfx, float speed);
 
 void draw_shadow_pass(Scene *scene, EVLighting *lighting,
                       Model *cube_model, Model *cyl_model,
-                      Model *sphere_model, Model *cone_model);
+                      Model *sphere_model, Model *cone_model,
+                      Model *skytower_model);
 void draw_earth(Camera3D camera, float time,
                 Model *sphere_model, EVLighting *lighting,
                 Vector3 earth_center);
@@ -87,5 +90,6 @@ void draw_dust_motes(Camera3D camera, float time);
 void draw_zero_g_sparkles(Camera3D camera, float time);
 void draw_rain(Camera3D camera, float time);
 void draw_text_box(const char *text, int y, int font_size, Color text_color);
+void draw_earthshine_2d(float time);
 
 #endif

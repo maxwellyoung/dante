@@ -1,6 +1,7 @@
 -- effects.lua
 -- Manages all particle effects.
 
+local Palette = require("infernal_ascent_palette")
 local Effects = {}
 Effects.__index = Effects
 
@@ -85,7 +86,11 @@ function Effects:muzzle_flash(x, y, dir)
             lifetime = math.random() * 0.2,
             max_lifetime = 0.2,
             size = math.random(2, 5),
-            color = {1, math.random(0.8, 1), 0.3}
+            color = {
+                Palette.effects.muzzle[1],
+                Palette.effects.muzzle[2] + math.random() * (1 - Palette.effects.muzzle[2]),
+                Palette.effects.muzzle[3],
+            }
         })
     end
 end
@@ -101,7 +106,7 @@ function Effects:sparks(x, y)
             lifetime = math.random() * 0.4,
             max_lifetime = 0.4,
             size = math.random(1, 3),
-            color = {1, 1, 0.5}
+            color = Palette.effects.sparks
         })
     end
 end
@@ -117,7 +122,7 @@ function Effects:ricochet_sparks(x, y)
             lifetime = math.random() * 0.25 + 0.12,
             max_lifetime = 0.37,
             size = math.random(2, 4),
-            color = {1, 0.78, 0.38},
+            color = Palette.effects.ricochet,
             drag = 0.03
         })
     end
@@ -135,7 +140,7 @@ function Effects:dash_burst(x, y, dir_x, dir_y)
             lifetime = math.random() * 0.16 + 0.08,
             max_lifetime = 0.24,
             size = math.random(2, 4),
-            color = {1, 0.82, 0.45},
+            color = Palette.effects.dash,
             drag = 0.03
         })
     end
@@ -156,7 +161,7 @@ function Effects:dash_impact(x, y, kind)
             lifetime = math.random() * 0.18 + 0.08,
             max_lifetime = 0.26,
             size = math.random(2, 5),
-            color = kind == "wall" and {1, 0.9, 0.55} or {0.95, 0.75, 0.48},
+            color = kind == "wall" and Palette.effects.dash_impact_wall or Palette.effects.dash_impact_body,
             drag = 0.05
         })
     end
@@ -173,7 +178,7 @@ function Effects:blood(x, y)
             lifetime = math.random() * 0.6,
             max_lifetime = 0.6,
             size = math.random(2, 4),
-            color = {1, 0, 0},
+            color = Palette.effects.blood,
             drag = 0.05
         })
     end
@@ -217,7 +222,7 @@ function Effects:run_dust(x, y)
         lifetime = math.random() * 0.3,
         max_lifetime = 0.3,
         size = math.random(1, 3),
-        color = {0.8, 0.7, 0.6}
+        color = Palette.effects.dust
     })
 end
 
@@ -232,7 +237,7 @@ function Effects:jump_dust(x, y)
             lifetime = math.random() * 0.5,
             max_lifetime = 0.5,
             size = math.random(2, 4),
-            color = {0.9, 0.8, 0.7}
+            color = Palette.effects.jump_dust
         })
     end
 end
@@ -249,7 +254,7 @@ function Effects:stomp(x, y)
             lifetime = math.random() * 0.4 + 0.2,
             max_lifetime = 0.6,
             size = math.random(2, 5),
-            color = {1, 0.8, 0.3},
+            color = Palette.effects.stomp_ring,
             drag = 0.03
         })
     end
@@ -267,7 +272,7 @@ function Effects:grapple_latch(x, y)
             lifetime = math.random() * 0.12 + 0.06,
             max_lifetime = 0.18,
             size = math.random(2, 4),
-            color = {0.7, 0.85, 1},
+            color = Palette.effects.grapple_latch,
             drag = 0.06
         })
     end
@@ -278,7 +283,7 @@ function Effects:grapple_latch(x, y)
         lifetime = 0.1,
         max_lifetime = 0.1,
         size = 12,
-        color = {1, 1, 1},
+        color = Palette.effects.grapple_flash,
         drag = 0
     })
 end
@@ -295,7 +300,7 @@ function Effects:stomp_ring(x, y)
             lifetime = math.random() * 0.3 + 0.15,
             max_lifetime = 0.45,
             size = math.random(3, 6),
-            color = {1, 0.85, 0.3},
+            color = Palette.effects.stomp_ring,
             drag = 0.04
         })
     end
@@ -313,7 +318,7 @@ function Effects:wall_jump_burst(x, y, dir)
             lifetime = math.random() * 0.3 + 0.1,
             max_lifetime = 0.4,
             size = math.random(2, 5),
-            color = {0.85, 0.8, 0.7},
+            color = Palette.effects.wall_jump,
             drag = 0.03
         })
     end
@@ -331,7 +336,7 @@ function Effects:ricochet_kill(x, y)
             lifetime = math.random() * 0.35 + 0.15,
             max_lifetime = 0.5,
             size = math.random(3, 6),
-            color = {1, 0.92, 0.4},
+            color = Palette.effects.ricochet_kill,
             drag = 0.03
         })
     end
@@ -342,7 +347,7 @@ function Effects:ricochet_kill(x, y)
         lifetime = 0.15,
         max_lifetime = 0.15,
         size = 16,
-        color = {1, 1, 0.85},
+        color = Palette.effects.ricochet_flash,
         drag = 0
     })
 end
@@ -360,7 +365,7 @@ function Effects:rumble(x, y)
             lifetime = math.random() * 0.4 + 0.3,
             max_lifetime = 0.7,
             size = math.random(2, 4),
-            color = {0.6, 0.5, 0.4},
+            color = Palette.effects.rubble,
             drag = 0.02
         })
     end

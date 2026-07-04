@@ -1,6 +1,7 @@
 -- harpy.lua
 -- Defines a flying, projectile-firing enemy.
 
+local Palette = require("infernal_ascent_palette")
 local Harpy = {}
 Harpy.__index = Harpy
 
@@ -35,7 +36,7 @@ function Harpy:new(x, y, services)
     instance.telegraph_timer = 0
     instance.telegraph_duration = 0.45
     instance.telegraph_target = nil
-    instance.color = { 0.78, 0.76, 0.32 }
+    instance.color = Palette.enemy.harpy_body
     return instance
 end
 
@@ -126,7 +127,7 @@ function Harpy:draw()
         local cx = self.x + self.width / 2
         local cy = self.y + self.height / 2
         -- Warning glow
-        love.graphics.setColor(1, 0.2, 0.15, 0.3 * pulse)
+        love.graphics.setColor(Palette.enemy.telegraph[1], Palette.enemy.telegraph[2], Palette.enemy.telegraph[3], 0.3 * pulse)
         love.graphics.circle("fill", cx, cy, 22)
         -- Aim line toward target
         if self.telegraph_target then
@@ -137,7 +138,7 @@ function Harpy:draw()
             local dist = math.sqrt(dx * dx + dy * dy)
             if dist > 0 then
                 local nx, ny = dx / dist, dy / dist
-                love.graphics.setColor(1, 0.3, 0.2, 0.4 * pulse)
+                love.graphics.setColor(Palette.enemy.telegraph_line[1], Palette.enemy.telegraph_line[2], Palette.enemy.telegraph_line[3], 0.4 * pulse)
                 love.graphics.setLineWidth(2)
                 love.graphics.line(cx + nx * 16, cy + ny * 16, cx + nx * 60, cy + ny * 60)
                 love.graphics.setLineWidth(1)
@@ -147,7 +148,7 @@ function Harpy:draw()
 
     love.graphics.setColor(self.color[1], self.color[2], self.color[3], 1)
     love.graphics.rectangle("fill", self.x + 4, self.y + 8, self.width - 8, self.height - 8, 4, 4)
-    love.graphics.setColor(0.26, 0.2, 0.08, 1)
+    love.graphics.setColor(Palette.enemy.harpy_wing[1], Palette.enemy.harpy_wing[2], Palette.enemy.harpy_wing[3], 1)
     love.graphics.rectangle("fill", self.x, self.y + 12, 6, 10, 2, 2)
     love.graphics.rectangle("fill", self.x + self.width - 6, self.y + 12, 6, 10, 2, 2)
 
@@ -156,7 +157,7 @@ function Harpy:draw()
         local flash = 0.6 + 0.4 * math.sin(love.timer.getTime() * 20)
         love.graphics.setColor(1, 0.2 * flash, 0.1 * flash, 1)
     else
-        love.graphics.setColor(1, 0.95, 0.78, 1)
+        love.graphics.setColor(Palette.enemy.harpy_face[1], Palette.enemy.harpy_face[2], Palette.enemy.harpy_face[3], 1)
     end
     love.graphics.rectangle("fill", self.x + 10, self.y + 10, self.width - 20, 8, 2, 2)
     love.graphics.setColor(1, 1, 1, 1)

@@ -3,6 +3,7 @@
 
 local Enemy = require("enemy")
 local Harpy = require("harpy")
+local Palette = require("infernal_ascent_palette")
 local Utils = require("utils")
 
 local TILE_SIZE = Utils.TILE_SIZE
@@ -113,7 +114,7 @@ function Enemies:draw()
         enemy:draw()
     end
 
-    love.graphics.setColor(0.95, 0.35, 0.3, 1)
+    love.graphics.setColor(Palette.enemy.projectile[1], Palette.enemy.projectile[2], Palette.enemy.projectile[3], 1)
     for _, projectile in ipairs(self.projectiles) do
         love.graphics.rectangle(
             "fill",

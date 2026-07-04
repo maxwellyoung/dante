@@ -48,8 +48,8 @@ typedef struct { unsigned int id; int width; int height; int mipmaps; int format
 #include "../src/render.h"
 #include "../src/lighting.h"
 
-// Count enum values: STATE_RETURN_TAXI is the last enum value (19), so count = 20
-#define GAMESTATE_COUNT (STATE_RETURN_TAXI + 1)
+// Count enum values: STATE_SHELL_TEST is currently the last enum value.
+#define GAMESTATE_COUNT (STATE_SHELL_TEST + 1)
 
 int main(void) {
     printf("EV Engine — Headless Test Suite\n");
@@ -59,10 +59,12 @@ int main(void) {
     printf("Checking constants...\n");
     assert(MAX_WALLS == 2048);
     assert(MAX_OBJECTS == 64);
-    assert(RENDER_W == 960);
-    assert(RENDER_H == 600);
+    assert(MAX_MODEL_ASSETS == 32);
+    assert(RENDER_W == 1920);
+    assert(RENDER_H == 1200);
     printf("  MAX_WALLS   = %d  OK\n", MAX_WALLS);
     printf("  MAX_OBJECTS = %d  OK\n", MAX_OBJECTS);
+    printf("  MAX_MODEL_ASSETS = %d  OK\n", MAX_MODEL_ASSETS);
     printf("  RENDER_W    = %d  OK\n", RENDER_W);
     printf("  RENDER_H    = %d  OK\n", RENDER_H);
 
@@ -75,22 +77,28 @@ int main(void) {
     assert(sizeof(EVAudio) > 0);
     assert(sizeof(EVPostFX) > 0);
     assert(sizeof(EVLighting) > 0);
+    assert(sizeof(ModelRegistryEntry) > 0);
+    assert(sizeof(ModelAsset) > 0);
     printf("  sizeof(Wall)           = %zu  OK\n", sizeof(Wall));
     printf("  sizeof(Player)         = %zu  OK\n", sizeof(Player));
     printf("  sizeof(Scene)          = %zu  OK\n", sizeof(Scene));
     printf("  sizeof(InteractObject) = %zu  OK\n", sizeof(InteractObject));
+    printf("  sizeof(ModelRegistryEntry) = %zu  OK\n", sizeof(ModelRegistryEntry));
+    printf("  sizeof(ModelAsset)     = %zu  OK\n", sizeof(ModelAsset));
     printf("  sizeof(EVAudio)        = %zu  OK\n", sizeof(EVAudio));
     printf("  sizeof(EVPostFX)       = %zu  OK\n", sizeof(EVPostFX));
     printf("  sizeof(EVLighting)     = %zu  OK\n", sizeof(EVLighting));
 
-    // GameState enum count — should be 18
+    // GameState enum count — keep this in sync with the last declared enum value.
     printf("\nChecking GameState enum...\n");
-    assert(GAMESTATE_COUNT == 20);
+    assert(GAMESTATE_COUNT == 26);
     printf("  GameState count = %d  OK\n", GAMESTATE_COUNT);
     printf("  STATE_TITLE         = %d\n", STATE_TITLE);
     printf("  STATE_BATHROOM      = %d\n", STATE_BATHROOM);
     printf("  STATE_STARS         = %d\n", STATE_STARS);
     printf("  STATE_RETURN_TAXI   = %d\n", STATE_RETURN_TAXI);
+    printf("  STATE_GLASSHOUSE    = %d\n", STATE_GLASSHOUSE);
+    printf("  STATE_SHELL_TEST    = %d\n", STATE_SHELL_TEST);
 
     // Surface types
     printf("\nChecking SurfaceType enum...\n");

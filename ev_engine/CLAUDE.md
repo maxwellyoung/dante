@@ -58,52 +58,55 @@ render.c            — rendering + post-FX shaders
 lighting.c          — GLSL lighting + per-scene presets
 player.c            — Quake-style movement/physics
 npc.c               — Gibbons NPC
+dialog.c            — contextual dialogue core: rule database + pattern matching (headless-testable)
+dialog_game.c       — dialogue↔engine binding: world-state queries, speech lifecycle, triggers
 ui.c / ui.h         — Spring physics, icons, UI components
 config.h            — centralized constants (PI, SAMPLE_RATE, task counts, etc.)
 
+assets/dialogue/ev.rules — writer-editable response rules (F6 hot reload, no recompile)
 assets/skytower.obj — Sky Tower 3D model (first external mesh)
-assets/*.glb, *.obj — Auto-loaded model assets (ModelAsset registry)
+assets/*.glb, *.obj — Authored assets; active runtime models are declared in src/model_registry.c
 scripts/blender_send.py — Blender MCP socket helper (model/rig/export)
 scripts/ev_shell_workbench.py — Blender level editor for room shells (Gehry workflow)
 ```
 
 ### 3D Model Asset System
 
-**Auto-loading**: Any `.glb` or `.obj` in `assets/` is auto-loaded at startup into `g.model_assets[]` (max 16). Lighting shader applied to all material slots. GLB animations loaded and ticked each frame.
+**Registry loading**: `src/model_registry.c` is the single source of truth for authored runtime models. The engine preallocates stable slots in `g.model_assets[]` (max 32), preloads only `startup_load=true` entries, and lazy-loads other active assets on first `find_model_asset()` use. Lighting shader is applied to all loaded material slots, and GLB animations are loaded when present.
 
 **Placing models in scenes:**
 ```c
-int taxi = find_model_asset("taxi");  // lookup by filename without extension
-if (taxi >= 0) {
+int telephone = find_model_asset("telephone");  // lookup by registry name
+if (telephone >= 0) {
     add_model(s, 0, 0, -5,           // position
               1, 1, 1,               // scale
               0,                     // rotation degrees
-              taxi,                  // model_index
-              MAT_CONCRETE,          // materialId for shader
-              (Color){220,200,50,255}); // base color
+              telephone,             // model_index
+              MAT_BRASS,             // materialId for shader
+              WHITE);                // base color
 }
 ```
 
 **Key types** (`ev_types.h`):
-- `ModelAsset` — Model + animations + name + frame tracking
+- `ModelRegistryEntry` — Authoritative manifest entry (name, path, kind, startup policy, VAO budget, status)
+- `ModelAsset` — Runtime slot populated from the registry, plus model/anims/frame tracking
 - `SHAPE_MODEL` — ShapeType for walls referencing loaded models
 - `model_index` — field on Wall struct, indexes `g.model_assets[]`
 
 **Formats:**
-- **Static props** (.obj): 50-200 tris, no textures, no animation
-- **Animated models** (.glb): 200-800 tris, simple rigs, max 4 bone influences
+- **Canonical authored format** (`.glb`): props, shells, and animated models
+- **Legacy fallback** (`.obj`): inspection/debug assets only; `skytower.obj` is the main surviving runtime exception
 - **No UV textures** — GLSL materialId system handles surfaces procedurally
 - **Scale**: 1 unit = 1 meter. GLB exports Y-up (matches Raylib).
 
 ### Blender Pipeline (Mac Mini)
 
-Blender runs on Mac Mini (`ssh mini-ts`, port 9877). Use `/blender` skill or `scripts/blender_send.py`.
+Blender runs on Mac Mini (`ssh mini-ts`, port 9877), but `scripts/mcp_model.sh full` now prefers local headless Blender when it is installed. Set `PREFER_REMOTE_BLENDER=1` if you explicitly want the Mini-first path. Use `/blender` skill or `scripts/blender_send.py` for direct MCP work.
 
 ```bash
-# Model in Blender, export GLB, fetch to engine
-ssh mini-ts 'python3 ~/blender_send.py --export-glb /Users/klaus/taxi.glb'
-scp mini-ts:~/taxi.glb assets/
-make run  # auto-loads new model
+# Model in Blender, export GLB, deploy, run GLB QA, validate registry
+./scripts/mcp_model.sh full scripts/model_taxi_driver.py taxi_driver
+make run  # registry-backed load path
 ```
 
 ### Shell System (Gehry-esque Environments)
@@ -192,16 +195,30 @@ The engine uses a **decal system** with OpenGL polygon offset to prevent z-fight
 4. **Clip planes**: tightened to near=0.05, far=300 (`rlSetClipPlanes` in main.c) — ~20× better depth precision than defaults
 5. **Never place two `add_wall()` calls at the same position** without marking one as decal
 6. Use `add_wall_decal()` for one-off decals instead of `add_wall()` + `set_last_decal()`
-7. Constants `Z_DECAL_BIAS`, `Z_DECAL_BIAS2`, `Z_TRIM_BIAS` in `config.h` for manual y-offsets when needed
+7. **Automated**: `scene_auto_decal()` runs on every scene load (thin flush trim auto-marks, duplicate walls deactivate); QA prints a `zfight:` count per scene (`scene_zfight_report`) — keep spine scenes ≤5
+8. Constants `Z_DECAL_BIAS`, `Z_DECAL_BIAS2`, `Z_TRIM_BIAS` in `config.h` for manual y-offsets when needed
 
 ### Audio System (`audio.c`)
 100% procedural — every sound synthesized from sine waves, noise, and envelopes at `SAMPLE_RATE = 44100`. No audio files. Drones are 20-32 second loops with reverb tails. Through-wall sounds (muffled piano, distant voices, footsteps above) create presence of inaccessible lives.
 
 ### Physics (`player.c`, `ev_types.h`)
-Quake-style air strafing, bunny hopping (50ms friction grace), wall running, ledge mantling, momentum slides, dashing. All tuning lives in `PhysicsConfig` (59 parameters) with defaults in `physics_default()`.
+Two feel profiles. **`physics_narrative()`** (all hotel scenes, applied in `load_state`): grounded — fast accel/stop, no air-strafing or bhop, gravity 24, step height 0.28, minimal bob/tilt. **`physics_default()`** (prototype scenes): Quake-style air strafing, bunny hopping, wall running, mantling, slides, dashing. All tuning in `PhysicsConfig` (59 parameters). Station gravity is 0.85–0.9 — the low-g float is an arrival beat (space lobby settles 0.4→0.9), never a permanent state.
 
 ### NPC System (`npc.c`)
 Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, per-waypoint dialogue, physics modes (ghost vs grounded). Drawing uses macros (`P()`, `D()`, `DRAW()`) for local-space positioning relative to NPC yaw.
+
+### Contextual Dialogue (`dialog.c`, `dialog_game.c`)
+Valve-style response rules (Elan Ruskin, GDC 2012 — L4D/TF2/Portal). World state flattens into facts; writers author rules in `assets/dialogue/ev.rules`; the most specific matching rule wins; responses write memory back and chain followups into conversations.
+
+- **Facts**: interned key → float (string values intern to symbol ids). Query = concept + who + scene + everything else (`build_query()` in dialog_game.c) + persistent memory.
+- **Criteria**: interval tests `lo ≤ v ≤ hi`. A criterion naming an absent fact rejects the rule. Score = criteria count → specific beats general.
+- **Responses**: `say` variants cycle randomly without repeats; `remember k=v` / `k+=1` (optional `@ttl`) writes memory; `then who concept after N` chains a followup that is **re-queried when it fires** — conversations self-terminate if the world changed; `norepeat` / `resay N` control replay.
+- **Triggers**: Gibbons waypoint stops fire `concept=waypoint` (scenes with no legacy `npc_set_dialogue` lines); an ~8s idle poll fires `concept=idle` (no match = silence); suite E-presses fire `concept=interact` with `object=<prop>` + `step=N` facts via `dlg_game_remark()` — every named prop is speakable, most stay silent by design. Scenes/code can call `dlg_game_speak(who, concept)` / `dlg_game_speak_about(...)` directly.
+- **Workflow**: edit `ev.rules`, press **F6** in-game to hot reload. Unknown state you want to gate on? Add one `dlg_query_add()` line to `build_query()`.
+- **Tests**: `tests/test_dialog.c` exercises the core headless (`make test`). `dialog.c` must stay Raylib-free.
+- **Voice-ready**: every `say` variant has a stable vox ID (`<rule>_v<n>`). `python3 scripts/vox_sheet.py > qa/vox_sheet.csv` emits the recording sheet; subtitles are the current delivery, VO drops in later against the same IDs.
+
+Legacy per-scene `npc_set_dialogue()` arrays still work and take priority scene-by-scene; migrate them into rules as scenes are touched (done: space lobby, space corridor, glasshouse; suite props fire interact concepts).
 
 ## Key Conventions
 
@@ -211,7 +228,7 @@ Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, 
 - **Interaction = visible consequence**: Every E-press must change geometry or lighting, not just set a flag.
 - **Spring physics for UI**: Crosshair scale, text entry, title animation all use mass-spring-damper (k=280, d=26, m=0.9).
 
-## Visual Style Presets (Shift+1-9)
+## Visual Style Presets (Shift+1-9, Shift+0)
 
 | Key | Style | Character |
 |-----|-------|-----------|
@@ -224,6 +241,7 @@ Gibbons: geometric cube-person with segmented limbs. Waypoint-based navigation, 
 | Shift+7 | Neon | Oversaturated, bloom heavy, teal-orange tint |
 | Shift+8 | Woodcut | Extreme dither, near-mono, posterized |
 | Shift+9 | Raw | No post-FX. Naked geometry and lighting |
+| Shift+0 | Grickle | Puzzle Agent storybook. Luma cel bands (hue survives), paper grain, inked edges |
 
 Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 
@@ -235,6 +253,7 @@ Defined in `render.c` as `visual_styles[]`. Styles persist across scene changes.
 | F3 | Debug overlay (FPS, walls, position, state, speed bar, movement mode) |
 | F4 | Noclip fly mode (Space=up, Ctrl=down) |
 | F5 | Nudge mode — select and reposition walls with arrow keys |
+| F6 | Hot-reload dialogue rules (assets/dialogue/ev.rules) |
 | 0-9 | Jump to scene (0=Taxi, 1=Exterior, 2=Lobby, ..., 9=Space Suite) |
 
 ## Anti-Patterns (Never)

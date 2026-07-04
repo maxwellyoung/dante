@@ -117,13 +117,13 @@ typedef struct {
 // Default physics — the "feel" of the game
 static inline PhysicsConfig physics_default(void) {
     return (PhysicsConfig){
-        .walk_speed         = 4.5f,
-        .sprint_speed       = 8.5f,
-        .slide_speed_mult   = 1.5f,
+        .walk_speed         = 3.2f,
+        .sprint_speed       = 5.6f,
+        .slide_speed_mult   = 1.25f,
 
-        .ground_accel       = 10.0f,
-        .ground_friction    = 6.0f,
-        .slide_friction     = 1.5f,
+        .ground_accel       = 7.0f,
+        .ground_friction    = 7.5f,
+        .slide_friction     = 2.8f,
 
         .air_accel          = 12.0f,
         .air_speed_cap      = 1.0f,     // Quake-style: low cap = big air strafe
@@ -142,23 +142,23 @@ static inline PhysicsConfig physics_default(void) {
         .eye_height         = 1.6f,
         .slide_eye_height   = 1.2f,
         .crouch_eye_height  = 1.0f,
-        .fov_walk           = 70.0f,
-        .fov_sprint         = 82.0f,
-        .fov_slide          = 88.0f,
-        .fov_lerp_speed     = 8.0f,
-        .tilt_walk          = 1.5f,
-        .tilt_sprint        = 2.5f,
-        .tilt_slide         = 3.5f,
-        .tilt_lerp_speed    = 10.0f,
+        .fov_walk           = 62.0f,
+        .fov_sprint         = 68.0f,
+        .fov_slide          = 70.0f,
+        .fov_lerp_speed     = 4.5f,
+        .tilt_walk          = 0.45f,
+        .tilt_sprint        = 0.8f,
+        .tilt_slide         = 1.2f,
+        .tilt_lerp_speed    = 5.5f,
 
-        .bob_walk_rate      = 9.0f,
-        .bob_sprint_rate    = 14.0f,
-        .bob_slide_rate     = 18.0f,
-        .bob_walk_amp       = 0.04f,
-        .bob_sprint_amp     = 0.08f,
-        .bob_slide_amp      = 0.10f,
+        .bob_walk_rate      = 5.5f,
+        .bob_sprint_rate    = 7.5f,
+        .bob_slide_rate     = 9.0f,
+        .bob_walk_amp       = 0.012f,
+        .bob_sprint_amp     = 0.022f,
+        .bob_slide_amp      = 0.03f,
 
-        .land_dip_strength  = 0.15f,
+        .land_dip_strength  = 0.045f,
         .land_dip_decay     = 5.0f,
         .land_dip_max_vy    = 8.0f,
 
@@ -184,29 +184,57 @@ static inline PhysicsConfig physics_default(void) {
 
         .crouch_jump_bonus  = 1.5f,     // +1.5 to jump impulse from slide
 
-        .speed_fov_scale    = 1.5f,     // 1.5° per unit above sprint
-        .speed_fov_max      = 100.0f,
-        .speed_shake_threshold = 12.0f,
-        .speed_shake_intensity = 0.02f,
+        .speed_fov_scale    = 0.35f,    // restrained exploration camera
+        .speed_fov_max      = 74.0f,
+        .speed_shake_threshold = 18.0f,
+        .speed_shake_intensity = 0.004f,
 
         .climb_reach    = 2.5f,     // can grab ledges 2.5m above eye (generous)
         .climb_min_vy   = -6.0f,   // can climb even when falling (not terminal)
         .climb_wall_dist = 0.8f,   // must be close to the wall
 
-        .dash_speed     = 18.0f,
-        .dash_duration  = 0.15f,
+        .dash_speed     = 10.0f,
+        .dash_duration  = 0.12f,
         .dash_cooldown  = 0.6f,
     };
 }
 
+// Narrative physics — grounded, weighted, close to the body.
+// The hotel is walked, not surfed: no air-strafing, fast stops, real steps.
+// Prototype scenes keep physics_default() (the Quake feel is theirs).
+static inline PhysicsConfig physics_narrative(void) {
+    PhysicsConfig c = physics_default();
+    c.walk_speed        = 2.9f;
+    c.sprint_speed      = 4.7f;
+    c.ground_accel      = 14.0f;   // reach speed in ~0.2s — intent, not drift
+    c.ground_friction   = 11.0f;   // stop under your own feet
+    c.air_accel         = 2.0f;    // no air steering worth speaking of
+    c.air_speed_cap     = 3.0f;    // no Quake strafe gain
+    c.gravity           = 24.0f;   // weight
+    c.jump_impulse      = 4.6f;    // low, functional hop
+    c.step_height       = 0.28f;   // stairs yes, beds and tables no
+    c.bob_walk_amp      = 0.006f;  // presence, not bounce
+    c.bob_sprint_amp    = 0.011f;
+    c.tilt_walk         = 0.25f;
+    c.tilt_sprint       = 0.45f;
+    c.speed_fov_scale   = 0.0f;    // no speed-FOV pump
+    c.speed_shake_intensity = 0.0f;
+    c.bhop_friction_window  = 0.0f; // no bunny hopping in the hotel
+    return c;
+}
+
 // Legacy macros — scenes still reference these
-#define WALK_SPEED  4.5f
-#define SPRINT_SPEED 8.5f
+#define WALK_SPEED  3.2f
+#define SPRINT_SPEED 5.6f
 
 // ─────────────────────────────────────────────────────────────────────
 
 typedef enum {
     STATE_TITLE,
+    STATE_PROTO_LAB,
+    STATE_PROTO_MOVEMENT,
+    STATE_PROTO_SHOOTER,
+    STATE_PROTO_PUZZLE,
     STATE_CAR,
     STATE_DRIVING,
     STATE_HOTEL_EXT,
@@ -231,6 +259,83 @@ typedef enum {
 } GameState;
 
 typedef enum {
+    PROTOTYPE_NONE = 0,
+    PROTOTYPE_MOVEMENT,
+    PROTOTYPE_SHOOTER,
+    PROTOTYPE_PUZZLE,
+    PROTOTYPE_COUNT,
+} PrototypeId;
+
+typedef enum {
+    PROTO_LAB_PLAY = 0,
+    PROTO_LAB_REVIEW,
+    PROTO_LAB_COMPARE,
+    PROTO_LAB_RESET,
+    PROTO_LAB_ACTION_COUNT,
+} PrototypeLabAction;
+
+typedef struct {
+    bool completed;
+    float completion_time;
+    int resets;
+    float distance;
+    int jumps;
+    int dashes;
+    int shots_fired;
+    int shots_hit;
+    int shot_ricochets;
+    int direct_hits;
+    int bank_shots_attempted;
+    int bank_shot_hits;
+    int breach_uses;
+    int breach_kills;
+    int grapples_fired;
+    int grapples_latched;
+    int anchor_assisted_clears;
+    int armored_kills;
+    int exposure_hits;
+    int recharge_pickups;
+    int puzzle_actions;
+    int puzzle_misreads;
+    int route_nodes_triggered;
+    int shortcut_uses;
+    int recovery_uses;
+    int finish_cleanliness;
+    int relay_interactions;
+    int invalid_states;
+    int puzzle_stage_clears;
+    float hintless_solve_time;
+    float first_meaningful_action_time;
+} PrototypeRunStats;
+
+typedef struct {
+    int would_replay;
+    int readability;
+    int mechanical_depth;
+    int ship_confidence;
+    int best_moment;
+    int main_friction;
+    bool submitted;
+} PrototypeEval;
+
+typedef struct {
+    const char *display_name;
+    const char *core_question;
+    const char *allowed_verbs;
+    const char *success_condition;
+    const char *score_fields;
+    int recommended_session_length;
+    int max_resets;
+    float max_completion_time;
+    float min_distance;
+    int min_jumps;
+    int min_dashes;
+    int min_shots_hit;
+    int min_puzzle_actions;
+    int max_puzzle_misreads;
+} PrototypeQAExpectation;
+
+typedef enum {
     SURFACE_MARBLE,
     SURFACE_CARPET,
     SURFACE_WOOD,
@@ -239,11 +344,37 @@ typedef enum {
 typedef enum { SHAPE_CUBE, SHAPE_CYLINDER, SHAPE_SPHERE, SHAPE_CONE, SHAPE_SKYTOWER, SHAPE_TORUS, SHAPE_MODEL } ShapeType;
 
 // ── Model asset registry ────────────────────────────────────────────
-// Loaded 3D models (.glb/.obj) from assets/ directory.
+// Loaded 3D models from the engine-owned registry.
 // Walls with SHAPE_MODEL use model_index to reference these.
-#define MAX_MODEL_ASSETS 16
+typedef enum {
+    MODEL_KIND_PROP,
+    MODEL_KIND_SHELL,
+} ModelKind;
+
+typedef enum {
+    MODEL_STATUS_DORMANT,
+    MODEL_STATUS_ACTIVE,
+} ModelStatus;
+
+typedef struct {
+    const char *name;              // filename without extension (e.g. "gibbons")
+    const char *path;              // asset path relative to engine root
+    ModelKind kind;
+    bool startup_load;
+    int estimated_vao_cost;
+    bool preserve_blender_colors;
+    ModelStatus status;
+} ModelRegistryEntry;
+
+#define MAX_MODEL_ASSETS 32
 typedef struct {
     char name[64];              // filename without extension (e.g. "taxi", "gibbons")
+    const char *path;           // registry-owned asset path
+    ModelKind kind;
+    bool startup_load;
+    int estimated_vao_cost;
+    bool preserve_blender_colors;
+    ModelStatus status;
     Model model;
     bool loaded;
     // Animation (GLB only)
@@ -282,6 +413,7 @@ typedef struct {
     ShapeType shape;
     MaterialType material;  // default 0 = MAT_CONCRETE (C zero-init)
     float rotation_y;
+    float rotation_x;       // SHAPE_MODEL: X-axis pre-rotation (axis-correcting bad exports)
     bool is_decal;          // overlay geometry — polygon offset prevents z-fighting
     bool no_collide;        // decorative — skip in collision (cigarettes, floating objects, decals)
     int model_index;        // SHAPE_MODEL only: index into model_assets[]
@@ -438,6 +570,9 @@ typedef struct {
     float line_timer;       // time current line has been showing
     float line_duration;    // seconds per line (default 3.0)
     bool line_showing;
+    // Rules-driven dialogue (dialog.c / dialog_game.c) — used when lines==NULL
+    bool dlg_hold;          // dialogue system holds NPC at waypoint mid-line
+    int dlg_fired_waypoint; // last waypoint a concept was fired for (-1 = none)
 } NPC;
 
 #endif

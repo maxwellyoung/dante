@@ -2,8 +2,6 @@
 #include "game_ctx.h"
 #include <math.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void transition_to(GameState s);
 
@@ -29,7 +27,7 @@ void exterior_update(float dt) {
     UpdateEVAudio(&g.audio, g.player.moving, g.player.sprinting, g.scene.surface, dt);
     // Sky Tower beacon
     {
-        float beacon = sinf(g.state_time * 3.14159f) * 0.5f + 0.5f;
+        float beacon = sinf(g.state_time * PI) * 0.5f + 0.5f;
         beacon = beacon * beacon;
         SetPointLightIdx(&g.lighting, 2,
             0, 52, 8,

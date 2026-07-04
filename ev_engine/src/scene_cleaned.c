@@ -4,8 +4,6 @@
 #include "game_ctx.h"
 #include <math.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void hard_cut_to(GameState s);
 

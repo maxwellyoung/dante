@@ -38,5 +38,5 @@ kit.cube("TagRed", (-0.1, 0.33, 0.04), (0.06, 0.04, 0.005), material=GODARD_RED)
 # ── Shirt spilling out ──
 kit.cube("Shirt", (0.15, 0.28, 0.2), (0.15, 0.03, 0.12), material=FABRIC_WHITE)
 
-kit.export_obj("/Users/klaus/suitcase.obj")
+kit.export_glb("/Users/klaus/suitcase.glb")
 kit.preview_placement()

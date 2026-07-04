@@ -89,4 +89,7 @@ void build_return_taxi(Scene *s);
 void build_space_suite_cleaned(Scene *s);
 void build_glasshouse(Scene *s);
 
+int scene_zfight_report(Scene *s, int max_print);
+int scene_auto_decal(Scene *s);  // mark thin coplanar trim as decals — returns count
+
 #endif

@@ -5,6 +5,8 @@
 #include "ev_types.h"
 #include <stdbool.h>
 
+#define EV_AUDIO_TRANSIENT_SLOTS 8
+
 typedef enum {
     DRONE_LOBBY,
     DRONE_HALLWAY,
@@ -141,6 +143,11 @@ typedef struct {
     float crossfade_timer;   // >0 = crossfading, counts down
     float crossfade_duration;
 
+    // Procedural one-shots synthesized at runtime and unloaded after playback.
+    Sound transient_sounds[EV_AUDIO_TRANSIENT_SLOTS];
+    float transient_ttls[EV_AUDIO_TRANSIENT_SLOTS];
+    bool transient_active[EV_AUDIO_TRANSIENT_SLOTS];
+
     bool initialized;
 } EVAudio;
 
@@ -170,6 +177,10 @@ void PlayMuffledPiano(EVAudio *audio);
 void StopMuffledPiano(EVAudio *audio);
 void PlayDistantVoices(EVAudio *audio);
 void StopDistantVoices(EVAudio *audio);
+void PlayRunningWater(EVAudio *audio);
+void StopRunningWater(EVAudio *audio);
+void PlayTvMurmur(EVAudio *audio);
+void StopTvMurmur(EVAudio *audio);
 void PlayFootstepsAbove(EVAudio *audio);
 void StopFootstepsAbove(EVAudio *audio);
 

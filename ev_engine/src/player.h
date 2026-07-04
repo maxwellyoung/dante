@@ -4,6 +4,7 @@
 
 #include "ev_types.h"
 
+void player_set_physics(PhysicsConfig c);
 void init_player(Player *p, Vector3 pos);
 void update_player(Player *p, Scene *scene, float dt);
 void kick_camera(Player *p, float pitch, float yaw);

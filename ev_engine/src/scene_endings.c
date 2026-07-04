@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern GameCtx g;
-
 void set_exposure(float exp);
 void show_text(const char *text);
 void hide_text(void);
@@ -23,10 +21,10 @@ void hyperspace_load(void) {
     PlayHyperspaceTone(&g.audio);
     PlayHyperspaceRiser(&g.audio);
     SetSceneLighting(&g.lighting, LightingPreset_Hyperspace());
-    set_exposure(0.2f);
+    set_exposure(0.30f);
     SetPostFXWarmth(&g.postfx, 0.3f);
-    SetPostFXGrain(&g.postfx, 0.6f);
-    SetPostFXCA(&g.postfx, 5.0f);
+    SetPostFXGrain(&g.postfx, 0.42f);
+    SetPostFXCA(&g.postfx, 3.8f);
 }
 
 void hyperspace_update(float dt) {
@@ -49,20 +47,20 @@ void hyperspace_update(float dt) {
         float roll = sinf(t * 1.5f) * 2.0f;
         g.player.camera.up = (Vector3){sinf(roll * DEG2RAD), cosf(roll * DEG2RAD), 0};
 
-        float ca = 5.0f + t * 4.0f;
-        SetPostFXCA(&g.postfx, ca > 20.0f ? 20.0f : ca);
-        SetPostFXGrain(&g.postfx, 0.7f + t * 0.1f);
-        set_exposure(0.1f + sinf(t * 3.0f) * 0.08f);
-        float sat = 0.8f + sinf(t * 2.0f) * 0.3f;
-        SetPostFXSaturation(&g.postfx, sat > 1.3f ? 1.3f : sat);
+        float ca = 3.8f + t * 2.1f;
+        SetPostFXCA(&g.postfx, ca > 12.0f ? 12.0f : ca);
+        SetPostFXGrain(&g.postfx, 0.42f + t * 0.05f);
+        set_exposure(0.20f + sinf(t * 2.4f) * 0.04f);
+        float sat = 0.88f + sinf(t * 1.8f) * 0.18f;
+        SetPostFXSaturation(&g.postfx, sat > 1.12f ? 1.12f : sat);
     } else if (t < 4.5f) {
         SetMasterVolume(0.0f);
-        set_exposure(-1.0f);
+        set_exposure(-0.85f);
     } else if (t < 6.0f) {
         float p4 = (t - 4.5f) / 1.5f;
         g.player.camera.fovy = 60.0f + p4 * 30.0f;
         SetMasterVolume(p4);
-        set_exposure(-1.0f + p4 * 1.1f);
+        set_exposure(-0.85f + p4 * 0.95f);
     }
 
     if (t > 6.0f) {
@@ -120,7 +118,7 @@ void bed_update(float dt) {
     {
         float breath_rate = 0.4f;
         float breath_amp = 0.015f;
-        float breath = sinf(g.state_time * breath_rate * 2 * 3.14159f) * breath_amp;
+        float breath = sinf(g.state_time * breath_rate * 2 * PI) * breath_amp;
         g.player.camera.position.y += breath * GetFrameTime() * 2.0f;
     }
 }

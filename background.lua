@@ -1,5 +1,6 @@
 local Background = {}
 Background.__index = Background
+local Palette = require("infernal_ascent_palette")
 
 local function clamp01(value)
     return math.max(0, math.min(1, value))
@@ -18,7 +19,7 @@ function Background:new()
     local instance = setmetatable({}, { __index = class })
     instance.color = { 0.08, 0.09, 0.11 }
     instance.floor_color = { 0.12, 0.13, 0.16 }
-    instance.accent_color = { 0.92, 0.55, 0.18 }
+    instance.accent_color = Palette.ui.action
     instance.scene = nil
     instance.room_type = "custom"
     instance.time = 0
@@ -42,7 +43,7 @@ function Background:set_scene(scene)
     self.scene = scene
     self.room_type = scene.room_type or "custom"
     self:set_palette(scene.bg or self.color)
-    self.accent_color = scene.accent_color or { 0.92, 0.55, 0.18 }
+    self.accent_color = scene.accent_color or Palette.ui.action
 end
 
 function Background.load(_self) end
@@ -101,7 +102,11 @@ function Background:draw_grid()
     local room_tint = {
         traversal = { 0.7, 0.82, 1, 0.07 },
         combat = { 1, 0.72, 0.42, 0.07 },
+        ricochet = { 0.92, 0.78, 0.54, 0.07 },
+        grapple = { 0.62, 0.86, 1, 0.08 },
+        dash = { 1, 0.62, 0.32, 0.08 },
         pressure = { 1, 0.5, 0.42, 0.08 },
+        posture = { 0.88, 0.62, 1, 0.08 },
     }
     local tint = room_tint[self.room_type] or { 1, 1, 1, 0.05 }
     love.graphics.setColor(tint[1], tint[2], tint[3], tint[4])
@@ -118,11 +123,35 @@ function Background:draw_grid()
             local y = 84 + index * 42
             love.graphics.line(0, y, g_native_width, y)
         end
+    elseif self.room_type == "ricochet" then
+        love.graphics.setColor(self.accent_color[1], self.accent_color[2], self.accent_color[3], 0.12)
+        for index = 0, 4 do
+            local y = 64 + index * 32
+            love.graphics.line(0, y, g_native_width, y + 24)
+        end
+    elseif self.room_type == "grapple" then
+        love.graphics.setColor(self.accent_color[1] * 0.8, self.accent_color[2], self.accent_color[3], 0.11)
+        for index = 0, 5 do
+            local x = 28 + index * 72
+            love.graphics.line(x, 0, x + 36, g_native_height)
+        end
+    elseif self.room_type == "dash" then
+        love.graphics.setColor(self.accent_color[1], self.accent_color[2] * 0.85, self.accent_color[3] * 0.75, 0.12)
+        for index = 0, 5 do
+            local y = 52 + index * 26
+            love.graphics.line(0, y, g_native_width, y)
+        end
     elseif self.room_type == "pressure" then
         love.graphics.setColor(self.accent_color[1], self.accent_color[2] * 0.8, self.accent_color[3] * 0.9, 0.12)
         for index = 0, 4 do
             local x = 48 + index * 84
             love.graphics.line(x, 0, x + 40, g_native_height)
+        end
+    elseif self.room_type == "posture" then
+        love.graphics.setColor(self.accent_color[1] * 0.85, self.accent_color[2] * 0.7, self.accent_color[3], 0.12)
+        for index = 0, 5 do
+            local x = 36 + index * 78
+            love.graphics.line(x, 0, x - 24, g_native_height)
         end
     end
 end

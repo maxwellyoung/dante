@@ -11,7 +11,15 @@ output/
 ev_engine/qa/screenshots/
 ev_engine/qa/baseline/
 ev_engine/qa/history/
+ev_engine/qa/diffs/
 ev_engine/qa/models/*.png
 ev_engine/qa/report.json
 ev_engine/qa/grades.json
+ev_engine/qa/e2e_report.json
+ev_engine/qa/e2e_grades.json
+ev_engine/qa/audit_report.json
+ev_engine/qa/health-latest.json
+ev_engine/.qa_serve/
 ev_engine/endearing_void_*
+ev_engine/tests/test_main
+ev_engine/a.out

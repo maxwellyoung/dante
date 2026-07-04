@@ -1,15 +1,87 @@
 // scene_suite.c — STATE_SPACE_SUITE
 #include "game_ctx.h"
+#include "dialog.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
-
-extern GameCtx g;
 
 void set_exposure(float exp);
 void hard_cut_to(GameState s);
 void show_text(const char *text);
 InteractSoundType get_interact_sound_ext(const char *name);
+
+static void suite_add_lamp_ritual_visuals(void) {
+    add_light_panel(&g.scene, -2.5f, 1.2f, -4.8f, 0.5f, 0.6f, 0.5f, (Color){255,220,120,200});
+    add_wall(&g.scene, -2.5f, 1.0f, -4.65f, 0.15f, 0.25f, 0.15f, (Color){220,210,185,180});
+    add_wall(&g.scene, -2.5f, 1.8f, -5.35f, 1.2f, 1.5f, 0.01f, (Color){60,45,20,40});
+}
+
+static void suite_add_champagne_ritual_visuals(void) {
+    add_cone(&g.scene, -3.1f, 0.39f, 3.5f, 0.06f, 0.08f, (Color){210,210,215,200});
+    add_cylinder(&g.scene, -3.1f, 0.44f, 3.5f, 0.02f, 0.08f, (Color){210,210,215,200});
+    add_wall_decal(&g.scene, -3.1f, 0.46f, 3.5f, 0.045f, 0.003f, 0.045f, (Color){240,210,100,200});
+    add_cone(&g.scene, -2.8f, 0.39f, 3.3f, 0.06f, 0.08f, (Color){210,210,215,200});
+    add_cylinder(&g.scene, -2.8f, 0.44f, 3.3f, 0.02f, 0.08f, (Color){210,210,215,200});
+    add_sphere(&g.scene, -2.8f, 0.7f, 3.3f, 0.1f, (Color){240,210,100,180});
+    add_sphere(&g.scene, -3.2f, 0.9f, 3.6f, 0.08f, (Color){240,210,100,160});
+    add_sphere(&g.scene, -3.0f, 1.2f, 3.4f, 0.06f, (Color){240,210,100,140});
+    SetPointLightIdx(&g.lighting, 2, -3.1f, 0.42f, 3.5f, 0.36f, 0.30f, 0.09f, 3.0f);
+}
+
+static void suite_add_desk_ritual_visuals(void) {
+    add_wall(&g.scene, 5.3f, 0.45f, -1.6f, 0.4f, 0.04f, 0.3f, (Color){55,85,175,255});
+    add_wall(&g.scene, 5.5f, 0.85f, -2.0f, 1.8f, 0.01f, 0.8f, (Color){20,25,45,255});
+    add_wall_decal(&g.scene, 5.2f, 0.86f, -2.1f, 0.06f, 0.005f, 0.06f, (Color){240,235,220,200});
+    add_wall_decal(&g.scene, 5.7f, 0.86f, -1.8f, 0.04f, 0.005f, 0.04f, (Color){240,235,220,180});
+    add_wall_decal(&g.scene, 5.4f, 0.86f, -1.6f, 0.05f, 0.005f, 0.05f, (Color){240,235,220,160});
+    add_wall_decal(&g.scene, 5.45f, 0.862f, -1.95f, 0.8f, 0.003f, 0.02f, (Color){180,60,50,100});
+    add_light_panel(&g.scene, 5.6f, 0.88f, -2.2f, 0.12f, 0.01f, 0.06f, (Color){180,200,240,120});
+}
+
+static void suite_add_bed_ritual_visuals(void) {
+    add_wall(&g.scene, 0.0f, 0.74f, -4.05f, 2.75f, 0.035f, 0.58f, (Color){248,244,235,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+    add_wall(&g.scene, 0.0f, 0.82f, -4.55f, 2.6f, 0.045f, 0.20f, (Color){212,202,190,255});
+    set_last_material(&g.scene, MAT_FABRIC);
+    add_wall(&g.scene, 0.0f, 0.79f, -5.02f, 0.18f, 0.035f, 0.12f, (Color){90,50,25,255});
+    add_wall_decal(&g.scene, -0.58f, 0.785f, -5.20f, 0.30f, 0.006f, 0.18f, (Color){178,168,158,230});
+}
+
+static void suite_add_bath_running_visuals(void) {
+    add_light_panel(&g.scene, 8.55f, 1.30f, 2.5f, 0.04f, 1.7f, 1.7f, (Color){240,200,120,48});
+    add_wall(&g.scene, 9.20f, 0.58f, 2.05f, 1.7f, 0.012f, 0.78f, (Color){64,84,96,155});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_wall(&g.scene, 8.75f, 1.55f, 2.15f, 0.08f, 1.5f, 1.15f, (Color){205,215,224,48});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_wall(&g.scene, 9.35f, 1.85f, 2.55f, 0.06f, 1.8f, 1.35f, (Color){205,215,224,34});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_sphere(&g.scene, 9.15f, 2.45f, 2.25f, 0.12f, (Color){205,215,224,42});
+    add_sphere(&g.scene, 9.65f, 2.15f, 2.70f, 0.09f, (Color){205,215,224,34});
+}
+
+static void suite_add_window_reveal_visuals(void) {
+    g.suite_window_revealed = true;
+    g.suite_window_dwell = 15.0f;
+    SetPointLightIdx(&g.lighting, 3, -5.8f, 1.5f, -0.5f, 0.35f, 0.55f, 0.9f, 6.0f);
+    add_light_panel(&g.scene, -6.88f, 1.72f, -0.65f, 0.035f, 1.7f, 2.8f, (Color){95,150,215,86});
+    add_wall(&g.scene, -6.86f, 1.25f, -0.75f, 0.025f, 0.18f, 2.35f, (Color){90,200,190,105});
+    set_last_material(&g.scene, MAT_GLASS);
+    add_sphere(&g.scene, -6.52f, 2.10f, 0.65f, 0.10f, (Color){110,220,210,120});
+}
+
+void suite_apply_ritual_progress_for_qa(int tasks, bool window_revealed, bool bath_running) {
+    if (tasks < 0) tasks = 0;
+    if (tasks > SPACE_TASK_COUNT) tasks = SPACE_TASK_COUNT;
+    g.tasks_done = tasks;
+    if (tasks >= 1) { suite_add_lamp_ritual_visuals(); g.interaction_phases[0] = 2; }
+    if (tasks >= 2) { suite_add_champagne_ritual_visuals(); g.interaction_phases[1] = 2; PlaySuiteMusic(&g.audio); }
+    if (tasks >= 3) { suite_add_desk_ritual_visuals(); g.interaction_phases[2] = 2; }
+    if (tasks >= 4) { suite_add_bed_ritual_visuals(); g.interaction_phases[3] = 2; SetPostFXWarmth(&g.postfx, 1.0f); }
+    if (window_revealed) suite_add_window_reveal_visuals();
+    if (bath_running) suite_add_bath_running_visuals();
+    SetPostFXWarmth(&g.postfx, 0.08f + (float)tasks / (float)SPACE_TASK_COUNT * 0.7f);
+    g.scene.fog_density = 0.001f - ((float)tasks / SPACE_TASK_COUNT * 0.0005f);
+}
 
 void suite_load(void) {
     bool replay = g.backstory_count > 3;
@@ -37,10 +109,10 @@ void suite_load(void) {
     StopMuffledPiano(&g.audio); StopFootstepsAbove(&g.audio);
     StopDistantVoices(&g.audio);
     StopCorridorMusic(&g.audio);
-    StopSound(g.audio.snd_running_water); StopSound(g.audio.snd_tv_murmur);
+    StopRunningWater(&g.audio); StopTvMurmur(&g.audio);
     PlayDoorThud(&g.audio);
     PlayAirlockHiss(&g.audio);
-    g.player.gravity_mult = 0.5f;
+    g.player.gravity_mult = 0.9f;  // station gravity — subliminal lightness
     StartAmbient(&g.audio, DRONE_SPACE_SUITE);
     PlayClockAmbient(&g.audio);
     // Through-wall sounds — other lives in the hotel
@@ -54,6 +126,15 @@ void suite_load(void) {
     set_exposure(0.05f);           // slight lift — see the room, not a cave
     SetPostFXGrain(&g.postfx, 0.25f);    // 16mm stock, not VHS
     SetPostFXWarmth(&g.postfx, 0.08f);   // hint of warmth even before tasks — someone was here
+    g.suite_zone_auto_lamp = false;
+    g.suite_zone_auto_champ = false;
+    g.suite_zone_auto_desk = false;
+    g.suite_phone_ringing = false;
+    g.suite_phone_killed = false;
+    g.suite_window_dwell = 0.0f;
+    g.suite_window_revealed = false;
+    memset(g.suite_zone_timers, 0, sizeof(g.suite_zone_timers));
+    memset(g.suite_zone_fired, 0, sizeof(g.suite_zone_fired));
     // Gibbons — gestures you in at threshold, walks to sofa, sits
     // "He bows. He deactivates." (Master Plan)
     {
@@ -80,7 +161,7 @@ void suite_load(void) {
             npc_set_dialogue(&g.gibbons, suite_lines_first, 3, 4.0f);
     }
     // Thermostat — interactable (changes room warmth)
-    add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 3);
+    add_object(&g.scene, 6.85f, 1.4f, -3.0f, "thermostat", (Color){210,205,195,255}, 1);
     // Adjoining door — interactable (opens to empty room)
     add_object(&g.scene, 6.86f, 1.5f, 3.5f, "adjoining_door", (Color){140,105,65,255}, 1);
     // Photograph — face-down first play, face-up on return (you turned it last time)
@@ -135,9 +216,6 @@ void suite_update(float dt) {
     float pz = g.player.camera.position.z;
 
     // Zone auto-completion flags (set by presence zones, read by phase timers)
-    static bool zone_auto_lamp = false;
-    static bool zone_auto_champ = false;
-    static bool zone_auto_desk = false;
     bool zone_auto = false;
 
     // Speed modulation
@@ -163,7 +241,8 @@ void suite_update(float dt) {
         float warm_t = 0;
         if (pz < -2.0f) warm_t = fminf(1.0f, (-2.0f - pz) / 4.0f);
         float temp = warm_t * 0.3f - cold_t * 0.2f;
-        float base_warmth = (float)g.tasks_done / SPACE_TASK_COUNT;
+        float ambient_warmth = 0.14f;
+        float base_warmth = ambient_warmth + (float)g.tasks_done / SPACE_TASK_COUNT;
         float time_warmth = fminf(0.15f, g.state_time * 0.001f);
         SetPostFXWarmth(&g.postfx, base_warmth + temp + time_warmth);
         float spatial_grain = 0.35f + cold_t * 0.3f - warm_t * 0.1f;
@@ -172,14 +251,12 @@ void suite_update(float dt) {
         // Phone ring — plays at 30s. Dies when you approach.
         // The interaction is the failure to interact.
         {
-            static bool phone_ringing = false;
-            static bool phone_killed = false;
-            if (g.state_time > 30.0f && !phone_ringing && !phone_killed && g.tasks_done == 0) {
+            if (g.state_time > 30.0f && !g.suite_phone_ringing && !g.suite_phone_killed && g.tasks_done == 0) {
                 PlayPhoneRing(&g.audio);
-                phone_ringing = true;
+                g.suite_phone_ringing = true;
             }
             // Walk toward the phone — it stops. You didn't answer. It just... stopped.
-            if (phone_ringing && !phone_killed) {
+            if (g.suite_phone_ringing && !g.suite_phone_killed) {
                 float phone_x = 5.6f, phone_z = -2.2f;
                 float pdx = px - phone_x, pdz = pz - phone_z;
                 float phone_dist = sqrtf(pdx*pdx + pdz*pdz);
@@ -189,8 +266,8 @@ void suite_update(float dt) {
                     SetSoundVolume(g.audio.snd_phone_ring, 0.03f * fade);
                     if (phone_dist < 0.8f) {
                         StopSound(g.audio.snd_phone_ring);
-                        phone_killed = true;
-                        phone_ringing = false;
+                        g.suite_phone_killed = true;
+                        g.suite_phone_ringing = false;
                     }
                 }
             }
@@ -212,7 +289,7 @@ void suite_update(float dt) {
             float vw_t = 1.0f - (vw_dist / 3.0f);
             vw_t *= vw_t;  // quadratic falloff — stronger close up
             // The void pulls warmth from the room
-            float bw = (float)g.tasks_done / SPACE_TASK_COUNT;
+            float bw = 0.14f + (float)g.tasks_done / SPACE_TASK_COUNT;
             SetPostFXWarmth(&g.postfx, fmaxf(0, bw - vw_t * 0.4f));
             SetPostFXGrain(&g.postfx, 0.35f + vw_t * 0.4f);
             // Subtle desaturation
@@ -223,24 +300,22 @@ void suite_update(float dt) {
     // Stay for 15 seconds → Earth rotates enough to show New Zealand.
     // The game rewards looking by showing you home.
     {
-        static float window_dwell = 0;
-        static bool window_revealed = false;
-        if (px < -5.5f && !window_revealed) {
-            window_dwell += dt;
+        if (px < -5.5f && !g.suite_window_revealed) {
+            g.suite_window_dwell += dt;
             // Progressive: grain clears, FOV widens, exposure lifts
-            float wt = fminf(1.0f, window_dwell / 15.0f);
+            float wt = fminf(1.0f, g.suite_window_dwell / 15.0f);
             SetPostFXGrain(&g.postfx, 0.35f - wt * 0.25f);
             g.player.fov_current += (75.0f - g.player.fov_current) * wt * 0.02f;
             set_exposure(0.05f + wt * 0.1f);
-            if (window_dwell >= 15.0f) {
-                window_revealed = true;
+            if (g.suite_window_dwell >= 15.0f) {
+                g.suite_window_revealed = true;
                 // Earth glow shifts — NZ comes into view (warm green tint in the blue)
                 SetPointLightIdx(&g.lighting, 1, -7.0f, 0.5f, -1.0f,
                                  0.15f, 0.4f, 0.25f, 8.0f);  // green-blue → land mass
             }
         } else if (px >= -5.5f) {
-            if (window_dwell > 0) window_dwell -= dt * 0.3f;
-            if (window_dwell < 0) window_dwell = 0;
+            if (g.suite_window_dwell > 0) g.suite_window_dwell -= dt * 0.3f;
+            if (g.suite_window_dwell < 0) g.suite_window_dwell = 0;
         }
     }
     // ── CROUCH AT BED — eye level with the pillow indent ──
@@ -291,8 +366,8 @@ void suite_update(float dt) {
         if (g.interaction_timers[0] <= 0) {
             g.interaction_phases[0] = 2;
             // Auto-complete: if triggered by zone, simulate step 2
-            if (zone_auto_lamp) {
-                zone_auto_lamp = false;
+            if (g.suite_zone_auto_lamp) {
+                g.suite_zone_auto_lamp = false;
                 zone_auto = true;  // will trigger E-handler next frame
             }
         }
@@ -309,8 +384,8 @@ void suite_update(float dt) {
             add_sphere(&g.scene, -2.8f, 0.7f, 3.3f, 0.1f, (Color){240,210,100,180});
             add_sphere(&g.scene, -3.2f, 0.9f, 3.6f, 0.08f, (Color){240,210,100,160});
             add_sphere(&g.scene, -3.0f, 1.2f, 3.4f, 0.06f, (Color){240,210,100,140});
-            if (zone_auto_champ) {
-                zone_auto_champ = false;
+            if (g.suite_zone_auto_champ) {
+                g.suite_zone_auto_champ = false;
                 zone_auto = true;
             }
         }
@@ -326,8 +401,8 @@ void suite_update(float dt) {
                          dt2 * 0.5f, dt2 * 0.4f, dt2 * 0.2f, dt2 * 4.0f);
         if (g.interaction_timers[2] <= 0) {
             g.interaction_phases[2] = 2;
-            if (zone_auto_desk) {
-                zone_auto_desk = false;
+            if (g.suite_zone_auto_desk) {
+                g.suite_zone_auto_desk = false;
                 zone_auto = true;
             }
         }
@@ -417,35 +492,33 @@ void suite_update(float dt) {
             {  5.5f, -2.0f, 2.0f, 5.0f, "desk" },          // desk area
             {  0.0f, -4.5f, 2.5f, 8.0f, "bed" },           // bed area (longest dwell)
         };
-        static float zone_timers[4] = {0};
-        static bool zone_fired[4] = {false};
         int zone_count = 4;
 
         for (int zi = 0; zi < zone_count; zi++) {
-            if (zone_fired[zi]) continue;
+            if (g.suite_zone_fired[zi]) continue;
             float dx = px - zones[zi].x;
             float dz = pz - zones[zi].z;
             float dist = sqrtf(dx*dx + dz*dz);
             if (dist < zones[zi].radius) {
-                zone_timers[zi] += dt;
+                g.suite_zone_timers[zi] += dt;
                 // Visual hint: subtle warmth increase as you dwell (the room notices you)
-                if (zone_timers[zi] > zones[zi].threshold * 0.5f) {
-                    float hint = (zone_timers[zi] - zones[zi].threshold * 0.5f) /
+                if (g.suite_zone_timers[zi] > zones[zi].threshold * 0.5f) {
+                    float hint = (g.suite_zone_timers[zi] - zones[zi].threshold * 0.5f) /
                                  (zones[zi].threshold * 0.5f);
                     hint = fminf(hint, 1.0f) * 0.03f;
                     // Micro-exposure lift — barely perceptible, player won't notice consciously
                     set_exposure(0.05f + hint);
                 }
-                if (zone_timers[zi] >= zones[zi].threshold) {
-                    zone_fired[zi] = true;
+                if (g.suite_zone_timers[zi] >= zones[zi].threshold) {
+                    g.suite_zone_fired[zi] = true;
                     zone_auto = true;
                     // Soft camera kick — the room activated
                     kick_camera(&g.player, -0.005f, 0.003f);
                 }
             } else {
                 // Decay slowly when leaving — you almost had it
-                if (zone_timers[zi] > 0) zone_timers[zi] -= dt * 0.5f;
-                if (zone_timers[zi] < 0) zone_timers[zi] = 0;
+                if (g.suite_zone_timers[zi] > 0) g.suite_zone_timers[zi] -= dt * 0.5f;
+                if (g.suite_zone_timers[zi] < 0) g.suite_zone_timers[zi] = 0;
             }
         }
     }
@@ -467,6 +540,10 @@ void suite_update(float dt) {
                     g.interact_freeze = 0.05f;
                     g.interact_lean = 0.5f;
                     g.interact_lean_vel = 0;
+
+                    // Two Bots One Wrench: every prop is speakable. The rule
+                    // database decides if there's a line (usually: silence).
+                    dlg_game_remark("interact", obj->name, (float)obj->step);
 
                     // Thermostat — each step changes warmth. Not a task.
                     if (strcmp(obj->name, "thermostat") == 0) {
@@ -596,10 +673,9 @@ void suite_update(float dt) {
                     }
                     // Bathroom — water runs, steam appears. Say nothing.
                     if (strcmp(obj->name, "bathroom") == 0 && obj->step == 1) {
-                        add_wall(&g.scene, -6.8f, 2.0f, -1.0f, 0.1f, 3.0f, 4.0f, (Color){200,210,220,25});
-                        add_wall(&g.scene, -6.6f, 2.5f, -0.5f, 0.08f, 2.0f, 3.0f, (Color){200,210,220,15});
+                        suite_add_bath_running_visuals();
                         SetSoundVolume(g.audio.snd_running_water, 0.04f);
-                        PlaySound(g.audio.snd_running_water);
+                        PlayRunningWater(&g.audio);
                         // The bath is big. You can see that. The water runs. That's enough.
                         obj->done = true;
                         break;
@@ -609,15 +685,15 @@ void suite_update(float dt) {
                         add_wall(&g.scene, -2.5f, 1.0f, -4.65f, 0.15f, 0.25f, 0.15f, (Color){220,210,185,180});
                         g.interaction_phases[0] = 1;
                         g.interaction_timers[0] = 1.5f;
-                        if (zone_auto) zone_auto_lamp = true;  // auto-complete when timer finishes
+                        if (zone_auto) g.suite_zone_auto_lamp = true;  // auto-complete when timer finishes
                     } else if (strcmp(obj->name, "desk") == 0 && obj->step == 1) {
                         add_wall(&g.scene, 5.3f, 0.45f, -1.6f, 0.4f, 0.04f, 0.3f, (Color){55,85,175,255});
                         g.interaction_phases[2] = 1;
                         g.interaction_timers[2] = 1.2f;
-                        if (zone_auto) zone_auto_desk = true;
+                        if (zone_auto) g.suite_zone_auto_desk = true;
                     } else if (strcmp(obj->name, "bed") == 0 && obj->step == 1) {
                         // Pull back the covers — the Chevalier moment
-                        add_wall(&g.scene, 0, 0.54f, -4.3f, 2.8f, 0.02f, 1.4f, (Color){245,242,235,255});
+                        suite_add_bed_ritual_visuals();
                         g.interaction_phases[3] = 1;
                         g.interaction_timers[3] = 3.0f;
                         PlayBedRitual(&g.audio);
@@ -634,7 +710,7 @@ void suite_update(float dt) {
                         // Gold liquid surface inside the glass
                         add_wall_decal(&g.scene, -3.1f, 0.46f, 3.5f, 0.045f, 0.003f, 0.045f,
                             (Color){240,210,100,200});
-                        if (zone_auto) zone_auto_champ = true;
+                        if (zone_auto) g.suite_zone_auto_champ = true;
                     }
 
                     if (strcmp(obj->name, "champagne") == 0 && obj->step == 2) {

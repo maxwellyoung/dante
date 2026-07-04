@@ -106,7 +106,7 @@ static const char *fs_source =
     "    if (proj.z > 1.0) return 0.0;\n"
     "    float bias = 0.002;\n"
     "    float shadow = 0.0;\n"
-    "    vec2 texelSize = 1.0 / vec2(2048.0) * 1.3;\n"
+    "    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0)) * 1.3;\n"
     "    for (int x = -1; x <= 1; x++) {\n"
     "        for (int y = -1; y <= 1; y++) {\n"
     "            float d = texture(shadowMap, proj.xy + vec2(x,y)*texelSize).r;\n"
@@ -657,6 +657,8 @@ void CreateShadowMap(EVLighting *lighting) {
     lighting->shadowFBO = rlLoadFramebuffer();
     if (lighting->shadowFBO == 0) {
         printf("[EV] WARNING: Shadow FBO failed\n");
+        UnloadShader(lighting->shadowShader);
+        lighting->shadowShader = (Shader){0};
         return;
     }
 
@@ -678,8 +680,12 @@ void CreateShadowMap(EVLighting *lighting) {
         printf("[EV] Shadow map created — %dx%d depth texture\n", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     } else {
         printf("[EV] WARNING: Shadow FBO incomplete\n");
+        rlUnloadTexture(lighting->shadowDepthTex);
+        lighting->shadowDepthTex = 0;
         rlUnloadFramebuffer(lighting->shadowFBO);
         lighting->shadowFBO = 0;
+        UnloadShader(lighting->shadowShader);
+        lighting->shadowShader = (Shader){0};
     }
 
     rlDisableFramebuffer();
@@ -701,7 +707,7 @@ void UpdateShadowMatrix(EVLighting *lighting, Vector3 keyDir, Vector3 sceneCente
     Matrix lightView = MatrixLookAt(lightPos, sceneCenter, (Vector3){0, 1, 0});
     Matrix lightProj = MatrixOrtho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius,
                                     0.1f, sceneRadius * 4.0f);
-    lighting->lightSpaceMatrix = MatrixMultiply(lightView, lightProj);
+    lighting->lightSpaceMatrix = MatrixMultiply(lightProj, lightView);
 
     // Upload to lighting shader
     SetShaderValueMatrix(lighting->shader, lighting->lightSpaceMatrixLoc, lighting->lightSpaceMatrix);
@@ -918,17 +924,17 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
 SceneLighting LightingPreset_SpaceSuite(void) {
     // Hotel Chevalier in orbit.
     // The emotional equation: warm amber pools (intimacy) vs cold Earth blue (void).
-    // Dark corners are FEATURES — they make the lit zones precious.
-    // When you turn the lamp on, the room transforms. That's the arc.
+    // Keep the room readable first; darkness should frame the suite, not bury it.
+    // When you turn the lamp on, the room still warms up. That's the arc.
     return (SceneLighting){
-        // Key: Earth blue from window — the dominant mood, diagonal for long shadows
+        // Key: Earth blue from window, softened so it no longer paints the whole room cyan.
         .keyDir = Vector3Normalize((Vector3){-0.6f, -0.4f, -0.2f}),
-        .keyColor = {0.25f, 0.38f, 0.55f},
-        // Fill: warm amber bounce from floor/wood — the Hotel Chevalier glow
+        .keyColor = {0.34f, 0.42f, 0.52f},
+        // Fill: warm amber bounce from floor/wood.
         .fillDir = Vector3Normalize((Vector3){0.2f, 0.6f, 0.1f}),
-        .fillColor = {0.14f, 0.10f, 0.06f},
-        // Ambient: very low but warm-tinted — corners visible but moody
-        .ambient = {0.06f, 0.05f, 0.04f},
+        .fillColor = {0.24f, 0.18f, 0.12f},
+        // Ambient: visible in screenshots without flattening the practical pools.
+        .ambient = {0.13f, 0.12f, 0.11f},
         // 0: Ceiling wash above bed — wide, warm, the safe zone
         // 1-2: Bedside lamps — warm intimate pools (the "twos")
         // 3: Earth glow — strong cool blue from window, the emotional anchor
@@ -941,16 +947,16 @@ SceneLighting LightingPreset_SpaceSuite(void) {
             {-5.5f, 1.4f, -1.0f}, {6.0f, 0.6f, -1.5f}, {-3, 4.0f, 3.5f}, {3, 2.2f, 5.5f},
         },
         .pointColor = {
-            {0.70f, 0.50f, 0.28f},   // ceiling: warm amber
-            {0.55f, 0.40f, 0.22f},   // left bedside: intimate warm
-            {0.55f, 0.40f, 0.22f},   // right bedside: matching
-            {0.20f, 0.40f, 0.70f},   // Earth glow: STRONG cool blue — the anchor
+            {0.76f, 0.56f, 0.34f},   // ceiling: warm amber
+            {0.62f, 0.45f, 0.26f},   // left bedside: intimate warm
+            {0.62f, 0.45f, 0.26f},   // right bedside: matching
+            {0.16f, 0.30f, 0.46f},   // Earth glow: cool anchor, not a blue floodlight
             {0, 0, 0},               // floor lamp: off
             {0, 0, 0},               // desk lamp: off
-            {0.35f, 0.25f, 0.12f},   // pendant: warm dim
-            {0.20f, 0.15f, 0.08f},   // entry sconce: breadcrumb
+            {0.42f, 0.30f, 0.16f},   // pendant: warm dim
+            {0.28f, 0.20f, 0.11f},   // entry sconce: breadcrumb
         },
-        .pointRadius = {12.0f, 5.0f, 5.0f, 14.0f, 0, 0, 6.0f, 4.0f},
+        .pointRadius = {12.0f, 5.4f, 5.4f, 10.0f, 0, 0, 6.5f, 4.8f},
         // Breathing — the room is alive. Lights flicker like real practicals.
         .pointFlicker = {0.04f, 0.15f, 0.15f, 0, 0, 0, 0.08f, 0.06f},
         .pointPulse = {0.08f, 0.04f, 0.04f, 0.12f, 0, 0, 0.06f, 0.03f},

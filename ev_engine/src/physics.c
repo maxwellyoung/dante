@@ -6,7 +6,72 @@
 #include <math.h>
 #include <stdio.h>
 
-extern GameCtx g;
+static void rotate_xz(float *x, float *z, float angle) {
+    float c = cosf(angle), s = sinf(angle);
+    float rx = *x * c - *z * s;
+    float rz = *x * s + *z * c;
+    *x = rx;
+    *z = rz;
+}
+
+static bool wall_supports_object(const Wall *surface, const Wall *obj, float *out_top) {
+    if (!surface->active || surface->no_collide || surface->is_decal) return false;
+
+    float radius = fmaxf(obj->size.x, obj->size.z) * 0.5f;
+    float top = surface->pos.y + surface->size.y * 0.5f;
+    float x = obj->pos.x;
+    float z = obj->pos.z;
+
+    switch (surface->shape) {
+        case SHAPE_CUBE:
+        case SHAPE_MODEL: {
+            float hx = surface->size.x * 0.5f + radius;
+            float hz = surface->size.z * 0.5f + radius;
+            if (surface->rotation_y != 0.0f) {
+                float lx = x - surface->pos.x;
+                float lz = z - surface->pos.z;
+                rotate_xz(&lx, &lz, -surface->rotation_y * DEG2RAD);
+                if (lx < -hx || lx > hx || lz < -hz || lz > hz) return false;
+            } else if (x < surface->pos.x - hx || x > surface->pos.x + hx
+                       || z < surface->pos.z - hz || z > surface->pos.z + hz) {
+                return false;
+            }
+            break;
+        }
+        case SHAPE_CYLINDER:
+        case SHAPE_CONE:
+        case SHAPE_SPHERE:
+        case SHAPE_SKYTOWER:
+        case SHAPE_TORUS: {
+            float r = fmaxf(surface->size.x, surface->size.z) * 0.5f + radius;
+            float dx = x - surface->pos.x;
+            float dz = z - surface->pos.z;
+            if (dx * dx + dz * dz > r * r) return false;
+            break;
+        }
+        default:
+            return false;
+    }
+
+    *out_top = top;
+    return true;
+}
+
+static float find_scene_floor_y(Scene *scene, int ignore_index, const Wall *obj, float fallback_floor_y) {
+    float best = fallback_floor_y;
+
+    for (int i = 0; i < scene->wall_count; i++) {
+        const Wall *surface = &scene->walls[i];
+        float top = 0.0f;
+
+        if (i == ignore_index) continue;
+        if (!wall_supports_object(surface, obj, &top)) continue;
+        if (top > obj->pos.y + 0.25f) continue;
+        if (top > best) best = top;
+    }
+
+    return best;
+}
 
 void physics_init(GrabSystem *grab) {
     grab->state = GRAB_NONE;
@@ -46,7 +111,7 @@ void physics_update(Scene *scene, Player *player, GrabSystem *grab, float dt) {
             // === FREED OBJECT PHYSICS ===
             // Gravity (reduced/zero in space)
             if (grav_mult > 0.1f) {
-                w->push_vy -= 18.0f * grav_mult * dt;
+                w->push_vy -= PHYS_GRAVITY * grav_mult * dt;
                 // Terminal velocity
                 if (w->push_vy < -20.0f) w->push_vy = -20.0f;
             } else {
@@ -62,7 +127,7 @@ void physics_update(Scene *scene, Player *player, GrabSystem *grab, float dt) {
             w->pos.y += w->push_vy * dt;
 
             // Floor collision with bounce
-            float floor_y = w->size.y * 0.5f;  // half-height
+            float floor_y = find_scene_floor_y(scene, i, w, w->size.y * 0.5f);
             if (w->pos.y < floor_y && grav_mult > 0.1f) {
                 w->pos.y = floor_y;
                 float impact_speed = fabsf(w->push_vy);
@@ -118,9 +183,12 @@ void physics_update(Scene *scene, Player *player, GrabSystem *grab, float dt) {
                 float hw = w->size.x * 0.5f;
                 float hd = w->size.z * 0.5f;
                 float hh = w->size.y * 0.5f;
-                for (int j = 0; j < scene->wall_count; j++) {
+                bool collision_sound_played = false;
+                for (int iter = 0; iter < 3; iter++) {
+                    bool collided = false;
+                    for (int j = 0; j < scene->wall_count; j++) {
                     Wall *other = &scene->walls[j];
-                    if (j == i || !other->active || other->pushable || other->no_collide) continue;
+                    if (j == i || !other->active || other->pushable || other->no_collide || other->is_decal) continue;
                     // Simple AABB overlap
                     float ohw = other->size.x * 0.5f;
                     float ohd = other->size.z * 0.5f;
@@ -146,15 +214,17 @@ void physics_update(Scene *scene, Player *player, GrabSystem *grab, float dt) {
                             w->pos.z += sign * oz;
                             w->push_vel.z = -w->push_vel.z * 0.4f;
                         }
+                        collided = true;
                         // Impact sound on wall collision
                         float speed = sqrtf(w->push_vel.x * w->push_vel.x +
                                             w->push_vel.z * w->push_vel.z +
                                             w->push_vy * w->push_vy);
-                        if (speed > 2.0f) {
+                        if (!collision_sound_played && speed > 2.0f) {
                             float intensity = fminf(1.0f, speed / 8.0f);
                             ImpactType itype = (w->material == MAT_GLASS || w->breakable)
                                                 ? IMPACT_GLASS : IMPACT_HARD;
                             PlayImpactSound(&g.audio, intensity, itype);
+                            collision_sound_played = true;
                         }
                         // Breakable check on wall collision
                         if (w->breakable && speed > 4.0f) {
@@ -165,8 +235,10 @@ void physics_update(Scene *scene, Player *player, GrabSystem *grab, float dt) {
                                 PlayImpactSound(&g.audio, 1.0f, IMPACT_GLASS);
                             }
                         }
-                        break;  // one collision per frame is enough
+                        break;
                     }
+                }
+                    if (!collided) break;
                 }
             }
         } else {
@@ -272,6 +344,10 @@ void physics_grab_input(Scene *scene, Player *player, GrabSystem *grab, float dt
             break;
         }
         case GRAB_CARRYING: {
+            if (grab->wall_index < 0 || grab->wall_index >= scene->wall_count) {
+                physics_init(grab);
+                break;
+            }
             Wall *w = &scene->walls[grab->wall_index];
             if (!w->active) { physics_init(grab); break; }
 
