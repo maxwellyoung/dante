@@ -128,6 +128,13 @@ static bool fact_lookup(const DlgQuery *q, int key, float *out) {
 static bool rule_matches(const DlgRule *r, const DlgQuery *q) {
     if (r->disabled) return false;
     if (r->resay > 0 && dlg_now - r->last_said < r->resay) return false;
+    // Never-twice (Firewatch): once every variant has been heard, a rule
+    // without an explicit `resay` goes quiet for the rest of the run.
+    // resay is the opt-in for recycling ambient material.
+    if (r->resay <= 0 && r->line_count > 0) {
+        unsigned int full = (1u << r->line_count) - 1u;
+        if ((r->said_mask & full) == full) return false;
+    }
     for (int i = 0; i < r->crit_count; i++) {
         float v;
         if (!fact_lookup(q, r->crit[i].key, &v)) return false;

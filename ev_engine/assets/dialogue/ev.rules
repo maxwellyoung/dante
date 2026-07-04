@@ -15,6 +15,9 @@
 #   then <who> <concept> after <sec>   chain a followup query when the line ends.
 #                          Re-queried at fire time — if the world changed, silence.
 #   norepeat               rule disables itself after firing once.
+#                          NEVER-TWICE: any rule without `resay` goes quiet
+#                          once all its variants have been heard (Firewatch).
+#                          Add `resay N` to opt in to recycling.
 #   resay <sec>            cooldown before this rule may fire again.
 #   end                    close the rule.
 #

@@ -264,7 +264,21 @@ static bool zf_overlap(float c1, float h1, float c2, float h2) {
 // the fight, and flush trim that thin never provided meaningful collision.
 // Thick-vs-thick pairs are left alone (real geometry errors — fix by hand;
 // they stay visible in the QA zfight count).
+static int scene_auto_decal_pass(Scene *s);
+
 int scene_auto_decal(Scene *s) {
+    // Iterate to convergence — a box can fight several partners on several
+    // axes; each pass resolves one pair per box. Capped for safety.
+    int total = 0;
+    for (int pass = 0; pass < 6; pass++) {
+        int marked = scene_auto_decal_pass(s);
+        total += marked;
+        if (marked == 0) break;
+    }
+    return total;
+}
+
+static int scene_auto_decal_pass(Scene *s) {
     const float eps = 0.003f;
     int marked = 0;
     for (int i = 0; i < s->wall_count; i++) {
@@ -301,6 +315,27 @@ int scene_auto_decal(Scene *s) {
                 if (tmin <= 0.12f) {
                     thin->is_decal = true;
                     marked++;
+                } else {
+                    // Both thick: embed the smaller-faced box 1cm behind the
+                    // shared plane (perpendicular abutments — beam ends flush
+                    // with wall faces). The recess reads as a panel gap.
+                    float area_a = ah[u] * ah[v], area_b = bh[u] * bh[v];
+                    // try smaller-faced box first; fall back to the other
+                    Wall *cand[2] = { area_a <= area_b ? a : b,
+                                      area_a <= area_b ? b : a };
+                    for (int ci = 0; ci < 2; ci++) {
+                        Wall *emb = cand[ci];
+                        if (emb->pushable || emb->hinge || emb->breakable) continue;
+                        float *sz = ax == 0 ? &emb->size.x
+                                  : ax == 1 ? &emb->size.y : &emb->size.z;
+                        float *ps = ax == 0 ? &emb->pos.x
+                                  : ax == 1 ? &emb->pos.y : &emb->pos.z;
+                        if (*sz <= 0.1f) continue;  // too thin to recess
+                        *sz -= 0.02f;
+                        *ps += plus ? -0.01f : 0.01f;  // keep far face put
+                        marked++;
+                        break;
+                    }
                 }
                 break;
             }

@@ -54,6 +54,13 @@ static const char *RULES =
     "resay 10\n"
     "end\n"
     "\n"
+    "rule vary_rule\n"
+    "who gibbons\n"
+    "criteria concept=vary\n"
+    "say \"One.\"\n"
+    "say \"Two.\"\n"
+    "end\n"
+    "\n"
     "rule memory_gate\n"
     "who gibbons\n"
     "criteria concept=greet scene=lobby greeted=1 greet_count>=2\n"
@@ -80,13 +87,15 @@ int main(void) {
 
     // Parse
     CHECK(dlg_parse(RULES, "test"), "rules parse");
-    CHECK(dlg_rule_count() == 7, "7 rules loaded");
+    CHECK(dlg_rule_count() == 8, "8 rules loaded");
 
     DlgResponse r;
 
     // Specificity: lobby rule (3 crit) beats general (2 crit)
     CHECK(speak("greet", "lobby", -1, &r), "lobby greet matches");
     CHECK(strcmp(r.rule->name, "lobby_greet") == 0, "specific beats general");
+    CHECK(r.rule->then_concept >= 0 && r.rule->then_delay == 1.5f,
+          "then clause parsed");
 
     // Even more specific with low health (4 crit)
     CHECK(speak("greet", "lobby", 12, &r), "low health greet matches");
@@ -126,20 +135,23 @@ int main(void) {
     CHECK(strcmp(r.rule->name, "memory_gate") == 0,
           "memory facts merge into query and win on specificity");
 
-    // Followup metadata survives parse
-    dlg_mem_clear();  // keep memory_gate out of the way
-    CHECK(speak("greet", "lobby", -1, &r), "lobby greet again");
-    CHECK(strcmp(r.rule->name, "lobby_greet") == 0, "back to lobby_greet");
-    CHECK(r.rule->then_concept >= 0 && r.rule->then_delay == 1.5f,
-          "then clause parsed");
-
-    // Variant cycling: both variants heard before any repeat
-    dlg_commit(&r);
+    // Variant cycling on a fresh rule: both variants heard, no repeats
+    CHECK(speak("vary", NULL, -1, &r), "vary matches");
     int first = r.variant;
+    dlg_commit(&r);
+    CHECK(speak("vary", NULL, -1, &r), "vary matches again");
+    CHECK(r.variant != first, "second variant differs");
+    dlg_commit(&r);
+
+    // Never-twice (Firewatch): all variants heard + no resay -> silence
+    CHECK(!speak("vary", NULL, -1, &r), "exhausted no-resay rule goes quiet");
+
+    // lobby_greet was exhausted by the memory section (two commits) — the
+    // general rule takes over
     dlg_mem_clear();
-    CHECK(speak("greet", "lobby", -1, &r), "variant requery");
-    CHECK(strcmp(r.rule->name, "lobby_greet") == 0, "still lobby_greet");
-    CHECK(r.variant != first, "second variant differs before cycle resets");
+    CHECK(speak("greet", "lobby", -1, &r), "exhausted specific yields");
+    CHECK(strcmp(r.rule->name, "general_greet") == 0,
+          "general rule takes over after specific exhausts");
 
     // norepeat: disabled after commit
     CHECK(speak("once", NULL, -1, &r), "once matches first time");
