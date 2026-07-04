@@ -30,3 +30,14 @@ like a finished illustrated one.
 Maxwell decides: play both (Shift+1 vs Shift+0) for ten minutes each in the
 suite and corridor. If Grickle wins, `g.current_style` default flips to 9 and
 the corridor/bed lighting retune becomes the next look task.
+
+## Corridor diagnosis (2026-07-05 loop)
+
+Hull walls are warm gray (RGB 55–90) yet render black at the hero angle:
+light transport, not materials. Steep overhead key (0,-0.9,-0.2) puts the
+whole interior in shadow-factor; amber pools (r≈17 at y=2) don't reach the
+far hull at grazing angles. Ambient floor raised 0.10→0.13 and the far pool
+warmed/enlarged this session (luma 35→34, insufficient). Needs an in-engine
+session with F1/F4 after look lock: candidate fixes — shallower key angle
+down the corridor axis, +1 bounce fill from the floor strips, or hull
+material warmth lift. Don't polish before the look is locked (Phase 1.4).

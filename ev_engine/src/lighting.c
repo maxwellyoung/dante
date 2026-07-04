@@ -910,11 +910,12 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
         .keyColor = {0.8f, 0.65f, 0.40f},            // amber — moderated for half-Lambert
         .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
         .fillColor = {0.12f, 0.16f, 0.28f},           // porthole starlight — cooler
-        .ambient = {0.10f, 0.10f, 0.16f},              // moderate — hull must read but not wash
-        // Amber ceiling panels + porthole accent
-        .pointPos = {{0, 2.0f, 0}, {0, 2.0f, 6}, {0, 2.0f, 12}, {-2, 1.5f, 12}},
-        .pointColor = {{1.0f, 0.8f, 0.45f}, {0.9f, 0.7f, 0.40f}, {0.8f, 0.65f, 0.38f}, {0.25f, 0.38f, 0.70f}},
-        .pointRadius = {18.0f, 18.0f, 18.0f, 12.0f},
+        .ambient = {0.13f, 0.13f, 0.19f},              // floor raised: hull must read
+        // Amber pools cover the corridor (z 0..16); warmest at the far end —
+        // light is the wayfinding (Easy Delivery gradient).
+        .pointPos = {{0, 2.0f, 1}, {0, 2.0f, 7}, {0, 2.0f, 14}, {-2, 1.5f, 12}},
+        .pointColor = {{0.9f, 0.72f, 0.42f}, {0.9f, 0.7f, 0.40f}, {1.0f, 0.82f, 0.50f}, {0.25f, 0.38f, 0.70f}},
+        .pointRadius = {17.0f, 17.0f, 20.0f, 12.0f},
         .pointFlicker = {0.05f, 0.05f, 0.05f, 0},
         .pointPulse = {0.03f, 0.03f, 0.03f, 0.06f},
         .pointPhase = {0.3f, 1.7f, 3.3f, 0.9f},
