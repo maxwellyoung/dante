@@ -36,6 +36,12 @@
 #   player_speed player_still random(0..99)
 #   window_revealed phone_ringing   (suite only)
 #   ...plus anything a rule remembered.
+#
+# THE SEVERITY GRADIENT (references/TONE_SEVERITY_GRADIENT.md):
+#   Road (waypoint/interact/idle/carry): jokes welcome — Puzzle Agent
+#   register, Bolaño politeness. If the player can walk away, it can be funny.
+#   Destinations (concept=enter at bed/stars/dream): ZERO jokes. The register
+#   break is the beat.
 
 # ══ SPACE LOBBY — the tour ═══════════════════════════════════════════
 # First visit: baseline rules. Return visit (backstory_count>3) adds one
@@ -279,6 +285,36 @@ who gibbons
 criteria concept=idle scene=space_suite phone_ringing=1
 say "You could answer that. Or not. It stops eventually."
 resay 20
+end
+
+# Road comedy — severity gradient says the traversal layer earns jokes.
+rule idle_corridor_wakeup
+who gibbons
+criteria concept=idle scene=space_corridor random<20
+say "Nine asked for a wake-up call at an hour that doesn't occur up here. We ring it anyway."
+norepeat
+end
+
+rule int_roomservice_again
+who gibbons
+criteria concept=interact object=roomservice step>=2
+say "The menu hasn't changed, sir. It's the same menu."
+norepeat
+end
+
+rule int_book_again
+who gibbons
+criteria concept=interact object=book step>=3
+say "It doesn't improve, if that's what you're checking."
+norepeat
+end
+
+# Silence in the taxi is a recorded answer — and the staff talk.
+rule idle_quiet_ride
+who gibbons
+criteria concept=idle scene=space_lobby choices_ignored>=2
+say "Quiet ride up, I'm told."
+norepeat
 end
 
 # Narrator speaks where Gibbons doesn't go.

@@ -77,10 +77,15 @@ are the difference between "dialogue system" and "the game says yes."*
    Delilah Brain failure (two names for one fact = false negatives hours in).
    Naming discipline note in ev.rules header: `gibbons_knows_x` ≠ `x_happened`
    — different states, both legal, never accidental.
-3. **Reply windows** (Do You Copy / Firewatch): timed choice UI where the
-   timer running out is a recorded fact (`ignored_<concept>=1`). Build in
-   engine as a UI component + rules concept. This is AFTERSHOW's core verb —
-   prototype it in EV's phone (answer / don't) where it's already diegetic.
+3. **Reply windows** (Do You Copy / Firewatch): ~~prototype on EV's phone~~
+   DONE, but landed differently: the phone's authored beat (ring fades as you
+   approach, then just stops) is better than any prompt, and MASTER_PLAN bans
+   dialogue trees in EV — so the phone stays pure. Silence-is-an-answer landed
+   on the existing taxi backstory choices instead: `show_choice_timed()`, a
+   thin burning line, timeout records backstory -1 + `choices_ignored` fact
+   (Gibbons: "Quiet ride up, I'm told."). The full concept-firing offer
+   component is deferred to Phase 3 where AFTERSHOW's feeds need it — don't
+   build tools before content needs them (Remo).
 4. **Reactive music manager.** Interaction-valley detection (time since last
    dialogue/interact > N, none imminent) → duck or inject ambient motif.
    `audio.c` already synthesizes; this is a conductor, ~100 lines.
@@ -142,7 +147,11 @@ are the difference between "dialogue system" and "the game says yes."*
 8. **Edit down.** The stopwatch rule generalizes: shorter is better in every
    medium we touch.
 9. **Muted testing** (EV_MUTE=1), zfight gate ≤5, no QA-grade chasing.
-10. **Ship small, then bigger** — Gravity Bone → Thirty Flights → Firewatch.
+10. **The severity gradient** (Firewatch/Monkey Island): story beats carry
+    full weight; the road between them carries play. If the player can walk
+    away from it, it can be funny; if the game takes control, it cannot.
+    (references/TONE_SEVERITY_GRADIENT.md)
+11. **Ship small, then bigger** — Gravity Bone → Thirty Flights → Firewatch.
     EV → AFTERSHOW prologue (done) → AFTERSHOW.
 
 ## Immediate next actions (this week, in order)

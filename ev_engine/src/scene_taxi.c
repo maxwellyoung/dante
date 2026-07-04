@@ -7,6 +7,7 @@ void set_exposure(float exp);
 void show_text(const char *text);
 void hide_text(void);
 void show_choice(const char *question, const char *a, const char *b);
+void show_choice_timed(const char *question, const char *a, const char *b, float window);
 int poll_choice(void);
 void transition_to(GameState s);
 void hard_cut_to(GameState s);
@@ -144,7 +145,7 @@ void taxi_update(float dt) {
                 }
                 if (g.beat_timer > 3.0f) {
                     hide_text();
-                    show_choice("The tower, yeah?", "She wanted to see it.", "I have a reservation.");
+                    show_choice_timed("The tower, yeah?", "She wanted to see it.", "I have a reservation.", 9.0f);
                     g.backstory_phase = 3;
                 }
             }
@@ -161,7 +162,7 @@ void taxi_update(float dt) {
                 }
                 if (g.beat_timer > 3.0f) {
                     hide_text();
-                    show_choice("Three hours, in and out.", "We booked it months ago.", "So I hear.");
+                    show_choice_timed("Three hours, in and out.", "We booked it months ago.", "So I hear.", 9.0f);
                     g.backstory_phase = 5;
                 }
             }
@@ -308,7 +309,7 @@ void return_taxi_update(float dt) {
         // Gibbons is asking. Wait for his line to finish, then offer response.
     }
     if (!g.gibbons.line_showing && g.gibbons.current_line >= 1 && g.backstory_phase < 10) {
-        show_choice("Good hotel?", "Yeah.", "...");
+        show_choice_timed("Good hotel?", "Yeah.", "...", 7.0f);
         g.backstory_phase = 10;
     }
     if (g.backstory_phase == 10 && poll_choice() >= 0) {

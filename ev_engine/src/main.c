@@ -157,7 +157,17 @@ static void draw_dialogue(void) {
 }
 
 // ── Narrative choice system ──
+void show_choice_timed(const char *question, const char *a, const char *b, float window);
+
 void show_choice(const char *question, const char *a, const char *b) {
+    show_choice_timed(question, a, b, 0);
+}
+
+// Timed choice — Firewatch reply window. Silence is an answer: the window
+// closing records backstory -1 and increments the choices_ignored fact.
+void show_choice_timed(const char *question, const char *a, const char *b, float window) {
+    g.choice_timer = 0;
+    g.choice_window = window;
     g.choice_question = question;
     g.choice_a = a;
     g.choice_b = b;
@@ -179,6 +189,22 @@ int poll_choice(void) {
 
 static void update_choice_input(void) {
     if (!g.choice_active || g.choice_confirmed) return;
+    // Reply window: not answering is an answer (Do You Copy / Firewatch)
+    if (g.choice_window > 0) {
+        g.choice_timer += GetFrameTime();
+        if (g.choice_timer >= g.choice_window) {
+            g.choice_result = -1;
+            g.choice_confirmed = true;
+            if (g.backstory_count < 6) {
+                g.backstory[g.backstory_count] = -1;  // asked, unanswered
+                g.backstory_count++;
+            }
+            bool found;
+            float n = dlg_mem_get("choices_ignored", &found);
+            dlg_mem_set("choices_ignored", n + 1, 0);
+            return;
+        }
+    }
     if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A))
         g.choice_cursor = 0;
     if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D))
@@ -226,6 +252,13 @@ static void draw_choice(void) {
     if (g.choice_question && g.choice_question[0]) {
         DrawText(g.choice_question, x + 1, q_y + 1, fs_q, (Color){0, 0, 0, 160});
         DrawText(g.choice_question, x, q_y, fs_q, (Color){245, 242, 235, 230});
+    }
+    // Reply window — a thin line burning down. No numbers, no alarm.
+    if (g.choice_window > 0 && !g.choice_confirmed) {
+        float left = 1.0f - g.choice_timer / g.choice_window;
+        if (left < 0) left = 0;
+        int bar_w = (int)(220 * UI_SCALE * left);
+        DrawRectangle(x, q_y - 8, bar_w, 2, (Color){238, 128, 47, 170});
     }
 
     // Options — dimmed when not selected, bright when selected

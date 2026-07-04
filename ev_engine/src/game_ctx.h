@@ -209,6 +209,8 @@ typedef struct {
     const char *choice_a;         // option 0
     const char *choice_b;         // option 1
     int choice_result;            // what they picked (0 or 1), -1 if not yet
+    float choice_timer;           // time the choice has been open
+    float choice_window;          // seconds before silence resolves it (0 = untimed)
     // Backstory storage — persists across scenes, colors the experience
     int backstory[6];             // results of up to 6 choices (-1 = unanswered)
     int backstory_count;          // how many choices completed
