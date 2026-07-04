@@ -42,6 +42,10 @@ static struct {
     int follow_concept;
     float idle_timer;
     GameState prev_state;
+    // Reactive music (Remo): detect interaction valleys — no content hit
+    // in a while, none imminent — and let a soft musical figure carry it.
+    float valley_timer;
+    float music_cooldown;
 } sp = { .prev_state = (GameState)-1 };
 
 bool dlg_game_speaking(void) { return sp.speaking; }
@@ -212,6 +216,26 @@ void dlg_game_update(float dt) {
         && g.gibbons.dlg_fired_waypoint != g.gibbons.current_waypoint) {
         g.gibbons.dlg_fired_waypoint = g.gibbons.current_waypoint;
         dlg_game_speak("gibbons", "waypoint");
+    }
+
+    // ── Reactive music — the interaction-valley manager ─────────────
+    // Content resets the clock: any line on screen, any interaction beat.
+    // A long valley in a spine scene earns one soft held chord, then a
+    // long cooldown. The player's brain does the emotional work.
+    if (sp.speaking || g.dlg_active || g.interact_freeze > 0) {
+        sp.valley_timer = 0;
+    } else {
+        sp.valley_timer += dt;
+    }
+    if (sp.music_cooldown > 0) sp.music_cooldown -= dt;
+    bool musical_scene = (g.state == STATE_SPACE_LOBBY || g.state == STATE_GLASSHOUSE
+                          || g.state == STATE_SPACE_CORRIDOR || g.state == STATE_SPACE_SUITE
+                          || g.state == STATE_BALCONY || g.state == STATE_LOBBY);
+    if (musical_scene && sp.valley_timer > 50.0f && sp.music_cooldown <= 0) {
+        PlayHeldChord(&g.audio);
+        sp.valley_timer = 0;
+        sp.music_cooldown = 140.0f;
+        TraceLog(LOG_INFO, "DIALOG: interaction valley — held chord");
     }
 
     // Idle poll — every few seconds, ask the database if anyone has an

@@ -33,6 +33,21 @@ static float ev_randf(unsigned int *seed) {
 
 // --- FOOTSTEPS ---
 
+
+// finish_wave — every generator funnels through here. EV_DUMP_SFX=1 exports
+// each sound to qa/sfx/<generator>.wav for objective triage (clicks, DC
+// offset, clipping) without ears.
+static Sound finish_wave(Wave w, const char *name) {
+    if (getenv("EV_DUMP_SFX")) {
+        char path[128];
+        snprintf(path, sizeof(path), "qa/sfx/%s.wav", name);
+        ExportWave(w, path);
+    }
+    Sound s = LoadSoundFromWave(w);
+    UnloadWave(w);
+    return s;
+}
+
 static Sound gen_step_marble(int seed) {
     int len = SAMPLE_RATE / 8;  // longer for richer tail
     int reverb_delay = (int)(SAMPLE_RATE * 0.08f);
@@ -64,7 +79,7 @@ static Sound gen_step_marble(int seed) {
     for (int i = reverb2_delay; i < total; i++)
         d[i] += (short)(d[i - reverb2_delay] * 0.06f);
     w.frameCount = total;
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 static Sound gen_step_carpet(int seed) {
@@ -92,7 +107,7 @@ static Sound gen_step_carpet(int seed) {
     for (int i = reverb_delay; i < total; i++)
         d[i] += (short)(d[i - reverb_delay] * 0.05f);
     w.frameCount = total;
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 static Sound gen_step_wood(int seed) {
@@ -125,7 +140,7 @@ static Sound gen_step_wood(int seed) {
         d[i] += (short)(d[i - reverb2_delay] * 0.05f);
     }
     w.frameCount = total;
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // --- AMBIENT — NOT DRONES. Musical, pleasant, short loops ---
@@ -203,7 +218,7 @@ static Sound gen_ambient_lobby(void) {
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Hallway: sustained root tones — building anticipation
@@ -281,7 +296,7 @@ static Sound gen_ambient_hallway(void) {
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Room: composed piano melody — Satie-inspired, now with ABAB' structure
@@ -403,7 +418,7 @@ static Sound gen_ambient_room(void) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
 
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // --- SPACE AMBIENTS — hull resonance, not Earth ambience ---
@@ -444,7 +459,7 @@ static Sound gen_ambient_space_lobby(void) {
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.22f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Space Corridor: glass walkway — light, airy, not mechanical.
@@ -476,7 +491,7 @@ static Sound gen_ambient_space_corridor(void) {
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Space Suite: near-silence. The luxury of insulation.
@@ -528,7 +543,7 @@ static Sound gen_ambient_space_suite(void) {
     for (int i = reverb_delay; i < len; i++) {
         d[i] += (short)(d[i - reverb_delay] * 0.15f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // --- INTERACTION SOUNDS ---
@@ -542,7 +557,7 @@ static Sound gen_click(void) {
         float env = expf(-40.0f * t);
         d[i] = (short)((sinf(2*PI*1800*t)*0.4f*env + sinf(2*PI*3200*t)*0.2f*expf(-60.0f*t)) * 12000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 static Sound gen_fabric(void) {
@@ -557,7 +572,7 @@ static Sound gen_fabric(void) {
         prev = prev*0.85f + noise*0.15f;
         d[i] = (short)(prev * env * 6000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 static Sound gen_flame(void) {
@@ -573,7 +588,7 @@ static Sound gen_flame(void) {
         float flame = noise*0.3f + sinf(2*PI*400*t+noise*2)*0.2f;
         d[i] = (short)((strike*0.5f + flame*fenv*0.5f) * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Cork pop — sharp percussive burst with gas release hiss
@@ -604,7 +619,7 @@ static Sound gen_cork_pop(void) {
         float thunk = sinf(2 * PI * 180 * t) * expf(-25.0f * t) * 0.4f;
         d[i] = (short)((pop + hiss + thunk) * 12000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Glass clink — crystal resonance, high bell with beating harmonics
@@ -625,7 +640,7 @@ static Sound gen_glass_clink(void) {
         float body = sinf(2 * PI * 900 * t) * expf(-4.0f * t) * 0.15f;
         d[i] = (short)((contact + ring1 + ring2 + shimmer + body) * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Reward: bright ascending chime
@@ -647,7 +662,7 @@ static Sound gen_reward(void) {
         }
         d[i] = (short)(sample * expf(-1.0f*t) * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Sparkle
@@ -664,7 +679,7 @@ static Sound gen_sparkle(void) {
                        0.08f*sinf(2*PI*4400*t);
         d[i] = (short)(sample * env * (0.8f+0.2f*sinf(t*30)) * 5000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 static Sound gen_door_sound(void) {
@@ -683,7 +698,7 @@ static Sound gen_door_sound(void) {
         float main_tone = sinf(2*PI*(150+120*t)*t)*env;
         d[i] = (short)((main_tone + latch) * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // --- AMBIENT SCENE SOUNDS ---
@@ -712,7 +727,7 @@ static Sound gen_city_ambient(void) {
         if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
         d[i] = (short)(prev2 * swell * env * 5000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Clock tick: short click every 1 second (4s loop)
@@ -730,7 +745,7 @@ static Sound gen_clock_ambient(void) {
             d[start + i] = (short)(click * env * 6000);
         }
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Stairwell ambient: reverberant enclosed space, distant door thuds every ~2s (6s loop)
@@ -764,7 +779,7 @@ static Sound gen_stairwell_ambient(void) {
         d[i] = (short)(d[i] * f);
         d[len - 1 - i] = (short)(d[len - 1 - i] * f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Wind: filtered noise with slow amplitude modulation (10s loop)
@@ -793,7 +808,7 @@ static Sound gen_wind(void) {
         if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
         d[i] = (short)(filtered * gust * env * 6000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Elevator hum — 4 second low-frequency mechanical tone (40Hz with wobble)
@@ -817,7 +832,7 @@ static Sound gen_elevator_hum(void) {
         tone += sinf(2 * PI * 320.0f * t) * 0.05f;
         d[i] = (short)(tone * env * 3000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Elevator ding — classic bell: 1200Hz + 1800Hz, sharp attack, 0.3s decay
@@ -833,7 +848,7 @@ static Sound gen_elevator_ding(void) {
         bell += sinf(2 * PI * 2400 * t) * 0.1f * expf(-15.0f * t);
         d[i] = (short)(bell * env * 10000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // --- THROUGH-WALL SOUNDS — inaccessible spaces communicate ---
@@ -899,7 +914,7 @@ static Sound gen_muffled_piano(void) {
     for (int i = reverb_delay2; i < len; i++)
         d[i] += (short)(d[i - reverb_delay2] * 0.10f);
 
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Distant conversation murmur — filtered noise shaped like speech rhythm
@@ -933,7 +948,7 @@ static Sound gen_distant_voices(void) {
         if (lt > 0.97f) sample *= (1.0f - lt) / 0.03f;
         d[i] = (short)(sample * 1200);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Footsteps above — someone walking in the room upstairs
@@ -972,7 +987,7 @@ static Sound gen_footsteps_above(void) {
         if (lt > 0.98f) sample *= (1.0f - lt) / 0.02f;
         d[i] = (short)(sample * 4000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Forward declarations for sounds defined below InitEVAudio
@@ -1513,7 +1528,7 @@ static Sound gen_bed_drone(void) {
         float breath = 0.7f + 0.3f * sinf(t * 0.4f);
         d[i] = (short)(tone * env * breath * 3000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // ── Sprint 1: Held chord — stacked fifths (C3-G3-D4) ──────────────
@@ -1546,7 +1561,7 @@ static Sound gen_held_chord(void) {
         float breath = 0.9f + 0.1f * sinf(t * 0.3f);
         d[i] = (short)(chord * env * breath * 3500);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayBedDrone(EVAudio *audio) {
@@ -1658,7 +1673,7 @@ static Sound gen_bed_ritual(void) {
 
         d[i] = (short)((chord + melody + noise) * env * breath * 4000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // ── Three-note callback — the piece returns as a ghost ───────────────
@@ -1699,7 +1714,7 @@ static Sound gen_three_note(void) {
     for (int i = reverb_delay; i < len; i++)
         d[i] += (short)(d[i - reverb_delay] * 0.25f);
 
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayBedRitual(EVAudio *audio) {
@@ -1775,7 +1790,7 @@ static Sound gen_taxi_radio(void) {
 
         d[i] = (short)((chord + melody + hiss) * env * 3000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayTaxiRadio(EVAudio *audio) {
@@ -1825,7 +1840,7 @@ static Sound gen_running_water(void) {
         if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
         d[i] = (short)(prev * mod * env * 5000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Modulated noise bursts — TV behind a door
@@ -1851,7 +1866,7 @@ static Sound gen_tv_murmur(void) {
         if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
         d[i] = (short)(filtered * burst * env * 4000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Rain on window — filtered high-frequency noise, looped
@@ -1880,7 +1895,7 @@ static Sound gen_dream_rain(void) {
         if (lt > 0.97f) env = (1.0f - lt) / 0.03f;
         d[i] = (short)(rain * cluster * swell * env * 3500);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Distant traffic — low rumble with occasional swells
@@ -1907,7 +1922,7 @@ static Sound gen_dream_traffic(void) {
         if (lt > 0.96f) env = (1.0f - lt) / 0.04f;
         d[i] = (short)(prev * pass * env * 4000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 // Auckland rain — you're outside in it. Wider, wetter, more present than dream rain.
@@ -1939,7 +1954,7 @@ static Sound gen_rain(void) {
         if (lt > 0.98f) env = (1.0f - lt) / 0.02f;
         d[i] = (short)(rain * swell * spatial * env * 4000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayRain(EVAudio *audio) {
@@ -2004,7 +2019,7 @@ static Sound gen_hyperspace_tone(void) {
         env *= 0.5f + 0.5f * lt;
         d[i] = (short)(tone * env * 5000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayHyperspaceTone(EVAudio *audio) {
@@ -2059,7 +2074,7 @@ static Sound gen_hyperspace_riser(void) {
         float mix = sub * 0.4f + harmonics * 0.35f + filtered * 0.25f;
         d[i] = (short)(mix * env * 12000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayHyperspaceRiser(EVAudio *audio) {
@@ -2107,7 +2122,7 @@ static Sound gen_arrival_thump(void) {
         d[i] += (short)(d[i - tap1] * 0.15f);
         d[i] += (short)(d[i - tap2] * 0.08f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayArrivalThump(EVAudio *audio) {
@@ -2143,7 +2158,7 @@ static Sound gen_elevator_whoosh(void) {
         float turb = 0.8f + 0.2f * sinf(t * 7.0f) * sinf(t * 3.0f);
         d[i] = (short)(mix * env * turb * 6000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayElevatorWhoosh(EVAudio *audio) {
@@ -2189,7 +2204,7 @@ static Sound gen_door_thud(void) {
         d[i] += (short)(d[i - tap1] * 0.12f);
         d[i] += (short)(d[i - tap2] * 0.06f);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayDoorThud(EVAudio *audio) {
@@ -2220,7 +2235,7 @@ static Sound gen_airlock_hiss(void) {
         float mix = filtered * 0.6f + thud * 0.4f;
         d[i] = (short)(mix * env * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayAirlockHiss(EVAudio *audio) {
@@ -2254,7 +2269,7 @@ static Sound gen_gravity_settle(void) {
         float mix = groan * 0.5f + creak * 0.35f + stress * 0.15f;
         d[i] = (short)(mix * env * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayGravitySettle(EVAudio *audio) {
@@ -2284,7 +2299,7 @@ static Sound gen_bed_impact(void) {
         float mix = thud * 0.5f + rustle * 0.3f + springs * 0.2f;
         d[i] = (short)(mix * env * 10000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayBedImpact(EVAudio *audio) {
@@ -2316,7 +2331,7 @@ static Sound gen_balcony_gust(void) {
         float mix = filtered * 0.6f + pressure * 0.3f + noise * 0.1f * expf(-5.0f * t);
         d[i] = (short)(mix * env * 10000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayBalconyGust(EVAudio *audio) {
@@ -2360,7 +2375,7 @@ static Sound gen_title_breath(void) {
         float mix = filtered * 0.7f + body * 0.3f;
         d[i] = (short)(mix * breath_env * 5000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayTitleBreath(EVAudio *audio) {
@@ -2386,7 +2401,7 @@ static Sound gen_hard_cut_punch(void) {
         float env = (t < 0.001f) ? t / 0.001f : 1.0f;
         d[i] = (short)(mix * env * 16000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayHardCutPunch(EVAudio *audio) {
@@ -2438,7 +2453,7 @@ static Sound gen_phone_ring(void) {
     for (int i = reverb_delay; i < len; i++)
         d[i] += (short)(d[i - reverb_delay] * 0.2f);
 
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayPhoneRing(EVAudio *audio) {
@@ -2467,7 +2482,7 @@ static Sound gen_earth_presence(void) {
         float mix = (sub * 0.7f + body * 0.3f) * breath;
         d[i] = (short)(mix * env * 8000);
     }
-    Sound s = LoadSoundFromWave(w); UnloadWave(w); return s;
+    return finish_wave(w, __func__);
 }
 
 void PlayEarthPresence(EVAudio *audio) {
