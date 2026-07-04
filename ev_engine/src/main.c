@@ -648,6 +648,15 @@ int main(void) {
     // ALWAYS_RUN keeps GL rendering when the window is hidden or not focused.
     SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_UNFOCUSED | FLAG_WINDOW_ALWAYS_RUN);
     InitWindow(960, 600, "EV QA");
+    // EV_QA_STYLE=<0-9> — render the whole QA pass under a visual style
+    // (look-lock comparisons, style regression checks)
+    {
+        const char *qs = getenv("EV_QA_STYLE");
+        if (qs) {
+            int si = atoi(qs);
+            if (si >= 0 && si < STYLE_COUNT) g.current_style = si;
+        }
+    }
 #else
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(960, 600, "Endearing Void");
