@@ -3,6 +3,8 @@
 // Tadao Ando shadows. Hotel Chevalier golden hour. Godard moonlight.
 
 #include "lighting.h"
+#include <stdlib.h>
+#include <string.h>
 #include "raymath.h"
 #include "rlgl.h"
 #ifdef __APPLE__
@@ -45,6 +47,7 @@ static const char *fs_source =
     "uniform sampler2D shadowMap;\n"
     "uniform vec3 viewPos;\n"
     "uniform vec3 ambient;\n"
+    "uniform float debugView;\n"  // 0=lit 1=albedo 2=normals 3=key-only
     "uniform vec3 fogColor;\n"
     "uniform float fogDensity;\n"
     "uniform vec3 lightDir;\n"
@@ -494,6 +497,10 @@ static const char *fs_source =
     "    float heightFog = smoothstep(0.3, 0.0, fragPosition.y) * 0.15 * fogDensity * 500.0;\n"
     "    lit = mix(lit, fogColor, clamp(heightFog, 0.0, 0.12));\n"
     "\n"
+    "    // Lookdev debug views (EV_QA_VIEW): see WHY a surface is dark\n"
+    "    if (debugView > 0.5 && debugView < 1.5) lit = baseColor;\n"
+    "    else if (debugView > 1.5 && debugView < 2.5) lit = norm * 0.5 + 0.5;\n"
+    "    else if (debugView > 2.5) lit = baseColor * max(dot(norm, -lightDir), 0.0) * lightColor;\n"
     "    finalColor = vec4(lit, texColor.a * colDiffuse.a * fragColor.a);\n"
     "}\n";
 
@@ -507,6 +514,17 @@ EVLighting LoadEVLighting(void) {
         lighting.shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(lighting.shader, "viewPos");
         lighting.viewPosLoc = GetShaderLocation(lighting.shader, "viewPos");
         lighting.ambientLoc = GetShaderLocation(lighting.shader, "ambient");
+        {
+            int dvLoc = GetShaderLocation(lighting.shader, "debugView");
+            const char *dv = getenv("EV_QA_VIEW");
+            float dvVal = 0;
+            if (dv) {
+                if (strcmp(dv, "albedo") == 0) dvVal = 1;
+                else if (strcmp(dv, "normals") == 0) dvVal = 2;
+                else if (strcmp(dv, "key") == 0) dvVal = 3;
+            }
+            SetShaderValue(lighting.shader, dvLoc, &dvVal, SHADER_UNIFORM_FLOAT);
+        }
         lighting.fogColorLoc = GetShaderLocation(lighting.shader, "fogColor");
         lighting.fogDensityLoc = GetShaderLocation(lighting.shader, "fogDensity");
         lighting.lightDirLoc = GetShaderLocation(lighting.shader, "lightDir");
@@ -906,16 +924,21 @@ SceneLighting LightingPreset_SpaceCorridor(void) {
     // Kubrick hallway: warm pools at intervals, blue-black between
     // Half-Lambert note: wrap lighting + strong points = walls finally read
     return (SceneLighting){
-        .keyDir = Vector3Normalize((Vector3){0.0f, -0.9f, -0.2f}),    // steep overhead
-        .keyColor = {0.8f, 0.65f, 0.40f},            // amber — moderated for half-Lambert
-        .fillDir = Vector3Normalize((Vector3){0.5f, 0.3f, 0.0f}),
-        .fillColor = {0.12f, 0.16f, 0.28f},           // porthole starlight — cooler
-        .ambient = {0.13f, 0.13f, 0.19f},              // floor raised: hull must read
+        // Key rakes DOWN the corridor axis (+z) — camera-facing hull surfaces
+        // actually receive light; the old steep-overhead key left the whole
+        // interior in its own shadow.
+        .keyDir = Vector3Normalize((Vector3){0.1f, -0.75f, 0.4f}),
+        .keyColor = {0.45f, 0.38f, 0.26f},            // dim warm — pools do the talking
+        .fillDir = Vector3Normalize((Vector3){-0.4f, 0.2f, -0.9f}),   // cool return bounce
+        .fillColor = {0.10f, 0.13f, 0.22f},
+        .ambient = {0.09f, 0.09f, 0.13f},              // dark between pools — Kubrick rhythm
         // Amber pools cover the corridor (z 0..16); warmest at the far end —
         // light is the wayfinding (Easy Delivery gradient).
-        .pointPos = {{0, 2.0f, 1}, {0, 2.0f, 7}, {0, 2.0f, 14}, {-2, 1.5f, 12}},
-        .pointColor = {{0.9f, 0.72f, 0.42f}, {0.9f, 0.7f, 0.40f}, {1.0f, 0.82f, 0.50f}, {0.25f, 0.38f, 0.70f}},
-        .pointRadius = {17.0f, 17.0f, 20.0f, 12.0f},
+        // Tight pools every ~7m, dark troughs between — the Kubrick rhythm.
+        // Warmest pool at the far end: light is the wayfinding.
+        .pointPos = {{0, 2.3f, 2}, {0, 2.3f, 9}, {0, 2.3f, 16}, {0, 2.3f, 24}},
+        .pointColor = {{0.85f, 0.68f, 0.40f}, {0.85f, 0.66f, 0.38f}, {0.9f, 0.7f, 0.42f}, {1.0f, 0.8f, 0.48f}},
+        .pointRadius = {5.5f, 5.5f, 5.5f, 7.0f},
         .pointFlicker = {0.05f, 0.05f, 0.05f, 0},
         .pointPulse = {0.03f, 0.03f, 0.03f, 0.06f},
         .pointPhase = {0.3f, 1.7f, 3.3f, 0.9f},

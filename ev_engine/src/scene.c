@@ -4436,6 +4436,12 @@ void build_space_corridor(Scene *s) {
     int segs = 8;
     float seg_len = 4.0f;
     float curve_radius = 40.0f;
+    // STRAIGHTENED 2026-07-05: the 40m-radius arc placed AXIS-ALIGNED
+    // segments diagonally (+x drift, stair-stepped) while every consumer —
+    // waypoints, doors, light pools, silence zones, QA cameras — assumed a
+    // straight +z corridor. Gibbons walked in the void; the pools lit
+    // nothing. Geometry now matches the gameplay contract: straight, z 0..32.
+
     float total_angle = (segs * seg_len) / curve_radius;
     float start_angle = -total_angle / 2;
 
@@ -4444,8 +4450,8 @@ void build_space_corridor(Scene *s) {
         float a1 = start_angle + (i + 1) * (total_angle / segs);
         float amid = (a0 + a1) / 2;
 
-        float cx = sinf(amid) * curve_radius;
-        float cz = -cosf(amid) * curve_radius + curve_radius;
+        float cx = 0.0f * (amid);
+        float cz = (amid) * curve_radius;
 
         // ── FLOOR ──
         // Hull floor edges visible on sides
@@ -4656,10 +4662,10 @@ void build_space_corridor(Scene *s) {
     }
 
     // End caps — walls closing the corridor
-    float end0_z = -cosf(start_angle) * curve_radius + curve_radius;
-    float end1_z = -cosf(start_angle + total_angle) * curve_radius + curve_radius;
-    float end0_x = sinf(start_angle) * curve_radius;
-    float end1_x = sinf(start_angle + total_angle) * curve_radius;
+    float end0_z = (start_angle) * curve_radius;
+    float end1_z = (start_angle + total_angle) * curve_radius;
+    float end0_x = 0.0f * (start_angle);
+    float end1_x = 0.0f * (start_angle + total_angle);
     add_wall(s, end0_x, H/2, end0_z - seg_len/2, W, H, 0.25f, hull);
     add_wall(s, end1_x, H/2, end1_z + seg_len/2, W, H, 0.25f, hull);
     // End cap paneling
@@ -4684,8 +4690,8 @@ void build_space_corridor(Scene *s) {
     // ============================================================
     {
         float a_imp = start_angle + 6.5f * (total_angle / segs);
-        float imp_cx = sinf(a_imp) * curve_radius;
-        float imp_cz = -cosf(a_imp) * curve_radius + curve_radius;
+        float imp_cx = 0.0f * (a_imp);
+        float imp_cz = (a_imp) * curve_radius;
         float imp_side = (W/2 - 0.1f);
         // Dark void behind door
         add_wall(s, imp_cx + imp_side - 0.02f, 1.3f, imp_cz, 0.06f, 2.6f, 0.95f,
@@ -4711,8 +4717,8 @@ void build_space_corridor(Scene *s) {
     // ============================================================
     {
         float a_empty = start_angle + 4.5f * (total_angle / segs);
-        float empty_cx = sinf(a_empty) * curve_radius;
-        float empty_cz = -cosf(a_empty) * curve_radius + curve_radius;
+        float empty_cx = 0.0f * (a_empty);
+        float empty_cz = (a_empty) * curve_radius;
         // Exposed structural ribs
         for (int r = 0; r < 3; r++) {
             add_wall(s, empty_cx + W/2 - 0.08f, 0.5f + r * 1.2f, empty_cz,
@@ -4790,8 +4796,8 @@ void build_space_corridor(Scene *s) {
     // ============================================================
     {
         float a_win = start_angle + 3.5f * (total_angle / segs);
-        float win_cx = sinf(a_win) * curve_radius;
-        float win_cz = -cosf(a_win) * curve_radius + curve_radius;
+        float win_cx = 0.0f * (a_win);
+        float win_cz = (a_win) * curve_radius;
         float win_side = -(W/2 - 0.1f);
         add_sphere(s, win_cx + win_side, H * 0.55f, win_cz, 0.9f, void_black);
         add_cylinder(s, win_cx + win_side, H * 0.55f, win_cz, 1.1f, 0.06f, brass);

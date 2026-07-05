@@ -47,7 +47,7 @@ void corridor_load(void) {
         g.door_positions[2] = (Vector3){-3.5f, 1.6f, 12.0f * zs};
     }
     SetSceneLighting(&g.lighting, LightingPreset_SpaceCorridor());
-    set_exposure(0.16f);
+    set_exposure(0.02f);  // pools carry the light; dark between is the point
     SetPostFXGrain(&g.postfx, 0.28f);
     SetPostFXWarmth(&g.postfx, 0.05f);
     // Room service tray outside Door 2 (Room Six) — two plates, one untouched
