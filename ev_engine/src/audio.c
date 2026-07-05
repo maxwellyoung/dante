@@ -1721,7 +1721,13 @@ void PlayBedRitual(EVAudio *audio) {
     if (!audio->initialized) return;
     if (audio->bed_ritual_played_once) return;  // NEVER again
     if (!audio->bed_ritual_playing) {
-        PlaySound(audio->snd_bed_ritual);
+        if (audio->bed_ritual_file_present) {
+            SetMusicVolume(audio->music_bed_ritual, 0.35f);  // matches file-music mix
+            PlayMusicStream(audio->music_bed_ritual);
+            audio->bed_ritual_music_playing = true;
+        } else {
+            PlaySound(audio->snd_bed_ritual);
+        }
         audio->bed_ritual_playing = true;
         audio->bed_ritual_played_once = true;
     }
@@ -1729,6 +1735,10 @@ void PlayBedRitual(EVAudio *audio) {
 void StopBedRitual(EVAudio *audio) {
     if (!audio->initialized) return;
     StopSound(audio->snd_bed_ritual);
+    if (audio->bed_ritual_file_present && audio->bed_ritual_music_playing) {
+        StopMusicStream(audio->music_bed_ritual);
+        audio->bed_ritual_music_playing = false;
+    }
     audio->bed_ritual_playing = false;
 }
 void PlayThreeNote(EVAudio *audio) {
@@ -2522,6 +2532,17 @@ void LoadFileMusic(EVAudio *audio) {
     audio->balcony_music_playing = false;
     audio->corridor_music_playing = false;
     audio->title_music_playing = false;
+    // THE bed-ritual piece — zero-code drop-in. If the composed track exists
+    // it replaces the procedural fallback (plays once, never repeats).
+    audio->bed_ritual_file_present = FileExists("assets/audio/bed_ritual.wav");
+    audio->bed_ritual_music_playing = false;
+    if (audio->bed_ritual_file_present) {
+        audio->music_bed_ritual = LoadMusicStream("assets/audio/bed_ritual.wav");
+        audio->music_bed_ritual.looping = false;
+        TraceLog(LOG_INFO, "[EV] Bed ritual: file track loaded (bed_ritual.wav)");
+    } else {
+        TraceLog(LOG_INFO, "[EV] Bed ritual: procedural fallback (drop assets/audio/bed_ritual.wav to replace)");
+    }
     audio->music_loaded = true;
 }
 
@@ -2531,6 +2552,7 @@ void UnloadFileMusic(EVAudio *audio) {
     UnloadMusicStream(audio->music_balcony);
     UnloadMusicStream(audio->music_corridor);
     UnloadMusicStream(audio->music_title);
+    if (audio->bed_ritual_file_present) UnloadMusicStream(audio->music_bed_ritual);
     audio->music_loaded = false;
 }
 
@@ -2540,6 +2562,7 @@ void UpdateFileMusic(EVAudio *audio) {
     if (audio->balcony_music_playing) UpdateMusicStream(audio->music_balcony);
     if (audio->corridor_music_playing) UpdateMusicStream(audio->music_corridor);
     if (audio->title_music_playing) UpdateMusicStream(audio->music_title);
+    if (audio->bed_ritual_music_playing) UpdateMusicStream(audio->music_bed_ritual);
 }
 
 void PlaySuiteMusic(EVAudio *audio) {

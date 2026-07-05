@@ -114,6 +114,9 @@ typedef struct {
     Music music_balcony;         // "unsaid" — melancholy, the void outside
     Music music_corridor;        // "stt" — the long walk
     Music music_title;           // "ambient1" — title screen atmosphere
+    Music music_bed_ritual;      // optional drop-in: assets/audio/bed_ritual.wav
+    bool bed_ritual_file_present;
+    bool bed_ritual_music_playing;
     bool suite_music_playing;
     bool balcony_music_playing;
     bool corridor_music_playing;

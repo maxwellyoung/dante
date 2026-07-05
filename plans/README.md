@@ -18,7 +18,7 @@ specific gates in each plan are the truth.
 |------|-------|----------|--------|------------|--------|
 | 001 | Scene-readability defects (corridor blemishes, suite/room FAILs) | P1 | M | — | TODO |
 | 002 | Apply the locked visual style as shipping default | P1 | S | 001 + **human look decision** | BLOCKED (awaiting LOOKLOCK.md decision) |
-| 003 | Bed-ritual track drop-in WAV harness | P1 | S | — | TODO |
+| 003 | Bed-ritual track drop-in WAV harness | P1 | S | — | DONE (2026-07-05, both paths verified) |
 | 004 | Demo-reel harness (dialogue/reactivity stills) | P1 | M | — | TODO |
 | 005 | Validation autorun (rush + linger spine runs) | P2 | M | — (001 recommended first) | TODO |
 | 006 | Couch-playtest kit (protocol + local run log) | P1 | S | — | TODO |

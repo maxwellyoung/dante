@@ -201,6 +201,8 @@ The engine uses a **decal system** with OpenGL polygon offset to prevent z-fight
 ### Audio System (`audio.c`)
 100% procedural — every sound synthesized from sine waves, noise, and envelopes at `SAMPLE_RATE = 44100`. No audio files. Drones are 20-32 second loops with reverb tails. Through-wall sounds (muffled piano, distant voices, footsteps above) create presence of inaccessible lives.
 
+**Track drop-in**: place `assets/audio/bed_ritual.wav` and it replaces the procedural bed piece (plays once, never repeats; volume in `PlayBedRitual`). Same pattern planned for VO.
+
 ### Physics (`player.c`, `ev_types.h`)
 Two feel profiles. **`physics_narrative()`** (all hotel scenes, applied in `load_state`): grounded — fast accel/stop, no air-strafing or bhop, gravity 24, step height 0.28, minimal bob/tilt. **`physics_default()`** (prototype scenes): Quake-style air strafing, bunny hopping, wall running, mantling, slides, dashing. All tuning in `PhysicsConfig` (59 parameters). Station gravity is 0.85–0.9 — the low-g float is an arrival beat (space lobby settles 0.4→0.9), never a permanent state.
 
