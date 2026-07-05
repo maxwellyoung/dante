@@ -255,5 +255,20 @@ playtest: clean
 	@echo "  5. How did you feel at the end?" >> playtest/README.txt
 	@ls -lh playtest/endearing_void
 	@echo "=== Playtest ready: ./playtest/ ==="
+	@echo "" >> playtest/README.txt
+	@echo "Note: the game writes run_log.txt (scene timings, local only," >> playtest/README.txt
+	@echo "no network). Please send it back with your answers." >> playtest/README.txt
+	@echo "# Playtest Protocol — for the observer" > playtest/PROTOCOL.md
+	@echo "" >> playtest/PROTOCOL.md
+	@echo "1. Say NOTHING once the game starts. No hints, no 'did you see'." >> playtest/PROTOCOL.md
+	@echo "2. Note verbatim: where they got lost; what they tried that the" >> playtest/PROTOCOL.md
+	@echo "   game ignored; anything said aloud; where they smiled." >> playtest/PROTOCOL.md
+	@echo "3. After, ask exactly three questions:" >> playtest/PROTOCOL.md
+	@echo "   - What was that about?" >> playtest/PROTOCOL.md
+	@echo "   - What will you remember tomorrow?" >> playtest/PROTOCOL.md
+	@echo "   - Where were you bored?" >> playtest/PROTOCOL.md
+	@echo "4. Collect run_log.txt from this folder." >> playtest/PROTOCOL.md
+	@echo "5. File one issue per pain point. Support ONE behavior the tester" >> playtest/PROTOCOL.md
+	@echo "   invented, within the week (the boombox rule)." >> playtest/PROTOCOL.md
 
 .PHONY: all run clean devclean check count todo release fmt test dev dev-watch dev-diff playtest qa qa-shell qa-shell-suite qa-cast qa-full qa-baseline qa-watch qa-diff qa-history qa-e2e qa-e2e-full qa-e2e-baseline qa-e2e-watch qa-e2e-grade qa-audit validate-model-registry quality

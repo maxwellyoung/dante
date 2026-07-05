@@ -16,12 +16,12 @@ specific gates in each plan are the truth.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | Scene-readability defects (corridor blemishes, suite/room FAILs) | P1 | M | — | TODO |
+| 001 | Scene-readability defects (corridor blemishes, suite/room FAILs) | P1 | M | — | IN PROGRESS (corridor fixes written, unverified — display context lost mid-session) |
 | 002 | Apply the locked visual style as shipping default | P1 | S | 001 + **human look decision** | BLOCKED (awaiting LOOKLOCK.md decision) |
 | 003 | Bed-ritual track drop-in WAV harness | P1 | S | — | DONE (2026-07-05, both paths verified) |
 | 004 | Demo-reel harness (dialogue/reactivity stills) | P1 | M | — | TODO |
 | 005 | Validation autorun (rush + linger spine runs) | P2 | M | — (001 recommended first) | TODO |
-| 006 | Couch-playtest kit (protocol + local run log) | P1 | S | — | TODO |
+| 006 | Couch-playtest kit (protocol + local run log) | P1 | S | — | IN PROGRESS (code+kit done; runtime log check pending display) |
 | 007 | Ship kit (release bundle + itch checklist) | P2 | S | 001,002,003,005,006 | TODO |
 | 008 | AFTERSHOW scaffold + SIGNAL import | P1 | M | **operator confirms Phase 3 gate** | TODO |
 | 009 | Green Room greybox — shell pipeline e2e | P1 | L | 008 | TODO |

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 float ev_mouse_sens = MOUSE_SENS_DEFAULT;
 
@@ -513,18 +514,47 @@ static int raycast_wall(Camera3D cam, Scene *sc) {
     return best_i;
 }
 
+// Canonical state names — dev-watch restarts + the playtest run log
+static const char *ev_state_names[] = {
+    "STATE_TITLE", "STATE_PROTO_LAB", "STATE_PROTO_MOVEMENT", "STATE_PROTO_SHOOTER",
+    "STATE_PROTO_PUZZLE", "STATE_CAR", "STATE_DRIVING", "STATE_HOTEL_EXT",
+    "STATE_LOBBY", "STATE_ELEVATOR", "STATE_HALLWAY", "STATE_ROOM",
+    "STATE_BATHROOM", "STATE_BALCONY", "STATE_BED", "STATE_STARS",
+    "STATE_HYPERSPACE", "STATE_SPACE_LOBBY", "STATE_SPACE_CORRIDOR",
+    "STATE_SPACE_SUITE", "STATE_PARIS_DREAM", "STATE_CLEANED_SUITE",
+    "STATE_MONTAGE", "STATE_RETURN_TAXI", "STATE_GLASSHOUSE",
+    "STATE_SHELL_TEST"
+};
+#define EV_STATE_NAME_COUNT (sizeof(ev_state_names) / sizeof(ev_state_names[0]))
+
+static const char *ev_state_name(GameState s) {
+    return ((int)s >= 0 && (size_t)s < EV_STATE_NAME_COUNT) ? ev_state_names[s] : "STATE_?";
+}
+
+// ── Playtest run log — local file only, no network (Remo's couch method) ──
+// Written when built with -DPLAYTEST or run with EV_RUNLOG=1. One line per
+// scene entry; testers send run_log.txt back with their notes.
+static void runlog_scene(GameState next) {
+#ifndef PLAYTEST
+    if (!getenv("EV_RUNLOG")) return;
+#endif
+    static bool session_opened = false;
+    FILE *f = fopen("run_log.txt", "a");
+    if (!f) return;
+    if (!session_opened) {
+        time_t now = time(NULL);
+        fprintf(f, "\n=== EV session %s", ctime(&now));  // ctime ends with \n
+        session_opened = true;
+    }
+    fprintf(f, "%7.1fs ENTER %-22s (prev %s after %.1fs)\n",
+            (double)g.total_time, ev_state_name(next),
+            ev_state_name(g.state), (double)g.state_time);
+    fclose(f);
+}
+
 // Write current g.state to temp file for dev-watch to read on restart
 static void write_state_file(GameState s) {
-    const char *names[] = {
-        "STATE_TITLE", "STATE_PROTO_LAB", "STATE_PROTO_MOVEMENT", "STATE_PROTO_SHOOTER",
-        "STATE_PROTO_PUZZLE", "STATE_CAR", "STATE_DRIVING", "STATE_HOTEL_EXT",
-        "STATE_LOBBY", "STATE_ELEVATOR", "STATE_HALLWAY", "STATE_ROOM",
-        "STATE_BATHROOM", "STATE_BALCONY", "STATE_BED", "STATE_STARS",
-        "STATE_HYPERSPACE", "STATE_SPACE_LOBBY", "STATE_SPACE_CORRIDOR",
-        "STATE_SPACE_SUITE", "STATE_PARIS_DREAM", "STATE_CLEANED_SUITE",
-        "STATE_MONTAGE", "STATE_RETURN_TAXI", "STATE_GLASSHOUSE",
-        "STATE_SHELL_TEST"
-    };
+    const char **names = ev_state_names;
     FILE *f = fopen("/tmp/ev_state", "w");
     if (f) {
         int idx = (int)s;
@@ -564,6 +594,7 @@ static bool qa_is_overlap_candidate_wall(const Wall *w) {
 #endif
 
 void load_state(GameState s) {
+    runlog_scene(s);  // playtest run log (no-op outside PLAYTEST/EV_RUNLOG)
     // Kill ALL looping audio — each scene starts fresh. No overlap.
     StopAllAudio(&g.audio);
     // Restore master volume — silence zones may have lowered it
