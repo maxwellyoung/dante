@@ -16,6 +16,12 @@ facts = collections.defaultdict(lambda: {"set": set(), "checked": set()})
 for line in open("src/dialog_game.c"):
     m = re.search(r'dlg_query_add(?:_sym)?\(q?&?q?,?\s*"(\w+)"', line)
     if m: facts[m.group(1)]["set"].add("build_query")
+
+# facts set from code anywhere in the engine (dlg_mem_set calls)
+for path in glob.glob("src/*.c"):
+    for line in open(path):
+        m = re.search(r'dlg_mem_set\("(\w+)"', line)
+        if m: facts[m.group(1)]["set"].add(path.split("/")[-1])
 # speak_ex extras
 facts["object"]["set"].add("speak_ex"); facts["step"]["set"].add("speak_ex")
 
